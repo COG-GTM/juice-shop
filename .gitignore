@@ -65,5 +65,8 @@ config/*.yml
 !config/oss.yml
 !config/defcon33.yml
 
+# JWT signing private key (generated at runtime, never committed)
+jwt.key
+
 # System Files
 .DS_Store
