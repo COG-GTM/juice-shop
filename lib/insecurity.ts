@@ -55,6 +55,14 @@ const signingKeys = loadOrCreateSigningKeys()
 const privateKey = signingKeys.privateKey
 export const publicKey = signingKeys.publicKey
 
+// Publish the active public key so the served encryptionkeys/jwt.pub always
+// matches the current signer (it is a public key, so serving it is fine).
+try {
+  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+} catch {
+  /* read-only deployments keep the bundled public key file */
+}
+
 interface ResponseWithUser {
   status?: string
   data: UserModel
