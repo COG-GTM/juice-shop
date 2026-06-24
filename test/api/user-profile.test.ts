@@ -46,9 +46,21 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST update username rejects a template-injection payload', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: "#{global.process.mainModule.require('child_process').execSync('id')}" })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
   })
 })
