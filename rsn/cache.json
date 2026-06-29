@@ -764,59 +764,97 @@
 		"removed": []
 	},
 	"loginAdminChallenge_1.ts": {
-		"added": [],
+		"added": [
+			16
+		],
 		"removed": [
-			17,
+			16,
 			18
 		]
 	},
 	"loginAdminChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginAdminChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginAdminChallenge_4_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginBenderChallenge_1.ts": {
-		"added": [],
+		"added": [
+			16
+		],
 		"removed": [
-			17,
+			16,
 			18
 		]
 	},
 	"loginBenderChallenge_2_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginBenderChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginBenderChallenge_4.ts": {
-		"added": [],
+		"added": [
+			16
+		],
 		"removed": []
 	},
 	"loginJimChallenge_1_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginJimChallenge_2.ts": {
-		"added": [],
+		"added": [
+			16
+		],
 		"removed": []
 	},
 	"loginJimChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"loginJimChallenge_4.ts": {
-		"added": [],
+		"added": [
+			16
+		],
 		"removed": [
-			17,
+			16,
 			18
 		]
 	},
