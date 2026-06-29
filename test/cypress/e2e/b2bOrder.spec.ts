@@ -1,6 +1,6 @@
 describe('/b2b/v2/order', () => {
   describe('challenge "rce"', () => {
-    it('an infinite loop deserialization payload should not bring down the server', () => {
+    it('rejects an infinite loop deserialization payload without bringing down the server', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.login({ email: 'admin', password: 'admin123' })
@@ -20,18 +20,33 @@ describe('/b2b/v2/order', () => {
                 })
               }
             )
-            if (response.status === 500) {
-              console.log('Success')
-            }
+
+            expect(response.status).to.eq(400)
+
+            const followUpResponse = await fetch(
+              `${Cypress.config('baseUrl')}/b2b/v2/orders/`,
+              {
+                method: 'POST',
+                cache: 'no-cache',
+                headers: {
+                  'Content-type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                  orderLinesData: '[{"productId":12,"quantity":10000}]'
+                })
+              }
+            )
+
+            expect(followUpResponse.status).to.eq(200)
           })
-          cy.expectChallengeSolved({ challenge: 'Blocked RCE DoS' })
         }
       })
     })
   })
 
   describe('challenge "rceOccupy"', () => {
-    it('should be possible to cause request timeout using a recursive regular expression payload', () => {
+    it('rejects a recursive regular expression payload without timing out the server', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.login({ email: 'admin', password: 'admin123' })
@@ -51,11 +66,26 @@ describe('/b2b/v2/order', () => {
                 })
               }
             )
-            if (response.status === 503) {
-              console.log('Success')
-            }
+
+            expect(response.status).to.eq(400)
+
+            const followUpResponse = await fetch(
+              `${Cypress.config('baseUrl')}/b2b/v2/orders/`,
+              {
+                method: 'POST',
+                cache: 'no-cache',
+                headers: {
+                  'Content-type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                  orderLinesData: '[{"productId":12,"quantity":10000}]'
+                })
+              }
+            )
+
+            expect(followUpResponse.status).to.eq(200)
           })
-          cy.expectChallengeSolved({ challenge: 'Successful RCE DoS' })
         }
       })
     })
