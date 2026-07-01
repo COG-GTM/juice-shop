@@ -419,6 +419,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
+  /* Prevent mass-assignment: only allow safe fields on user registration */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const allowedFields = ['email', 'password', 'passwordRepeat', 'securityQuestion', 'securityAnswer']
+    for (const field of Object.keys(req.body)) {
+      if (!allowedFields.includes(field)) {
+        delete req.body[field]
+      }
+    }
+    next()
+  })
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
