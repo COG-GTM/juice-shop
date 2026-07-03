@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import jwt from 'jsonwebtoken'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -21,6 +22,10 @@ export default defineConfig({
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
+        },
+        ForgeJwt (email: string) {
+          // Forge a token HMAC-signed (HS256) with the RSA public key as the secret
+          return jwt.sign({ data: { email } }, security.publicKey, { algorithm: 'HS256' })
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {
