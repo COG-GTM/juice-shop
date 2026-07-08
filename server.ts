@@ -475,6 +475,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
+  /* Public user registration must never trust a client-supplied role. Force the default customer role
+     so that an unauthenticated POST /api/Users cannot escalate to an admin account. */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body && typeof req.body === 'object') {
+      req.body.role = security.roles.customer
+    }
+    next()
+  })
+
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
   finale.initialize({ app, sequelize: seq })
