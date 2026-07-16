@@ -167,6 +167,7 @@ describe('SearchResultComponent', () => {
         component.ngAfterViewInit()
         fixture.detectChanges()
         expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(component.dataSource.data[0].description).toBe('<script>alert("XSS")</script>')
     })
 
     it('should hold no products when product search API call fails', () => {
