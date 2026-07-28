@@ -707,7 +707,17 @@
 		"removed": []
 	},
 	"directoryListingChallenge_4.ts": {
-		"added": [],
+		"added": [
+			5,
+			9,
+			10,
+			11,
+			12,
+			13,
+			14,
+			15,
+			16
+		],
 		"removed": []
 	},
 	"exposedMetricsChallenge_1.ts": {
