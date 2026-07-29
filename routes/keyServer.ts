@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+
+import { resolveInsideFolder } from '../lib/utils'
 
 export function serveKeyFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+    const file = resolveInsideFolder('encryptionkeys/', params.file)
 
-    if (!file.includes('/')) {
-      res.sendFile(path.resolve('encryptionkeys/', file))
+    if (file) {
+      res.sendFile(file)
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
