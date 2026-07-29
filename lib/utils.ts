@@ -6,6 +6,7 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -112,6 +113,18 @@ export const extractFilename = (url: string) => {
     file = file.substring(0, file.indexOf('?'))
   }
   return file
+}
+
+/**
+ * Resolves `file` against `folder`, returning `null` for anything that is not a plain file name
+ * directly inside `folder`. Path separators are rejected for both platform conventions so that
+ * the behaviour does not depend on the host OS.
+ */
+export const resolveInsideFolder = (folder: string, file: string) => {
+  if (/[/\\\0]/.test(file)) return null
+  const base = path.resolve(folder)
+  const resolved = path.resolve(base, file)
+  return resolved.startsWith(base + path.sep) ? resolved : null
 }
 
 export const downloadToFile = async (url: string, dest: string) => {
