@@ -37,6 +37,17 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories does not leak sensitive user attributes', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    for (const memory of res.body.data) {
+      if (memory.User) {
+        assert.deepEqual(Object.keys(memory.User), ['username'])
+      }
+    }
+  })
+
   void it('POST new memory is forbidden via public API', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
     const res = await request(app)
