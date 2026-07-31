@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
@@ -19,8 +20,51 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+const jwtPrivateKeyPath = process.env.JWT_PRIVATE_KEY_PATH ?? 'encryptionkeys/jwt.private'
+const jwtPublicKeyPath = process.env.JWT_PUBLIC_KEY_PATH ?? 'encryptionkeys/jwt.public'
+
+const generateJwtKeyPair = () => {
+  return crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: {
+      type: 'pkcs1',
+      format: 'pem'
+    },
+    privateKeyEncoding: {
+      type: 'pkcs1',
+      format: 'pem'
+    }
+  })
+}
+
+const loadJwtKeyPair = () => {
+  const privateKey = process.env.JWT_PRIVATE_KEY
+  const publicKey = process.env.JWT_PUBLIC_KEY
+
+  if ((privateKey != null) || (publicKey != null)) {
+    if ((privateKey == null) || (publicKey == null)) {
+      throw new Error('JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must both be set')
+    }
+    return { privateKey, publicKey }
+  }
+
+  if (fs.existsSync(jwtPrivateKeyPath) && fs.existsSync(jwtPublicKeyPath)) {
+    return {
+      privateKey: fs.readFileSync(jwtPrivateKeyPath, 'utf8'),
+      publicKey: fs.readFileSync(jwtPublicKeyPath, 'utf8')
+    }
+  }
+
+  const keyPair = generateJwtKeyPair()
+  fs.mkdirSync(path.dirname(jwtPrivateKeyPath), { recursive: true })
+  fs.mkdirSync(path.dirname(jwtPublicKeyPath), { recursive: true })
+  fs.writeFileSync(jwtPrivateKeyPath, keyPair.privateKey, { mode: 0o600 })
+  fs.writeFileSync(jwtPublicKeyPath, keyPair.publicKey)
+  return keyPair
+}
+
+const { privateKey, publicKey: jwtPublicKey } = loadJwtKeyPair()
+export const publicKey = jwtPublicKey
 
 interface ResponseWithUser {
   status?: string

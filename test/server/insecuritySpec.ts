@@ -3,13 +3,63 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
-import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import type { UserModel } from 'models/user'
+
 const expect = chai.expect
+
+const loadSecurityWithKeyPair = () => {
+  const keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-jwt-'))
+  const privateKeyPath = path.join(keyDir, 'jwt.private')
+  const publicKeyPath = path.join(keyDir, 'jwt.public')
+  const previousPrivateKeyPath = process.env.JWT_PRIVATE_KEY_PATH
+  const previousPublicKeyPath = process.env.JWT_PUBLIC_KEY_PATH
+  const previousPrivateKey = process.env.JWT_PRIVATE_KEY
+  const previousPublicKey = process.env.JWT_PUBLIC_KEY
+
+  process.env.JWT_PRIVATE_KEY_PATH = privateKeyPath
+  process.env.JWT_PUBLIC_KEY_PATH = publicKeyPath
+  delete process.env.JWT_PRIVATE_KEY
+  delete process.env.JWT_PUBLIC_KEY
+  delete require.cache[require.resolve('../../lib/insecurity')]
+
+  const security = require('../../lib/insecurity') as typeof import('../../lib/insecurity')
+
+  return {
+    security,
+    cleanup: () => {
+      delete require.cache[require.resolve('../../lib/insecurity')]
+      fs.rmSync(keyDir, { recursive: true, force: true })
+      if (previousPrivateKeyPath != null) {
+        process.env.JWT_PRIVATE_KEY_PATH = previousPrivateKeyPath
+      } else {
+        delete process.env.JWT_PRIVATE_KEY_PATH
+      }
+      if (previousPublicKeyPath != null) {
+        process.env.JWT_PUBLIC_KEY_PATH = previousPublicKeyPath
+      } else {
+        delete process.env.JWT_PUBLIC_KEY_PATH
+      }
+      if (previousPrivateKey != null) {
+        process.env.JWT_PRIVATE_KEY = previousPrivateKey
+      } else {
+        delete process.env.JWT_PRIVATE_KEY
+      }
+      if (previousPublicKey != null) {
+        process.env.JWT_PUBLIC_KEY = previousPublicKey
+      } else {
+        delete process.env.JWT_PUBLIC_KEY
+      }
+    }
+  }
+}
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -108,6 +158,27 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('jwt key handling', () => {
+    it('generates a matching key pair when configured key files are absent', () => {
+      const { security: configuredSecurity, cleanup } = loadSecurityWithKeyPair()
+
+      try {
+        const token = configuredSecurity.authorize({
+          data: {
+            email: 'test@juice-sh.op',
+            role: configuredSecurity.roles.customer
+          }
+        })
+
+        expect(fs.existsSync(process.env.JWT_PRIVATE_KEY_PATH as string)).to.equal(true)
+        expect(fs.existsSync(process.env.JWT_PUBLIC_KEY_PATH as string)).to.equal(true)
+        expect(configuredSecurity.verify(token)).to.equal(true)
+      } finally {
+        cleanup()
+      }
     })
   })
 

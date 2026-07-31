@@ -31,6 +31,8 @@ JSON.map
 frontend/src/**/*.js
 /bom.json
 /bom.xml
+encryptionkeys/jwt.private
+encryptionkeys/jwt.public
 
 # IDEs
 .idea/
