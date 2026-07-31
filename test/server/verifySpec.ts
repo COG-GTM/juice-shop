@@ -6,6 +6,7 @@
 import chai from 'chai'
 import sinon from 'sinon'
 import config from 'config'
+import jwt from 'jsonwebtoken'
 import sinonChai from 'sinon-chai'
 import { challenges, products, setRetrieveBlueprintChallengeFile } from '../../data/datacache'
 import type { Product, Challenge } from 'data/types'
@@ -290,11 +291,9 @@ describe('verify', () => {
 
     if (!isWindows()) { // The "jwtForgedChallenge" is disabled on Windows due to an incompatibility
       it('"jwtForgedChallenge" is solved when forged token HMAC-signed with public RSA-key has email rsa_lord@juice-sh.op in the payload', () => {
-        /*
-        Header: { "alg": "HS256", "typ": "JWT" }
-        Payload: { "data": { "email": "rsa_lord@juice-sh.op" }, "iat": 1508639612, "exp": 9999999999 }
-         */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg' }
+        // Forged token HMAC-signed (HS256) with the RSA public key as secret
+        const forgedToken = jwt.sign({ data: { email: 'rsa_lord@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+        req.headers = { authorization: `Bearer ${forgedToken}` }
 
         verify.jwtChallenges()(req, res, next)
 
@@ -302,11 +301,9 @@ describe('verify', () => {
       })
 
       it('"jwtForgedChallenge" is solved when forged token HMAC-signed with public RSA-key has string "rsa_lord@" in the payload', () => {
-        /*
-        Header: { "alg": "HS256", "typ": "JWT" }
-        Payload: { "data": { "email": "rsa_lord@" }, "iat": 1508639612, "exp": 9999999999 }
-         */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAIn0sImlhdCI6MTU4MjIyMTY3NX0.50f6VAIQk2Uzpf3sgH-1JVrrTuwudonm2DKn2ec7Tg8' }
+        // Forged token HMAC-signed (HS256) with the RSA public key as secret
+        const forgedToken = jwt.sign({ data: { email: 'rsa_lord@' } }, security.publicKey, { algorithm: 'HS256' })
+        req.headers = { authorization: `Bearer ${forgedToken}` }
 
         verify.jwtChallenges()(req, res, next)
 
