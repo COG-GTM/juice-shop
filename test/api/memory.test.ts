@@ -26,6 +26,21 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories does not leak sensitive user fields via included User', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    for (const memory of res.body.data) {
+      if (memory.User) {
+        assert.deepEqual(Object.keys(memory.User), ['username'])
+        assert.equal(memory.User.password, undefined)
+        assert.equal(memory.User.email, undefined)
+        assert.equal(memory.User.totpSecret, undefined)
+        assert.equal(memory.User.deluxeToken, undefined)
+      }
+    }
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),
