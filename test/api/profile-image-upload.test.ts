@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import http from 'node:http'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -108,6 +109,36 @@ void describe('/profile/image/url', () => {
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST profile image URL does not perform a server-side request to internal/loopback hosts (SSRF)', async () => {
+    let wasRequested = false
+    const internalServer = http.createServer((_req, serverRes) => {
+      wasRequested = true
+      serverRes.setHeader('content-type', 'image/png')
+      serverRes.end('internal-secret')
+    })
+    await new Promise<void>((resolve) => internalServer.listen(0, '127.0.0.1', resolve))
+    const address = internalServer.address()
+    const port = typeof address === 'object' && address !== null ? address.port : 0
+
+    try {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', `http://127.0.0.1:${port}/latest/meta-data/`)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      assert.equal(wasRequested, false)
+    } finally {
+      await new Promise<void>((resolve) => internalServer.close(() => { resolve() }))
+    }
   })
 
   void it('POST valid image with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
