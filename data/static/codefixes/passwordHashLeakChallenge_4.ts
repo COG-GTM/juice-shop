@@ -1,14 +1,3 @@
-/*
- * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
- * SPDX-License-Identifier: MIT
- */
-
-import * as challengeUtils from '../lib/challengeUtils'
-import { type Request, type Response } from 'express'
-import { challenges } from '../data/datacache'
-import * as security from '../lib/insecurity'
-
-// vuln-code-snippet start passwordHashLeakChallenge
 export function retrieveLoggedInUser () {
   return (req: Request, res: Response) => {
     let user
@@ -21,15 +10,15 @@ export function retrieveLoggedInUser () {
         // Parse the fields parameter into an array, splitting by comma.
         // If not provided, both these variables will be undefined.
         const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : [] // vuln-code-snippet neutral-line passwordHashLeakChallenge
+        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : []
 
         let baseUser: any = {}
 
         if (requestedFields.length > 0) {
           // When fields are specified, return only those fields
-          for (const field of requestedFields) { // vuln-code-snippet neutral-line passwordHashLeakChallenge
-            if (user?.data[field as keyof typeof user.data] !== undefined) { // vuln-code-snippet neutral-line passwordHashLeakChallenge
-              baseUser[field] = user?.data[field as keyof typeof user.data] // vuln-code-snippet vuln-line passwordHashLeakChallenge
+          for (const field of requestedFields) {
+            if (user?.data[field as keyof typeof user.data] !== undefined) {
+              baseUser[field] = field === 'password' ? '********' : user?.data[field as keyof typeof user.data]
             }
           }
         } else {
@@ -49,14 +38,10 @@ export function retrieveLoggedInUser () {
     } catch (err) {
       response = { user: emptyUser }
     }
-    challengeUtils.solveIf(challenges.passwordHashLeakChallenge, () => response?.user?.password) // vuln-code-snippet hide-line
-
     if (req.query.callback === undefined) {
       res.json(response)
     } else {
-      challengeUtils.solveIf(challenges.emailLeakChallenge, () => { return true }) // vuln-code-snippet hide-line
       res.jsonp(response)
     }
   }
 }
-// vuln-code-snippet end passwordHashLeakChallenge

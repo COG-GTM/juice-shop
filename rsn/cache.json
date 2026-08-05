@@ -884,6 +884,48 @@
 			6
 		]
 	},
+	"passwordHashLeakChallenge_1.ts": {
+		"added": [
+			10,
+			11,
+			12,
+			14,
+			15,
+			16,
+			17,
+			18,
+			22,
+			23,
+			24,
+			25,
+			26,
+			33,
+			34
+		],
+		"removed": [
+			10,
+			11
+		]
+	},
+	"passwordHashLeakChallenge_2.ts": {
+		"added": [],
+		"removed": [
+			24
+		]
+	},
+	"passwordHashLeakChallenge_3_correct.ts": {
+		"added": [
+			18
+		],
+		"removed": [
+			6,
+			18
+		]
+	},
+	"passwordHashLeakChallenge_4.ts": {
+		"added": [],
+		"removed": []
+	},
 	"redirectChallenge_1.ts": {
 		"added": [],
 		"removed": []
