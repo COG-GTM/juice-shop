@@ -51,4 +51,21 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders a template expression in the username as text instead of executing it', async () => {
+    const payload = '#{globalThis.__sstiPwned = true}'
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', payload)
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(Object.hasOwn(globalThis, '__sstiPwned'), false)
+    assert.ok(res.text.includes(payload))
+  })
 })
