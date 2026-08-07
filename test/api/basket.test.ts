@@ -125,9 +125,33 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order for a basket of another user fails', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
+  })
+
+  void it('POST placing an order for a basket of another user cannot pay from their wallet', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=2 does not exist.'))
+
+    const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -143,7 +167,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
