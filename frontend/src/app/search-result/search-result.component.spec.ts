@@ -162,11 +162,12 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render product descriptions as trusted HTML', () => {
+    it('should not render product descriptions as trusted HTML', () => {
         productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        expect(component.dataSource.data[0].description).toBe('<script>alert("XSS")</script>')
     })
 
     it('should hold no products when product search API call fails', () => {
@@ -215,9 +216,19 @@ describe('SearchResultComponent', () => {
         expect(component.dataSource.filter).toEqual('product search')
     })
 
-    it('should pass the search query as trusted HTML', () => {
+    it('should not pass the search query as trusted HTML', () => {
         activatedRoute.setQueryParameter('<script>scripttag</script>')
         component.filterTable()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        expect(component.searchValue).toBe('<script>scripttag</script>')
+    })
+
+    it('should render the search query as escaped text', () => {
+        activatedRoute.setQueryParameter('<img src=x onerror=alert(1)>')
+        component.filterTable()
+        fixture.detectChanges()
+        const searchValueElement = fixture.nativeElement.querySelector('#searchValue')
+        expect(searchValueElement.querySelector('img')).toBeNull()
+        expect(searchValueElement.textContent).toBe('<img src=x onerror=alert(1)>')
     })
 })
