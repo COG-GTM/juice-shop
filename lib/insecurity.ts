@@ -40,8 +40,44 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
 }
 
+/* Fast unkeyed digest for non-credential values (order ids, Gravatar-style email hashes). Never use it for passwords! */
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const scryptParams = { N: 16384, r: 8, p: 1 }
+const scryptKeyLength = 64
+const scryptPrefix = 'scrypt'
+
+const timingSafeEqualStrings = (a: string, b: string) => {
+  const bufferA = Buffer.from(a)
+  const bufferB = Buffer.from(b)
+  return bufferA.length === bufferB.length && crypto.timingSafeEqual(bufferA, bufferB)
+}
+
+export const hashPassword = (clearTextPassword: string) => {
+  const salt = crypto.randomBytes(16)
+  const { N, r, p } = scryptParams
+  const derivedKey = crypto.scryptSync(clearTextPassword, salt, scryptKeyLength, { N, r, p })
+  return `${scryptPrefix}$${N}$${r}$${p}$${salt.toString('hex')}$${derivedKey.toString('hex')}`
+}
+
+export const isLegacyPasswordHash = (storedHash?: string) => Boolean(storedHash) && !storedHash?.startsWith(`${scryptPrefix}$`)
+
+export const verifyPassword = (clearTextPassword: string, storedHash?: string) => {
+  if (!storedHash) {
+    return false
+  }
+  if (isLegacyPasswordHash(storedHash)) { // pre-migration MD5 digests remain accepted until the next successful login rehashes them
+    return timingSafeEqualStrings(hash(clearTextPassword), storedHash)
+  }
+  const [, N, r, p, salt, derivedKey] = storedHash.split('$')
+  if (!N || !r || !p || !salt || !derivedKey) {
+    return false
+  }
+  const expectedKey = Buffer.from(derivedKey, 'hex')
+  const actualKey = crypto.scryptSync(clearTextPassword, Buffer.from(salt, 'hex'), expectedKey.length, { N: Number(N), r: Number(r), p: Number(p) })
+  return crypto.timingSafeEqual(actualKey, expectedKey)
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'

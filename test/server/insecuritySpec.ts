@@ -196,6 +196,43 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash which is different for every invocation', () => {
+      const hashedPassword = security.hashPassword('admin123')
+      expect(hashedPassword).to.match(/^scrypt\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+      expect(hashedPassword).to.not.equal(security.hashPassword('admin123'))
+    })
+
+    it('never returns the unsalted MD5 hash of the password', () => {
+      expect(security.hashPassword('admin123')).to.not.contain('0192023a7bbd73250516f069df18b500')
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the password a scrypt hash was derived from', () => {
+      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password, a missing hash and a malformed hash', () => {
+      expect(security.verifyPassword('wrong', security.hashPassword('admin123'))).to.equal(false)
+      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(security.verifyPassword('admin123', 'scrypt$16384$8$1$deadbeef')).to.equal(false)
+    })
+
+    it('still accepts legacy MD5 hashes so they can be migrated on next login', () => {
+      expect(security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.verifyPassword('wrong', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+    })
+  })
+
+  describe('isLegacyPasswordHash', () => {
+    it('detects MD5 hashes but not scrypt hashes', () => {
+      expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.isLegacyPasswordHash(security.hashPassword('admin123'))).to.equal(false)
+      expect(security.isLegacyPasswordHash(undefined)).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
