@@ -29,6 +29,38 @@ describe('utils', () => {
     })
   })
 
+  describe('trustedProxyHops', () => {
+    const originalEnv = process.env.NUM_PROXIES
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.NUM_PROXIES
+      } else {
+        process.env.NUM_PROXIES = originalEnv
+      }
+    })
+
+    it('trusts no proxy by default', () => {
+      delete process.env.NUM_PROXIES
+      expect(utils.trustedProxyHops()).to.equal(0)
+    })
+
+    it('returns the configured number of proxy hops', () => {
+      process.env.NUM_PROXIES = '2'
+      expect(utils.trustedProxyHops()).to.equal(2)
+    })
+
+    it('trusts no proxy for a non-numeric configuration', () => {
+      process.env.NUM_PROXIES = 'all'
+      expect(utils.trustedProxyHops()).to.equal(0)
+    })
+
+    it('trusts no proxy for a negative configuration', () => {
+      process.env.NUM_PROXIES = '-1'
+      expect(utils.trustedProxyHops()).to.equal(0)
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')

@@ -214,6 +214,15 @@ export const toSimpleIpAddress = (ipv6: string) => {
   }
 }
 
+/**
+ * Number of reverse proxies in front of the application whose `X-Forwarded-For` entries can be trusted.
+ * Defaults to 0 so that client-supplied forwarding headers never influence `req.ip`.
+ */
+export const trustedProxyHops = () => {
+  const hops = Number.parseInt(process.env.NUM_PROXIES ?? '', 10)
+  return Number.isInteger(hops) && hops >= 0 ? hops : 0
+}
+
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
