@@ -74,6 +74,20 @@ void describe('/api/Recycles', () => {
     }
   })
 
+  void it('Will not accept a JSON array as recycle id to list all recycles', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/' + encodeURIComponent('[1,2,3]'))
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data.err, 'Invalid recycle id.')
+  })
+
+  void it('Will not accept a JSON object as recycle id', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/' + encodeURIComponent('{"$gt":0}'))
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data.err, 'Invalid recycle id.')
+  })
+
   void it('PUT update existing recycle is forbidden', async () => {
     const res = await request(app)
       .put('/api/Recycles/1')
