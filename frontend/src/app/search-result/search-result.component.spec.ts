@@ -215,9 +215,19 @@ describe('SearchResultComponent', () => {
         expect(component.dataSource.filter).toEqual('product search')
     })
 
-    it('should pass the search query as trusted HTML', () => {
+    it('should keep the search query as plain text instead of trusted HTML', () => {
         activatedRoute.setQueryParameter('<script>scripttag</script>')
         component.filterTable()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
+        expect(component.searchValue).toBe('<script>scripttag</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<script>scripttag</script>')
+    })
+
+    it('should render the search query escaped without injecting elements', () => {
+        activatedRoute.setQueryParameter('<img src="x" onerror="alert(1)">')
+        component.filterTable()
+        fixture.detectChanges()
+        const searchValueElement = fixture.nativeElement.querySelector('#searchValue')
+        expect(searchValueElement.textContent).toContain('<img src="x" onerror="alert(1)">')
+        expect(searchValueElement.querySelector('img')).toBeNull()
     })
 })
