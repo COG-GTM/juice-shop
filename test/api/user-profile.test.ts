@@ -51,4 +51,37 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile does not evaluate template expressions in the username', async () => {
+    const payload = '#{globalThis.__sstiPwned = true}'
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', payload)
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal((globalThis as Record<string, unknown>).__sstiPwned, undefined)
+    assert.ok(res.text.includes('#{globalThis.__sstiPwned = true}'))
+  })
+
+  void it('GET user profile HTML-escapes the username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '<script>alert(`xss`)</script>')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+    assert.ok(res.text.includes('&lt;script&gt;'))
+  })
 })
