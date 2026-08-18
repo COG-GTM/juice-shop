@@ -475,6 +475,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
+  /* Registration must never let clients assign privileged attributes to themselves */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body) {
+      req.body.role = security.roles.customer
+      delete req.body.deluxeToken
+      delete req.body.isActive
+    }
+    next()
+  })
+
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
   finale.initialize({ app, sequelize: seq })
