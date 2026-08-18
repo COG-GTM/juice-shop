@@ -14,7 +14,6 @@ import http from 'node:http'
 import path from 'node:path'
 import express from 'express'
 import colors from 'colors/safe'
-import serveIndex from 'serve-index'
 import bodyParser from 'body-parser'
 // @ts-expect-error FIXME due to non-existing type definitions for finale-rest
 import * as finale from 'finale-rest'
@@ -136,6 +135,20 @@ const errorhandler = require('errorhandler')
 
 const startTime = Date.now()
 
+const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'token', 'key', 'continuecode', 'email']
+
+const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const params = new URLSearchParams(url.substring(queryStart + 1))
+  for (const key of Array.from(params.keys())) {
+    if (sensitiveQueryParams.includes(key.toLowerCase())) {
+      params.set(key, '[REDACTED]')
+    }
+  }
+  return `${url.substring(0, queryStart)}?${params.toString()}`
+}
+
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 
 const appName = config.get<string>('application.customMetricsPrefix')
@@ -237,48 +250,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Checks for challenges solved by abusing SSTi and SSRF bugs */
   app.use('/solve/challenges/server-side', verify.serverSideChallenges())
 
-  /* Create middleware to change paths from the serve-index plugin from absolute to relative */
-  const serveIndexMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    const origEnd = res.end
-    // @ts-expect-error FIXME assignment broken due to seemingly void return value
-    res.end = function () {
-      if (arguments.length) {
-        const reqPath = req.originalUrl.replace(/\?.*$/, '')
-
-        const currentFolder = reqPath.split('/').pop()!
-        arguments[0] = arguments[0].replace(/a href="([^"]+?)"/gi, function (matchString: string, matchedUrl: string) {
-          let relativePath = path.relative(reqPath, matchedUrl)
-          if (relativePath === '') {
-            relativePath = currentFolder
-          } else if (!relativePath.startsWith('.') && currentFolder !== '') {
-            relativePath = currentFolder + '/' + relativePath
-          } else {
-            relativePath = relativePath.replace('..', '.')
-          }
-          return 'a href="' + relativePath + '"'
-        })
-      }
-      // @ts-expect-error FIXME passed argument has wrong type
-      origEnd.apply(this, arguments)
-    }
-    next()
-  }
-
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
-  /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
+  /* /ftp file download limited to explicitly published file types */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
-  app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
   app.use('/.well-known', express.static('.well-known'))
 
-  /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
-  app.use('/encryptionkeys/:file', serveKeyFiles())
+  /* /encryptionkeys file download restricted to administrators */
+  app.use('/encryptionkeys/:file', security.isAuthorized(), security.isAdmin(), serveKeyFiles())
 
-  /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
+  /* /logs file download restricted to administrators */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
+  app.use('/support/logs', security.isAuthorized(), security.isAdmin()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
   app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
   app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
 
@@ -335,6 +318,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     verbose: false,
     max_logs: '2d'
   })
+  morgan.token('url', (req: Request) => redactSensitiveQueryParams(req.originalUrl ?? req.url))
   app.use(morgan('combined', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge
