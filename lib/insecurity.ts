@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
+import { BasketModel } from '../models/basket'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
@@ -162,6 +163,35 @@ export const isAccounting = () => {
       res.status(403).json({ error: 'Malicious activity detected' })
     }
   }
+}
+
+export const userIdFrom = (req: Request): number | undefined => {
+  const user = authenticatedUsers.from(req)
+  if (user?.data?.id) {
+    return user.data.id
+  }
+  const token = utils.jwtFrom(req)
+  const decodedToken = token && verify(token) ? decode(token) : undefined
+  const decodedUserId: unknown = decodedToken?.data?.id
+  return typeof decodedUserId === 'number' ? decodedUserId : undefined
+}
+
+export const isBasketOwner = () => {
+  return utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const userId = userIdFrom(req)
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthenticated' })
+      return
+    }
+    const basketId = /^\d+$/.test(req.params.id) ? Number.parseInt(req.params.id, 10) : NaN
+    const basket = Number.isNaN(basketId) ? null : await BasketModel.findOne({ where: { id: basketId }, attributes: ['id', 'UserId'] })
+    /* Non-existing and foreign baskets are indistinguishable to prevent enumeration */
+    if (basket?.UserId !== userId) {
+      res.status(403).json({ error: 'Basket does not belong to the authenticated user' })
+      return
+    }
+    next()
+  })
 }
 
 export const isDeluxe = (req: Request) => {
