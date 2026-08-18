@@ -395,8 +395,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
-  app.use('/rest/basket/:id', security.isAuthorized())
-  app.use('/rest/basket/:id/order', security.isAuthorized())
+  /* Baskets: Only the owner of a basket may read or modify it */
+  app.use('/rest/basket/:id', security.isAuthorized(), security.isBasketOwner())
+  app.use('/rest/basket/:id/order', security.isAuthorized(), security.isBasketOwner())
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
   app.post('/api/Feedbacks', verify.forgedFeedbackChallenge())
   /* Captcha verification before finale takes over */

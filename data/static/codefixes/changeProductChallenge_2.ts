@@ -39,8 +39,9 @@
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
-  app.use('/rest/basket/:id', security.isAuthorized())
-  app.use('/rest/basket/:id/order', security.isAuthorized())
+  /* Baskets: Only the owner of a basket may read or modify it */
+  app.use('/rest/basket/:id', security.isAuthorized(), security.isBasketOwner())
+  app.use('/rest/basket/:id/order', security.isAuthorized(), security.isBasketOwner())
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
