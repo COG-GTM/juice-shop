@@ -51,4 +51,20 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile does not evaluate a template expression in the username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{globalThis.__sstiPwned = true}')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal((globalThis as Record<string, unknown>).__sstiPwned, undefined)
+    assert.ok(res.text.includes('#{globalThis.__sstiPwned = true}'))
+  })
 })
