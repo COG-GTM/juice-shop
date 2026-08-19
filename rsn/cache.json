@@ -764,60 +764,141 @@
 		"removed": []
 	},
 	"loginAdminChallenge_1.ts": {
-		"added": [],
+		"added": [
+			18,
+			19,
+			29
+		],
 		"removed": [
 			17,
-			18
+			18,
+			18,
+			28
 		]
 	},
 	"loginAdminChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginAdminChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginAdminChallenge_4_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginBenderChallenge_1.ts": {
-		"added": [],
+		"added": [
+			18,
+			19,
+			29
+		],
 		"removed": [
 			17,
-			18
+			18,
+			18,
+			28
 		]
 	},
 	"loginBenderChallenge_2_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginBenderChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginBenderChallenge_4.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginJimChallenge_1_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginJimChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginJimChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18,
+			19,
+			29
+		],
+		"removed": [
+			18,
+			28
+		]
 	},
 	"loginJimChallenge_4.ts": {
-		"added": [],
+		"added": [
+			18,
+			19,
+			29
+		],
 		"removed": [
 			17,
-			18
+			18,
+			18,
+			28
 		]
 	},
 	"nftMintChallenge_1.sol": {
