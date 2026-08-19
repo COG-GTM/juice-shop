@@ -453,6 +453,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Administration section: data behind it is only accessible for administrators */
+  app.get('/rest/user/authentication-details', security.isAdmin())
+  app.get('/api/Users', security.isAdmin())
+  app.get('/api/Users/:id', security.isAdmin())
+  app.delete('/api/Feedbacks/:id', security.isAdmin())
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),

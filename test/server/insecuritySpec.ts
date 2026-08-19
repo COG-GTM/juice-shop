@@ -188,6 +188,41 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const requestWithToken = (token: string) => ({ headers: { authorization: 'Bearer ' + token } }) as unknown as Request
+    const responseSpy = () => {
+      const res: any = { statusCode: undefined, body: undefined }
+      res.status = (code: number) => { res.statusCode = code; return res }
+      res.json = (body: any) => { res.body = body; return res }
+      return res
+    }
+
+    it('passes on request of a user with admin role', () => {
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+      const res = responseSpy()
+      let passedOn = false
+      security.isAdmin()(requestWithToken(token), res, () => { passedOn = true })
+      expect(passedOn).to.equal(true)
+    })
+
+    it('responds with 403 on request of a user without admin role', () => {
+      const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })
+      const res = responseSpy()
+      let passedOn = false
+      security.isAdmin()(requestWithToken(token), res, () => { passedOn = true })
+      expect(passedOn).to.equal(false)
+      expect(res.statusCode).to.equal(403)
+    })
+
+    it('responds with 403 on request without any token', () => {
+      const res = responseSpy()
+      let passedOn = false
+      security.isAdmin()({ headers: {} } as unknown as Request, res, () => { passedOn = true })
+      expect(passedOn).to.equal(false)
+      expect(res.statusCode).to.equal(403)
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
