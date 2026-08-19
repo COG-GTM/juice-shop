@@ -87,7 +87,7 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('POST erasure request with non-existing file path as layout parameter throws error', async () => {
+  void it('POST erasure request ignores non-existing file path given as layout parameter', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -95,11 +95,11 @@ void describe('/dataerasure', () => {
       .set({ Cookie: 'token=' + token })
       .send({ layout: '../this/file/does/not/exist' })
 
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('no such file or directory'))
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Your erasure request will be processed shortly'))
   })
 
-  void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {
+  void it('POST erasure request does not leak file contents for existing file path given as layout parameter', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -108,7 +108,21 @@ void describe('/dataerasure', () => {
       .send({ layout: '../package.json' })
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('juice-shop'))
-    assert.ok(res.text.includes('......'))
+    assert.ok(!res.text.includes('"devDependencies"'))
+    assert.ok(!res.text.includes('......'))
+    assert.ok(res.text.includes('Your erasure request will be processed shortly'))
+  })
+
+  void it('POST erasure request does not leak file contents for traversal path outside the app', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: '../../../../etc/passwd' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('root:'))
+    assert.ok(res.text.includes('Your erasure request will be processed shortly'))
   })
 })
