@@ -3,10 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import chai from 'chai'
+import sinon from 'sinon'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleZipFileUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +66,18 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  it('should write the uploaded archive into the temp folder without honoring traversal in its name', () => {
+    challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+    req.file.originalname = '../../../../../tmp/pwned.zip'
+    req.file.buffer = Buffer.from('')
+    res = { status: () => ({ end: () => {} }) }
+    const open = sinon.stub(fs, 'open')
+
+    handleZipFileUpload(req, res, () => {})
+
+    expect(open.firstCall.args[0]).to.equal(path.join(os.tmpdir(), 'pwned.zip'))
+    open.restore()
   })
 })
