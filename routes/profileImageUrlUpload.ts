@@ -4,13 +4,13 @@
  */
 
 import fs from 'node:fs'
-import { Readable } from 'node:stream'
 import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
+import { fetchExternalImage } from '../lib/ssrfProtection'
 import logger from '../lib/logger'
 
 export function profileImageUrlUpload () {
@@ -21,15 +21,11 @@ export function profileImageUrlUpload () {
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
-          const response = await fetch(url)
-          if (!response.ok || !response.body) {
-            throw new Error('url returned a non-OK status code or an empty body')
-          }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          const { stream, extension } = await fetchExternalImage(url)
+          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${extension}`, { flags: 'w' })
+          await finished(stream.pipe(fileStream))
           const user = await UserModel.findByPk(loggedInUser.data.id)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
+          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${extension}` })
         } catch (error) {
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
