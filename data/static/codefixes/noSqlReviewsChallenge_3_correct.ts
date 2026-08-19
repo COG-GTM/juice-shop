@@ -9,7 +9,7 @@ export function updateProductReviews () {
 
     db.reviewsCollection.update(
       { _id: req.body.id },
-      { $set: { message: req.body.message } }
+      { $set: { message: security.sanitizeSecure(String(req.body.message ?? '')) } }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
         res.json(result)

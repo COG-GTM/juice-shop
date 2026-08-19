@@ -3,7 +3,7 @@ export function updateProductReviews () {
     const user = security.authenticatedUsers.from(req)
     db.reviewsCollection.update(
       { _id: req.body.id, author: user.data.email },
-      { $set: { message: req.body.message } },
+      { $set: { message: security.sanitizeSecure(String(req.body.message ?? '')) } },
       { multi: true }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {

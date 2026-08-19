@@ -58,6 +58,22 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('PUT product review is stored without script payload', async () => {
+    const createRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({
+        message: '<script>alert("XSS")</script><img src=x onerror=alert(1)>Nice juice',
+        author: 'Anonymous'
+      })
+    assert.equal(createRes.status, 201)
+
+    const res = await request(app)
+      .get('/rest/products/1/reviews')
+    const messages = res.body.data.map(({ message }: { message: string }) => message)
+    assert.ok(messages.some((message: string) => message.includes('Nice juice')))
+    assert.ok(!messages.some((message: string) => /<script|onerror/i.test(message)))
+  })
 })
 
 void describe('/rest/products/reviews', () => {
@@ -83,6 +99,23 @@ void describe('/rest/products/reviews', () => {
     assert.equal(typeof res.body.modified, 'number')
     assert.ok(Array.isArray(res.body.original))
     assert.ok(Array.isArray(res.body.updated))
+  })
+
+  void it('PATCH single product review is stored without script payload', async () => {
+    const patchRes = await request(app)
+      .patch('/rest/products/reviews')
+      .set(authHeader)
+      .send({
+        id: reviewId,
+        message: '<script>alert("XSS")</script>Lorem Ipsum'
+      })
+    assert.equal(patchRes.status, 200)
+
+    const res = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = res.body.data.find(({ _id }: { _id: string }) => _id === reviewId)
+    assert.ok(!/<script/i.test(review.message))
+    assert.ok(review.message.includes('Lorem Ipsum'))
   })
 
   void it('PATCH single product review editing need an authenticated user', async () => {

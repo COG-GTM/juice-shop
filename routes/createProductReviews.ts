@@ -22,7 +22,7 @@ export function createProductReviews () {
     try {
       await reviewsCollection.insert({
         product: req.params.id,
-        message: req.body.message,
+        message: security.sanitizeSecure(String(req.body.message ?? '')),
         author: req.body.author,
         likesCount: 0,
         likedBy: []
