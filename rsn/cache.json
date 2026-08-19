@@ -748,20 +748,32 @@
 		]
 	},
 	"localXssChallenge_1.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	},
 	"localXssChallenge_2_correct.ts": {
 		"added": [],
 		"removed": []
 	},
 	"localXssChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	},
 	"localXssChallenge_4.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	},
 	"loginAdminChallenge_1.ts": {
 		"added": [],
@@ -1364,15 +1376,27 @@
 		"removed": []
 	},
 	"xssBonusChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	},
 	"xssBonusChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	},
 	"xssBonusChallenge_4.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			6
+		],
+		"removed": [
+			6
+		]
 	}
 }
