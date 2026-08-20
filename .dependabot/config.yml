@@ -16,9 +16,6 @@ update_configs:
           dependency_name: "sanitize-html"
           version_requirement: "1.4.2"
       - match:
-          dependency_name: "unzipper"
-          version_requirement: "0.9.15"
-      - match:
           dependency_name: "jsonwebtoken"
           version_requirement: "0.4.0"
   - package_manager: "javascript"
