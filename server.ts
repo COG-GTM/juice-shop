@@ -209,6 +209,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(metrics.observeRequestMetricsMiddleware())
 
   /* Security Policy */
+  // Security.txt consumers need a future expiration date to keep the policy discoverable.
   const securityTxtExpiration = new Date()
   securityTxtExpiration.setFullYear(securityTxtExpiration.getFullYear() + 1)
   app.get(['/.well-known/security.txt', '/security.txt'], verify.accessControlChallenges())
