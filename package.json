@@ -161,7 +161,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "^2.0.0||^3.0.0||^4.00",
+    "@cyclonedx/cyclonedx-npm": "^5.0.0||^6.0.0",
     "@eslint/js": "^9.33.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@types/chai": "^4.3.20",
