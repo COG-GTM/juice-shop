@@ -36,6 +36,7 @@
               "node_modules/material-icons/iconfont/material-icons.css",
               "node_modules/flag-icons/css/flag-icons.min.css",
               "node_modules/font-mfizz/dist/font-mfizz.css",
+              "node_modules/@fontsource/vt323/index.css",
               "node_modules/cookieconsent/build/cookieconsent.min.css"
             ],
             "allowedCommonJsDependencies": [
