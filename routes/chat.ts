@@ -166,7 +166,17 @@ export function chat () {
           if (!order) return { error: 'Order not found' }
           if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
 
-          return order
+          return {
+            orderId: order.orderId,
+            delivered: order.delivered,
+            eta: order.eta,
+            totalPrice: order.totalPrice,
+            products: order.products?.map(({ name, quantity, price }: { name: string, quantity: number, price: number }) => ({
+              name,
+              quantity,
+              price
+            })) ?? []
+          }
         }
       }),
 
