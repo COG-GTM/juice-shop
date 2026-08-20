@@ -29,7 +29,16 @@
           if (!order) return { error: 'Order not found' }
           if (order.email !== user.email) return { error: 'Order does not belong to the current customer' }
 
-          return order
+          return {
+            orderId: order.orderId,
+            products: order.products.map(({ name, quantity, price, total, bonus }) => ({ name, quantity, price, total, bonus })),
+            totalPrice: order.totalPrice,
+            deliveryPrice: order.deliveryPrice,
+            promotionalAmount: order.promotionalAmount,
+            bonus: order.bonus,
+            delivered: order.delivered,
+            eta: order.eta
+          }
         }
       })
     }
