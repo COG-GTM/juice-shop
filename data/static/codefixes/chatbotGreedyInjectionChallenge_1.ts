@@ -82,7 +82,18 @@ const chatTools = {
       if (!order) return { error: 'Order not found' }
       if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
 
-      return order
+      return {
+        orderId: order.orderId,
+        delivered: order.delivered,
+        eta: order.eta,
+        totalPrice: order.totalPrice,
+        deliveryPrice: order.deliveryPrice,
+        products: order.products.map((product: { name: string, quantity: number, price: number }) => ({
+          name: product.name,
+          quantity: product.quantity,
+          price: product.price
+        }))
+      }
     }
   }),
 
