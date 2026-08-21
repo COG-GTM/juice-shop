@@ -75,6 +75,7 @@ const validatePreconditions = async ({ exitOnFailure = true } = {}) => {
     logger.info(`Check ${colors.bold('https://howto-web3.owasp-juice.shop')} for instructions on how to set up and configure the Alchemy API`)
   }
   const llmApiUrl = config.get<string>('application.chatBot.llmApiUrl')
+  success = checkIfLlmApiUrlIsEncrypted(llmApiUrl) && success
   const llmApiReachable = await checkIfDomainReachable(llmApiUrl)
   let llmApiKeyEnvVarExists = true
   let llmModelAvailable = true
@@ -228,6 +229,31 @@ export const isOllamaUrl = (url: string): boolean => {
   } catch {
     return false
   }
+}
+
+export const isLoopbackUrl = (url: string): boolean => {
+  try {
+    const hostname = new URL(url).hostname.replace(/^\[|\]$/g, '')
+    return hostname === 'localhost' || hostname === '::1' || /^127(\.\d{1,3}){3}$/.test(hostname)
+  } catch {
+    return false
+  }
+}
+
+export const checkIfLlmApiUrlIsEncrypted = (llmApiUrl: string) => {
+  let protocol: string
+  try {
+    protocol = new URL(llmApiUrl).protocol
+  } catch {
+    logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} is not a valid URL (${colors.red('ERROR')})`)
+    return false
+  }
+  if (protocol === 'https:' || isLoopbackUrl(llmApiUrl)) {
+    return true
+  }
+  logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} would send chat messages and customer data to a remote host without transport encryption (${colors.red('ERROR')})`)
+  logger.warn(`Use an ${colors.bold('https')} URL or run the LLM API on localhost`)
+  return false
 }
 
 export const checkIfLlmModelAvailable = async (llmApiUrl: string) => {

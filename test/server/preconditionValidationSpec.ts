@@ -9,7 +9,7 @@ import sinon from 'sinon'
 import semver from 'semver'
 import sinonChai from 'sinon-chai'
 import { engines as supportedEngines } from './../../package.json'
-import { checkIfRunningOnSupportedNodeVersion, checkIfPortIsAvailable, checkIfEnvironmentVariableExists, isOllamaUrl, checkIfLlmModelAvailable, checkIfDomainReachable } from '../../lib/startup/validatePreconditions'
+import { checkIfRunningOnSupportedNodeVersion, checkIfPortIsAvailable, checkIfEnvironmentVariableExists, isOllamaUrl, isLoopbackUrl, checkIfLlmApiUrlIsEncrypted, checkIfLlmModelAvailable, checkIfDomainReachable } from '../../lib/startup/validatePreconditions'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -119,6 +119,43 @@ describe('preconditionValidation', () => {
     it('should handle invalid URLs gracefully', () => {
       expect(isOllamaUrl('not-a-url')).to.equal(false)
       expect(isOllamaUrl('')).to.equal(false)
+    })
+  })
+
+  describe('isLoopbackUrl', () => {
+    it('should detect loopback hosts', () => {
+      expect(isLoopbackUrl('http://localhost:11434/v1')).to.equal(true)
+      expect(isLoopbackUrl('http://127.0.0.1:11434/v1')).to.equal(true)
+      expect(isLoopbackUrl('http://127.1.2.3:8080/v1')).to.equal(true)
+      expect(isLoopbackUrl('http://[::1]:11434/v1')).to.equal(true)
+    })
+
+    it('should not flag remote hosts', () => {
+      expect(isLoopbackUrl('http://ollama:11434/v1')).to.equal(false)
+      expect(isLoopbackUrl('https://api.openai.com/v1')).to.equal(false)
+      expect(isLoopbackUrl('not-a-url')).to.equal(false)
+    })
+  })
+
+  describe('checkIfLlmApiUrlIsEncrypted', () => {
+    it('should accept https URLs', () => {
+      expect(checkIfLlmApiUrlIsEncrypted('https://api.openai.com/v1')).to.equal(true)
+      expect(checkIfLlmApiUrlIsEncrypted('https://myserver.example.com:11434/v1')).to.equal(true)
+    })
+
+    it('should accept plaintext URLs pointing at loopback', () => {
+      expect(checkIfLlmApiUrlIsEncrypted('http://localhost:11434/v1')).to.equal(true)
+      expect(checkIfLlmApiUrlIsEncrypted('http://127.0.0.1:43210/v1')).to.equal(true)
+    })
+
+    it('should reject plaintext URLs pointing at a remote host', () => {
+      expect(checkIfLlmApiUrlIsEncrypted('http://api.openai.com/v1')).to.equal(false)
+      expect(checkIfLlmApiUrlIsEncrypted('http://ollama.example.com:11434/v1')).to.equal(false)
+    })
+
+    it('should reject invalid URLs', () => {
+      expect(checkIfLlmApiUrlIsEncrypted('not-a-url')).to.equal(false)
+      expect(checkIfLlmApiUrlIsEncrypted('')).to.equal(false)
     })
   })
 
