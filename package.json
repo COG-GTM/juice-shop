@@ -50,7 +50,7 @@
   "scripts": {
     "build": "npm run build:frontend && npm run build:server",
     "build:frontend": "cd frontend && npm run build",
-    "build:server": "tsc",
+    "build:server": "tsc && tsc -p tsconfig.esm-loader.json",
     "cypress:open": "cypress open",
     "cypress:run": "cypress run",
     "postinstall": "cd frontend && npm install && cd .. && npm run build:frontend && (npm run --silent build:server || cd .)",
