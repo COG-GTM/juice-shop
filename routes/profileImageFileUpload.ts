@@ -5,8 +5,8 @@
 
 import fs from 'node:fs/promises'
 import { type Request, type Response, type NextFunction } from 'express'
-import fileType from 'file-type'
 
+import importFileType from '../lib/importFileType.cjs'
 import logger from '../lib/logger'
 import * as utils from '../lib/utils'
 import { UserModel } from '../models/user'
@@ -21,7 +21,8 @@ export function profileImageFileUpload () {
       next(new Error('Illegal file type'))
       return
     }
-    const uploadedFileType = await fileType.fromBuffer(buffer)
+    const { fileTypeFromBuffer } = await importFileType()
+    const uploadedFileType = await fileTypeFromBuffer(buffer)
     if (uploadedFileType === undefined) {
       res.status(500)
       next(new Error('Illegal file type'))
