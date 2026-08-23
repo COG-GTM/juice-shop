@@ -1,0 +1,87 @@
+/*!
+ * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
+ * SPDX-License-Identifier: MIT
+ */
+
+@use '../../../../styles/variables' as *;
+
+$vertical-margin: $space-2xs;
+$vertical-padding: $space-xs;
+
+:host {
+  grid-column: span 2;
+
+  // use 2 columns ipads and smaller
+  @media (max-width: 900px) {
+    grid-column: span 2;
+  }
+  @media (max-width: 600px) {
+    grid-column: span 1;
+  }
+}
+
+.categories-group {
+  background-color: var(--theme-background-darkest);
+  border-radius: 4px;
+
+  color: var(--theme-text);
+  column-gap: $space-m;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+
+  height: calc(100% - (2 * $vertical-margin + 2 * $vertical-padding));
+
+  margin: $vertical-margin $space-2xs;
+
+  padding: $vertical-padding $space-m;
+  row-gap: $space-2xs;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.category-container {
+  align-items: center;
+  column-gap: $space-xs;
+  display: grid;
+  grid-template-columns: 1fr min-content;
+  row-gap: $space-3xs;
+
+  .category-score {
+    font-size: 13px;
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .total-challenges {
+    color: var(--theme-text-invert-30);
+  }
+}
+
+.category-name {
+  background: none;
+  border: none;
+  color: var(--theme-text);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 16px;
+  padding: 0;
+  text-align: left;
+
+  &:hover {
+    color: var(--theme-accent);
+  }
+}
+
+.progress-bar-container {
+  background-color: var(--theme-background-lighter);
+  border-radius: 3px;
+  grid-column: span 2;
+  overflow: hidden;
+
+  .progress-bar {
+    background-color: var(--theme-accent);
+    height: 4px;
+  }
+}

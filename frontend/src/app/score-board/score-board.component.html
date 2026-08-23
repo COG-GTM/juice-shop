@@ -4,6 +4,11 @@
   <difficulty-overview-score-card [allChallenges]="allChallenges" />
 </div>
 
+<div class="score-row secondary-score-row">
+  <category-coverage-score-card [allChallenges]="allChallenges" (categorySelect)="filterByCategory($event)" />
+  <next-challenges-score-card [allChallenges]="allChallenges" (challengeSelect)="scrollToChallenge($event)" />
+</div>
+
 @if (applicationConfiguration?.challenges.restrictToTutorialsFirst === false) {
 <filter-settings [filterSetting]="filterSetting" (filterSettingChange)="onFilterSettingUpdate($event)"
   [allChallenges]="allChallenges" [reset]="reset.bind(this)"></filter-settings>

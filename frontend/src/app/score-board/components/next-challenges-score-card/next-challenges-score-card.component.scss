@@ -1,0 +1,71 @@
+/*!
+ * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
+ * SPDX-License-Identifier: MIT
+ */
+
+@use '../../../../styles/variables' as *;
+
+:host {
+  background-color: var(--theme-background-dark);
+  border-radius: 4px;
+  display: block;
+  height: 100%;
+}
+
+.next-challenges-group {
+  display: flex;
+  flex-direction: column;
+  padding: $space-m;
+  row-gap: $space-xs;
+
+  .category {
+    color: var(--theme-text);
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: 23px;
+    margin-bottom: 0;
+  }
+}
+
+.next-challenges {
+  display: flex;
+  flex-direction: column;
+  row-gap: $space-2xs;
+}
+
+.next-challenge {
+  align-items: center;
+  background-color: var(--theme-background-darkest);
+  border: none;
+  border-radius: 4px;
+  color: var(--theme-text);
+  column-gap: $space-xs;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: auto min-content;
+  padding: $space-2xs $space-xs;
+  text-align: left;
+
+  &:hover {
+    background-color: var(--theme-background-lighter);
+  }
+
+  .name {
+    font-size: 14px;
+    line-height: 18px;
+  }
+
+  .category-name {
+    color: var(--theme-text-invert-30);
+    font-size: 12px;
+    line-height: 16px;
+  }
+}
+
+.all-challenges-solved {
+  color: var(--theme-text);
+  font-size: 14px;
+  line-height: 18px;
+  margin-bottom: 0;
+}

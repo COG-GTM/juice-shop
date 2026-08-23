@@ -1,0 +1,19 @@
+<div class="next-challenges-group">
+  <p class="category">{{ 'TITLE_NEXT_CHALLENGES' | translate }}</p>
+  @if (nextChallenges.length > 0) {
+    <div class="next-challenges">
+      @for (challenge of nextChallenges; track challenge.key) {
+        <button class="next-challenge" (click)="challengeSelect.emit(challenge.key)">
+          <span class="name">{{ challenge.name }}</span>
+          <difficulty-stars
+            [difficulty]="challenge.difficulty"
+            aria-label="Difficulty {{ challenge.difficulty }} of 6"
+          ></difficulty-stars>
+          <span class="category-name">{{ challenge.category }}</span>
+        </button>
+      }
+    </div>
+  } @else {
+    <p class="all-challenges-solved">{{ 'ALL_CHALLENGES_SOLVED' | translate }}</p>
+  }
+</div>
