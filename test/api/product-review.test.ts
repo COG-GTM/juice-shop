@@ -34,11 +34,12 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET no product reviews when injecting a mongoDB sleep command', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
@@ -49,7 +50,7 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
-    const res = await request(app)
+    let res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
@@ -57,6 +58,11 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    res = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Lorem Ipsum'))
   })
 })
 
