@@ -22,6 +22,8 @@ import { NgClass } from '@angular/common'
 import { DifficultyOverviewScoreCardComponent } from './components/difficulty-overview-score-card/difficulty-overview-score-card.component'
 import { CodingChallengeProgressScoreCardComponent } from './components/coding-challenge-progress-score-card/coding-challenge-progress-score-card.component'
 import { HackingChallengeProgressScoreCardComponent } from './components/hacking-challenge-progress-score-card/hacking-challenge-progress-score-card.component'
+import { CategoryCoverageScoreCardComponent } from './components/category-coverage-score-card/category-coverage-score-card.component'
+import { NextChallengesScoreCardComponent } from './components/next-challenges-score-card/next-challenges-score-card.component'
 
 interface ChallengeSolvedWebsocket {
   key: string
@@ -40,7 +42,7 @@ interface CodeChallengeSolvedWebsocket {
   selector: 'app-score-board',
   templateUrl: './score-board.component.html',
   styleUrls: ['./score-board.component.scss'],
-  imports: [HackingChallengeProgressScoreCardComponent, CodingChallengeProgressScoreCardComponent, DifficultyOverviewScoreCardComponent, FilterSettingsComponent, MatProgressSpinner, ChallengesUnavailableWarningComponent, TutorialModeWarningComponent, ChallengeCardComponent, NgClass, TranslateModule]
+  imports: [HackingChallengeProgressScoreCardComponent, CodingChallengeProgressScoreCardComponent, DifficultyOverviewScoreCardComponent, CategoryCoverageScoreCardComponent, NextChallengesScoreCardComponent, FilterSettingsComponent, MatProgressSpinner, ChallengesUnavailableWarningComponent, TutorialModeWarningComponent, ChallengeCardComponent, NgClass, TranslateModule]
 })
 export class ScoreBoardComponent implements OnInit, OnDestroy {
   private readonly challengeService = inject(ChallengeService)
@@ -171,6 +173,26 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
     this.router.navigate([], {
       queryParams: toQueryParams(DEFAULT_FILTER_SETTING)
     })
+  }
+
+  filterByCategory (category: string) {
+    this.onFilterSettingUpdate({ ...this.filterSetting, categories: [category] })
+  }
+
+  scrollToChallenge (challengeKey: string) {
+    const scrollToChallengeCard = () => {
+      document.getElementById('challenge-' + challengeKey)?.scrollIntoView({ behavior: 'smooth' })
+    }
+
+    if (this.filteredChallenges.some((challenge) => challenge.key === challengeKey)) {
+      scrollToChallengeCard()
+      return
+    }
+
+    // the challenge is currently hidden by the filter settings, so we reset them before scrolling to it
+    this.router.navigate([], {
+      queryParams: toQueryParams(DEFAULT_FILTER_SETTING)
+    }).then(() => { setTimeout(scrollToChallengeCard) })
   }
 
   openCodingChallengeDialog (challengeKey: string) {

@@ -1,0 +1,28 @@
+<score-card
+  [description]="'TITLE_CATEGORY_COVERAGE' | translate"
+  [total]="allChallenges.length"
+  [score]="solvedChallenges"
+  [showAsPercentage]="true"
+  >
+  <div right-side class="categories-group">
+    @for (coverage of categoryCoverages; track coverage.category) {
+      <div class="category-container">
+        <button
+          class="category-name"
+          (click)="categorySelect.emit(coverage.category)"
+          >
+          {{ coverage.category }}
+        </button>
+        <span class="category-score">
+          {{ coverage.solvedChallenges }}/<span class="total-challenges">{{ coverage.availableChallenges }}</span>
+        </span>
+        <div class="progress-bar-container">
+          <div
+            class="progress-bar"
+            [style.width]="coverage.solvedChallenges / coverage.availableChallenges * 100 + '%'"
+          ></div>
+        </div>
+      </div>
+    }
+  </div>
+</score-card>
