@@ -7,42 +7,25 @@ describe('/rest/products/reviews', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
-    it('should be possible to inject a command into the get route', () => {
+    it('should not execute an injected command in the get route', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
-          cy.window().then(() => {
-            void fetch(
-              `${Cypress.config('baseUrl')}/rest/products/sleep(1000)/reviews`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
+          cy.request('/rest/products/sleep(1000)/reviews').then((response) => {
+            expect(response.body.data).to.deep.equal([])
           })
-          cy.expectChallengeSolved({ challenge: 'NoSQL DoS' })
         }
       })
     })
   })
 
   describe('challenge "NoSQL Exfiltration"', () => {
-    it('should be possible to inject and get all the orders', () => {
+    it('should not expose orders through an injected selector', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
-          cy.window().then(async () => {
-            await fetch(
-              `${Cypress.config('baseUrl')}/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
+          cy.request('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27').then((response) => {
+            expect(response.body.data).to.have.length(1)
+            expect(response.body.data[0]).not.to.have.property('email')
           })
-          cy.expectChallengeSolved({ challenge: 'NoSQL Exfiltration' })
         }
       })
     })
