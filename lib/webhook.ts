@@ -13,7 +13,7 @@ import { totalCheatScore } from './antiCheat'
 
 const isLoopback = (hostname: string) => ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
 
-const allowedHosts = () => (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map(host => host.trim()).filter(host => host)
+const allowedHosts = () => (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map(host => host.trim().toLowerCase().replace(/:\d+$/, '')).filter(host => host)
 
 const isPermittedDestination = (webhook: string) => {
   let url
