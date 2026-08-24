@@ -38,9 +38,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       Readable.from(buffer)
         .pipe(unzipper.Parse())
         .on('entry', function (entry: any) {
-          const absolutePath = path.resolve(complaintsDir, entry.path)
           const destination = resolveComplaintFilePath(entry.path)
-          challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
           if (destination != null && entry.type === 'File') {
             entry.pipe(fs.createWriteStream(destination).on('error', function (err) { next(err) }))
           } else {

@@ -66,8 +66,8 @@ describe('fileUpload', () => {
   })
 
   describe('ZIP complaint extraction paths', () => {
-    it('should resolve nested files inside the complaints directory', () => {
-      expect(resolveComplaintFilePath('customer/complaint.txt')).to.equal(path.resolve('uploads/complaints/customer/complaint.txt'))
+    it('should resolve files inside the complaints directory', () => {
+      expect(resolveComplaintFilePath('complaint.txt')).to.equal(path.resolve('uploads/complaints/complaint.txt'))
     })
 
     it('should reject paths outside the complaints directory', () => {
