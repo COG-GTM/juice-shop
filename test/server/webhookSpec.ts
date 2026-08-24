@@ -89,6 +89,27 @@ describe('webhook', () => {
       }
     })
 
+    it('notifies webhooks whose IPv6 host is in SOLUTIONS_WEBHOOK_ALLOWED_HOSTS', async () => {
+      const server = http.createServer((req, res) => {
+        res.statusCode = 200
+        res.end('OK')
+      })
+      let requests = 0
+      server.on('request', () => { requests++ })
+
+      await new Promise<void>((resolve) => server.listen(0, '::1', resolve))
+      const port = (server.address() as AddressInfo)?.port
+      process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS = '[::1]:443'
+
+      try {
+        await webhook.notify(challenge, 0, 0, 0, `http://[::1]:${port}`)
+        expect(requests).to.equal(1)
+      } finally {
+        delete process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS
+        server.close()
+      }
+    })
+
     it('submits POST with payload to existing URL', async () => {
       const server = http.createServer((req, res) => {
         res.statusCode = 200

@@ -11,9 +11,14 @@ import logger from './logger'
 import * as utils from './utils'
 import { totalCheatScore } from './antiCheat'
 
-const isLoopback = (hostname: string) => ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
+const normalizeHost = (host: string) => {
+  const bare = host.trim().toLowerCase().replace(/^\[/, '').replace(/\](:\d+)?$/, '')
+  return (bare.match(/:/g) ?? []).length > 1 ? bare : bare.replace(/:\d+$/, '') // a single colon is a port, several are IPv6
+}
 
-const allowedHosts = () => (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map(host => host.trim().toLowerCase().replace(/:\d+$/, '')).filter(host => host)
+const isLoopback = (hostname: string) => ['localhost', '127.0.0.1', '::1'].includes(hostname)
+
+const allowedHosts = () => (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map(normalizeHost).filter(host => host)
 
 const isPermittedDestination = (webhook: string) => {
   let url
@@ -22,12 +27,13 @@ const isPermittedDestination = (webhook: string) => {
   } catch {
     return true // leave malformed URLs to fetch, which reports them
   }
-  if (url.protocol !== 'https:' && !isLoopback(url.hostname)) {
+  const hostname = normalizeHost(url.hostname)
+  if (url.protocol !== 'https:' && !isLoopback(hostname)) {
     logger.warn(`Webhook ${colors.bold(webhook)} not notified: only HTTPS destinations are permitted`)
     return false
   }
   const hosts = allowedHosts()
-  if (hosts.length > 0 && !hosts.includes(url.hostname)) {
+  if (hosts.length > 0 && !hosts.includes(hostname)) {
     logger.warn(`Webhook ${colors.bold(webhook)} not notified: host is not in SOLUTIONS_WEBHOOK_ALLOWED_HOSTS`)
     return false
   }
