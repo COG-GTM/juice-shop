@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintFilePath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,24 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('ZIP complaint extraction paths', () => {
+    it('should resolve files inside the complaints directory', () => {
+      expect(resolveComplaintFilePath('complaint.txt')).to.equal(path.resolve('uploads/complaints/complaint.txt'))
+    })
+
+    it('should reject paths outside the complaints directory', () => {
+      const invalidPaths = [
+        path.join('..', '..', 'ftp', 'legal.md'),
+        path.resolve('ftp/legal.md'),
+        path.join('..', 'complaints-backup', 'payload.txt'),
+        '.'
+      ]
+
+      invalidPaths.forEach(fileName => {
+        expect(resolveComplaintFilePath(fileName)).to.equal(null)
+      })
+    })
   })
 })
