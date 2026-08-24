@@ -34,6 +34,19 @@ describe('webhook', () => {
       }
     })
 
+    it('skips non-loopback webhooks that do not use HTTPS', async () => {
+      await webhook.notify(challenge, 0, 0, 0, 'http://webhook.invalid/collect')
+    })
+
+    it('skips webhooks whose host is not in SOLUTIONS_WEBHOOK_ALLOWED_HOSTS', async () => {
+      process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS = 'approved.invalid'
+      try {
+        await webhook.notify(challenge, 0, 0, 0, 'https://webhook.invalid/collect')
+      } finally {
+        delete process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS
+      }
+    })
+
     it('submits POST with payload to existing URL', async () => {
       const server = http.createServer((req, res) => {
         res.statusCode = 200
