@@ -369,7 +369,22 @@ jobs:
       - name: "Check out Git repository"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
       - name: "Install Heroku CLI"
-        run: curl https://cli-assets.heroku.com/install.sh | sh
+        env:
+          HEROKU_CLI_VERSION: "11.10.0"
+          HEROKU_CLI_BUILD: bd9a3ab
+          HEROKU_CLI_SHA256: 435383ed94ba21b5ed6a9f368fec95c0ecba51daadf23d82ee5bf6f704974dfc
+        run: |
+          set -euo pipefail
+          tarball="heroku-v${HEROKU_CLI_VERSION}-${HEROKU_CLI_BUILD}-linux-x64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://cli-assets.heroku.com/versions/${HEROKU_CLI_VERSION}/${HEROKU_CLI_BUILD}/${tarball}" \
+            --output "${tarball}"
+          echo "${HEROKU_CLI_SHA256}  ${tarball}" | sha256sum --check --strict
+          sudo rm -rf /usr/local/lib/heroku
+          sudo tar --extract --gzip --no-same-owner --file "${tarball}" --directory /usr/local/lib
+          sudo ln -sf /usr/local/lib/heroku/bin/heroku /usr/local/bin/heroku
+          rm -f "${tarball}"
+          heroku --version
       - name: "Set Heroku app & branch for ${{ github.ref }}"
         run: |
           if [ "$GITHUB_REF" == "refs/heads/master" ]; then
