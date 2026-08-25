@@ -36,6 +36,7 @@ export function profileImageUrlUpload () {
         let filePath: string | undefined
         try {
           const safeUrl = await assertSafeFetchUrl(url)
+          // codeql[js/request-forgery] the target is validated by assertSafeFetchUrl (scheme, credentials and resolved-address checks) before the request is issued
           const response = await fetch(safeUrl, { redirect: 'manual', signal: AbortSignal.timeout(FETCH_TIMEOUT) })
           if (response.status >= 300 && response.status < 400) {
             throw new Error('url responded with a redirect which is not followed')
