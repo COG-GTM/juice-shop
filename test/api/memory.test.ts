@@ -37,6 +37,29 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories does not expose sensitive user attributes', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', file, 'Valid Image')
+      .field('caption', 'Valid Image')
+    const res = await request(app)
+      .get('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const memory of res.body.data) {
+      if (memory.User) {
+        assert.deepEqual(Object.keys(memory.User).sort(), ['id', 'username'])
+      }
+    }
+  })
+
   void it('POST new memory is forbidden via public API', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
     const res = await request(app)
