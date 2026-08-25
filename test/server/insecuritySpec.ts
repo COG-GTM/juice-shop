@@ -22,6 +22,31 @@ describe('insecurity', () => {
     })
   })
 
+  describe('verify', () => {
+    it('accepts a token signed with the RS256 private key', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects an unsigned token with alg "none"', () => {
+      const token = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg'
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects an empty or malformed token', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('definitely-not-a-jwt')).to.equal(false)
+    })
+  })
+
   describe('userEmailFrom', () => {
     it('returns content of "x-user-email" header if present', () => {
       expect(security.userEmailFrom({ headers: { 'x-user-email': 'test@bla.blubb' } })).to.equal('test@bla.blubb')
