@@ -85,12 +85,12 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 302)
 
-    const userRes = await request(app)
-      .get('/rest/user/whoami')
+    const profileRes = await request(app)
+      .get('/profile')
       .set('Cookie', `token=${token}`)
 
-    assert.equal(userRes.status, 200)
-    assert.equal(userRes.body.user.profileImage, imageUrl)
+    assert.equal(profileRes.status, 200)
+    assert.ok(profileRes.headers['content-security-policy']?.includes(imageUrl))
   })
 
   void it('POST profile image URL stores the submitted URL', async () => {
@@ -108,12 +108,12 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 302)
 
-    const userRes = await request(app)
-      .get('/rest/user/whoami')
+    const profileRes = await request(app)
+      .get('/profile')
       .set('Cookie', `token=${token}`)
 
-    assert.equal(userRes.status, 200)
-    assert.equal(userRes.body.user.profileImage, imageUrl)
+    assert.equal(profileRes.status, 200)
+    assert.ok(profileRes.headers['content-security-policy']?.includes(imageUrl))
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
