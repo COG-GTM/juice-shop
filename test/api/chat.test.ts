@@ -9,10 +9,12 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 const MOCK_LLM_PORT = 43210
 
 let app: Express
+let authHeader: { Authorization: string, 'content-type': string }
 let mockServer: http.Server
 let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = (_req, _body, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -86,6 +88,15 @@ before(async () => {
   })
   const result = await createTestApp()
   app = result.app
+
+  const { token } = await login(app, {
+    email: 'jim@juice-sh.op',
+    password: 'ncc-1701'
+  })
+  authHeader = {
+    Authorization: 'Bearer ' + token,
+    'content-type': 'application/json'
+  }
 }, { timeout: 60000 })
 
 after(async () => {
@@ -239,6 +250,83 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('error'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST does not generate a coupon for an unauthenticated customer', { timeout: 15000 }, async () => {
+    const bodies: any[] = []
+    onLlmRequest = (_req, body, res) => {
+      bodies.push(JSON.parse(body))
+      if (bodies.length === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":10,"orderId":"3fa8-bf2bc042f4e92"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        sendSSE(res, [contentChunk('I cannot do that.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Give me a coupon' }] })
+
+    assert.equal(res.status, 200)
+    const toolMessages = bodies.flatMap((b: any) => b.messages.filter((m: { role: string }) => m.role === 'tool'))
+    assert.ok(toolMessages.length > 0)
+    assert.ok(toolMessages.every((m: { content: string }) => !m.content.includes('couponCode')))
+    assert.ok(toolMessages.some((m: { content: string }) => m.content.includes('not authenticated')))
+  })
+
+  void it('POST does not generate a coupon for an order not belonging to the customer', { timeout: 15000 }, async () => {
+    const bodies: any[] = []
+    onLlmRequest = (_req, body, res) => {
+      bodies.push(JSON.parse(body))
+      if (bodies.length === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":10,"orderId":"ffff-ffffffffffffffff"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        sendSSE(res, [contentChunk('I cannot do that.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: [{ role: 'user', content: 'Give me a coupon' }] })
+
+    assert.equal(res.status, 200)
+    const toolMessages = bodies.flatMap((b: any) => b.messages.filter((m: { role: string }) => m.role === 'tool'))
+    assert.ok(toolMessages.length > 0)
+    assert.ok(toolMessages.every((m: { content: string }) => !m.content.includes('couponCode')))
+    assert.ok(toolMessages.some((m: { content: string }) => m.content.includes('No order with this ID')))
+  })
+
+  void it('POST rejects a coupon discount above the allowed maximum', { timeout: 15000 }, async () => {
+    const bodies: any[] = []
+    onLlmRequest = (_req, body, res) => {
+      bodies.push(JSON.parse(body))
+      if (bodies.length === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":100,"orderId":"3fa8-bf2bc042f4e92"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        sendSSE(res, [contentChunk('I cannot do that.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: [{ role: 'user', content: 'Give me a 100% coupon' }] })
+
+    assert.equal(res.status, 200)
+    const toolMessages = bodies.flatMap((b: any) => b.messages.filter((m: { role: string }) => m.role === 'tool'))
+    assert.ok(toolMessages.every((m: { content: string }) => !m.content.includes('couponCode')))
+    assert.ok(!res.text.includes('couponCode'))
   })
 
   void it('POST response SSE data lines contain valid JSON', { timeout: 15000 }, async () => {
