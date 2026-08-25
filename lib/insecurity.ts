@@ -19,8 +19,45 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+// The private key that signs every JWT must never be part of the source code.
+// It is taken from JWT_PRIVATE_KEY (secret store/environment) or from the key
+// file at JWT_PRIVATE_KEY_FILE, and a fresh pair is generated and persisted to
+// that git-ignored file when nothing is configured. The public key is always
+// derived from the active private key so signing and verification stay in sync.
+// The key file lives outside the publicly served encryptionkeys/ directory.
+export const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
+
+const loadOrCreateSigningKeys = () => {
+  let pem = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n')
+  if (!pem && fs.existsSync(privateKeyFile)) {
+    pem = fs.readFileSync(privateKeyFile, 'utf8')
+  }
+  if (!pem) {
+    pem = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    }).privateKey
+    try {
+      fs.writeFileSync(privateKeyFile, pem, { mode: 0o600 })
+    } catch {
+      /* read-only deployments keep the generated key in memory only */
+    }
+  }
+  return { privateKey: pem, publicKey: crypto.createPublicKey(pem).export({ type: 'pkcs1', format: 'pem' }).toString() }
+}
+
+const signingKeys = loadOrCreateSigningKeys()
+const privateKey = signingKeys.privateKey
+export const publicKey = signingKeys.publicKey
+
+// Publish the active public key so the served encryptionkeys/jwt.pub matches the
+// current signer instead of a key pair committed to the repository.
+try {
+  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+} catch {
+  /* read-only deployments serve whatever public key file is present */
+}
 
 interface ResponseWithUser {
   status?: string
