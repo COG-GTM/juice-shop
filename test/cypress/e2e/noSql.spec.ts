@@ -27,23 +27,13 @@ describe('/rest/products/reviews', () => {
     })
   })
 
-  describe('challenge "NoSQL Exfiltration"', () => {
-    it('should be possible to inject and get all the orders', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            await fetch(
-              `${Cypress.config('baseUrl')}/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
-          })
-          cy.expectChallengeSolved({ challenge: 'NoSQL Exfiltration' })
-        }
+  describe('order tracking', () => {
+    it('should not be possible to inject and get all the orders', () => {
+      cy.request(
+        `${Cypress.config('baseUrl')}/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27`
+      ).then((response) => {
+        expect(response.body.data).to.have.length(1)
+        expect(response.body.data[0]).to.deep.equal({ orderId: "' || true || '" })
       })
     })
   })
