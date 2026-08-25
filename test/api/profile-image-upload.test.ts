@@ -70,7 +70,8 @@ void describe('/profile/image/file', () => {
 })
 
 void describe('/profile/image/url', () => {
-  void it('POST profile image URL valid for image available online', async () => {
+  void it('POST profile image URL stores an SSRF-looking URL without fetching it', async () => {
+    const imageUrl = 'http://169.254.169.254/latest/meta-data/'
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
       password: 'ncc-1701'
@@ -79,13 +80,21 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'cataas.com/cat')
+      .field('imageUrl', imageUrl)
       .redirects(0)
 
     assert.equal(res.status, 302)
+
+    const userRes = await request(app)
+      .get('/rest/user/whoami')
+      .set('Cookie', `token=${token}`)
+
+    assert.equal(userRes.status, 200)
+    assert.equal(userRes.body.user.profileImage, imageUrl)
   })
 
-  void it('POST profile image URL redirects even for invalid image URL', async () => {
+  void it('POST profile image URL stores the submitted URL', async () => {
+    const imageUrl = 'https://notanimage.here/100/100'
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
       password: 'ncc-1701'
@@ -94,10 +103,17 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'https://notanimage.here/100/100')
+      .field('imageUrl', imageUrl)
       .redirects(0)
 
     assert.equal(res.status, 302)
+
+    const userRes = await request(app)
+      .get('/rest/user/whoami')
+      .set('Cookie', `token=${token}`)
+
+    assert.equal(userRes.status, 200)
+    assert.equal(userRes.body.user.profileImage, imageUrl)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
