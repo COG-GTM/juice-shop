@@ -90,7 +90,7 @@ void describe('/profile/image/url', () => {
       .set('Cookie', `token=${token}`)
 
     assert.equal(profileRes.status, 200)
-    assert.ok(profileRes.headers['content-security-policy']?.includes(imageUrl))
+    assert.equal(profileRes.headers['content-security-policy'], `img-src 'self' ${imageUrl}; script-src 'self' 'unsafe-eval'`)
   })
 
   void it('POST profile image URL stores the submitted URL', async () => {
@@ -113,7 +113,7 @@ void describe('/profile/image/url', () => {
       .set('Cookie', `token=${token}`)
 
     assert.equal(profileRes.status, 200)
-    assert.ok(profileRes.headers['content-security-policy']?.includes(imageUrl))
+    assert.equal(profileRes.headers['content-security-policy'], `img-src 'self' ${imageUrl}; script-src 'self' 'unsafe-eval'`)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
