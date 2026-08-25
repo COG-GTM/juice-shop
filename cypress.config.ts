@@ -1,6 +1,7 @@
 import { defineConfig } from 'cypress'
 import * as security from './lib/insecurity'
 import config from 'config'
+import jwt from 'jsonwebtoken'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
@@ -19,6 +20,9 @@ export default defineConfig({
     supportFile: 'test/cypress/support/e2e.ts',
     setupNodeEvents (on: any) {
       on('task', {
+        ForgeSignedJwt (email: string) {
+          return jwt.sign({ data: { email } }, security.publicKey, { algorithm: 'HS256' })
+        },
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
         },

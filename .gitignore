@@ -1,5 +1,7 @@
 # App
 node_modules/
+encryptionkeys/jwt.key
+encryptionkeys/jwt.pub
 juiceshop.sqlite
 order_*.pdf
 app/
