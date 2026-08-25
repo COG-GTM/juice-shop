@@ -45,9 +45,7 @@ function loadOrCreatePrivateKey (): string {
 const privateKey = loadOrCreatePrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 try {
-  if (!fs.existsSync(publicKeyPath) || fs.readFileSync(publicKeyPath, 'utf8') !== publicKey) {
-    fs.writeFileSync(publicKeyPath, publicKey)
-  }
+  fs.writeFileSync(publicKeyPath, publicKey)
 } catch {
   // filesystem is not writable: /encryptionkeys/jwt.pub may not reflect the active key
 }
