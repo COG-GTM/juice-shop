@@ -91,6 +91,12 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should keep user emails as plain text instead of trusted HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllUsers()
+        expect(component.userDataSource.data[0].email).toBe('<iframe src="javascript:alert(`xss`)">')
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
@@ -104,6 +110,12 @@ describe('AdministrationComponent', () => {
         expect(component.feedbackDataSource.data.length).toBe(2)
         expect(component.feedbackDataSource.data[0].comment.toString()).toContain('Feedback1')
         expect(component.feedbackDataSource.data[1].comment.toString()).toContain('Feedback2')
+    })
+
+    it('should keep feedback comments as plain text instead of trusted HTML', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllFeedbacks()
+        expect(component.feedbackDataSource.data[0].comment).toBe('<iframe src="javascript:alert(`xss`)">')
     })
 
     it('should give an error if FeedbackService fails to find all feedbacks', () => {
