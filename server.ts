@@ -417,6 +417,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
+  /* Privileged attributes must never be settable by clients during self-registration */
+  const privilegedUserAttributes = ['role', 'deluxeToken', 'totpSecret', 'isActive', 'lastLoginIp']
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    for (const attribute of privilegedUserAttributes) {
+      delete req.body[attribute]
+    }
+    next()
+  })
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
   /* Unauthorized users are not allowed to access B2B API */
@@ -515,6 +523,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // privileged attributes are never taken from the request when creating a user
+    if (name === 'User') {
+      resource.create.write.before((req: Request, res: Response, context: { attributes?: Record<string, unknown>, continue: any }) => {
+        for (const attribute of privilegedUserAttributes) {
+          delete req.body[attribute]
+          if (context.attributes) delete context.attributes[attribute]
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
