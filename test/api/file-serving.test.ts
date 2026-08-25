@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -201,9 +202,29 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file is forbidden for anonymous users', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log directory listing is forbidden for anonymous users', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })}`)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is allowed for admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })
