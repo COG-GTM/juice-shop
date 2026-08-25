@@ -7,7 +7,6 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,10 +50,45 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+export const verifyRs256 = (token: string): ResponseWithUser | null => {
+  if (!token) {
+    return null
+  }
+  const parts = token.split('.')
+  if (parts.length !== 3) {
+    return null
+  }
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'))
+    if (header?.alg !== 'RS256') {
+      return null
+    }
+    const signature = Buffer.from(parts[2], 'base64url')
+    if (signature.length === 0 || !crypto.verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), publicKey, signature)) {
+      return null
+    }
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+    if (typeof payload?.exp === 'number' && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null
+    }
+    return payload
+  } catch {
+    return null
+  }
+}
+
+export const isAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
+  if (verifyRs256(utils.jwtFrom(req)) === null) {
+    res.status(401).json({ status: 'error', data: 'Invalid or missing authorization token.' })
+    return
+  }
+  next()
+}
+export const denyAll = () => (req: Request, res: Response) => {
+  res.status(401).json({ status: 'error', data: 'Access denied.' })
+}
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: string) => verifyRs256(token) !== null
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -188,14 +222,13 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
+    const decoded = verifyRs256(token)
+    if (decoded !== null) {
+      if (authenticatedUsers.get(token) === undefined) {
+        authenticatedUsers.put(token, decoded)
+        res.cookie('token', token)
       }
-    })
+    }
   }
   next()
 }

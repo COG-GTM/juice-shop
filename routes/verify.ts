@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
@@ -116,12 +117,8 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
       return
     }
 
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
+    challengeUtils.solveIf(challenge, () => {
+      return hasAlgorithm(token, algorithm) && isForgedWithPublicKey(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
 }
@@ -129,6 +126,18 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
 function hasAlgorithm (token: string, algorithm: string) {
   const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString())
   return token && header && header.alg === algorithm
+}
+
+function isForgedWithPublicKey (token: string, algorithm: string) {
+  const [header, payload, signature] = token.split('.')
+  if (algorithm === 'none') {
+    return signature === '' || signature === undefined
+  }
+  if (algorithm === 'HS256') {
+    const expected = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    return signature === expected
+  }
+  return false
 }
 
 function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
