@@ -73,8 +73,8 @@ const loadPrivateKey = () => {
   }
   const keyPair = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-    publicKeyEncoding: { type: 'spki', format: 'pem' }
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
   })
   logger.warn(`No JWT_PRIVATE_KEY configured: generated an ephemeral RSA key pair into ${PRIVATE_KEY_FILE}`)
   // The key pair is published under its final name via a hard link, so that a
@@ -99,7 +99,7 @@ const loadPrivateKey = () => {
 }
 
 const privateKey = loadPrivateKey()
-export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString()
+export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 publishPublicKey(publicKey)
 const hmacSecret = secretFromEnvironment('HMAC_SECRET') ?? randomSecret()
 const deluxeTokenSecret = secretFromEnvironment('DELUXE_TOKEN_SECRET') ?? randomSecret()
