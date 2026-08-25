@@ -23,8 +23,8 @@ export default defineConfig({
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
         },
-        ForgeJwt (email: string) {
-          return jwt.sign({ data: { email } }, security.publicKey, { algorithm: 'HS256' })
+        ForgeJwt ({ email, publicKey }: { email: string, publicKey: string }) {
+          return jwt.sign({ data: { email } }, publicKey, { algorithm: 'HS256' })
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {

@@ -16,11 +16,16 @@ describe('/', () => {
     it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
       cy.task('isWindows').then((isWindows) => {
         if (!isWindows) {
-          cy.task<string>('ForgeJwt', 'rsa_lord@juice-sh.op').then((token) => {
-            cy.window().then(() => {
-              localStorage.setItem('token', token)
+          cy.request('/encryptionkeys/jwt.pub')
+            .then((res) => cy.task<string>('ForgeJwt', {
+              email: 'rsa_lord@juice-sh.op',
+              publicKey: res.body
+            }))
+            .then((token) => {
+              cy.window().then(() => {
+                localStorage.setItem('token', token)
+              })
             })
-          })
           cy.visit('/#/')
 
           cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
