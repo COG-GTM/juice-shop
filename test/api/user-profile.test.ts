@@ -42,6 +42,22 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
   })
 
+  void it('GET user profile does not evaluate template expressions in the username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{1+1}')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{1+1}'))
+    assert.ok(!/>\s*2\s*</.test(res.text))
+  })
+
   void it('POST update username of authenticated user', async () => {
     const res = await request(app)
       .post('/profile')
