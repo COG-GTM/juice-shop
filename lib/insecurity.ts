@@ -43,6 +43,32 @@ interface IAuthenticatedUsers {
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
+const scryptKeyLength = 64
+const scryptOptions = { N: 16384, r: 8, p: 1 }
+
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(16)
+  const derivedKey = crypto.scryptSync(password, salt, scryptKeyLength, scryptOptions)
+  return ['scrypt', scryptOptions.N, scryptOptions.r, scryptOptions.p, salt.toString('base64'), derivedKey.toString('base64')].join('$')
+}
+
+export const verifyPassword = (password: string, storedPassword?: string) => {
+  const [algorithm, N, r, p, salt, derivedKey] = (storedPassword ?? '').split('$')
+  if (algorithm !== 'scrypt' || Number(N) > scryptOptions.N || Number(r) > scryptOptions.r || Number(p) > scryptOptions.p) {
+    return false
+  }
+  try {
+    const expected = Buffer.from(derivedKey, 'base64')
+    if (expected.length !== scryptKeyLength) {
+      return false
+    }
+    const actual = crypto.scryptSync(password, Buffer.from(salt, 'base64'), scryptKeyLength, { N: Number(N), r: Number(r), p: Number(p) })
+    return crypto.timingSafeEqual(expected, actual)
+  } catch {
+    return false
+  }
+}
+
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
   if (utils.contains(str, nullByte)) {

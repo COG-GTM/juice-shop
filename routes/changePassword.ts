@@ -36,11 +36,6 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
-      return
-    }
-
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
@@ -48,10 +43,15 @@ export function changePassword () {
         return
       }
 
+      if (currentPassword && !security.verifyPassword(currentPassword, user.password)) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
       await user.update({ password: newPasswordInString })
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
+        () => user.id === 3 && !currentPassword && security.verifyPassword('slurmCl4ssic', user.password)
       )
       res.json({ user })
     } catch (error) {
