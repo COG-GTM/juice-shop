@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -168,6 +168,42 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ zipCode: 'NX 10111111' })
     assert.equal(res.status, 400)
+  })
+
+  void it('PUT update address of another user returns 400 and leaves the address untouched', async () => {
+    const email = `attacker.${Date.now()}@juice-sh.op`
+    const password = 'ItsASecret1!'
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+    const attackerHeader = {
+      Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(attackerHeader)
+      .send({ fullName: 'Attacker', city: 'Hijacked' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.status, 'error')
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const attackerAddresses = await request(app).get('/api/Addresss').set(attackerHeader)
+    assert.equal(attackerAddresses.status, 200)
+    assert.equal(attackerAddresses.body.data.length, 0)
+
+    const victimAddress = await request(app).get('/api/Addresss/' + addressId).set(authHeader)
+    assert.equal(victimAddress.status, 200)
+    assert.equal(victimAddress.body.data.city, 'NYC')
+  })
+
+  void it('PUT update address by id cannot reassign the address to another user', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ UserId: 1, fullName: 'Jimy' })
+    assert.equal(res.status, 200)
+    assert.notEqual(res.body.data.UserId, 1)
   })
 
   void it('DELETE address by id', async () => {
