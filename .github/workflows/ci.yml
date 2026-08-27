@@ -129,13 +129,6 @@ jobs:
           timeout_minutes: 10
           max_attempts: 3
           command: npm run test:server:coverage
-      - name: "Surface server unit test failures"
-        if: failure()
-        run: |
-          npm run test:server -- --reporter min > server-test-output.log 2>&1 || true
-          MSG=$(sed -n '/passing/,$p' server-test-output.log | head -c 3500 | sed -e 's/%/%25/g' | awk '{ printf "%s%%0A", $0 }')
-          echo "::error title=server-test-output::$MSG"
-        shell: bash
       - name: "Copy server unit test coverage data"
         if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24'
         run: |
