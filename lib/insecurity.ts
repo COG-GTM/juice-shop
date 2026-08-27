@@ -56,7 +56,7 @@ const verifiedToken = (token?: string): ResponseWithUser | null => {
   }
   try {
     const decoded = jws.decode(token)
-    if (decoded?.header?.alg !== 'RS256' || !jws.verify(token, 'RS256', publicKey)) {
+    if (decoded?.header?.alg !== 'RS256' || !jws.verify(token, publicKey)) {
       return null
     }
     const payload: ResponseWithUser = typeof decoded.payload === 'string' ? JSON.parse(decoded.payload) : decoded.payload
