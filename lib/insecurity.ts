@@ -61,7 +61,7 @@ const loadPrivateKey = () => {
   }
   const keyPair = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
     publicKeyEncoding: { type: 'spki', format: 'pem' }
   })
   logger.warn(`No JWT_PRIVATE_KEY configured: generated an ephemeral RSA key pair into ${PRIVATE_KEY_FILE}`)
