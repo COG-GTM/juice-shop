@@ -23,6 +23,14 @@ import * as z85 from 'z85'
 const PRIVATE_KEY_FILE = 'encryptionkeys/jwt.priv'
 const PUBLIC_KEY_FILE = 'encryptionkeys/jwt.pub'
 
+const readFileIfPresent = (file: string) => {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
 // Reads a secret from <NAME> or from the file <NAME>_FILE (for secret managers
 // mounting secrets as files). Returns undefined when neither is configured.
 const secretFromEnvironment = (name: string) => {
@@ -31,8 +39,8 @@ const secretFromEnvironment = (name: string) => {
     return value
   }
   const file = process.env[`${name}_FILE`]
-  if (file !== undefined && file !== '' && fs?.existsSync(file)) {
-    return fs.readFileSync(file, 'utf8').trim()
+  if (file !== undefined && file !== '') {
+    return readFileIfPresent(file)?.trim()
   }
   return undefined
 }
@@ -47,8 +55,9 @@ const loadPrivateKey = () => {
   if (configuredKey !== undefined) {
     return configuredKey.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n')
   }
-  if (fs?.existsSync(PRIVATE_KEY_FILE)) {
-    return fs.readFileSync(PRIVATE_KEY_FILE, 'utf8')
+  const storedKey = readFileIfPresent(PRIVATE_KEY_FILE)
+  if (storedKey !== undefined) {
+    return storedKey
   }
   const keyPair = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -57,11 +66,18 @@ const loadPrivateKey = () => {
   })
   logger.warn(`No JWT_PRIVATE_KEY configured: generated an ephemeral RSA key pair into ${PRIVATE_KEY_FILE}`)
   try {
-    fs.writeFileSync(PRIVATE_KEY_FILE, keyPair.privateKey, { mode: 0o600, flag: 'wx' })
+    const temporaryFile = `${PRIVATE_KEY_FILE}.${process.pid}.tmp`
+    fs.writeFileSync(temporaryFile, keyPair.privateKey, { mode: 0o600 })
+    try {
+      fs.linkSync(temporaryFile, PRIVATE_KEY_FILE)
+    } finally {
+      fs.unlinkSync(temporaryFile)
+    }
     fs.writeFileSync(PUBLIC_KEY_FILE, keyPair.publicKey)
   } catch (error: unknown) {
-    if (fs?.existsSync(PRIVATE_KEY_FILE)) { // key pair was written by a concurrently starting process
-      return fs.readFileSync(PRIVATE_KEY_FILE, 'utf8')
+    const keyOfOtherProcess = readFileIfPresent(PRIVATE_KEY_FILE)
+    if (keyOfOtherProcess !== undefined) {
+      return keyOfOtherProcess
     }
     logger.warn(`Could not persist the generated RSA key pair: ${utils.getErrorMessage(error)}`)
   }
