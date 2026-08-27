@@ -51,6 +51,13 @@ export const containsOrEscaped = function (str: string, element: string) {
   return contains(str, element) || containsEscaped(str, element)
 }
 
+// Pug/JS interpolation openers and characters that could start a new line of template code
+export const containsTemplateSyntax = (str?: string) => str ? /[#!$]\{|#\[|[\u0000-\u001f\u007f\u2028\u2029]/.test(str) : false
+
+export const stripTemplateSyntax = (str: string) => str
+  .replace(/[#!$]\{|#\[/g, '')
+  .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ')
+
 export const unquote = function (str: string) {
   if (str && startsWith(str, '"') && endsWith(str, '"')) {
     return str.substring(1, str.length - 1)

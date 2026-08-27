@@ -27,13 +27,19 @@ export function updateUserProfile () {
         return
       }
 
+      const username = typeof req.body.username === 'string' ? req.body.username : undefined
+      if (req.body.username !== undefined && (username === undefined || utils.containsTemplateSyntax(username))) {
+        res.status(400).json({ status: 'error', error: 'Invalid username' })
+        return
+      }
+
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
         return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
           (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
-          req.body.username !== user.username
+          username !== user.username
       })
 
-      const savedUser = await user.update({ username: req.body.username })
+      const savedUser = await user.update({ username })
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)

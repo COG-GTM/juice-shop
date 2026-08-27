@@ -51,4 +51,21 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST username containing template syntax is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{global.process.mainModule.require(\'child_process\').execSync(\'ls\')}')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+
+    const profile = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(profile.status, 200)
+    assert.ok(!profile.text.includes('child_process'))
+  })
 })

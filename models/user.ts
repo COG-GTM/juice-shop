@@ -51,6 +51,9 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
           } else {
             username = security.sanitizeSecure(username)
           }
+          if (username) {
+            username = utils.stripTemplateSyntax(username)
+          }
           this.setDataValue('username', username)
         }
       },
