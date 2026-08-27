@@ -59,7 +59,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new admin', async () => {
+  void it('POST new user requesting admin role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -74,7 +74,23 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'admin')
+    assert.equal(res.body.data.role, 'customer')
+  })
+
+  void it('POST new user requesting deluxe token is registered without it', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        deluxeToken: 'i-am-deluxe',
+        isActive: false
+      })
+    assert.equal(res.status, 201)
+    assert.notEqual(res.body.data.deluxeToken, 'i-am-deluxe')
+    assert.equal(res.body.data.role, 'customer')
+    assert.equal(res.body.data.isActive, true)
   })
 
   void it('POST new blank user', async () => {
@@ -127,7 +143,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new deluxe user', async () => {
+  void it('POST new user requesting deluxe role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -137,15 +153,15 @@ void describe('/api/Users', () => {
         role: 'deluxe'
       })
     assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.data.id, 'number')
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'deluxe')
   })
 
-  void it('POST new accounting user', async () => {
+  void it('POST new user requesting accounting role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -160,10 +176,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'accounting')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST user not belonging to customer, deluxe, accounting, admin is forbidden', async () => {
+  void it('POST user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -172,11 +188,9 @@ void describe('/api/Users', () => {
         password: 'hooooorst',
         role: 'accountinguser'
       })
-    assert.equal(res.status, 400)
+    assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
-    assert.equal(res.body.errors[0].field, 'role')
-    assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
+    assert.equal(res.body.data.role, 'customer')
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
