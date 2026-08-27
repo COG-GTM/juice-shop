@@ -91,6 +91,13 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should not mark user emails as trusted HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllUsers()
+
+        expect(component.userDataSource.data[0].email).toBe('<iframe src="javascript:alert(`xss`)">')
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
