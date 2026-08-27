@@ -53,19 +53,27 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 const jwtAlgorithm = 'RS256'
 
-const hasExpectedAlgorithm = (token: string) => {
+const verifiedPayload = (token?: string) => {
+  if (!token) {
+    return null
+  }
   try {
-    return jws.decode(token)?.header?.alg === jwtAlgorithm
+    const decoded = jws.decode(token)
+    return decoded?.header?.alg === jwtAlgorithm && (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
+      ? decoded.payload
+      : null
   } catch {
-    return false
+    return null
   }
 }
+
+const isExpired = (payload: { exp?: number }) => payload.exp !== undefined && Date.now() / 1000 >= payload.exp
 
 export const isAuthorized = () => {
   const verifyToken = expressJwt(({ secret: publicKey, algorithms: [jwtAlgorithm] }) as any)
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    if (token && !hasExpectedAlgorithm(token)) {
+    if (token && verifiedPayload(token) === null) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
       return
     }
@@ -74,8 +82,8 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm })
-export const verify = (token: string) => token && hasExpectedAlgorithm(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
-export const decode = (token: string) => { return verify(token) ? jws.decode(token)?.payload : undefined }
+export const verify = (token: string) => verifiedPayload(token) !== null
+export const decode = (token: string) => verifiedPayload(token) ?? undefined
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -207,19 +215,10 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    if (!hasExpectedAlgorithm(token)) {
-      next()
-      return
-    }
-    jwt.verify(token, publicKey, { algorithms: [jwtAlgorithm] }, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  const decoded = verifiedPayload(token) as ResponseWithUser | null
+  if (decoded && !isExpired(decoded) && authenticatedUsers.get(token) === undefined) {
+    authenticatedUsers.put(token, decoded)
+    res.cookie('token', token)
   }
   next()
 }
