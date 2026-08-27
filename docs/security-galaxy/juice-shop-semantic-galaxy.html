@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>juice-shop — semantic galaxy (security overlay)</title>
+<style>
+  :root {
+    --paper: #f6f1e6;
+    --ink: #2b2b2b;
+    --ink-soft: #6b6559;
+    --rule: #cfc6b4;
+    --panel: rgba(246,241,230,0.94);
+    --hot: #b3261e;
+    --fixed: #2f7d4f;
+    --scan: #2b5fa8;
+  }
+  html[data-theme="dark"] {
+    --paper: #14161a;
+    --ink: #e6e1d5;
+    --ink-soft: #9a9488;
+    --rule: #3a3f47;
+    --panel: rgba(20,22,26,0.94);
+    --hot: #ff6b5e;
+    --fixed: #55c98a;
+    --scan: #6aa6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); }
+  body {
+    font-family: "SFMono-Regular", "JetBrains Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    color: var(--ink);
+    font-size: 12px;
+  }
+  #stage { position: fixed; inset: 0; display: block; }
+  .hud {
+    position: fixed; z-index: 3; pointer-events: none;
+  }
+  #title { left: 18px; top: 14px; max-width: 420px; }
+  #title h1 { font-size: 13px; margin: 0 0 4px; letter-spacing: .14em; text-transform: uppercase; }
+  #title p { margin: 0; color: var(--ink-soft); line-height: 1.5; font-size: 11px; }
+  #controls {
+    right: 18px; top: 14px; pointer-events: auto; text-align: right;
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-end;
+  }
+  button {
+    font: inherit; font-size: 11px; color: var(--ink); background: transparent;
+    border: 1px solid var(--rule); border-radius: 2px; padding: 4px 9px; cursor: pointer;
+    letter-spacing: .06em;
+  }
+  button:hover { border-color: var(--ink); }
+  button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  #legend { left: 18px; bottom: 14px; color: var(--ink-soft); line-height: 1.7; font-size: 10.5px; }
+  #legend b { color: var(--ink); font-weight: 600; }
+  #meter {
+    right: 18px; bottom: 14px; text-align: right; color: var(--ink-soft); font-size: 10.5px; line-height: 1.7;
+  }
+  #meter .bar { width: 190px; height: 5px; border: 1px solid var(--rule); margin: 4px 0 2px auto; position: relative; }
+  #meter .bar i { position: absolute; inset: 0 auto 0 0; background: var(--fixed); display: block; }
+  #panel {
+    position: fixed; z-index: 4; right: 18px; top: 96px; width: 340px; max-height: calc(100% - 190px);
+    overflow: auto; background: var(--panel); border: 1px solid var(--rule); padding: 12px 13px;
+    display: none; backdrop-filter: blur(2px);
+  }
+  #panel.on { display: block; }
+  #panel h2 { font-size: 12px; margin: 0 0 2px; letter-spacing: .08em; }
+  #panel .kind { color: var(--ink-soft); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+  #panel p.desc { line-height: 1.55; margin: 8px 0 10px; }
+  #panel h3 {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    margin: 12px 0 5px; border-top: 1px solid var(--rule); padding-top: 7px;
+  }
+  #panel ul { list-style: none; margin: 0; padding: 0; }
+  #panel li { margin: 0 0 5px; line-height: 1.45; word-break: break-all; }
+  .sev {
+    display: inline-block; min-width: 62px; padding: 0 4px; margin-right: 6px; text-align: center;
+    border: 1px solid currentColor; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .sev.critical { color: #8f1d16; }
+  .sev.high { color: #b3261e; }
+  .sev.medium { color: #a8720f; }
+  .sev.low { color: var(--ink-soft); }
+  html[data-theme="dark"] .sev.critical { color: #ff8d80; }
+  html[data-theme="dark"] .sev.high { color: #ff6b5e; }
+  html[data-theme="dark"] .sev.medium { color: #e0a94a; }
+  .fixedtag { color: var(--fixed); }
+  #panel .fnd { border-left: 2px solid var(--rule); padding-left: 8px; margin-bottom: 9px; }
+  #panel .fnd .t { display: block; margin-bottom: 3px; }
+  #panel .fnd .d { color: var(--ink-soft); line-height: 1.45; }
+  #panel .fnd a { color: inherit; }
+  #hint { left: 50%; transform: translateX(-50%); bottom: 14px; color: var(--ink-soft); font-size: 10.5px; }
+  #chainout {
+    position: fixed; z-index: 4; left: 18px; top: 92px; width: 380px; max-height: calc(100% - 200px);
+    overflow: auto; background: var(--panel); border: 1px solid var(--hot); padding: 12px 13px;
+    display: none; backdrop-filter: blur(2px);
+  }
+  #chainout.on { display: block; }
+  #chainout h2 { font-size: 12px; margin: 0 0 4px; letter-spacing: .06em; color: var(--hot); }
+  #chainout .kind { color: var(--ink-soft); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+  #chainout p.sum { line-height: 1.55; margin: 8px 0 10px; }
+  #chainout h3 {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft);
+    margin: 12px 0 6px; border-top: 1px solid var(--rule); padding-top: 7px;
+  }
+  #chainout .step {
+    border-left: 2px solid var(--rule); padding: 0 0 0 9px; margin: 0 0 10px; opacity: .34;
+  }
+  #chainout .step.seen { opacity: 1; border-left-color: var(--hot); }
+  #chainout .step.now { opacity: 1; border-left-color: var(--hot); border-left-width: 3px; }
+  #chainout .step .hd { display: block; margin-bottom: 3px; }
+  #chainout .step .no {
+    display: inline-block; min-width: 15px; margin-right: 6px; text-align: center;
+    border: 1px solid var(--hot); color: var(--hot); font-size: 9.5px;
+  }
+  #chainout .step .loc, #chainout .step .cap { color: var(--ink-soft); line-height: 1.45; display: block; word-break: break-all; }
+  #chainout .step .cap { color: var(--ink); margin-top: 4px; word-break: normal; }
+  #chainout .role {
+    font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--hot); margin-left: 6px;
+  }
+  #chainout ul { list-style: none; margin: 0; padding: 0; }
+  #chainout li { margin: 0 0 4px; line-height: 1.4; color: var(--ink-soft); word-break: break-all; }
+  #tip {
+    position: fixed; z-index: 5; pointer-events: none; padding: 3px 6px; background: var(--panel);
+    border: 1px solid var(--rule); font-size: 10.5px; display: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<canvas id="stage"></canvas>
+
+<div class="hud" id="title">
+  <h1 id="repoName">semantic galaxy</h1>
+  <p id="repoDesc"></p>
+</div>
+
+<div class="hud" id="controls">
+  <div>
+    <button id="btnHeat" aria-pressed="true">security heat</button>
+    <button id="btnReplay" aria-pressed="false">replay scan</button>
+    <button id="btnChain" aria-pressed="false">chain</button>
+  </div>
+  <div>
+    <button id="btnPreview" aria-pressed="false" title="hypothetical: shows the galaxy with every finding remediated">preview PR fixes</button>
+    <button id="btnLabels" aria-pressed="true">labels</button>
+    <button id="btnTheme">dark</button>
+    <button id="btnReset">reset view</button>
+  </div>
+</div>
+
+<div class="hud" id="legend">
+  <div><b>drag</b> orbit &nbsp; <b>wheel</b> zoom &nbsp; <b>click</b> focus node &nbsp; <b>esc</b> root view</div>
+  <div>solid double-stroke = hierarchy &nbsp; dashed = cross-cluster relation</div>
+  <div>red halo = severity-weighted findings (crit 8 / high 4 / med 2 / low 1) &nbsp; green = remediated</div>
+  <div><b>chain</b> button (or <b>c</b>) replays the cross-file attack chain step by step</div>
+</div>
+
+<div class="hud" id="meter">
+  <div id="meterText"></div>
+  <div class="bar"><i id="meterBar" style="width:0%"></i></div>
+  <div id="meterSub"></div>
+</div>
+
+<div id="chainout"></div>
+<div id="panel"></div>
+<div id="tip"></div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ data */
+const INDEX = {"name": "juice-shop", "description": "Fork of OWASP Juice Shop: a deliberately insecure e-commerce application. An Express/TypeScript server (server.ts) mounts ~60 hand-written REST route handlers plus auto-generated finale-rest CRUD endpoints over Sequelize/SQLite models, with a second document store (MarsDB/MongoDB-style) for product reviews and orders. Cross-cutting security primitives (JWT issuing and verification, hashing, HTML sanitisation, coupon codes, redirect allow-listing) live in a single lib/insecurity.ts module. An Angular 21 single-page frontend in frontend/src consumes the same API, and a challenge/scoring subsystem instruments almost every handler to detect successful exploitation.", "children": [{"id": "server-bootstrap", "name": "Server Bootstrap & Route Wiring", "description": "Application entry points: build the Express app, install global middleware (helmet, CORS, cookie parser, rate limiting, static file serving), mount every route handler with its authorization middleware, and expose the auto-generated REST layer.", "files": ["server.ts", "app.ts"], "children": [{"id": "middleware-stack", "name": "Global middleware & security headers", "description": "Order-sensitive middleware chain: helmet/featurePolicy headers, CORS, body and cookie parsing, morgan logging, compression, i18n, and the token-refreshing updateAuthenticatedUsers hook that runs before every route.", "files": ["server.ts", "lib/insecurity.ts"]}, {"id": "route-mounting", "name": "Route mounting & authorization matrix", "description": "The single place where each path is paired with isAuthorized(), isAccounting(), denyAll() or nothing at all. The effective access-control policy of the whole application is this list of app.use/app.get calls.", "files": ["server.ts"]}, {"id": "generated-rest", "name": "Auto-generated finale-rest CRUD", "description": "finale-rest exposes every Sequelize model under /api/<Model> with list, read, create, update and delete operations, guarded only by the per-path middleware declared during mounting.", "files": ["server.ts", "models/index.ts"]}, {"id": "startup-tasks", "name": "Startup validation & customisation", "description": "Pre-flight tasks executed before the HTTP server listens: config schema validation, dependency checks, restoring overwritten static files, FTP folder cleanup, theming and easter-egg customisation, websocket registration.", "files": ["lib/startup/validateConfig.ts", "lib/startup/validateDependencies.ts", "lib/startup/validatePreconditions.ts", "lib/startup/customizeApplication.ts", "lib/startup/customizeEasterEgg.ts", "lib/startup/restoreOverwrittenFilesWithOriginals.ts", "lib/startup/cleanupFtpFolder.ts", "lib/startup/registerWebsocketEvents.ts"]}, {"id": "app-config-endpoints", "name": "Configuration & version endpoints", "description": "Unauthenticated endpoints that hand the whole runtime configuration, version string and Angular build metadata to the browser so the SPA can theme and feature-flag itself.", "files": ["routes/appConfiguration.ts", "routes/appVersion.ts", "routes/angular.ts", "lib/config.types.ts"]}]}, {"id": "security-primitives", "name": "Security Primitives (lib/insecurity)", "description": "The cross-cutting security module every route depends on: JWT issuing and verification, password hashing, HMAC, HTML/filename sanitisation, coupon encoding, redirect allow-listing, role helpers and the in-memory map of authenticated users.", "files": ["lib/insecurity.ts", "lib/utils.ts"], "children": [{"id": "jwt-issuing", "name": "JWT issuing & signing keys", "description": "authorize() signs whatever object it is handed with an RSA private key using RS256; the private key is a string literal inside the module and its public counterpart is a file in encryptionkeys/.", "files": ["lib/insecurity.ts", "encryptionkeys/jwt.pub"]}, {"id": "jwt-verification", "name": "JWT verification & authorization middleware", "description": "isAuthorized() builds an express-jwt middleware from the public key, verify()/decode() wrap the jws library, and isAccounting()/isDeluxe()/isCustomer() derive roles from the decoded payload. Everything downstream trusts these helpers.", "files": ["lib/insecurity.ts", "lib/utils.ts"]}, {"id": "session-map", "name": "authenticatedUsers token map", "description": "Process-local map from raw token string to user object, populated at login and consulted by handlers that need the caller identity. jwtFrom() extracts the bearer token or cookie the map is keyed on.", "files": ["lib/insecurity.ts", "lib/utils.ts"]}, {"id": "hashing-crypto", "name": "Hashing, HMAC & coupon crypto", "description": "Password hashing (hash), the fixed-secret HMAC used for continue codes and deluxe tokens, and the z85-encoded coupon format with its month/discount validity check.", "files": ["lib/insecurity.ts"]}, {"id": "sanitisation", "name": "Sanitisation & redirect allow-list", "description": "sanitizeHtml/sanitizeLegacy/sanitizeSecure, sanitizeFilename, cutOffPoisonNullByte and the redirect allow-list membership test used by the redirect endpoint.", "files": ["lib/insecurity.ts", "lib/utils.ts"]}]}, {"id": "auth-identity", "name": "Authentication & Identity", "description": "Login, second factor, password reset and change, security questions, session introspection and the JWT-forgery detection endpoints. Entry point for every authenticated flow in the application.", "files": ["routes/login.ts", "routes/2fa.ts", "routes/changePassword.ts", "routes/resetPassword.ts"], "children": [{"id": "login-flow", "name": "Login & credential check", "description": "Builds the credential lookup as a raw SQL string over the Users table, then either issues a token via authorize() or returns a temporary token demanding the TOTP second factor.", "files": ["routes/login.ts", "models/user.ts"]}, {"id": "two-factor", "name": "TOTP second factor", "description": "Verification and (de)provisioning of TOTP secrets: exchanges the temporary password-valid token plus a TOTP code for a full session token, and stores the shared secret on the user row.", "files": ["routes/2fa.ts", "models/user.ts"]}, {"id": "password-recovery", "name": "Password change & recovery", "description": "Password change without re-authentication of the old password, the security-question based reset flow, and the seeded security answers those questions compare against.", "files": ["routes/changePassword.ts", "routes/resetPassword.ts", "routes/securityQuestion.ts", "models/securityAnswer.ts"]}, {"id": "session-introspection", "name": "Session introspection & login metadata", "description": "Endpoints returning the current user, the list of authenticated users, the last login IP written into the user row, and the whoami/authentication-details views the SPA polls.", "files": ["routes/currentUser.ts", "routes/authenticatedUsers.ts", "routes/saveLoginIp.ts"]}, {"id": "token-verification-challenges", "name": "Exploit detection for token attacks", "description": "The verify route decodes incoming tokens itself to recognise forged, unsigned or algorithm-confused JWTs and other exploitation attempts, and marks the corresponding challenge as solved.", "files": ["routes/verify.ts", "lib/challengeUtils.ts"]}]}, {"id": "user-privacy", "name": "User Profile, Addresses & Privacy", "description": "Server-rendered profile page, profile updates, saved addresses and payment cards, and the GDPR-style data export and erasure flows.", "files": ["routes/userProfile.ts", "routes/updateUserProfile.ts", "routes/dataExport.ts", "routes/dataErasure.ts"], "children": [{"id": "profile-render", "name": "Server-rendered profile page", "description": "Reads views/userProfile.pug as a string, substitutes placeholders (username, email hash, theme colours) by regex replacement, compiles the result with pug and returns it with a per-user Content-Security-Policy.", "files": ["routes/userProfile.ts", "views/userProfile.pug"]}, {"id": "profile-update", "name": "Profile update & re-issued token", "description": "Persists the submitted username on the user row, re-signs a fresh token from the updated record and sets it as a cookie, without CSRF protection or username validation.", "files": ["routes/updateUserProfile.ts", "models/user.ts"]}, {"id": "profile-images", "name": "Profile image upload & URL fetch", "description": "Two ways to set an avatar: multipart upload written under frontend assets, or a user-supplied URL the server itself fetches and stores.", "files": ["routes/profileImageFileUpload.ts", "routes/profileImageUrlUpload.ts"]}, {"id": "addresses-cards", "name": "Addresses & saved payment cards", "description": "CRUD over the address book and stored cards belonging to a user, reached both through dedicated handlers and the generated REST layer.", "files": ["routes/address.ts", "routes/payment.ts", "models/address.ts", "models/card.ts"]}, {"id": "privacy-requests", "name": "Data export & erasure", "description": "Assembles a JSON export of a user's data (orders, reviews, memories) and renders the erasure confirmation form, which echoes submitted fields back into a Handlebars view and redirects afterwards.", "files": ["routes/dataExport.ts", "routes/dataErasure.ts", "views/dataErasureForm.hbs", "views/dataErasureResult.hbs", "models/privacyRequests.ts", "routes/privacyPolicyProof.ts"]}]}, {"id": "catalog-reviews", "name": "Product Catalog, Search & Reviews", "description": "Product listing and search over the SQL store, plus the document-store collection holding product reviews with their own create/update/like endpoints.", "files": ["routes/search.ts", "routes/showProductReviews.ts", "routes/createProductReviews.ts", "routes/updateProductReviews.ts"], "children": [{"id": "product-search", "name": "Product search", "description": "Builds a raw SQL SELECT over Products from the q query parameter to match name and description, and returns the rows straight to the SPA.", "files": ["routes/search.ts", "models/product.ts"]}, {"id": "review-read", "name": "Review retrieval", "description": "Looks up reviews for a product id in the document store and returns them, including the author email of every reviewer.", "files": ["routes/showProductReviews.ts", "data/mongodb.ts"]}, {"id": "review-write", "name": "Review creation & editing", "description": "Creates reviews bound to the caller-supplied author field and patches existing reviews by the id given in the request body.", "files": ["routes/createProductReviews.ts", "routes/updateProductReviews.ts", "data/mongodb.ts"]}, {"id": "review-likes", "name": "Review likes", "description": "Increments the like counter of a review and records who liked it, reading and writing the document in two separate awaited steps.", "files": ["routes/likeProductReviews.ts", "data/mongodb.ts"]}, {"id": "product-media", "name": "Product media & photo wall", "description": "Serves product images and the community photo wall, including the memory upload path used by the photo-wall feature.", "files": ["routes/memory.ts", "models/memory.ts"]}]}, {"id": "basket-checkout", "name": "Basket, Orders & Checkout", "description": "Shopping basket and basket items, coupon redemption, wallet balance, order placement with PDF generation, order history and delivery status, plus the B2B order intake endpoint.", "files": ["routes/basket.ts", "routes/basketItems.ts", "routes/order.ts", "routes/coupon.ts"], "children": [{"id": "basket-access", "name": "Basket retrieval & item mutation", "description": "Returns a basket by the id in the URL and adds, updates or moves basket items using ids taken from the request, alongside the appendUserId middleware that stamps the caller id onto the body.", "files": ["routes/basket.ts", "routes/basketItems.ts", "models/basket.ts", "models/basketitem.ts"]}, {"id": "coupon-wallet", "name": "Coupons, wallet & deluxe membership", "description": "Applies coupon codes decoded from the z85 format, moves money in and out of the wallet, and grants the deluxe membership tier after payment.", "files": ["routes/coupon.ts", "routes/wallet.ts", "routes/deluxe.ts", "models/wallet.ts"]}, {"id": "checkout", "name": "Order placement & invoice", "description": "Turns the basket into an order document, applies the coupon discount and wallet deduction, renders the invoice PDF and clears the basket.", "files": ["routes/order.ts", "routes/payment.ts", "routes/delivery.ts", "models/delivery.ts"]}, {"id": "order-history", "name": "Order history & delivery status", "description": "Per-user order history derived from the token, the accounting-only listing of every order in the system, and the delivery-status toggle used by staff.", "files": ["routes/orderHistory.ts", "routes/trackOrder.ts"]}, {"id": "recycle-requests", "name": "Recycling box requests", "description": "Customer requests for a recycling box pickup: the create/list handlers and the model row that stores the requested quantity, address and pickup date.", "files": ["routes/recycles.ts", "models/recycle.ts"]}, {"id": "b2b-order", "name": "B2B order intake", "description": "Accepts an XML/JSON B2B order payload and evaluates the customer-supplied order line expression inside a Node vm sandbox with a timeout.", "files": ["routes/b2bOrder.ts"]}]}, {"id": "file-handling", "name": "File Upload, Download & Static Serving", "description": "Everything that reads or writes files on behalf of a request: the multipart upload endpoint with its XML and zip handling, the simulated FTP download directory, log and quarantine file serving, and video streaming.", "files": ["routes/fileUpload.ts", "routes/fileServer.ts", "routes/quarantineServer.ts", "routes/logfileServer.ts"], "children": [{"id": "upload-pipeline", "name": "Upload handling (XML & zip)", "description": "Buffers the uploaded file in memory, then either parses it as XML with external entity support or unpacks it entry by entry into the uploads directory.", "files": ["routes/fileUpload.ts"]}, {"id": "ftp-download", "name": "Simulated FTP download directory", "description": "Serves files from ftp/ by name, restricting the extension through an allow-list after the null-byte truncation helper has rewritten the requested path.", "files": ["routes/fileServer.ts", "lib/insecurity.ts"]}, {"id": "quarantine-logs", "name": "Quarantine & log file serving", "description": "Two more directory-scoped file servers: the quarantine folder holding suspicious uploads and the rotating server log files.", "files": ["routes/quarantineServer.ts", "routes/logfileServer.ts"]}, {"id": "video-stream", "name": "Promotion video streaming", "description": "Streams the promotion video with byte-range support and renders the surrounding pug view with subtitle text taken from configuration.", "files": ["routes/videoHandler.ts", "views/promotionVideo.pug"]}, {"id": "redirect-endpoint", "name": "Outbound redirect endpoint", "description": "Redirects the browser to the URL passed in the to parameter after checking it against the allow-list by substring containment.", "files": ["routes/redirect.ts", "lib/insecurity.ts"]}]}, {"id": "integrations", "name": "Chatbot, Web3 & Misc Integrations", "description": "The support chatbot, the web3/NFT features, CAPTCHA generation, key material serving, metrics, notifications and the remaining small endpoints.", "files": ["routes/chat.ts", "routes/web3Wallet.ts", "routes/nftMint.ts", "routes/keyServer.ts"], "children": [{"id": "chatbot", "name": "LLM support chatbot & tools", "description": "Streams a customer-service LLM conversation built from a system prompt plus the raw messages array sent by the browser, and exposes tools the model may call on its own: product search, review lookup, order lookup and coupon generation.", "files": ["routes/chat.ts", "data/mongodb.ts"]}, {"id": "web3", "name": "Web3 wallet, NFT & faucet", "description": "Signature verification for wallet linking, NFT minting metadata and the deluxe faucet flow driven by client-supplied addresses.", "files": ["routes/web3Wallet.ts", "routes/nftMint.ts"]}, {"id": "captcha", "name": "CAPTCHA generation & checks", "description": "Generates arithmetic and image CAPTCHAs, keeps the expected answer server-side and validates the submitted answer for feedback and complaint forms.", "files": ["routes/captcha.ts", "routes/imageCaptcha.ts", "models/captcha.ts", "models/imageCaptcha.ts"]}, {"id": "key-material", "name": "Key material & key checks", "description": "Serves files from encryptionkeys/ by name and validates submitted premium keys, plus the premium reward and easter-egg endpoints built on the same idea.", "files": ["routes/keyServer.ts", "routes/checkKeys.ts", "routes/premiumReward.ts", "routes/easterEgg.ts"]}, {"id": "telemetry", "name": "Metrics, notifications & localisation", "description": "Prometheus metrics endpoint, websocket challenge notifications, language pack listing and the country mapping used by the delivery form.", "files": ["routes/metrics.ts", "routes/repeatNotification.ts", "routes/languages.ts", "routes/countryMapping.ts", "lib/webhook.ts", "lib/logger.ts"]}]}, {"id": "challenge-scoring", "name": "Challenge & Scoring Subsystem", "description": "The instrumentation woven through every handler: challenge definitions, solve detection and notification, anti-cheat timing, coding-challenge snippets and fixes, and progress save/restore.", "files": ["lib/challengeUtils.ts", "lib/antiCheat.ts", "lib/codingChallenges.ts", "models/challenge.ts"], "children": [{"id": "solve-detection", "name": "Solve detection & notification", "description": "solveIf/solve mark challenges as solved, persist the score and push a websocket notification with the challenge name and hint.", "files": ["lib/challengeUtils.ts", "models/challenge.ts", "models/challengeDependency.ts"]}, {"id": "anti-cheat", "name": "Anti-cheat heuristics", "description": "Tracks how quickly each challenge was solved relative to when its hints or code snippets were first requested to estimate cheating.", "files": ["lib/antiCheat.ts", "lib/accuracy.ts"]}, {"id": "coding-challenges", "name": "Coding challenges (snippets & fixes)", "description": "Extracts the annotated vulnerable snippet out of the real source files, serves the multiple-choice fix options and checks the selected fix, with per-challenge rate limiting.", "files": ["lib/codingChallenges.ts", "routes/vulnCodeSnippet.ts", "routes/vulnCodeFixes.ts"]}, {"id": "progress-persistence", "name": "Progress save & restore", "description": "Encodes solved-challenge state into a continue code with a fixed-secret hash and restores progress from a submitted code.", "files": ["routes/continueCode.ts", "routes/restoreProgress.ts"]}, {"id": "scoreboard-data", "name": "Scoreboard data & hints", "description": "Challenge listing, hint unlocking and the tutorial metadata the score-board component renders.", "files": ["models/hint.ts", "data/static/challenges.yml"]}]}, {"id": "data-layer", "name": "Data Layer & Seed Data", "description": "Sequelize models over SQLite, the second document store used for reviews and orders, and the seeding code that creates users, products, baskets and challenges at startup.", "files": ["models/index.ts", "models/relations.ts", "data/datacreator.ts", "data/mongodb.ts"], "children": [{"id": "sql-models", "name": "Sequelize models & relations", "description": "Model definitions and associations for users, products, baskets, orders, feedback, complaints, addresses, cards and wallets, including which attributes are writable through the generated REST layer.", "files": ["models/index.ts", "models/relations.ts", "models/user.ts", "models/product.ts", "models/feedback.ts", "models/complaint.ts"]}, {"id": "document-store", "name": "Document store (reviews & orders)", "description": "MarsDB-backed collections queried with Mongo-style selectors for product reviews and completed orders.", "files": ["data/mongodb.ts"]}, {"id": "seeding", "name": "Seed data creation", "description": "Creates the demo users with their credentials, security answers, products, baskets, memories and challenge rows from the static YAML/JSON data on every boot.", "files": ["data/datacreator.ts", "data/staticData.ts", "data/datacache.ts", "data/static/users.yml", "data/types.ts"]}, {"id": "config-files", "name": "Configuration profiles", "description": "Themed YAML configuration profiles selected by NODE_ENV, validated against config.schema.yml, that toggle features, products, challenge availability and branding.", "files": ["config/default.yml", "config/ctf.yml", "config.schema.yml", "lib/config.types.ts"]}]}, {"id": "frontend-spa", "name": "Angular Frontend (SPA)", "description": "The Angular 21 single-page application: routing and route guards, HTTP services wrapping every REST endpoint, and the components that render products, baskets, profiles and the administration area.", "files": ["frontend/src/app/app.routing.ts", "frontend/src/app/app.guard.ts", "frontend/src/app/roles.ts"], "children": [{"id": "spa-routing-guards", "name": "Routing & client-side guards", "description": "Route table plus the guards that decide, purely in the browser, whether the administration, accounting and deluxe areas may be entered.", "files": ["frontend/src/app/app.routing.ts", "frontend/src/app/app.guard.ts", "frontend/src/app/roles.ts"]}, {"id": "spa-http-services", "name": "HTTP services & token interceptor", "description": "One Angular service per API area, plus the request interceptor that reads the session token out of browser storage and attaches it as a bearer header.", "files": ["frontend/src/app/Services/request.interceptor.ts", "frontend/src/app/Services/user.service.ts", "frontend/src/app/Services/product.service.ts", "frontend/src/app/Services/basket.service.ts", "frontend/src/app/Services/administration.service.ts"]}, {"id": "spa-search-product", "name": "Search results & product details", "description": "Renders the search term and product descriptions coming back from the API, including the product-details dialog and review list.", "files": ["frontend/src/app/search-result/search-result.component.ts", "frontend/src/app/search-result/search-result.component.html", "frontend/src/app/product-details/product-details.component.ts"]}, {"id": "spa-admin", "name": "Administration & accounting views", "description": "Administration component listing all users and feedback, the order-history/accounting screens and the score-board, all reachable only through the client-side guards.", "files": ["frontend/src/app/administration/administration.component.ts", "frontend/src/app/accounting/accounting.component.ts", "frontend/src/app/order-history/order-history.component.ts", "frontend/src/app/score-board/score-board.component.ts"]}, {"id": "spa-user-flows", "name": "Login, registration & profile flows", "description": "Login, registration, password change, 2FA entry and the basket/checkout components, including where credentials and tokens are cached locally.", "files": ["frontend/src/app/login/login.component.ts", "frontend/src/app/register/register.component.ts", "frontend/src/app/change-password/change-password.component.ts", "frontend/src/app/two-factor-auth/two-factor-auth.component.ts", "frontend/src/app/basket/basket.component.ts", "frontend/src/app/oauth/oauth.component.ts"]}, {"id": "spa-public-pages", "name": "Public pages & feedback display", "description": "Pages reachable without logging in: the About page slideshow that renders customer feedback, the contact/feedback form, the photo wall and the last-login-IP banner shown after sign-in.", "files": ["frontend/src/app/about/about.component.ts", "frontend/src/app/contact/contact.component.ts", "frontend/src/app/photo-wall/photo-wall.component.ts", "frontend/src/app/last-login-ip/last-login-ip.component.ts"]}, {"id": "spa-chatbot-web3", "name": "Chatbot & web3 components", "description": "Chatbot window with its conversation storage, the web3 sandbox that evaluates user-entered code, and the token-sale and wallet views.", "files": ["frontend/src/app/chatbot/chatbot.component.ts", "frontend/src/app/web3-sandbox/web3-sandbox.component.ts", "frontend/src/app/token-sale/token-sale.component.ts", "frontend/src/app/Services/conversation-storage.service.ts"]}]}], "relations": [{"from": "route-mounting", "to": "jwt-verification", "kind": "depends-on", "label": "isAuthorized()"}, {"from": "route-mounting", "to": "generated-rest", "kind": "configures", "label": "per-model guards"}, {"from": "middleware-stack", "to": "session-map", "kind": "depends-on", "label": "updateAuthenticatedUsers"}, {"from": "login-flow", "to": "jwt-issuing", "kind": "depends-on", "label": "authorize()"}, {"from": "login-flow", "to": "session-map", "kind": "writes", "label": "put(token, user)"}, {"from": "login-flow", "to": "sql-models", "kind": "queries", "label": "raw SQL on Users"}, {"from": "two-factor", "to": "jwt-issuing", "kind": "depends-on", "label": "tmp token exchange"}, {"from": "password-recovery", "to": "hashing-crypto", "kind": "depends-on", "label": "hash()"}, {"from": "profile-update", "to": "jwt-issuing", "kind": "depends-on", "label": "re-signs token"}, {"from": "profile-render", "to": "profile-update", "kind": "reads", "label": "stored username"}, {"from": "profile-render", "to": "session-map", "kind": "depends-on", "label": "cookie token"}, {"from": "product-search", "to": "sql-models", "kind": "queries", "label": "raw SQL on Products"}, {"from": "review-write", "to": "document-store", "kind": "writes", "label": "Mongo-style selector"}, {"from": "review-read", "to": "document-store", "kind": "queries", "label": "find({ product })"}, {"from": "basket-access", "to": "session-map", "kind": "depends-on", "label": "appendUserId"}, {"from": "checkout", "to": "coupon-wallet", "kind": "depends-on", "label": "discount & balance"}, {"from": "coupon-wallet", "to": "hashing-crypto", "kind": "depends-on", "label": "z85 coupon"}, {"from": "order-history", "to": "jwt-verification", "kind": "depends-on", "label": "isAccounting()"}, {"from": "order-history", "to": "document-store", "kind": "queries", "label": "orders collection"}, {"from": "ftp-download", "to": "sanitisation", "kind": "depends-on", "label": "cutOffPoisonNullByte"}, {"from": "redirect-endpoint", "to": "sanitisation", "kind": "depends-on", "label": "isRedirectAllowed"}, {"from": "upload-pipeline", "to": "quarantine-logs", "kind": "writes", "label": "stores upload"}, {"from": "key-material", "to": "jwt-issuing", "kind": "exposes", "label": "encryptionkeys/"}, {"from": "progress-persistence", "to": "hashing-crypto", "kind": "depends-on", "label": "continue code hash"}, {"from": "coding-challenges", "to": "solve-detection", "kind": "depends-on", "label": "fix verification"}, {"from": "anti-cheat", "to": "solve-detection", "kind": "observes", "label": "solve timing"}, {"from": "seeding", "to": "sql-models", "kind": "writes", "label": "demo users & products"}, {"from": "seeding", "to": "password-recovery", "kind": "provides", "label": "security answers"}, {"from": "spa-http-services", "to": "route-mounting", "kind": "calls", "label": "REST API"}, {"from": "spa-routing-guards", "to": "spa-admin", "kind": "guards", "label": "client-side only"}, {"from": "spa-http-services", "to": "session-map", "kind": "depends-on", "label": "bearer token"}, {"from": "spa-search-product", "to": "product-search", "kind": "calls", "label": "/rest/products/search"}, {"from": "spa-admin", "to": "order-history", "kind": "calls", "label": "/rest/order-history/orders"}, {"from": "spa-chatbot-web3", "to": "chatbot", "kind": "calls", "label": "/rest/chatbot"}, {"from": "spa-user-flows", "to": "login-flow", "kind": "calls", "label": "/rest/user/login"}, {"from": "generated-rest", "to": "sql-models", "kind": "exposes", "label": "finale-rest CRUD"}, {"from": "app-config-endpoints", "to": "config-files", "kind": "exposes", "label": "runtime config"}, {"from": "startup-tasks", "to": "seeding", "kind": "triggers", "label": "boot sequence"}, {"from": "b2b-order", "to": "jwt-verification", "kind": "depends-on", "label": "/b2b/v2 guard"}, {"from": "telemetry", "to": "solve-detection", "kind": "observes", "label": "challenge metrics"}]};
+const FINDINGS = [{"cwe": "CWE-79", "code": "feedbacks[i].comment = this.sanitizer.bypassSecurityTrustHtml(", "line": 119, "path": "frontend/src/app/about/about.component.ts", "title": "Public About page marks customer feedback comments as trusted HTML before rendering them in the gallery", "severity": "critical", "description": "`populateSlideshowFromFeedbacks()` takes each `feedbacks[i].comment` returned by `FeedbackService.find()`, concatenates it into a `<figcaption>` HTML fragment, and then passes the fragment to `this.sanitizer.bypassSecurityTrustHtml(...)`. The resulting `SafeHtml` is stored as the gallery item's `args` and bound with `[innerHTML]=\"item?.args\"` in about.component.html, so Angular's default HTML sanitizer is explicitly disabled for that node. Feedback comments are attacker-supplied through the customer feedback form, and the About page is reachable without authentication, so a single malicious comment yields stored cross-site scripting against every visitor of the shop. Because the payload also runs in the session of logged-in users and administrators browsing the page, it can be used to read their JWT from local storage and take over accounts.", "id": "sfind-433081d20b9cc2ba479bf913ac6e383d", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "lib/insecurity.ts", "line": 23, "severity": "critical", "cwe": "CWE-798", "title": "RSA private key used to sign every session token is a string literal in the source tree", "code": "const privateKey = '-----BEGIN RSA PRIVATE KEY-----\\r\\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8...'", "description": "The 1024-bit RSA private key that `authorize()` uses to sign every session JWT is embedded as a constant in `lib/insecurity.ts`, so it is readable by anyone who can see the repository, the built container image or the unminified server bundle. Because the matching public key is the only verification material (`publicKey` is read from `encryptionkeys/jwt.pub`, which is itself served over HTTP), possession of this literal allows an attacker to mint a syntactically perfect RS256 token with any `data.id`, `data.email` and `data.role` they choose. Every authorization decision in the application is derived from that payload, so a forged token is indistinguishable from one issued after a real login and grants the attacker whichever role they wrote into it. The same key is reused as the HMAC secret in `deluxeToken()`, so leaking it also forges deluxe entitlement tokens.", "id": "sfind-e6460bdd9ca720781db551f08ada5a6b", "remediated": false, "status": "open", "pr": null, "chain": "step 2 of 5 (upstream) in chain: jwt forgery → all orders"}, {"cwe": "CWE-79", "code": "username = security.sanitizeLegacy(username)", "line": 50, "path": "models/user.ts", "title": "User.username setter falls back to a regex-based `sanitizeLegacy` filter that fails to strip script payloads", "severity": "critical", "description": "The Sequelize setter for `username` chooses its sanitizer at runtime: when the `persistedXssUserChallenge` flag is active it calls `security.sanitizeLegacy(username)` instead of the library-backed `security.sanitizeSecure(username)`. `sanitizeLegacy` is implemented as `input.replace(/<(?:\\w+)\\W+?[\\w]/gi, '')`, a single-pass regular expression that only removes one occurrence per tag shape and is trivially defeated by nested or mangled markup such as `<<script>script>alert(1)<</script>/script>`. The value written by `setDataValue('username')` is persisted and later rendered into other users' pages (administration table, profile page), so the stored payload executes in the browser of any visitor or administrator who views it. The mitigation is also model-wide, meaning every write path that touches `username` (registration, profile update) inherits the weak filter.", "id": "sfind-b9b00cac0eb4c826432e4eba7b290db5", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-94", "code": "vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })", "line": 23, "path": "routes/b2bOrder.ts", "title": "Remote code execution: request body evaluated as JavaScript inside a non-isolating vm context", "severity": "critical", "description": "b2bOrder() takes body.orderLinesData verbatim from the POST /b2b/v2/orders request, places it in a sandbox object together with notevil's safeEval and then evaluates it with vm.runInContext('safeEval(orderLinesData)', ...). node:vm contexts are not a security boundary and notevil is a userland interpreter with known escape primitives (constructor/prototype chain walking), so a crafted payload can reach the host realm and execute arbitrary Node code such as process.mainModule.require('child_process').execSync(). Only a 2000 ms timeout constrains the attacker, which also permits trivial CPU-exhaustion denial of service via an infinite loop. Any user with a valid JWT for the B2B API therefore obtains code execution as the application's OS user.", "id": "sfind-f344a5370f0b6dacd9e223dc0df639be", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-22", "code": "entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))", "line": 45, "path": "routes/fileUpload.ts", "title": "Zip Slip: archive entry names concatenated into a write path during complaint upload", "severity": "critical", "description": "handleZipFileUpload() streams an uploaded .zip through unzipper.Parse() and, for each entry, uses entry.path unmodified as fileName when constructing the destination for fs.createWriteStream('uploads/complaints/' + fileName). The only guard is absolutePath.includes(path.resolve('.')) on line 44, which merely requires the resolved target to remain somewhere under the application directory and therefore still permits traversal segments such as ../../ftp/legal.md or ../../views/ templates. A POST /file-upload with a crafted archive thus overwrites arbitrary files inside the deployment — served static assets, views, or configuration — turning file upload into arbitrary file write and, via overwritten server-side templates or JavaScript, into code execution. No authentication is required for the upload endpoint.", "id": "sfind-cd4a6190d9c3df34542e61af0b73acb8", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-89", "code": "models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }", "line": 34, "path": "routes/login.ts", "title": "SQL injection in login handler builds authentication query by string interpolation of req.body.email", "severity": "critical", "description": "The `login()` handler passes a template literal straight to `models.sequelize.query()`, interpolating `req.body.email` into the WHERE clause of `SELECT * FROM Users WHERE email = '...' AND password = '...'` with no parameter binding or escaping. Any unauthenticated client can POST to the login endpoint with an email such as `' OR 1=1--` and terminate the quoted literal, commenting out the password comparison entirely. The first returned row is materialised through `utils.queryResultToJson()` and, because `user.data.id` is set, `afterLogin()` issues a valid session token via `security.authorize()` for that account, yielding full pre-auth account takeover of the first user in the table (typically the administrator). The same injection point also permits UNION-based extraction of arbitrary table contents, including every stored password hash.", "id": "sfind-3e8139de5e9ea0c719b8b1c63f3776bb", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-89", "code": "models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`)", "line": 23, "path": "routes/search.ts", "title": "Unauthenticated SQL injection in product search builds raw SELECT from req.query.q", "severity": "critical", "description": "searchProducts() reads the user-supplied search term from req.query.q into the criteria variable and interpolates it directly into a raw SQL string passed to models.sequelize.query(). The only processing applied is a substring(0, 200) length cap, so quotes, comment markers and UNION clauses reach the SQLite engine unescaped. Because the endpoint GET /rest/products/search is reachable without authentication, any anonymous visitor can terminate the LIKE literal and append arbitrary SQL, e.g. q=')) UNION SELECT id, email, password, ... FROM Users--, and read the full Users table including password hashes. The same injection also exposes sqlite_master, allowing complete schema enumeration and further targeted extraction.", "id": "sfind-8245c7b566a5bb9a88454b45f6698254", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-943", "code": "db.reviewsCollection.find({ $where: 'this.product == ' + id }).then((reviews: Review[]) => {", "line": 36, "path": "routes/showProductReviews.ts", "title": "Product review lookup concatenates req.params.id into an evaluated $where expression", "severity": "critical", "description": "showProductReviews() derives id from req.params.id — only truncated to 40 characters by utils.trunc when the noSqlCommandChallenge flag is on — and concatenates it into the $where clause 'this.product == ' + id, which the document store evaluates as JavaScript for every review. An unauthenticated GET /rest/products/<id>/reviews request can inject a full expression, for example 1; sleep(2000) using the blocking global.sleep helper defined at line 17, or a tautology that dumps all reviews regardless of product. Because evaluation happens in the server process, the injected code runs with the privileges of the query engine and blocks the event loop, yielding both unauthorised data access and a reliable denial of service. No validation restricts id to a numeric value on the vulnerable path.", "id": "sfind-dfd4696441e18ca86fcb312c5759bd2c", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-943", "code": "db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {", "line": 18, "path": "routes/trackOrder.ts", "title": "JavaScript injection into MongoDB $where clause of the order tracking endpoint", "severity": "critical", "description": "trackOrder() takes the order id from req.params.id and, when the reflectedXssChallenge flag is enabled, only truncates it to 60 characters via utils.trunc before interpolating it into a $where expression that the datastore evaluates as JavaScript. An unauthenticated request to GET /rest/track-order/<id> can therefore close the string literal and inject its own predicate, e.g. '||'1'=='1, causing every order document — other customers' order ids, e-mail fragments, totals and product lists — to be returned. Expressions such as while(true){} or heavy loops in the same position also block the query engine, giving an easy denial-of-service primitive. The untrusted id is additionally echoed back in the JSON response on line 22, so the unsanitised value is reflected to the client.", "id": "sfind-868d4762f7075f3e8d674ee34322285e", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-943", "code": "{ _id: req.body.id },", "line": 18, "path": "routes/updateProductReviews.ts", "title": "NoSQL operator injection lets any authenticated user rewrite every product review", "severity": "critical", "description": "updateProductReviews() passes req.body.id straight into the selector of db.reviewsCollection.update() without type checking or casting to a string. Because the JSON body is parsed before it reaches the handler, an attacker can submit an object such as {\"id\": {\"$ne\": -1}, \"message\": \"...\"} so the selector becomes a query operator rather than a document id. Combined with the { multi: true } option on line 20, a single PATCH /rest/products/reviews request rewrites the message of every review in the collection, and no check compares the review's author with the caller identity resolved on line 16. The result is mass tampering with user-generated content plus impersonation of arbitrary review authors.", "id": "sfind-0bafe6bdef78aec0f8dca0588ff342a2", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-95", "code": "username = eval(code) // eslint-disable-line no-eval", "line": 61, "path": "routes/userProfile.ts", "title": "Server-side template injection to arbitrary code execution via eval() of the stored username in getUserProfile", "severity": "critical", "description": "`getUserProfile()` reads the persisted `user.username`, tests it against `/#{(.*)}/` and, when the pattern matches, strips the `#{}` wrapper into `code` and evaluates it with `eval(code)`. The username is fully attacker-controlled because `updateUserProfile()` writes `req.body.username` to the record without validation, so a user can store `#{process.mainModule.require('child_process').execSync('id')}` and then simply request their own profile page to have it executed in the Node process. Execution happens with the privileges of the application server and needs no additional interaction, giving remote code execution to any registered account. The resulting value is then inlined into the Pug template, so the same primitive doubles as a template-injection and stored-XSS vector.", "id": "sfind-2aca9037353f11f146b5b75421c26c4c", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "routes/userProfile.ts", "line": 73, "severity": "critical", "cwe": "CWE-1336", "title": "Stored username is string-replaced into the Pug template source before compilation", "code": "template = template.replace(/_username_/g, username)", "description": "`getUserProfile()` reads `views/userProfile.pug` into a string and injects the stored username by textual replacement of the `_username_` placeholder, mixing untrusted data into template source rather than passing it as a bound value to the renderer. Anything the attacker stored in their username is therefore interpreted as template syntax on the next request to the profile page: Pug interpolation, tag markup and attribute breakouts all become available, and the surrounding markup gives the payload an authenticated same-origin execution context. This is the second half of the injection begun in `updateUserProfile()`, and it is what turns a stored string into server-side template injection; the `eval()` branch a few lines above only exists because the same value is additionally executed as JavaScript before substitution.", "id": "sfind-cf15401885986ee7e8004dfa25c7b26a", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-798", "code": "app.use(cookieParser('kekse'))", "line": 289, "path": "server.ts", "title": "Hardcoded cookie signing secret 'kekse' passed to cookieParser", "severity": "critical", "description": "The Express application initialises cookie-parser with the literal secret 'kekse', committed in source and identical in every deployment of this codebase. Any signed cookie the application issues can therefore be forged offline by an attacker who knows the public repository: they compute a valid HMAC for an arbitrary payload and present it as a legitimately signed value, defeating the integrity guarantee that req.signedCookies relies on. Because the same parser handles the token cookie consumed by security.authenticatedUsers.get(req.cookies.token) in handlers such as profileImageFileUpload(), cookie integrity is the last line of defence for session-carrying values. The secret cannot be rotated per environment as written, so compromise is permanent until the code changes.", "id": "sfind-4053aed1857bd25f8c308abd2fa39f99", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-1336", "code": "p(style='margin-top: 8px; color: _textColor_; text-align: center;') _username_", "line": 43, "path": "views/userProfile.pug", "title": "Profile template renders raw `_username_` placeholder string-replaced with attacker-controlled input", "severity": "critical", "description": "The user profile template is not rendered through Pug's escaping data binding; instead it carries the literal placeholder `_username_`, which the profile route reads from disk and replaces via `template.replace(/_username_/g, username)` before calling `pug.compile(template)`. Because the substitution happens on the template source rather than on a locals object, any markup or Pug interpolation syntax stored in the victim's `username` becomes part of the compiled template. An attacker who sets a username containing `<script>` obtains persistent XSS on the profile page, and a username of the form `#{...}` is evaluated as a Pug expression during compilation, giving server-side template injection and arbitrary code execution in the Node process. The template therefore relies entirely on the caller to escape a value that is fully user-controlled, and offers no contextual output encoding of its own.", "id": "sfind-97990c8084eb6a3c308cdfa55b0a6320", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-798", "code": "password: 'admin123'", "line": 3, "path": "data/static/users.yml", "title": "Seed data ships an administrator account with the guessable password `admin123`", "severity": "high", "description": "The first entry of the static user seed file defines the account `admin` with `role: 'admin'` and the literal password `admin123`, which `createUsers()` in data/datacreator.ts feeds straight into `UserModel.create({ ..., password, role, ... })` on every startup. The value is committed to the repository, so it is known to anyone with read access and appears in public forks, and it would also survive any password-strength policy because seeding bypasses the registration validators. Combined with the absence of throttling on `/rest/user/login`, an attacker can authenticate as the administrator with a single guess and reach the administration panel, the user list and every order. The same file also exposes the account's security-question answer, which enables a password reset even if the password is later rotated.", "id": "sfind-006da91994bcae5c053d88e1ee9b3236", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-798", "code": "totpSecret: IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH", "line": 151, "path": "data/static/users.yml", "title": "TOTP shared secret for the `wurstbrot` admin account is committed in plaintext seed data", "severity": "high", "description": "The seed entry for `wurstbrot` (declared `role: 'admin'` two lines below) contains `totpSecret: IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH`, and `createUsers()` in data/datacreator.ts passes that field verbatim into `UserModel.create({ ..., totpSecret, ... })`. The base32 seed is the only shared secret protecting the account's second factor, so anyone reading the repository can generate valid six-digit codes with any authenticator implementation. Together with the plaintext password on line 150 this reduces two-factor authentication on an administrator account to no protection at all. Secrets that gate authentication must be generated per deployment and stored outside version control, never as literal values in seed files.", "id": "sfind-f7e33d73c9979c60ac591fcf7c784d34", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-79", "code": "user.email = this.sanitizer.bypassSecurityTrustHtml(`<span class=\"${this.doesUserHaveAnActiveSession(user) ? 'confirmation' : 'error'}\">${user.email}</span>`)", "line": 73, "path": "frontend/src/app/administration/administration.component.ts", "title": "Administration user table builds a HTML span from `user.email` and marks the concatenated string as trusted", "severity": "high", "description": "`findAllUsers()` interpolates the raw `user.email` value returned by `UserService.find()` into a template literal `<span class=\"...\">${user.email}</span>` and passes the whole string to `this.sanitizer.bypassSecurityTrustHtml(...)`. The result is rendered by `<mat-cell *matCellDef=\"let user\" [innerHTML]=\"user.email\">` in administration.component.html, so no escaping is applied to the interpolated segment. Email addresses are chosen by anyone who registers, and the model layer only sanitizes them when the persisted-XSS flag is off, so a registration such as `<iframe src=\"javascript:alert(1)\">@x.tld` stores script that fires when an administrator opens the administration panel. This is a privilege-escalation primitive: the payload executes with an administrator's token in local storage and can drive any admin-only API call on their behalf.", "id": "sfind-b9e4a7be5a3f8310e6e943f8efd1a03d", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-79", "code": "this.lastLoginIp = this.sanitizer.bypassSecurityTrustHtml(`<small>${payload.data.lastLoginIp}</small>`)", "line": 39, "path": "frontend/src/app/last-login-ip/last-login-ip.component.ts", "title": "Last-login IP taken from the JWT payload is interpolated into trusted HTML on the privacy page", "severity": "high", "description": "`parseAuthToken()` decodes the JWT from `localStorage.getItem('token')` with `jwtDecode` and interpolates `payload.data.lastLoginIp` into `<small>${...}</small>`, which is then passed to `this.sanitizer.bypassSecurityTrustHtml(...)` and rendered by `<dd [innerHTML]=\"lastLoginIp\"></dd>`. The `lastLoginIp` column is populated server-side from the client-supplied `X-Forwarded-For` header at login time, so its content is fully attacker-controlled and is not an IP address by construction. An attacker who logs in (or who can cause a victim's login request to carry a crafted forwarded header) persists markup that executes when the account's privacy/security page is rendered. Because the same value is embedded in every subsequently issued token, the payload keeps firing for that account until the record is cleaned.", "id": "sfind-4c2c521e1bc072d5a94d20218013709b", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-330", "code": "const password = btoa(profile.email.split('').reverse().join(''))", "line": 30, "path": "frontend/src/app/oauth/oauth.component.ts", "title": "OAuth callback derives the local account password deterministically from the user's email address", "severity": "high", "description": "After exchanging the `access_token` for a profile, `ngOnInit()` computes `const password = btoa(profile.email.split('').reverse().join(''))` and uses that value both to register (`userService.save`) and to authenticate (`userService.login` at line 46) the OAuth user. The credential is a pure, publicly reproducible function of the email address, so anyone who knows a victim's email can compute their password offline and log in through the normal `/rest/user/login` endpoint without ever touching the identity provider. The derivation is performed in client-side code, so the algorithm is shipped to every browser and cannot be treated as a secret. Every account created through the social-login flow is therefore effectively passwordless, allowing full account takeover including access to stored addresses and payment cards.", "id": "sfind-777dd8264dce1ce82187adfdfaa95f1c", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-79", "code": "tableData[i].description = this.sanitizer.bypassSecurityTrustHtml(tableData[i].description) // vuln-code-snippet vuln-line restfulXssChallenge", "line": 110, "path": "frontend/src/app/search-result/search-result.component.ts", "title": "Product descriptions from the REST API are wrapped in bypassSecurityTrustHtml before HTML rendering", "severity": "high", "description": "`trustProductDescription(tableData)` iterates over the product rows returned by `/rest/products/search` and replaces each `tableData[i].description` with `this.sanitizer.bypassSecurityTrustHtml(tableData[i].description)`. The trusted value is then bound with `[innerHTML]` in the search result grid and in the product detail dialog, so Angular's sanitizer never inspects it. Product descriptions are writable through the product review/administration API surface and through SQL injection in the search endpoint, which means server-side data that is not under the shop's exclusive control ends up executed as HTML. The result is stored cross-site scripting on the most visited page of the application, affecting every user who searches or browses the catalogue.", "id": "sfind-c205e39bb09dd6ecfd348763e0067a2a", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-79", "code": "this.searchValue = this.sanitizer.bypassSecurityTrustHtml(queryParam) // vuln-code-snippet vuln-line localXssChallenge xssBonusChallenge", "line": 143, "path": "frontend/src/app/search-result/search-result.component.ts", "title": "Search term from the `q` query parameter is bound as trusted HTML into the search-result heading", "severity": "high", "description": "`filterTable()` reads the unvalidated `q` query parameter via `this.route.snapshot.queryParams.q` and assigns `this.sanitizer.bypassSecurityTrustHtml(queryParam)` to `this.searchValue`. The template renders that value with `<span id=\"searchValue\" [innerHTML]=\"searchValue\"></span>`, and because the value is already a `SafeHtml` object Angular performs no sanitization of it. Any visitor who follows a crafted link such as `/#/search?q=<iframe src=\"javascript:alert(1)\">` executes attacker-controlled script in the origin of the shop, without needing an account. The injected script runs with access to `localStorage`, where the authentication token is kept, so the reflected DOM XSS can be escalated to session theft against authenticated victims.", "id": "sfind-487fd953124b201443f5588ffcaea67e", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "lib/insecurity.ts", "line": 54, "severity": "high", "cwe": "CWE-347", "title": "isAuthorized builds its express-jwt middleware without an algorithms allow-list or any role check", "code": "export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)", "description": "`isAuthorized()` is the only authentication gate for most of the API and it is constructed as `expressJwt({ secret: publicKey } as any)` — the `algorithms` option is omitted, the cast to `any` silences the type error that would normally force it, and no claim beyond signature validity is inspected. Any token that verifies against the public key therefore satisfies the middleware regardless of which role, id or expiry it carries, which makes it a pure 'is this a token' check rather than an authorization decision. Combined with the private key committed in the same file, this means a forged token passes every guarded route; and because no algorithm is pinned, the middleware also accepts whatever algorithms the library happens to allow for the supplied key material rather than only RS256.", "id": "sfind-0840c12c31553898256e3d135760d54e", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}, {"path": "lib/insecurity.ts", "line": 158, "severity": "high", "cwe": "CWE-863", "title": "Accounting role authorization derives the caller's role from the token payload it just decoded", "code": "const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))", "description": "`isAccounting()` verifies the bearer token against the public key and then reads the role straight out of the decoded payload with `decodedToken?.data?.role === roles.accounting`, without ever comparing it to the role stored for that user in the database. The payload is whatever was signed at issuing time, so anyone able to sign a token — trivial given the private key literal in this same module — becomes an accountant simply by writing `\"role\":\"accounting\"` into the claim set. The same pattern backs `isDeluxe()` and `isCustomer()`, so the entire role model rests on self-asserted claims. Routes protected only by this middleware, notably the endpoint that lists every order in the shop and the delivery-status mutation, are therefore reachable by any attacker with a forged or tampered token.", "id": "sfind-63e22613939c26e2ba8dfafc73966a8e", "remediated": false, "status": "open", "pr": null, "chain": "step 4 of 5 (upstream) in chain: jwt forgery → all orders"}, {"cwe": "CWE-639", "code": "const users = await UserModel.findAll()", "line": 12, "path": "routes/authenticatedUsers.ts", "title": "Any authenticated customer can enumerate every user account through the authentication-details endpoint", "severity": "high", "description": "`retrieveUserList()` performs an unfiltered `UserModel.findAll()` and returns each record's full `dataValues` to the caller. The route `/rest/user/authentication-details` is only wrapped in `security.isAuthorized()`, which requires any valid token rather than an administrative role, so an ordinary customer receives the email address, role, `deluxeToken`, `lastLoginIp` and profile data of every registered user. The handler masks only `password` and `totpSecret` with `replace(/./g, '*')` — which still discloses their exact length — and additionally decodes each user's live session token with `decode(userToken)` to expose last-login timestamps. This is a broken-function-level-authorization flaw that hands an attacker a complete target list, including administrator accounts, for credential attacks against the login endpoint.", "id": "sfind-c0767d6de2fb5580f9022f855596b6d0", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}, {"cwe": "CWE-639", "code": "const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })", "line": 19, "path": "routes/basket.ts", "title": "Broken object level authorization: retrieveBasket returns any basket by id", "severity": "high", "description": "retrieveBasket() takes the basket identifier straight from req.params.id and loads BasketModel.findOne({ where: { id }, ... }) together with all contained products, then serialises the result to the caller. The route GET /rest/basket/:id only passes through security.isAuthorized(), which proves that some valid JWT was presented but never compares the basket owner with the caller: the authenticated user is resolved on line 22 solely to award a challenge, not to deny the request. Any logged-in customer can therefore enumerate sequential ids and read other customers' baskets, exposing their shopping behaviour and, through the checkout and coupon routes mounted on the same path, manipulate them. The fix requires an ownership predicate on the query.", "id": "sfind-f3ab98f78d69e26a32ae1a1dbbfc3b4c", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-620", "code": "if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {", "line": 39, "path": "routes/changePassword.ts", "title": "Password change accepts a new password without verifying the current one when the current parameter is omitted", "severity": "high", "description": "The current-password comparison in `changePassword()` is guarded by the truthiness of `currentPassword`, i.e. `if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password)`. If a request simply omits the `current` query parameter the whole re-authentication check is skipped and execution falls through to `user.update({ password: newPasswordInString })`, resetting the credential of the account bound to the supplied bearer token. Any attacker who obtains a token — through XSS, a leaked `Authorization` header, a referrer leak of the token, or the JSONP/`whoami` disclosures elsewhere in the API — can therefore permanently take over the account without ever knowing the existing password. Because the endpoint is a GET, it is additionally reachable by cross-origin request forgery through URL loading.", "id": "sfind-8319a24404ed7ab9dc1fb30a7ab0d49f", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-807", "code": "const couponCode = security.generateCoupon(discount)", "line": 182, "path": "routes/chat.ts", "title": "Chatbot generateCoupon tool trusts the LLM-chosen discount with no server-side cap or limit check", "severity": "high", "description": "The `generateCoupon` tool exposed to the chatbot declares `discount` as an unconstrained `z.number()` and immediately calls `security.generateCoupon(discount)` with whatever value the model emits. The 10% ceiling and the damaged-order preconditions exist only as English text in `buildSystemPrompt()`, which is concatenated with fully attacker-controlled `req.body.messages`, so a crafted conversation that overrides those instructions makes the model invoke the tool with an arbitrary percentage. `POST /rest/chat` is registered without `security.isAuthorized()`, so an unauthenticated visitor can mint a valid z85-encoded coupon for e.g. 99% off and redeem it at checkout, where `discountFromCoupon()` accepts any correctly encoded value. Authorization decisions and monetary limits are delegated entirely to model output rather than enforced in code.", "id": "sfind-257f6f7e750f8956dc5f51c1ab3c0cdf", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-862", "code": "author: req.body.author,", "line": 26, "path": "routes/createProductReviews.ts", "title": "Unauthenticated review creation stores a caller-supplied author identity", "severity": "high", "description": "createProductReviews() inserts a review document whose author field is taken verbatim from req.body.author instead of from the session identity resolved on line 16, and the route PUT /rest/products/:id/reviews is registered in server.ts with no authorisation middleware. An anonymous attacker can therefore publish reviews attributed to any e-mail address, including administrators, on any product id; the mismatch between the authenticated user and the claimed author is merely recorded for challenge scoring on lines 17-20, never rejected. The message field is likewise stored without sanitisation or length limits, so the endpoint doubles as an unauthenticated write primitive for content that other users render. This breaks content attribution and enables reputational abuse and spam at scale.", "id": "sfind-bcc19a3985be0a7f2a33bc407a772db4", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-200", "code": "baseUser[field] = user?.data[field as keyof typeof user.data]", "line": 31, "path": "routes/currentUser.ts", "title": "Arbitrary user attribute disclosure via the fields query parameter of the whoami endpoint", "severity": "high", "description": "`retrieveLoggedInUser()` splits the client-supplied `req.query.fields` into `requestedFields` and then copies each requested key straight off the cached session object with `baseUser[field] = user?.data[field]`, with no allowlist of publicly safe attributes. Requesting `/rest/user/whoami?fields=password,totpSecret,role,deluxeToken` therefore returns the account's stored password hash, its TOTP shared secret and its role directly to the caller — the code even solves a dedicated challenge when `response.user.password` is present, confirming the hash is reachable. Leaking the password hash enables offline cracking, and leaking `totpSecret` defeats the second factor entirely, because an attacker holding the secret can generate valid TOTP codes for the 2FA verification endpoint. The default branch below deliberately omits these fields, so the parameter is the sole cause of the exposure.", "id": "sfind-6533ddf0fe28e31fb9625787875afd17", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-22", "code": "const filePath: string = path.resolve(req.body.layout).toLowerCase()", "line": 104, "path": "routes/dataErasure.ts", "title": "Path traversal file read through the layout field of the data erasure request rendered as a view", "severity": "high", "description": "The POST handler of the data-erasure router takes `req.body.layout` from the request, resolves it with `path.resolve()` and only rejects it when the lowercased absolute path contains the substrings `ftp`, `ctf.key` or `encryptionkeys`. The unmodified `req.body` — including `layout` — is then spread into `res.render('dataErasureResult', {...})`, and the Pug/Express view layer loads that layout path from disk, so a payload such as `layout=../../../../etc/passwd` or a relative path to any application source file causes the file to be read and its first 100 characters returned in the response body. The denylist is trivially incomplete: it blocks three names but permits every other path on the filesystem. Only a valid session cookie is required, so any registered user can read arbitrary server-side files, including configuration containing credentials.", "id": "sfind-49187c96bae960ba746908139c8823bb", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-840", "code": "const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })", "line": 43, "path": "routes/deluxe.ts", "title": "Deluxe membership granted without any payment when paymentMode is neither wallet nor card", "severity": "high", "description": "`upgradeToDeluxe()` only performs a balance deduction when `req.body.paymentMode === 'wallet'` and only validates a card when `req.body.paymentMode === 'card'`; there is no `else` that rejects unknown or missing modes. Execution therefore reaches `user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })` unconditionally, so a customer who posts to the deluxe-membership endpoint with an absent or arbitrary `paymentMode` is promoted to the paid `deluxe` role for free and receives a freshly signed session token for the elevated account. The handler even detects this abuse afterwards via the `freeDeluxeChallenge` check instead of preventing it. The flaw is a privilege escalation with direct financial impact, since the deluxe role unlocks paid catalogue content and pricing.", "id": "sfind-fa55e3a49854cf5c25c4ce296ced5028", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-158", "code": "file = security.cutOffPoisonNullByte(file)", "line": 28, "path": "routes/fileServer.ts", "title": "Poison null byte truncation bypasses the .md/.pdf allowlist in the /ftp file server", "severity": "high", "description": "servePublicFiles() validates the requested filename against an extension allowlist in verify() and only afterwards calls security.cutOffPoisonNullByte(file), which strips everything from the first '%00' onwards before the value is handed to res.sendFile(path.resolve('ftp/', file)) on line 33. The check-then-mutate ordering means a request such as GET /ftp/package.json.bak%2500.md passes the allowlist as an .md file and is then truncated to package.json.bak, so arbitrary non-allowlisted files in the ftp directory — backups, key material, the incident-support KeePass database, compiled artefacts — are downloaded by any anonymous visitor. The forward-slash rejection on line 18 limits the attack to that directory, but everything the simulated FTP folder holds is confidential by intent. Validation must be applied to the final, decoded path rather than the raw parameter.", "id": "sfind-fe4b2c0091a0add2ecc0b982b181225b", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-611", "code": "const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })", "line": 83, "path": "routes/fileUpload.ts", "title": "XXE: uploaded XML parsed with external entity substitution enabled (noent: true)", "severity": "high", "description": "handleXmlUpload() converts the uploaded file buffer to a string and parses it with libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true }), where noent: true instructs libxml2 to resolve and substitute external entities. An attacker posting a complaint XML to /file-upload can declare <!ENTITY xxe SYSTEM \"file:///etc/passwd\"> and have the file's contents expanded into the document; the resulting xmlString is then returned to the caller inside the error message built on line 87, so the disclosed data is directly readable. The same primitive reaches other URI schemes, enabling internal-network requests from the server, and nested entity expansion (billion laughs) exhausts CPU and memory despite the 2000 ms vm timeout. The endpoint is reachable without authentication.", "id": "sfind-be0e844d0299e6ce190ed5e6aa514664", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-552", "code": "res.sendFile(path.resolve('encryptionkeys/', file))", "line": 14, "path": "routes/keyServer.ts", "title": "Encryption key directory served to anonymous callers by serveKeyFiles", "severity": "high", "description": "serveKeyFiles() takes params.file from the /encryptionkeys/:file route and, after rejecting only names containing a forward slash, streams path.resolve('encryptionkeys/', file) back with res.sendFile(). The route is registered in server.ts without any authentication or authorisation middleware, and server.ts additionally mounts serveIndex on /encryptionkeys, so an unauthenticated attacker can list the directory and then download every key file it contains. Exposure of application key material enables offline forgery and decryption of anything protected by those keys, which is a full compromise of the affected cryptographic controls. Key files should never be reachable through the HTTP static surface.", "id": "sfind-8623eecaa4a66e22ae0280dde29b0f06", "remediated": false, "status": "open", "pr": null, "chain": "step 1 of 5 (enabler) in chain: jwt forgery → all orders"}, {"path": "routes/orderHistory.ts", "line": 27, "severity": "high", "cwe": "CWE-639", "title": "allOrders returns every customer order in the shop with no per-tenant filtering", "code": "const order = await ordersCollection.find()", "description": "`allOrders()` issues an unfiltered `ordersCollection.find()` and returns the complete result set, so a single successful request discloses every order ever placed: masked customer emails, ordered products, quantities, totals, applied discounts, delivery addresses and bonus points for the entire user base. The handler performs no authorization of its own — its only protection is the `security.isAccounting()` middleware attached where the route is mounted in `server.ts`, and that middleware derives the accounting role from the caller's own token payload. Consequently the confidentiality of all order data reduces to the secrecy of the JWT signing key rather than to any server-side check, and there is no pagination or row-level filter that would limit the blast radius of a successful bypass.", "id": "sfind-f3b6595c1eb29d7a6e8eed0a75ab1078", "remediated": false, "status": "open", "pr": null, "chain": "step 5 of 5 (sink) in chain: jwt forgery → all orders"}, {"cwe": "CWE-918", "code": "const response = await fetch(url)", "line": 24, "path": "routes/profileImageUrlUpload.ts", "title": "Server-side request forgery via unvalidated imageUrl in profile image upload", "severity": "high", "description": "profileImageUrlUpload() reads req.body.imageUrl into url and passes it unchecked to fetch(url); there is no scheme allowlist, no host validation and no protection against redirects to private address space. A logged-in user posting to /profile/image/url can therefore make the server issue requests to internal targets such as http://169.254.169.254/latest/meta-data/ or http://localhost:3000/, with the response body streamed into a file under frontend/dist/frontend/assets/public/images/uploads/ that is subsequently served as the user's profile image — turning the SSRF into a read primitive for internal responses. When the fetch fails, the raw URL is stored in the user's profileImage field (line 36) and later rendered by the frontend, allowing javascript: or data: values to be persisted. The only inspection of the URL is a regex on line 20 used for challenge bookkeeping, not for security.", "id": "sfind-06965a8f82031e6a5a5284b788046866", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-943", "code": "id: JSON.parse(req.params.id)", "line": 14, "path": "routes/recycles.ts", "title": "Attacker-controlled JSON parsed into a Sequelize where clause in getRecycleItem", "severity": "high", "description": "getRecycleItem() calls JSON.parse(req.params.id) and uses the resulting value directly as the id condition of RecycleModel.findAll(). Because the parsed value may be an object rather than a number, a request such as GET /api/Recycles/%7B%22$gt%22:0%7D injects a Sequelize operator into the where clause and returns every recycle record — including other users' addresses and quantities — instead of the single requested row. The endpoint is registered without authentication middleware in server.ts, so this is anonymously reachable, and the surrounding catch block hides the anomaly behind a generic message. Untrusted path parameters must be coerced to a primitive before being used as query conditions.", "id": "sfind-41884ca4020c9cfcb1dae985c75835cf", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-79", "code": "const updatedUser = await user?.update({ lastLoginIp: lastLoginIp?.toString() })", "line": 32, "path": "routes/saveLoginIp.ts", "title": "Unsanitized true-client-ip request header persisted as lastLoginIp enabling stored cross-site scripting", "severity": "high", "description": "`saveLoginIp()` reads the attacker-controlled `true-client-ip` request header into `lastLoginIp` and writes it verbatim to the user record with `user?.update({ lastLoginIp: lastLoginIp?.toString() })`. Sanitization through `security.sanitizeSecure()` only happens in the `else` branch of the `utils.isChallengeEnabled()` check, so in the enabled configuration a header value such as `<iframe src=\"javascript:alert(1)\">` is stored unmodified. The stored value is later rendered back in the account/profile views and in the administration user list, so the payload executes in the browser of any user — including an administrator — who views that data, making this a persistent XSS with session-hijacking impact. There is also no validation that the header even resembles an IP address, so arbitrary markup of arbitrary length is accepted.", "id": "sfind-72d53e997b7b4784a197944872254555", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "routes/updateUserProfile.ts", "line": 36, "severity": "high", "cwe": "CWE-352", "title": "Profile update persists an arbitrary username from a cookie-authenticated request with no CSRF token", "code": "const savedUser = await user.update({ username: req.body.username })", "description": "The handler identifies the caller through the ambient `token` cookie (`security.authenticatedUsers.get(req.cookies.token)`) and then writes `req.body.username` onto the user row with no CSRF token, no origin enforcement and no validation of the value. Because the browser attaches the cookie automatically, any third-party page can submit this form on a victim's behalf — the code even contains a challenge check that recognises exactly that scenario by looking for a foreign `Origin`/`Referer` header instead of blocking it. The stored value is not constrained to a safe character set either, so the field doubles as the injection point for the profile page, which later substitutes the stored username into a Pug template and evaluates `#{...}` expressions found in it. Afterwards a fresh token is signed from the mutated record and set as a cookie, so the poisoned value also propagates into the session.", "id": "sfind-11c15a2567fb8482b842e5c6fa366cc9", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "routes/userProfile.ts", "line": 87, "severity": "high", "cwe": "CWE-94", "title": "Pug compiles the attacker-influenced template string on every profile page request", "code": "const fn = pug.compile(template)", "description": "The template string that now contains the attacker's stored username is handed to `pug.compile(template)` and immediately invoked, so Pug parses and generates a JavaScript function from data that crossed a trust boundary. Template compilation is code generation: interpolation and unescaped-buffer constructs inside the injected fragment execute with the privileges of the Node process, and there is no sandbox, allow-list or escaping step between the stored value and this call. Because the compiled output is then returned with a Content-Security-Policy that itself embeds a user-controlled value and permits `'unsafe-eval'`, neither the server nor the browser retains a meaningful boundary around whatever the injected template emits.", "id": "sfind-8699188c1e3377daf89ccb24455bb9fd", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-113", "code": "const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`", "line": 88, "path": "routes/userProfile.ts", "title": "Content-Security-Policy header built by string concatenation of the user-controlled profileImage value", "severity": "high", "description": "The profile page constructs its CSP as `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'` and sets it with `res.set()`. `profileImage` is supplied by the user through the profile-image URL upload flow, so an attacker can store a value that closes the `img-src` directive and appends their own, e.g. `x; script-src 'unsafe-inline'`, thereby rewriting the policy that is supposed to protect the page. Combined with the username substitution into the Pug template a few lines below, the weakened policy lets injected `<script>` markup execute in the victim's browser on an authenticated page. Even without injection the policy already permits `'unsafe-eval'`, so no meaningful script restriction remains, and header injection through a stored value should never be possible in the first place.", "id": "sfind-fd3c4aeff78866093691a9d534855d5d", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-338", "code": "password: makeRandomString(5)", "line": 312, "path": "data/datacreator.ts", "title": "Fake user accounts are seeded with 5-character passwords generated from `Math.random()`", "severity": "medium", "description": "`createWallet()` bulk-creates `application.numberOfRandomFakeUsers` accounts with `password: makeRandomString(5)`, where `makeRandomString` (line 304) builds the string from `Math.floor(Math.random() * possible.length)`. `Math.random()` is not a cryptographically secure generator, so its output stream is predictable from observed values, and a 5-character alphanumeric password only spans roughly 9x10^8 combinations — exhaustible offline in seconds against the MD5 hashes produced by the `User` model. These accounts are real, loginable records that participate in the shop's order and wallet data, so guessing one grants access to another user's basket, addresses and wallet balance. Credential generation must use `crypto.randomBytes` with materially greater entropy.", "id": "sfind-66d5d458051e4cc32a7c0548772578a6", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-602", "code": "if (payload?.data && payload.data.role === roles.admin) {", "line": 54, "path": "frontend/src/app/app.guard.ts", "title": "AdminGuard authorizes routes from an unverified client-side JWT decode", "severity": "medium", "description": "`AdminGuard.canActivate()` calls `this.loginGuard.tokenDecode()`, which merely runs `jwtDecode(localStorage.getItem('token'))` without verifying the token signature, and then grants access when `payload.data.role === roles.admin`. The decision therefore depends on data the client fully controls: a user can overwrite the `token` entry in local storage with an unsigned or re-encoded JWT whose `data.role` claim is `admin` and the guard returns true, loading the administration and accounting views. `AccountingGuard` (line 70) and `DeluxeGuard` (line 86) apply the same unverified check for their respective roles. The impact is limited to whatever the backend also fails to enforce, but the pattern removes the client-side control entirely and reveals admin-only UI, routes and API call sites to any authenticated user.", "id": "sfind-5860bde985e4ade1d8cf9e5c1b4cb25b", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}, {"path": "lib/insecurity.ts", "line": 44, "severity": "medium", "cwe": "CWE-798", "title": "Application-wide HMAC keyed with a hardcoded secret shared across all deployments", "code": "export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')", "description": "Every HMAC the application produces is keyed with the literal `'pa4qacea4VK9t9nGv7yZtwmj'`, checked into source and therefore identical in every deployment of this codebase. The digests are used as integrity tags on values the client is allowed to hold and replay — continue codes that restore challenge progress and similar server-side state — so an attacker who knows the key can compute a valid tag for any payload they like and the verification step becomes decorative. Because the same helper is reachable from several routes, rotating the secret is the only remediation, and there is no per-deployment or per-user salt that would limit forgery to a single installation.", "id": "sfind-6da7e9f2d4a9306ef6ef2545127e4334", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}, {"path": "lib/insecurity.ts", "line": 191, "severity": "medium", "cwe": "CWE-347", "title": "updateAuthenticatedUsers adopts any signature-valid token into the server-side session map", "code": "jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {", "description": "This middleware runs before every request: it takes the token from the `token` cookie or the Authorization header, calls `jwt.verify(token, publicKey, ...)` with no `algorithms` restriction and, when verification does not error, inserts the decoded payload into the in-process `authenticatedUsers` map and re-issues the value as a cookie. Handlers that identify the caller through `authenticatedUsers.get(...)` — profile rendering, profile update, order history, basket access — consequently trust a token the server never issued, as long as its signature checks out against the public key. It also means a token supplied by an attacker is silently promoted to a full server-side session, and the accompanying `res.cookie('token', token)` writes it into the victim's browser without the HttpOnly or Secure flags, which turns any reflected token value into a session-fixation primitive.", "id": "sfind-6b4597694e70c962fc70cc0a494aad74", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}, {"cwe": "CWE-328", "code": "return crypto.createHmac('sha1', getCtfKey()).update(text).digest('hex')", "line": 89, "path": "lib/utils.ts", "title": "CTF flags are derived with HMAC-SHA1 over a static key read from the committed `ctf.key` file", "severity": "medium", "description": "`ctfFlag(text)` computes `crypto.createHmac('sha1', getCtfKey()).update(text).digest('hex')`, using SHA-1 — a deprecated hash with known collision weaknesses — as the MAC primitive. `getCtfKey()` (lines 77-87) only falls back to the `CTF_KEY` environment variable and otherwise reads `ctf.key` from the repository, which is checked in with a fixed value, so the keying material of every default deployment is public. The resulting flags are consumed as authenticity tokens by `challengeUtils.sendNotification()` and posted to the solutions webhook in lib/webhook.ts, meaning anyone with the repository can forge valid flags for arbitrary challenge names without solving anything. Any integrity claim built on this construction is therefore unenforceable.", "id": "sfind-8d0717c49bee2ad48cd22df0e1ad2e3a", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "lib/utils.ts", "line": 126, "severity": "medium", "cwe": "CWE-287", "title": "Caller identity for the whole API is extracted from the request with no binding to server state", "code": "export const jwtFrom = ({ headers }: { headers: any }) => {", "description": "`jwtFrom()` is the single funnel through which every route obtains the caller's token: it splits the `Authorization` header on whitespace, accepts the second part whenever the scheme matches `/^Bearer$/i`, and returns it as-is. There is no check that the token was ever issued by this server, no revocation list, no binding to an IP, device or CSRF token, and callers that fall back to `req.cookies.token` accept the same value from a cookie the browser attaches automatically. The result is that identity throughout the application is exactly 'whatever string the client sent', which is only as strong as the signing key — and that key is a literal in `lib/insecurity.ts`. It also makes token leakage (through the URL-based password change, the referrer, or the whoami disclosure) immediately equivalent to full account compromise.", "id": "sfind-3acea6b39629d570fc7cb5b4032e1198", "remediated": false, "status": "open", "pr": null, "chain": "step 3 of 5 (upstream) in chain: jwt forgery → all orders"}, {"cwe": "CWE-916", "code": "this.setDataValue('password', security.hash(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge", "line": 77, "path": "models/user.ts", "title": "Password setter stores unsalted MD5 digests via `security.hash()`", "severity": "medium", "description": "The `password` attribute setter calls `this.setDataValue('password', security.hash(clearTextPassword))`, and `security.hash` is defined in lib/insecurity.ts as `crypto.createHash('md5').update(data).digest('hex')`. MD5 is a fast, unsalted, non-memory-hard digest, so the stored values are recoverable with commodity rainbow tables and GPU cracking at billions of guesses per second, and identical passwords yield identical hashes across accounts. Because this setter is the single write path for credentials, every user record — including seeded administrators — is stored with the same weak scheme. Any read primitive that leaks the `Users` table (for example the SQL injection reachable through the product search endpoint) therefore results in immediate plaintext credential disclosure rather than merely exposing opaque hashes.", "id": "sfind-047579e5b67a1686588392efe114721a", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-804", "code": "const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })", "line": 37, "path": "routes/captcha.ts", "title": "Arithmetic CAPTCHA answers remain valid indefinitely because solved challenges are never invalidated", "severity": "medium", "description": "`verifyCaptcha()` looks up a persisted `CaptchaModel` row by the client-supplied `req.body.captchaId` and compares the submitted `req.body.captcha` against the stored `answer`, but never deletes, marks or expires the row after a successful match. A client can solve one arithmetic challenge once and then replay the same `captchaId`/`captcha` pair on every subsequent request, so the control provides no protection against automation. The generated challenge itself is also weak — three single-digit terms combined with `+`, `-` or `*`, returned in cleartext alongside its own `answer` field in the response of the CAPTCHA endpoint — meaning a script can solve it programmatically without any replay. Endpoints relying on this middleware, such as feedback submission, are therefore effectively unprotected against mass automated abuse.", "id": "sfind-9c3b39fd7091fd053c4aedacc9c80eba", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-598", "code": "const newPassword = query.new as string", "line": 15, "path": "routes/changePassword.ts", "title": "Password change transports current and new credentials in URL query parameters instead of a request body", "severity": "medium", "description": "`changePassword()` destructures its inputs from `Request.query`, reading the cleartext new password as `query.new` and the existing one as `query.current`. Because the endpoint is mounted as a GET, both secrets travel in the request URL, where they are captured by web-server and proxy access logs, browser history, and any `Referer` header sent to third-party resources loaded by the resulting page. The credentials are also visible to anything that logs full request lines, and they persist far longer than a POST body would. This significantly widens the exposure window of user passwords beyond the TLS channel and makes credential harvesting from logs practical for anyone with read access to infrastructure telemetry.", "id": "sfind-03930b8458ffb063af68e5d7d4fc946d", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-804", "code": "if (!captchas[0] || req.body.answer === captchas[0].answer) {", "line": 52, "path": "routes/imageCaptcha.ts", "title": "Image CAPTCHA verification passes when no recent challenge row exists for the caller", "severity": "medium", "description": "`verifyImageCaptcha()` queries the newest `ImageCaptchaModel` row for the caller's `UserId` created within the last five minutes, then calls `next()` when `!captchas[0] || req.body.answer === captchas[0].answer`. The first disjunct means that a client who never requested a CAPTCHA — or who simply waits for the five-minute window to lapse — passes the check unconditionally, since no row is found. The `UserId` filter is also derived from the caller's own token, so an unauthenticated or freshly registered caller yields `undefined` and matches no row, again short-circuiting to success. Any protected action behind this middleware, such as the data-export endpoint, can consequently be automated at scale, defeating the control's entire purpose.", "id": "sfind-ef3c501aac081d33f820508b3324daa3", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-807", "code": "const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')", "line": 190, "path": "routes/order.ts", "title": "Checkout discount derived from client-supplied base64 couponData without integrity check", "severity": "medium", "description": "calculateApplicableDiscount() falls back to req.body.couponData, base64-decodes it and splits it into a campaign code and a validity timestamp, then grants campaign.discount whenever the supplied timestamp loosely equals the hardcoded campaigns entry. Nothing authenticates or signs this value, and the comparison uses == against a value the client controls, so a caller of POST /rest/basket/:id/checkout can replay an expired campaign such as WMNSDY2019 and obtain the associated 75% discount at any time. The returned discount flows into totalPrice on line 113 and into the persisted order document, so the manipulation has direct financial impact. Discounts must be resolved server-side from stored coupon state rather than from request data.", "id": "sfind-ad01daa09d03f619ef07571a11f624e5", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-601", "code": "res.redirect(toUrl)", "line": 19, "path": "routes/redirect.ts", "title": "Open redirect: allowlist check uses substring containment before res.redirect", "severity": "medium", "description": "performRedirect() takes the target from query.to and only validates it with security.isRedirectAllowed(), which returns true when the supplied URL merely contains one of the entries in redirectAllowlist rather than starting with it. A request like GET /redirect?to=https://attacker.example/?x=https://github.com/juice-shop/juice-shop therefore satisfies the check and is handed to res.redirect(toUrl), sending the victim to an attacker-controlled origin under the trusted application's domain. This lends credibility to phishing pages and can leak referrer context or OAuth-style parameters appended to the redirect. Validation should parse the URL and compare its origin against an exact allowlist.", "id": "sfind-683fe436b653d5a5cb5a1f2d442bd86f", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-798", "code": "const hashids = new Hashids('this is my salt', 60, hashidsAlphabet)", "line": 18, "path": "routes/restoreProgress.ts", "title": "Continue codes authenticated only by a hardcoded Hashids salt committed to the repository", "severity": "medium", "description": "`restoreProgress()` instantiates `new Hashids('this is my salt', 60, hashidsAlphabet)` and treats successful decoding of the `continueCode` path parameter as sufficient authorization to mutate server-side state. Hashids is an obfuscation scheme, not a MAC, and the salt is a fixed literal committed to source control — mirrored by the sibling salts in `restoreProgressFindIt` and `continueCode.ts` — so anyone can encode arbitrary identifier lists locally and forge a valid code. The decoded ids are fed straight into `challengeUtils.solve(challenge, true)` on an unauthenticated PUT route, letting an attacker mark any set of challenges as solved and corrupt scoreboard integrity. Using a hardcoded, publicly known secret as the sole integrity check on a state-changing endpoint is an authorization failure rather than an obfuscation trade-off.", "id": "sfind-ead66ec738ffbf5c02bc84421ab2f161", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-204", "code": "where: { email: email?.toString() }", "line": 18, "path": "routes/securityQuestion.ts", "title": "Unauthenticated endpoint discloses the security question of any account for an arbitrary email address", "severity": "medium", "description": "`securityQuestion()` takes `query.email` and uses it as the `where` clause of an included `UserModel` join to fetch the matching `SecurityAnswerModel`, then returns the associated question object. The route `/rest/user/security-question` carries no authentication or rate-limiting middleware, so anyone can iterate over candidate addresses and learn both whether an account exists — the response is an empty object when it does not — and which question protects it. Combined with the unthrottled password-reset endpoint, which validates only `email` plus `answer`, this hands an attacker the exact target for guessing low-entropy answers such as a pet or maiden name. The endpoint therefore enables account enumeration and materially lowers the cost of the account-recovery attack path.", "id": "sfind-8f7f9a08ec3f7de0b09a9718bc86102b", "remediated": false, "status": "open", "pr": null, "chain": null}, {"cwe": "CWE-20", "code": "await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })", "line": 27, "path": "routes/wallet.ts", "title": "Wallet balance incremented by an unvalidated client-supplied amount with no charge against the referenced card", "severity": "medium", "description": "`addWalletBalance()` verifies only that the `paymentId` card belongs to the caller and then calls `WalletModel.increment({ balance: req.body.balance }, ...)` using the raw request value. No payment is actually captured, and `balance` is never validated for type, sign or upper bound, so a client can post an arbitrarily large amount and credit their own wallet without any money changing hands, or post a negative amount to manipulate the stored balance downwards. The credited funds are directly spendable at checkout and for the deluxe upgrade, giving the flaw immediate financial impact. Card expiry is not checked here either, unlike the deluxe flow, so even an unusable stored card satisfies the guard.", "id": "sfind-1340c5458fdd1e7b18515e67a62d4fc0", "remediated": false, "status": "open", "pr": null, "chain": null}, {"path": "server.ts", "line": 623, "severity": "medium", "cwe": "CWE-863", "title": "Cross-tenant order listing is mounted behind a claim-derived role check only", "code": "app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))", "description": "The route that dumps every order in the shop is wired up with a single guard, `security.isAccounting()`, and the adjacent delivery-status mutation is protected the same way. This mounting decision is the entire access-control policy for cross-tenant order data: the handler itself does no filtering, and the middleware only inspects the role claim inside the caller's own token. There is no defence in depth — no re-check of the role against the database, no IP restriction such as the one applied to the quantity endpoints a few lines earlier, and no audit trail. Reviewing this file is the only way to discover which endpoints are effectively unguarded, since several nearby routes are mounted with no middleware at all.", "id": "sfind-b2a096f9959e08faa2bf7773143d2e3b", "remediated": false, "status": "open", "pr": null, "chain": "same root cause as chain: jwt forgery → all orders (variant, not a separate sink)"}];
+const CHAINS = [{"id": "jwt-forgery-to-order-disclosure", "name": "Committed signing key → forged accounting token → full order disclosure", "short": "jwt forgery → all orders", "advisory": "no advisory: intentional training vulnerability chain (OWASP Juice Shop), mapped to A01/A02/A07", "summary": "Five findings in four files compose into one unauthenticated cross-tenant data breach. The public key that pins token verification is downloadable, its private counterpart is committed in the source tree, caller identity is nothing but a request header, and role authorization is read out of the token payload itself — so the final handler, which returns every order in the shop, is reachable without ever logging in. No single finding gets an attacker there alone.", "steps": [{"finding": "sfind-8623eecaa4a66e22ae0280dde29b0f06", "role": "enabler", "caption": "Attacker fetches /encryptionkeys/jwt.pub anonymously. The key server confines requests to the folder but requires no session, so the exact RS256 verification key the deployment uses is now known."}, {"finding": "sfind-e6460bdd9ca720781db551f08ada5a6b", "role": "upstream", "caption": "The matching private key never left the repository: it is a string literal in lib/insecurity.ts, so the attacker can sign tokens the application will accept as its own."}, {"finding": "sfind-3acea6b39629d570fc7cb5b4032e1198", "role": "upstream", "caption": "Identity is taken straight off the wire — jwtFrom() returns whatever follows \"Bearer \" with no check that this server ever issued it, and no binding to a session, device or CSRF token."}, {"finding": "sfind-63e22613939c26e2ba8dfafc73966a8e", "role": "upstream", "caption": "isAccounting() verifies the signature and then reads the role out of the payload it just decoded, so a self-signed token carrying \"role\":\"accounting\" is indistinguishable from a real staff session."}, {"finding": "sfind-f3b6595c1eb29d7a6e8eed0a75ab1078", "role": "sink", "caption": "SINK: allOrders() runs an unfiltered find() over the orders collection. Every customer's orders, addresses, totals and applied discounts are returned to an attacker who never had an account."}], "variants": ["sfind-0840c12c31553898256e3d135760d54e", "sfind-6b4597694e70c962fc70cc0a494aad74", "sfind-6da7e9f2d4a9306ef6ef2545127e4334", "sfind-b2a096f9959e08faa2bf7773143d2e3b", "sfind-c0767d6de2fb5580f9022f855596b6d0", "sfind-5860bde985e4ade1d8cf9e5c1b4cb25b"], "variantsNote": "Same root cause — identity and roles asserted by a client-held token signed with a key that is not secret — reached through the other guards built on it: the generic isAuthorized() middleware with no algorithm allow-list, the pre-route hook that adopts any signature-valid token into the server-side session map, the shared HMAC secret used for replayable state, the mounting decision that leaves cross-tenant order data behind a single claim check, the endpoint that hands the whole user table to any authenticated caller, and the browser-side admin guard that decides authorization from an unverified decode."}];
+
+/* --------------------------------------------------------------- helpers */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+const SEV_W = { critical: 8, high: 4, medium: 2, low: 1 };
+
+/* ------------------------------------------------------------ graph build */
+const nodes = [];
+const byId = new Map();
+const edges = [];   // {a, b, type:'tree'|'rel', label, kind}
+
+function addNode(raw, parent, depth) {
+  const id = raw.id || ("n" + nodes.length);
+  const n = {
+    id, name: raw.name || id, desc: raw.description || "",
+    files: (raw.files || []).slice(),
+    parent, depth, children: [],
+    findings: [], weight: 0, openWeight: 0, fixedWeight: 0,
+    pos: { x: 0, y: 0, z: 0 }, sx: 0, sy: 0, sr: 0, vis: false,
+    pulse: 0, cpulse: 0
+  };
+  nodes.push(n);
+  if (byId.has(id)) { n.id = id + "~" + nodes.length; }
+  byId.set(n.id, n);
+  if (parent) { parent.children.push(n); edges.push({ a: parent, b: n, type: "tree" }); }
+  (raw.children || []).forEach(c => addNode(c, n, depth + 1));
+  return n;
+}
+
+const root = addNode(
+  { id: "__root__", name: INDEX.name || "codebase", description: INDEX.description || "", files: [], children: INDEX.children || [] },
+  null, 0
+);
+const clusters = root.children;
+
+(INDEX.relations || []).forEach(r => {
+  const a = byId.get(r.from), b = byId.get(r.to);
+  if (!a || !b || a === b) return;
+  if (a.parent === b || b.parent === a) return;          // don't restate hierarchy
+  edges.push({ a, b, type: "rel", kind: r.kind || "depends-on", label: r.label || r.kind || "" });
+});
+
+/* --------------------------------------------- deterministic 3D placement */
+function placeLayout() {
+  const N = Math.max(clusters.length, 1);
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  clusters.forEach((c, i) => {
+    const rnd = mulberry32(hashStr(c.id) ^ 0x9e3779b9);
+    const y = 1 - (i + 0.5) / N * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = GA * i;
+    const R = 540 + (rnd() - 0.5) * 90;
+    c.pos = { x: Math.cos(th) * r * R, y: y * R * 0.72, z: Math.sin(th) * r * R };
+    placeChildren(c, rnd);
+  });
+}
+function placeChildren(parent, prnd) {
+  const kids = parent.children;
+  if (!kids.length) return;
+  const rnd = mulberry32(hashStr(parent.id + "|orbit"));
+  // orbit plane basis: tilt a plane whose normal is the parent's radial direction, jittered
+  const p = parent.pos;
+  const len = Math.hypot(p.x, p.y, p.z) || 1;
+  let nx = p.x / len, ny = p.y / len, nz = p.z / len;
+  nx += (rnd() - 0.5) * 0.9; ny += (rnd() - 0.5) * 0.9; nz += (rnd() - 0.5) * 0.9;
+  const nl = Math.hypot(nx, ny, nz) || 1; nx /= nl; ny /= nl; nz /= nl;
+  let ux = -ny, uy = nx, uz = 0;
+  if (Math.hypot(ux, uy, uz) < 1e-4) { ux = 1; uy = 0; uz = 0; }
+  const ul = Math.hypot(ux, uy, uz); ux /= ul; uy /= ul; uz /= ul;
+  const vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux;
+  const base = (parent.depth === 1 ? 96 : 34) + kids.length * (parent.depth === 1 ? 7.5 : 3);
+  const phase = rnd() * Math.PI * 2;
+  kids.forEach((k, i) => {
+    const a = phase + (i / kids.length) * Math.PI * 2;
+    const rr = base * (0.82 + rnd() * 0.36);
+    const wob = (rnd() - 0.5) * base * 0.3;
+    k.pos = {
+      x: parent.pos.x + (Math.cos(a) * ux + Math.sin(a) * vx) * rr + nx * wob,
+      y: parent.pos.y + (Math.cos(a) * uy + Math.sin(a) * vy) * rr + ny * wob,
+      z: parent.pos.z + (Math.cos(a) * uz + Math.sin(a) * vz) * rr + nz * wob
+    };
+    placeChildren(k, rnd);
+  });
+}
+placeLayout();
+
+/* ------------------------------------------------- findings attribution */
+const unattributed = [];
+function norm(p) { return String(p || "").replace(/^\.?\//, "").replace(/:.*$/, ""); }
+const fileIndex = new Map();  // normalized file path -> node
+nodes.forEach(n => n.files.forEach(f => { const k = norm(f); if (!fileIndex.has(k)) fileIndex.set(k, n); }));
+
+function attribute(f) {
+  const p = norm(f.path);
+  if (fileIndex.has(p)) return fileIndex.get(p);
+  let best = null, bestScore = 0;
+  const segs = p.split("/");
+  for (const [k, n] of fileIndex) {
+    if (k.endsWith("/" + segs[segs.length - 1]) || p.endsWith("/" + k.split("/").pop())) {
+      const ks = k.split("/");
+      let s = 0;
+      while (s < segs.length && s < ks.length && segs[s] === ks[s]) s++;
+      const score = s * 10 + (k.split("/").pop() === segs[segs.length - 1] ? 5 : 0);
+      if (score > bestScore) { bestScore = score; best = n; }
+    }
+  }
+  if (best) return best;
+  // fall back to deepest shared directory prefix
+  for (const [k, n] of fileIndex) {
+    const ks = k.split("/");
+    let s = 0;
+    while (s < segs.length && s < ks.length && segs[s] === ks[s]) s++;
+    if (s > bestScore) { bestScore = s; best = n; }
+  }
+  return bestScore >= 2 ? best : null;
+}
+
+FINDINGS.forEach(f => {
+  const n = attribute(f);
+  if (!n) { unattributed.push(f); return; }
+  f._node = n;
+  n.findings.push(f);
+});
+
+// roll weights up the tree
+function rollUp() {
+  nodes.forEach(n => { n.weight = 0; n.openWeight = 0; n.fixedWeight = 0; n.own = n.findings.length; });
+  nodes.forEach(n => {
+    n.findings.forEach(f => {
+      const w = SEV_W[f.severity] || 1;
+      for (let a = n; a; a = a.parent) {
+        a.weight += w;
+        if (f.remediated) a.fixedWeight += w; else a.openWeight += w;
+      }
+    });
+  });
+}
+rollUp();
+const maxWeight = Math.max(1, ...nodes.filter(n => n !== root).map(n => n.weight));
+
+/* ------------------------------------------------------- chain resolution */
+const findingById = new Map();
+FINDINGS.forEach(f => { if (f.id) findingById.set(f.id, f); });
+const chains = (CHAINS || []).map(c => {
+  const steps = (c.steps || []).map((s, i) => {
+    const f = findingById.get(s.finding) || null;
+    return { i, role: s.role || "link", caption: s.caption || "", f, node: f ? (f._node || null) : null };
+  });
+  const stepOf = new Map();
+  steps.forEach(s => { if (s.node && !stepOf.has(s.node)) stepOf.set(s.node, s.i); });
+  const variants = (c.variants || []).map(id => findingById.get(id)).filter(Boolean);
+  const variantNodes = new Set();
+  variants.forEach(f => { if (f._node && !stepOf.has(f._node)) variantNodes.add(f._node); });
+  const files = new Set(steps.filter(s => s.f).map(s => s.f.path));
+  return Object.assign({}, c, { steps, stepOf, variants, variantNodes, fileCount: files.size });
+}).filter(c => c.steps.some(s => s.node));
+
+/* --------------------------------------------------------------- camera */
+const cam = { tx: 0, ty: 0, tz: 0, dist: 1500, yaw: 0.5, pitch: -0.22, focal: 900 };
+let anim = null;
+function flyTo(target, dist, ms) {
+  anim = {
+    t0: performance.now(), ms: ms || 750,
+    from: { tx: cam.tx, ty: cam.ty, tz: cam.tz, dist: cam.dist },
+    to: { tx: target.x, ty: target.y, tz: target.z, dist }
+  };
+}
+function stepAnim(now) {
+  if (!anim) return;
+  const t = clamp((now - anim.t0) / anim.ms, 0, 1), e = easeInOut(t);
+  cam.tx = lerp(anim.from.tx, anim.to.tx, e);
+  cam.ty = lerp(anim.from.ty, anim.to.ty, e);
+  cam.tz = lerp(anim.from.tz, anim.to.tz, e);
+  cam.dist = lerp(anim.from.dist, anim.to.dist, e);
+  if (t >= 1) anim = null;
+}
+
+/* ---------------------------------------------------------------- canvas */
+const cv = document.getElementById("stage");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
+  cv.style.width = W + "px"; cv.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function project(p) {
+  const dx = p.x - cam.tx, dy = p.y - cam.ty, dz = p.z - cam.tz;
+  const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+  let x = dx * cy - dz * sy, z = dx * sy + dz * cy, y = dy;
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  const y2 = y * cp - z * sp; z = y * sp + z * cp; y = y2;
+  const depth = z + cam.dist;
+  if (depth < 40) return null;
+  const k = cam.focal / depth;
+  return { x: W / 2 + x * k, y: H / 2 + y * k, k, depth };
+}
+
+/* ------------------------------------------------------------ appearance */
+const state = {
+  selected: null, hover: null, heat: true, labels: true,
+  replay: null, dark: false, preview: false, chain: null
+};
+FINDINGS.forEach(f => { f._wasFixed = !!f.remediated; });
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+let COL = {};
+function readColors() {
+  COL = {
+    ink: css("--ink") || "#2b2b2b", soft: css("--ink-soft") || "#6b6559",
+    rule: css("--rule") || "#cfc6b4", paper: css("--paper") || "#f6f1e6",
+    hot: css("--hot") || "#b3261e", fixed: css("--fixed") || "#2f7d4f", scan: css("--scan") || "#2b5fa8"
+  };
+}
+readColors();
+
+function nodeRadius(n) {
+  const base = n.depth === 1 ? 16 : n.depth === 2 ? 8.5 : 6;
+  return base + Math.min(9, Math.sqrt(n.weight) * 1.1);
+}
+function pencilColor(n) {
+  // stable hue per cluster, pencil-soft
+  const cl = n.depth <= 1 ? n : ancestorCluster(n);
+  const h = (hashStr(cl ? cl.id : "root") % 360);
+  const l = state.dark ? 62 : 48;
+  const s = n.depth === 1 ? 32 : 26;
+  return `hsl(${h} ${s}% ${l}%)`;
+}
+function ancestorCluster(n) { let c = n; while (c.parent && c.parent !== root) c = c.parent; return c; }
+
+/* relevance: 1 = bright, lower = faded but visible */
+function relevance(n) {
+  if (state.chain) {
+    const c = state.chain.chain;
+    const si = c.stepOf.get(n);
+    if (si != null) return si < state.chain.i ? 1 : 0.4;
+    if (c.variantNodes.has(n)) return state.chain.done ? 0.62 : 0.26;
+    return 0.1;
+  }
+  const s = state.selected;
+  if (!s) return 1;
+  if (n === s) return 1;
+  if (incident.has(n)) return 0.92;
+  if (ancestorCluster(n) === ancestorCluster(s)) return 0.5;
+  return 0.22;
+}
+let incident = new Set();
+function computeIncident() {
+  incident = new Set();
+  const s = state.selected;
+  if (!s) return;
+  edges.forEach(e => {
+    if (e.a === s) incident.add(e.b);
+    else if (e.b === s) incident.add(e.a);
+  });
+}
+
+/* ----------------------------------------------------------- draw pieces */
+function draftLine(x1, y1, x2, y2, color, alpha, dashed, seed, wobble) {
+  const rnd = mulberry32(seed);
+  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+  const nx = -(y2 - y1), ny = (x2 - x1);
+  const nl = Math.hypot(nx, ny) || 1;
+  const bow = (rnd() - 0.5) * (wobble || 10);
+  const c1x = mx + (nx / nl) * bow, c1y = my + (ny / nl) * bow;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineCap = "round";
+  if (dashed) ctx.setLineDash([5, 5]);
+  for (let pass = 0; pass < 2; pass++) {
+    const o = pass === 0 ? 0 : 1.15;
+    const j = (rnd() - 0.5) * 1.4;
+    ctx.globalAlpha = alpha * (pass === 0 ? 1 : 0.5);
+    ctx.lineWidth = pass === 0 ? 1 : 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x1 + o + j * 0.2, y1 + o);
+    ctx.quadraticCurveTo(c1x + o, c1y + o, x2 + o - j * 0.2, y2 + o);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function facet(n, x, y, r, alpha) {
+  const rnd = mulberry32(hashStr(n.id + "|facet"));
+  const sides = n.depth === 1 ? 7 : 5;
+  const pts = [];
+  const rot = rnd() * Math.PI * 2;
+  for (let i = 0; i < sides; i++) {
+    const a = rot + (i / sides) * Math.PI * 2;
+    const rr = r * (0.82 + rnd() * 0.34);
+    pts.push([x + Math.cos(a) * rr, y + Math.sin(a) * rr]);
+  }
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.closePath();
+  // paper fill so edges behind don't show through the body
+  ctx.fillStyle = COL.paper; ctx.globalAlpha = alpha * 0.92; ctx.fill();
+  // pencil hatching
+  ctx.save();
+  ctx.clip();
+  const col = pencilColor(n);
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.strokeStyle = col; ctx.lineWidth = 0.8;
+  const step = Math.max(2.2, r / 3.2);
+  for (let d = -r * 1.5; d < r * 1.5; d += step) {
+    ctx.beginPath();
+    ctx.moveTo(x + d - r, y - r);
+    ctx.lineTo(x + d + r, y + r);
+    ctx.stroke();
+  }
+  if (n.depth === 1) {
+    ctx.globalAlpha = alpha * 0.28;
+    for (let d = -r * 1.5; d < r * 1.5; d += step * 1.6) {
+      ctx.beginPath();
+      ctx.moveTo(x + d - r, y + r);
+      ctx.lineTo(x + d + r, y - r);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  // double-stroke outline
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = n === state.selected ? 1.8 : 1;
+  ctx.stroke();
+  ctx.globalAlpha = alpha * 0.4;
+  ctx.lineWidth = 0.6;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0] + 1.2, pts[0][1] + 1.2);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0] + 1.2, pts[i][1] + 1.2);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function heatHalo(n, x, y, r, alpha) {
+  if (!state.heat || n.weight <= 0) return;
+  const t = clamp(n.weight / maxWeight, 0, 1);
+  const fixedFrac = n.weight ? n.fixedWeight / n.weight : 0;
+  const R = r + 10 + Math.sqrt(n.weight) * 5.5;
+  const g = ctx.createRadialGradient(x, y, r * 0.6, x, y, R);
+  const c = mixColor(COL.hot, COL.fixed, fixedFrac);
+  g.addColorStop(0, rgba(c, 0.42 * alpha * (0.45 + 0.55 * t)));
+  g.addColorStop(0.55, rgba(c, 0.16 * alpha * (0.4 + 0.6 * t)));
+  g.addColorStop(1, rgba(c, 0));
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function hex2rgb(h) {
+  h = h.trim();
+  if (h.startsWith("#")) {
+    if (h.length === 4) h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  }
+  const m = h.match(/(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+  return m ? [ +m[1], +m[2], +m[3] ] : [180, 40, 30];
+}
+function mixColor(a, b, t) {
+  const A = hex2rgb(a), B = hex2rgb(b);
+  return [Math.round(lerp(A[0], B[0], t)), Math.round(lerp(A[1], B[1], t)), Math.round(lerp(A[2], B[2], t))];
+}
+function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+
+/* ------------------------------------------------------------ main draw */
+function draw(now) {
+  stepAnim(now);
+  stepReplay(now);
+  stepChain(now);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = COL.paper;
+  ctx.fillRect(0, 0, W, H);
+
+  // faint paper grid (technical drawing)
+  ctx.save();
+  ctx.strokeStyle = COL.rule; ctx.globalAlpha = 0.35; ctx.lineWidth = 0.5;
+  for (let x = 0; x < W; x += 48) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 48) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+  ctx.restore();
+
+  // project
+  nodes.forEach(n => {
+    if (n === root) { n.vis = false; return; }
+    const p = project(n.pos);
+    if (!p) { n.vis = false; return; }
+    n.vis = true; n.sx = p.x; n.sy = p.y; n.k = p.k; n.depthv = p.depth;
+    n.sr = Math.max(2.2, nodeRadius(n) * p.k * 1.25);
+  });
+
+  // edges first (back to front by mean depth)
+  const drawEdges = edges
+    .filter(e => e.a !== root && e.b !== root && e.a.vis && e.b.vis)
+    .map(e => ({ e, d: (e.a.depthv + e.b.depthv) / 2 }))
+    .sort((p, q) => q.d - p.d);
+  drawEdges.forEach(({ e }) => {
+    const rel = Math.min(relevance(e.a), relevance(e.b));
+    const sel = state.selected && (e.a === state.selected || e.b === state.selected);
+    const alpha = (e.type === "tree" ? 0.5 : 0.42) * (sel ? 1.9 : rel);
+    const col = e.type === "tree" ? COL.ink : pencilColor(e.a);
+    draftLine(e.a.sx, e.a.sy, e.b.sx, e.b.sy, col, clamp(alpha, 0.03, 0.95),
+      e.type === "rel", hashStr(e.a.id + e.b.id), e.type === "rel" ? 26 : 8);
+    if (sel && e.type === "rel" && e.label && state.labels) {
+      ctx.save();
+      ctx.globalAlpha = 0.85; ctx.fillStyle = COL.soft; ctx.font = "9.5px monospace";
+      ctx.fillText(e.label, (e.a.sx + e.b.sx) / 2 + 4, (e.a.sy + e.b.sy) / 2 - 3);
+      ctx.restore();
+    }
+  });
+
+  // nodes back to front
+  const labelQueue = [];
+  const order = nodes.filter(n => n !== root && n.vis).sort((a, b) => b.depthv - a.depthv);
+  order.forEach(n => {
+    const rel = relevance(n);
+    heatHalo(n, n.sx, n.sy, n.sr, rel);
+    if (n.cpulse > 0.01) {
+      ctx.save();
+      const pr = n.sr + 5 + (1 - n.cpulse) * 34;
+      ctx.globalAlpha = n.cpulse * 0.85;
+      ctx.strokeStyle = COL.hot; ctx.lineWidth = 2.1;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, pr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = n.cpulse * 0.35;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, n.sr + 3 + (1 - n.cpulse) * 12, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if (n.pulse > 0.01) {
+      ctx.save();
+      const pr = n.sr + 6 + (1 - n.pulse) * 26;
+      ctx.globalAlpha = n.pulse * 0.75;
+      ctx.strokeStyle = COL.scan; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, pr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = n.pulse * 0.3;
+      ctx.fillStyle = COL.scan;
+      ctx.beginPath(); ctx.arc(n.sx, n.sy, n.sr + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    facet(n, n.sx, n.sy, n.sr, clamp(rel, 0.18, 1));
+    const forced = n === state.hover || n === state.selected || (state.selected && incident.has(n)) ||
+      (state.chain && (state.chain.chain.stepOf.has(n) || state.chain.chain.variantNodes.has(n)));
+    // in chain mode the canvas is annotated by the chain itself; keep it clean
+    const wantLabel = state.chain ? false
+      : (forced || n.depth === 1 || (rel > 0.45 && n.sr > 11 && n.weight > 0));
+    if (state.labels && wantLabel) {
+      labelQueue.push({ n, rel, prio: forced ? 3 : n.depth === 1 ? 2 : 1 });
+    }
+    n.pulse *= 0.955;
+    n.cpulse *= 0.978;
+  });
+
+  drawChainLinks(now);
+
+  // labels last, highest priority first, skipping ones that would collide
+  const taken = [];
+  labelQueue.sort((a, b) => b.prio - a.prio || b.n.weight - a.n.weight);
+  labelQueue.forEach(({ n, rel, prio }) => {
+    ctx.save();
+    ctx.font = (n.depth === 1 ? "600 11px " : "10px ") + "monospace";
+    const label = n.name + (n.findings.length ? "  ×" + n.findings.length : "");
+    const w = ctx.measureText(label).width;
+    const tx = n.sx + n.sr + 5, ty = n.sy + 3;
+    const box = [tx - 2, ty - 9, tx + w + 2, ty + 4];
+    const hit = taken.some(t => box[0] < t[2] && t[0] < box[2] && box[1] < t[3] && t[1] < box[3]);
+    if (hit && prio < 3) { ctx.restore(); return; }
+    taken.push(box);
+    ctx.globalAlpha = clamp(rel, 0.3, 1);
+    ctx.fillStyle = n === state.hover || n === state.selected ? COL.ink : COL.soft;
+    ctx.fillText(label, tx, ty);
+    if (n.depth === 1) {
+      ctx.globalAlpha *= 0.5; ctx.strokeStyle = COL.rule; ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(tx, ty + 3); ctx.lineTo(tx + w, ty + 3); ctx.stroke();
+    }
+    ctx.restore();
+  });
+
+  requestAnimationFrame(draw);
+}
+
+/* --------------------------------------------------------- replay scan */
+function stepReplay(now) {
+  const r = state.replay;
+  if (!r) return;
+  while (r.i < r.seq.length && now >= r.t0 + r.i * r.gap) {
+    r.seq[r.i].pulse = 1;
+    r.i++;
+  }
+  if (r.i >= r.seq.length && now > r.t0 + r.seq.length * r.gap + 900) {
+    state.replay = null;
+    state.heat = true;
+    document.getElementById("btnHeat").setAttribute("aria-pressed", "true");
+    document.getElementById("btnReplay").setAttribute("aria-pressed", "false");
+  }
+}
+function startReplay() {
+  const seq = [];
+  clusters.forEach(c => { seq.push(c); (function walk(n) { n.children.forEach(k => { seq.push(k); walk(k); }); })(c); });
+  state.replay = { seq, i: 0, t0: performance.now() + 120, gap: Math.max(45, Math.min(140, 6000 / seq.length)) };
+  state.heat = false;
+  document.getElementById("btnHeat").setAttribute("aria-pressed", "false");
+  document.getElementById("btnReplay").setAttribute("aria-pressed", "true");
+}
+
+/* ---------------------------------------------------------- chain mode */
+function chainStepAt(i) { return state.chain.t0 + i * state.chain.gap; }
+
+function startChain(c) {
+  state.selected = null; incident = new Set();
+  renderPanel();
+  state.replay = null;
+  state.heat = false;
+  document.getElementById("btnHeat").setAttribute("aria-pressed", "false");
+  document.getElementById("btnReplay").setAttribute("aria-pressed", "false");
+  document.getElementById("btnChain").setAttribute("aria-pressed", "true");
+  state.chain = { chain: c, i: 0, done: false, t0: performance.now() + 260, gap: 8000, travel: 1400 };
+  nodes.forEach(n => { n.cpulse = 0; n.pulse = 0; });
+  frameChain(c, 1000);
+  renderChainOut();
+}
+function stopChain() {
+  if (!state.chain) return;
+  state.chain = null;
+  state.heat = true;
+  document.getElementById("btnHeat").setAttribute("aria-pressed", "true");
+  document.getElementById("btnChain").setAttribute("aria-pressed", "false");
+  document.getElementById("chainout").className = "";
+  nodes.forEach(n => { n.cpulse = 0; });
+}
+function chainFrame(c) {
+  const pts = c.steps.map(s => s.node).filter(Boolean).map(n => n.pos);
+  if (!pts.length) return null;
+  const ctr = pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length, z: a.z + p.z / pts.length }), { x: 0, y: 0, z: 0 });
+  const span = Math.max(200, ...pts.map(p => Math.hypot(p.x - ctr.x, p.y - ctr.y, p.z - ctr.z)));
+  return { ctr, dist: span * 2.4 + 430 };
+}
+function frameChain(c, ms) {
+  const fr = chainFrame(c);
+  if (fr) flyTo(fr.ctr, fr.dist, ms);
+}
+function stepChain(now) {
+  const cs = state.chain;
+  if (!cs) return;
+  const c = cs.chain;
+  while (cs.i < c.steps.length && now >= chainStepAt(cs.i)) {
+    const st = c.steps[cs.i];
+    if (st.node) {
+      st.node.cpulse = 1;
+      // pan toward the current step but keep the whole chain in frame
+      const fr = chainFrame(c);
+      if (fr) {
+        flyTo({
+          x: lerp(fr.ctr.x, st.node.pos.x, 0.62),
+          y: lerp(fr.ctr.y, st.node.pos.y, 0.62),
+          z: lerp(fr.ctr.z, st.node.pos.z, 0.62)
+        }, fr.dist * 0.78, 1000);
+      }
+    }
+    cs.i++;
+    renderChainOut();
+  }
+  if (!cs.done && cs.i >= c.steps.length && now > chainStepAt(c.steps.length - 1) + cs.gap + 900) {
+    cs.done = true;
+    frameChain(c, 1200);
+    renderChainOut();
+  }
+}
+
+/* red chain links, drawn over the galaxy; each link reveals with its step */
+function drawChainLinks(now) {
+  const cs = state.chain;
+  if (!cs) return;
+  const steps = cs.chain.steps;
+  for (let i = 1; i < steps.length; i++) {
+    const a = steps[i - 1].node, b = steps[i].node;
+    if (!a || !b || !a.vis || !b.vis) continue;
+    if (cs.i < i) continue;
+    const t = clamp((now - chainStepAt(i - 1)) / cs.travel, 0, 1);
+    const ex = lerp(a.sx, b.sx, t), ey = lerp(a.sy, b.sy, t);
+    ctx.save();
+    ctx.strokeStyle = COL.hot; ctx.lineCap = "round";
+    ctx.globalAlpha = 0.9; ctx.lineWidth = 1.9;
+    ctx.setLineDash([7, 4]);
+    ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.34; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(a.sx + 1.3, a.sy + 1.3); ctx.lineTo(ex + 1.3, ey + 1.3); ctx.stroke();
+    // arrow head / travelling marker
+    const ang = Math.atan2(b.sy - a.sy, b.sx - a.sx);
+    ctx.globalAlpha = 1; ctx.fillStyle = COL.hot;
+    ctx.translate(ex, ey); ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-8, -3.4); ctx.lineTo(-8, 3.4);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // step callouts on the chain nodes: number, role and the file it lives in.
+  // the chain steps sit in the same cluster, so stack boxes to avoid overlap.
+  const boxes = [];
+  steps.forEach(s => {
+    if (!s.node || !s.node.vis || s.i >= cs.i) return;
+    ctx.save();
+    ctx.font = "600 11px monospace"; ctx.textAlign = "left";
+    const file = s.f ? s.f.path.split("/").pop() + ":" + s.f.line : s.node.name;
+    const lab = (s.i + 1) + (s.role === "sink" ? " SINK" : "") + " " + file;
+    const w = ctx.measureText(lab).width;
+    let bx = s.node.sx + s.node.sr + 12, by = s.node.sy - 6;
+    for (let k = 0; k < 14; k++) {
+      const cand = [bx, by - 11, bx + w + 9, by + 5];
+      if (!boxes.some(t => cand[0] < t[2] && t[0] < cand[2] && cand[1] < t[3] && t[1] < cand[3])) break;
+      by += 17;
+    }
+    boxes.push([bx, by - 11, bx + w + 9, by + 5]);
+    ctx.globalAlpha = 0.85; ctx.strokeStyle = COL.hot; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(s.node.sx + s.node.sr + 2, s.node.sy); ctx.lineTo(bx - 2, by - 3); ctx.stroke();
+    ctx.globalAlpha = 0.93; ctx.fillStyle = COL.paper;
+    ctx.fillRect(bx, by - 11, w + 9, 16);
+    ctx.globalAlpha = 1; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by - 11, w + 9, 16);
+    ctx.fillStyle = COL.hot;
+    ctx.fillText(lab, bx + 4.5, by);
+    ctx.restore();
+  });
+}
+
+function renderChainOut() {
+  const box = document.getElementById("chainout");
+  const cs = state.chain;
+  if (!cs) { box.className = ""; box.innerHTML = ""; return; }
+  const c = cs.chain;
+  const w = c.steps.reduce((s, x) => s + (x.f ? (SEV_W[x.f.severity] || 1) : 0), 0);
+  let h = `<div class="kind">cross-file vulnerability chain · ${c.fileCount} files · weighted ${w}</div>`;
+  h += `<h2>${esc(c.name)}</h2>`;
+  h += `<div class="kind">advisory: ${esc(c.advisory || "n/a")}</div>`;
+  h += `<p class="sum">${esc(c.summary || "")}</p>`;
+  h += `<h3>attack path (${c.steps.length} steps)</h3>`;
+  c.steps.forEach(s => {
+    const cls = s.i < cs.i - 1 ? "seen" : s.i === cs.i - 1 ? "now" : "";
+    h += `<div class="step ${cls}">` +
+      `<span class="hd"><span class="no">${s.i + 1}</span>` +
+      (s.f ? `<span class="sev ${esc(s.f.severity)}">${esc(s.f.severity)}</span>` : "") +
+      `${esc(s.f ? s.f.title : "(finding not in scan export)")}` +
+      `<span class="role">${esc(s.role)}</span></span>` +
+      (s.f ? `<span class="loc">${esc(s.f.path)}:${esc(s.f.line)}</span>` : "") +
+      `<span class="cap">${esc(s.caption)}</span></div>`;
+  });
+  if (c.variants && c.variants.length) {
+    h += `<h3>same root cause, other front ends (${c.variants.length})</h3>`;
+    h += `<ul>` + c.variants.map(f =>
+      `<li><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span>${esc(f.path.split("/").pop())}:${esc(f.line)}</li>`).join("") + `</ul>`;
+    if (c.variantsNote) h += `<div class="kind" style="text-transform:none;letter-spacing:0;line-height:1.5">${esc(c.variantsNote)}</div>`;
+  }
+  if (cs.done) h += `<h3>chain complete — ${c.steps.length} findings, ${c.fileCount} files, one exploit</h3>`;
+  box.innerHTML = h;
+  box.className = "on";
+  // keep the step being animated in view without the presenter scrolling
+  if (cs.done) box.scrollTop = box.scrollHeight;
+  else {
+    const now_ = box.querySelector(".step.now");
+    if (now_) box.scrollTop = Math.max(0, now_.offsetTop - box.offsetTop - 90);
+  }
+}
+
+/* ------------------------------------------------------------- picking */
+function pick(mx, my) {
+  let best = null, bestD = 1e9;
+  nodes.forEach(n => {
+    if (n === root || !n.vis) return;
+    const d = Math.hypot(n.sx - mx, n.sy - my);
+    const hit = Math.max(11, n.sr + 6);
+    if (d < hit && d < bestD) { bestD = d; best = n; }
+  });
+  return best;
+}
+
+/* --------------------------------------------------------------- panel */
+const panel = document.getElementById("panel");
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function renderPanel() {
+  const n = state.selected;
+  if (!n) { panel.className = ""; panel.innerHTML = ""; return; }
+  const rels = edges.filter(e => e.type === "rel" && (e.a === n || e.b === n));
+  const kids = n.children;
+  const own = n.findings.slice().sort((a, b) => (SEV_W[b.severity] || 0) - (SEV_W[a.severity] || 0));
+  const sub = [];
+  (function walk(x) { x.children.forEach(k => { k.findings.forEach(f => sub.push(f)); walk(k); }); })(n);
+  let h = `<div class="kind">${n.depth === 1 ? "subsystem cluster" : "subsystem"} · depth ${n.depth}</div>`;
+  h += `<h2>${esc(n.name)}</h2>`;
+  h += `<p class="desc">${esc(n.desc)}</p>`;
+  h += `<div class="kind">weighted findings ${n.weight} &nbsp;·&nbsp; open ${n.openWeight} &nbsp;·&nbsp; fixed ${n.fixedWeight}</div>`;
+  if (n.files.length) {
+    h += `<h3>source references</h3><ul>` + n.files.map(f => `<li>${esc(f)}</li>`).join("") + `</ul>`;
+  }
+  if (own.length || sub.length) {
+    h += `<h3>findings${sub.length ? " (this node)" : ""}</h3>`;
+    h += own.length ? own.map(fndHtml).join("") : `<div class="kind">none on this node</div>`;
+    if (sub.length) {
+      h += `<h3>findings in children (${sub.length})</h3>` + sub.sort((a, b) => (SEV_W[b.severity] || 0) - (SEV_W[a.severity] || 0)).map(fndHtml).join("");
+    }
+  }
+  if (kids.length) {
+    h += `<h3>children (${kids.length})</h3><ul>` + kids.map(k =>
+      `<li>${esc(k.name)}${k.weight ? ` <span class="kind">· w${k.weight}</span>` : ""}</li>`).join("") + `</ul>`;
+  }
+  if (rels.length) {
+    h += `<h3>relations (${rels.length})</h3><ul>` + rels.map(e => {
+      const out = e.a === n;
+      const other = out ? e.b : e.a;
+      return `<li>${out ? "→" : "←"} ${esc(other.name)} <span class="kind">${esc(e.kind)}${e.label ? " · " + esc(e.label) : ""}</span></li>`;
+    }).join("") + `</ul>`;
+  }
+  panel.innerHTML = h;
+  panel.className = "on";
+  panel.scrollTop = 0;
+}
+function fndHtml(f) {
+  return `<div class="fnd"><span class="t"><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span>${esc(f.title)}` +
+    (f.remediated ? ` <span class="fixedtag">[remediated]</span>` : "") + `</span>` +
+    `<span class="d">${esc(f.path)}:${esc(f.line)}<br>${esc(f.description)}` +
+    (f.pr ? `<br>PR: ${esc(f.pr)}` : "") + (f.chain ? `<br>chain: ${esc(f.chain)}` : "") + `</span></div>`;
+}
+
+/* ---------------------------------------------------------------- meter */
+function renderMeter() {
+  const total = FINDINGS.length;
+  const fixed = FINDINGS.filter(f => f.remediated).length;
+  const wTotal = FINDINGS.reduce((s, f) => s + (SEV_W[f.severity] || 1), 0);
+  const wFixed = FINDINGS.filter(f => f.remediated).reduce((s, f) => s + (SEV_W[f.severity] || 1), 0);
+  const prCount = FINDINGS.filter(f => f.pr && !f.remediated).length;
+  const bySev = ["critical", "high", "medium", "low"].map(s => {
+    const c = FINDINGS.filter(f => f.severity === s).length;
+    return c ? `${c} ${s}` : null;
+  }).filter(Boolean).join(" · ");
+  document.getElementById("meterText").innerHTML =
+    `<b style="color:var(--ink)">remediation progress</b> — ${fixed} fixed / ${total - fixed} open of ${total}`;
+  document.getElementById("meterBar").style.width = (total ? (wFixed / wTotal * 100) : 0).toFixed(1) + "%";
+  document.getElementById("meterSub").textContent =
+    `${bySev} · weighted ${wFixed}/${wTotal}` +
+    (state.preview ? " · hypothetical preview: all findings remediated" : prCount ? ` · ${prCount} remediation PRs open, not merged` : "");
+}
+
+/* --------------------------------------------------------------- events */
+let drag = null;
+cv.addEventListener("mousedown", e => { drag = { x: e.clientX, y: e.clientY, moved: 0 }; });
+window.addEventListener("mouseup", e => {
+  if (drag && drag.moved < 5) {
+    const n = pick(e.clientX, e.clientY);
+    if (n) selectNode(n);
+  }
+  drag = null;
+});
+window.addEventListener("mousemove", e => {
+  if (drag) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.moved += Math.abs(dx) + Math.abs(dy);
+    drag.x = e.clientX; drag.y = e.clientY;
+    cam.yaw += dx * 0.005;
+    cam.pitch = clamp(cam.pitch + dy * 0.004, -1.25, 1.25);
+    anim = null;
+    return;
+  }
+  const n = pick(e.clientX, e.clientY);
+  state.hover = n;
+  const tip = document.getElementById("tip");
+  if (n) {
+    cv.style.cursor = "pointer";
+    tip.style.display = "block";
+    tip.style.left = (e.clientX + 12) + "px";
+    tip.style.top = (e.clientY + 14) + "px";
+    tip.textContent = n.name + (n.weight ? `  ·  weighted ${n.weight}` : "") +
+      (n.findings.length ? `  ·  ${n.findings.length} finding${n.findings.length > 1 ? "s" : ""}` : "");
+  } else { cv.style.cursor = "default"; tip.style.display = "none"; }
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  cam.dist = clamp(cam.dist * Math.exp(e.deltaY * 0.0012), 130, 4200);
+  anim = null;
+}, { passive: false });
+
+function clusterOf(n) { return n.depth <= 1 ? n : ancestorCluster(n); }
+function selectNode(n) {
+  stopChain();
+  state.selected = n;
+  computeIncident();
+  const cl = clusterOf(n);
+  const span = Math.max(140, ...cl.children.map(k => Math.hypot(k.pos.x - cl.pos.x, k.pos.y - cl.pos.y, k.pos.z - cl.pos.z)));
+  flyTo(n.depth === 1 ? cl.pos : n.pos, n.depth === 1 ? span * 3.6 + 260 : span * 2.1 + 200, 780);
+  renderPanel();
+}
+function resetView() {
+  stopChain();
+  state.selected = null; incident = new Set();
+  flyTo({ x: 0, y: 0, z: 0 }, 1500, 760);
+  renderPanel();
+}
+window.addEventListener("keydown", e => {
+  if (e.key === "Escape") resetView();
+  if (e.key === "r" || e.key === "R") startReplay();
+  if ((e.key === "c" || e.key === "C") && chains.length) toggleChain();
+});
+document.getElementById("btnReset").onclick = resetView;
+document.getElementById("btnHeat").onclick = e => {
+  state.heat = !state.heat;
+  e.currentTarget.setAttribute("aria-pressed", String(state.heat));
+};
+document.getElementById("btnPreview").onclick = e => {
+  state.preview = !state.preview;
+  FINDINGS.forEach(f => { f.remediated = state.preview ? true : !!f._wasFixed; });
+  rollUp();
+  e.currentTarget.setAttribute("aria-pressed", String(state.preview));
+  renderMeter();
+  renderPanel();
+};
+document.getElementById("btnLabels").onclick = e => {
+  state.labels = !state.labels;
+  e.currentTarget.setAttribute("aria-pressed", String(state.labels));
+};
+document.getElementById("btnReplay").onclick = () => { stopChain(); if (!state.replay) startReplay(); };
+function toggleChain() {
+  if (state.chain) stopChain();
+  else if (chains.length) startChain(chains[0]);
+}
+document.getElementById("btnChain").onclick = toggleChain;
+document.getElementById("btnTheme").onclick = e => {
+  state.dark = !state.dark;
+  document.documentElement.setAttribute("data-theme", state.dark ? "dark" : "light");
+  e.currentTarget.textContent = state.dark ? "light" : "dark";
+  readColors();
+};
+
+/* ----------------------------------------------------------------- boot */
+document.getElementById("repoName").textContent = (INDEX.name || "codebase") + " — semantic galaxy";
+document.getElementById("repoDesc").textContent =
+  (INDEX.description || "") + `  [${nodes.length - 1} subsystem nodes · ${edges.filter(e => e.type === "rel").length} relations · ${FINDINGS.length} findings]`;
+if (chains.length) {
+  const c0 = chains[0];
+  document.getElementById("btnChain").textContent = "chain: " + (c0.short || c0.name);
+  document.getElementById("btnChain").title =
+    c0.steps.length + " findings across " + c0.fileCount + " files compose into one exploit (press c)";
+} else {
+  document.getElementById("btnChain").style.display = "none";
+}
+renderMeter();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
