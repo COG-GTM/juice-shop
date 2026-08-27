@@ -4,7 +4,7 @@ export function updateProductReviews () {
     db.reviewsCollection.update(
       { _id: req.body.id, author: user.data.email },
       { $set: { message: req.body.message } },
-      { multi: true }
+      { multi: false }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
         res.json(result)
