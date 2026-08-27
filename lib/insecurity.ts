@@ -7,7 +7,6 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,10 +50,42 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+const verifiedToken = (token?: string): ResponseWithUser | null => {
+  if (!token) {
+    return null
+  }
+  try {
+    const decoded = jws.decode(token)
+    if (decoded?.header?.alg !== 'RS256' || !jws.verify(token, 'RS256', publicKey)) {
+      return null
+    }
+    const payload: ResponseWithUser = typeof decoded.payload === 'string' ? JSON.parse(decoded.payload) : decoded.payload
+    if (payload?.exp && payload.exp * 1000 <= Date.now()) {
+      return null
+    }
+    return payload
+  } catch {
+    return null
+  }
+}
+
+const unauthorized = (next: NextFunction) => {
+  const error: Error & { status?: number } = new Error('No Authorization header was found')
+  error.name = 'UnauthorizedError'
+  error.status = 401
+  next(error)
+}
+
+export const isAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
+  if (verifiedToken(utils.jwtFrom(req)) === null) {
+    unauthorized(next)
+    return
+  }
+  next()
+}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => { unauthorized(next) }
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: string) => verifiedToken(token) !== null
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -187,15 +218,10 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  const decoded = verifiedToken(token)
+  if (decoded !== null && authenticatedUsers.get(token) === undefined) {
+    authenticatedUsers.put(token, decoded)
+    res.cookie('token', token)
   }
   next()
 }
