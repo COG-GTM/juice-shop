@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -19,6 +20,33 @@ describe('insecurity', () => {
 
     it('returns string up to null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe%00.pdf')).to.equal('file.exe')
+    })
+  })
+
+  describe('verify', () => {
+    const forge = (header: object, signature: string) => {
+      const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+      return `${encode(header)}.${encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}.${signature}`
+    }
+
+    it('accepts a token signed with the RSA private key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an HS256 token signed with the public key', () => {
+      const header = { alg: 'HS256', typ: 'JWT' }
+      const unsigned = forge(header, '').slice(0, -1)
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(forge(header, signature))).to.equal(false)
+    })
+
+    it('rejects an unsigned token', () => {
+      expect(security.verify(forge({ alg: 'none', typ: 'JWT' }, ''))).to.equal(false)
+    })
+
+    it('rejects an empty or malformed token', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.token')).to.equal(false)
     })
   })
 
