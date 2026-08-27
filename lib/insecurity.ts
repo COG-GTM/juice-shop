@@ -26,8 +26,12 @@ function loadPrivateKey (): string {
     return process.env.JWT_PRIVATE_KEY
   }
   const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? defaultKeyFile
-  if (fs.existsSync(keyFile)) {
+  try {
     return fs.readFileSync(keyFile, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
   }
   const generatedKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
   try {
@@ -43,9 +47,16 @@ function loadPrivateKey (): string {
 
 function publishPublicKey (key: string) {
   const publicKeyFile = 'encryptionkeys/jwt.pub'
-  if (!fs.existsSync(publicKeyFile) || fs.readFileSync(publicKeyFile, 'utf8') !== key) {
-    fs.writeFileSync(publicKeyFile, key)
+  try {
+    if (fs.readFileSync(publicKeyFile, 'utf8') === key) {
+      return
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err
+    }
   }
+  fs.writeFileSync(publicKeyFile, key)
 }
 
 const privateKey = loadPrivateKey()
