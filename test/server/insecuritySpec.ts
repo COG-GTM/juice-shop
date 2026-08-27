@@ -203,4 +203,36 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('authorize', () => {
+    it('signs tokens with RS256 which verify against the public key', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+
+      expect(JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString()).alg).to.equal('RS256')
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('does not sign tokens with the published key of the "Forged Signed JWT" challenge', () => {
+      expect(security.publicKey).to.not.equal(security.challengePublicKey)
+      expect(security.publicKey).to.not.contain('MIGJAoGBAM3CosR73CBNcJsLv5E90NsFt6qN1uziQ484gbOoule8leXHFbyIzPQRozgEpSpiwhr6d2/c0CfZHEJ3m5tV0klxfjfM7oqjRMURnH/rmBjcETQ7qzIISZQ/iptJ3p7Gi78X5ZMhLNtDkUFU9WaGdiEb+SnC39wjErmJSfmGb7i1')
+    })
+  })
+
+  describe('verify', () => {
+    it('returns false for a missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+
+    it('returns false for an unsigned token', () => {
+      expect(security.verify('eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQCJ9LCJpYXQiOjE1MDg2Mzk2MTIsImV4cCI6OTk5OTk5OTk5OX0.')).to.equal(false)
+    })
+
+    it('returns false for a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg')).to.equal(false)
+    })
+
+    it('returns false for a malformed token', () => {
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+  })
 })
