@@ -253,7 +253,7 @@ describe('verify', () => {
   describe('jwtChallenges', () => {
     const forgedToken = (email: string) => jws.sign({
       header: { alg: 'HS256', typ: 'JWT' },
-      payload: { data: { email }, iat: 1582221575 },
+      payload: JSON.stringify({ data: { email }, iat: 1582221575 }),
       secret: security.publicKey
     })
 

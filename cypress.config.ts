@@ -65,7 +65,7 @@ export default defineConfig({
         GenerateForgedJwt (email: string) {
           return jws.sign({
             header: { alg: 'HS256', typ: 'JWT' },
-            payload: { data: { email }, iat: 1583037711 },
+            payload: JSON.stringify({ data: { email }, iat: 1583037711 }),
             secret: security.publicKey
           })
         },
