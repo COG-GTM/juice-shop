@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,49 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op' } }
+
+    it('accepts a token signed with the RSA private key', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects an unsigned token using algorithm "none"', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+      expect(security.verify(`${header}.${body}.`)).to.equal(false)
+    })
+
+    it('rejects a token signed with the public key as HMAC secret', () => {
+      const token = jws.sign({ header: { alg: 'HS256' }, payload, secret: security.publicKey })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a missing or malformed token', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    const requestWith = (token: string) => ({ headers: { authorization: `Bearer ${token}` } }) as unknown as Request
+
+    it('passes on requests with a token signed with the RSA private key', (done) => {
+      security.isAuthorized()(requestWith(security.authorize({ data: { id: 1 } })), {} as any, (err?: any) => {
+        expect(err).to.equal(undefined)
+        done()
+      })
+    })
+
+    it('fails with 401 on requests with a forged HMAC token', (done) => {
+      const token = jws.sign({ header: { alg: 'HS256' }, payload: { data: { id: 1 } }, secret: security.publicKey })
+      security.isAuthorized()(requestWith(token), {} as any, (err?: any) => {
+        expect(err.status).to.equal(401)
+        done()
+      })
     })
   })
 })
