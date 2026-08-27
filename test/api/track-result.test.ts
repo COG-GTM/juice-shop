@@ -23,6 +23,13 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET tracking results for an unknown order id reflects it stripped of HTML characters', async () => {
+    const res = await request(app)
+      .get(`/rest/track-order/${encodeURIComponent('<iframe src="javascript:alert(`xss`)">')}`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data[0].orderId, 'iframesrcjavascriptalertxss')
+  })
+
   void it('GET all orders by injecting into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
