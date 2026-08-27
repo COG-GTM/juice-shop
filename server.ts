@@ -293,6 +293,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/vendor/beercss', express.static(path.resolve('node_modules/beercss/dist/cdn')))
   app.use('/vendor/material-icons', express.static(path.resolve('node_modules/material-icons/iconfont')))
   app.use('/vendor/fontsource-roboto', express.static(path.resolve('node_modules/@fontsource/roboto')))
+  app.use('/vendor/fontsource-vt323', express.static(path.resolve('node_modules/@fontsource/vt323')))
 
   /* Configure and enable backend-side i18n */
   i18n.configure({
