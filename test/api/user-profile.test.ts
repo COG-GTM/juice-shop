@@ -51,4 +51,23 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile does not evaluate code from a #{...} username', async () => {
+    const updateRes = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{"pwn".toUpperCase()}' })
+      .redirects(0)
+
+    assert.equal(updateRes.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('PWN'))
+    assert.ok(res.text.includes('&quot;pwn&quot;.toUpperCase()'))
+  })
 })
