@@ -51,11 +51,59 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+// Tokens are signed with an RSA key pair, so RS256 is the only algorithm that may be
+// accepted. Otherwise the token header itself could select the algorithm and a client
+// could forge tokens with "none" or with HS256 using the (publicly available) public key
+// as HMAC secret.
+const jwtAlgorithm = 'RS256'
+
+let rsaPublicKey: crypto.KeyObject | undefined
+const verificationKey = () => {
+  rsaPublicKey = rsaPublicKey ?? crypto.createPublicKey(publicKey)
+  return rsaPublicKey
+}
+
+// Verifies the RSA signature itself instead of letting the token header pick the algorithm.
+export const verify = (token: string) => {
+  if (!token) {
+    return false
+  }
+  const [header, payload, signature] = token.split('.')
+  if (!header || !payload || !signature) {
+    return false
+  }
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString('utf8'))?.alg !== jwtAlgorithm) {
+      return false
+    }
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), verificationKey(), Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+const isExpired = (payload: any) => typeof payload?.exp === 'number' && payload.exp * 1000 < Date.now()
+
+// The legacy express-jwt/jsonwebtoken versions in use derive the algorithm from the token
+// header, so every token is verified as RS256 by us before they get to see it.
+const jwtGuard = (secret: string) => {
+  const verifyJwt = expressJwt({ secret, algorithms: [jwtAlgorithm] } as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    if (token && !verify(token)) {
+      const error: Error & { status?: number } = new Error('Invalid token')
+      error.status = 401
+      next(error)
+      return
+    }
+    verifyJwt(req, res, next)
+  }
+}
+
+export const isAuthorized = () => jwtGuard(publicKey)
+export const denyAll = () => jwtGuard('' + Math.random())
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm })
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -187,15 +235,12 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  if (token && verify(token)) {
+    const decoded: any = decode(token)
+    if (decoded?.data && !isExpired(decoded) && authenticatedUsers.get(token) === undefined) {
+      authenticatedUsers.put(token, decoded)
+      res.cookie('token', token)
+    }
   }
   next()
 }

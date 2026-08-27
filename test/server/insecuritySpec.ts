@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,29 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const adminPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+
+    it('accepts a token signed with the applications own RSA key', () => {
+      expect(security.verify(security.authorize(adminPayload))).to.equal(true)
+    })
+
+    it('returns false for missing or malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public key', () => {
+      const token = jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload: adminPayload, secret: security.publicKey })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects an unsigned token', () => {
+      const token = jws.sign({ header: { alg: 'none', typ: 'JWT' }, payload: adminPayload, secret: '' })
+      expect(security.verify(token)).to.equal(false)
     })
   })
 })
