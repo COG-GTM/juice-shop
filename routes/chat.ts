@@ -5,7 +5,7 @@
 
 import { type Request, type Response } from 'express'
 import config from 'config'
-import { stepCountIs, streamText, tool } from 'ai'
+import { stepCountIs, streamText, tool, type Schema } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
 import { Op } from 'sequelize'
@@ -116,8 +116,8 @@ export function chat () {
         description: `Search the ${appName} product catalog by keyword`,
         inputSchema: z.object({
           query: z.string().describe('The search query to find products')
-        }),
-        execute: async ({ query }) => {
+        }) as unknown as Schema<{ query: string }>,
+        execute: async ({ query }: { query: string }) => {
           const products = await ProductModel.findAll({
             where: {
               [Op.or]: [
@@ -141,8 +141,8 @@ export function chat () {
         description: 'Get all reviews for a specific product by its ID',
         inputSchema: z.object({
           id: z.string().describe('The product ID to get reviews for')
-        }),
-        execute: async ({ id }) => {
+        }) as unknown as Schema<{ id: string }>,
+        execute: async ({ id }: { id: string }) => {
           const productId = Number(id)
           return await db.reviewsCollection.find({ $where: 'this.product == ' + productId }) as Review[]
         }
@@ -152,8 +152,8 @@ export function chat () {
         description: 'Get order details for a specific order by its ID. Only returns the order if it belongs to the current customer.',
         inputSchema: z.object({
           orderId: z.string().describe('The order ID to get details for (format: xxxx-xxxxxxxxxxxxxxxx)')
-        }),
-        execute: async ({ orderId }) => {
+        }) as unknown as Schema<{ orderId: string }>,
+        execute: async ({ orderId }: { orderId: string }) => {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
@@ -175,8 +175,8 @@ export function chat () {
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
           discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
-        }),
-        execute: async ({ discount }) => {
+        }) as unknown as Schema<{ discount: number }>,
+        execute: async ({ discount }: { discount: number }) => {
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
