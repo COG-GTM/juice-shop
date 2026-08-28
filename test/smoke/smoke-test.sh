@@ -38,7 +38,7 @@ else
   EXIT=$((EXIT+1))
 fi
 
-if curl "$1/snippets/directoryListingChallenge" -s | grep -q 'serveIndexMiddleware'; then
+if curl "$1/snippets/directoryListingChallenge" -s | grep -q 'servePublicFiles'; then
   printf "\033[0;32mCode snippet smoke test passed!\033[0m\n"
 else
   printf "\033[0;31mCode snippet smoke test failed!\033[0m\n"

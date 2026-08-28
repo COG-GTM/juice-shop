@@ -141,12 +141,14 @@ const redactSensitiveQueryParams = (url: string) => {
   const queryStart = url.indexOf('?')
   if (queryStart === -1) return url
   const params = new URLSearchParams(url.substring(queryStart + 1))
+  let redacted = false
   for (const key of Array.from(params.keys())) {
     if (sensitiveQueryParams.includes(key.toLowerCase())) {
       params.set(key, '[REDACTED]')
+      redacted = true
     }
   }
-  return `${url.substring(0, queryStart)}?${params.toString()}`
+  return redacted ? `${url.substring(0, queryStart)}?${params.toString()}` : url
 }
 
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
