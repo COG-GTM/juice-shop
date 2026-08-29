@@ -15,7 +15,8 @@ import validateConfig, {
   checkUniqueSpecialOnMemories,
   checkSpecialMemoriesHaveNoUserAssociated,
   checkNecessaryExtraKeysOnSpecialProducts,
-  checkForIllogicalCombos
+  checkForIllogicalCombos,
+  checkChatBotLlmApiUrlIsConfined
 } from '../../lib/startup/validateConfig'
 import type { Memory, Product } from 'lib/config.types'
 
@@ -515,6 +516,31 @@ describe('configValidation', () => {
     it('should fail if systemWideNotifications url is set but pollFrequencySeconds is negative', () => {
       const config = { ...BASE_CONFIG, ctf: { ...BASE_CONFIG.ctf, systemWideNotifications: { url: 'http://example.com/notify', pollFrequencySeconds: -10 } } }
       expect(checkForIllogicalCombos(config)).to.equal(false)
+    })
+  })
+
+  describe('checkChatBotLlmApiUrlIsConfined', () => {
+    const configWith = (llmApiUrl?: string) => ({ application: { chatBot: { llmApiUrl } } })
+
+    it('should accept a loopback endpoint without TLS', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('http://localhost:11434/v1'))).to.equal(true)
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('http://127.0.0.1:11434/v1'))).to.equal(true)
+    })
+
+    it('should accept a remote endpoint using TLS', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('https://llm.example.com/v1'))).to.equal(true)
+    })
+
+    it('should fail for a remote endpoint without TLS', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('http://llm.example.com/v1'))).to.equal(false)
+    })
+
+    it('should fail for a malformed URL', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('llm.example.com/v1'))).to.equal(false)
+    })
+
+    it('should accept a config without a chatbot endpoint', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith(undefined))).to.equal(true)
     })
   })
 })
