@@ -535,6 +535,10 @@ describe('configValidation', () => {
       expect(checkChatBotLlmApiUrlIsConfined(configWith('http://llm.example.com/v1'))).to.equal(false)
     })
 
+    it('should fail for a loopback endpoint using a non-HTTP scheme', () => {
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('ftp://localhost:11434/v1'))).to.equal(false)
+    })
+
     it('should fail for a malformed URL', () => {
       expect(checkChatBotLlmApiUrlIsConfined(configWith('llm.example.com/v1'))).to.equal(false)
     })
