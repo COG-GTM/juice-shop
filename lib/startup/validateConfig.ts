@@ -40,6 +40,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   success = checkUniqueSpecialOnMemories(memories) && success
   success = checkSpecialMemoriesHaveNoUserAssociated(memories) && success
   success = checkForIllogicalCombos() && success
+  success = checkChatBotLlmApiUrlIsConfined() && success
   if (success) {
     logger.info(`Configuration ${colors.bold(process.env.NODE_ENV ?? 'default')} validated (${colors.green('SUCCESS')})`)
   } else {
@@ -188,6 +189,27 @@ export const checkForIllogicalCombos = (configuration = config.util.toObject()) 
     }
   }
   return success
+}
+
+const loopbackHostnames = ['localhost', '127.0.0.1', '::1', '[::1]']
+
+export const checkChatBotLlmApiUrlIsConfined = (configuration = config.util.toObject()) => {
+  const llmApiUrl = configuration.application?.chatBot?.llmApiUrl
+  if (!llmApiUrl) {
+    return true
+  }
+  let url
+  try {
+    url = new URL(llmApiUrl)
+  } catch {
+    logger.warn(`application.chatBot.llmApiUrl ${colors.italic(llmApiUrl)} is not a valid URL (${colors.red('ERROR')})`)
+    return false
+  }
+  if (url.protocol !== 'https:' && !loopbackHostnames.includes(url.hostname)) {
+    logger.warn(`Chatbot conversations would be sent in cleartext to ${colors.italic(llmApiUrl)} but application.chatBot.llmApiUrl must use HTTPS for non-loopback hosts (${colors.red('ERROR')})`)
+    return false
+  }
+  return true
 }
 
 export default validateConfig
