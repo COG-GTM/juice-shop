@@ -525,6 +525,8 @@ describe('configValidation', () => {
     it('should accept a loopback endpoint without TLS', () => {
       expect(checkChatBotLlmApiUrlIsConfined(configWith('http://localhost:11434/v1'))).to.equal(true)
       expect(checkChatBotLlmApiUrlIsConfined(configWith('http://127.0.0.1:11434/v1'))).to.equal(true)
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('http://127.0.0.2:11434/v1'))).to.equal(true)
+      expect(checkChatBotLlmApiUrlIsConfined(configWith('http://[::1]:11434/v1'))).to.equal(true)
     })
 
     it('should accept a remote endpoint using TLS', () => {

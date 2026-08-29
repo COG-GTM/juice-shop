@@ -191,7 +191,12 @@ export const checkForIllogicalCombos = (configuration = config.util.toObject()) 
   return success
 }
 
-const loopbackHostnames = ['localhost', '127.0.0.1', '::1', '[::1]']
+const isLoopbackHostname = (hostname: string) => {
+  if (hostname === 'localhost' || hostname === '::1' || hostname === '[::1]') {
+    return true
+  }
+  return /^127(\.\d{1,3}){3}$/.test(hostname)
+}
 
 export const checkChatBotLlmApiUrlIsConfined = (configuration = config.util.toObject()) => {
   const llmApiUrl = configuration.application?.chatBot?.llmApiUrl
@@ -205,7 +210,7 @@ export const checkChatBotLlmApiUrlIsConfined = (configuration = config.util.toOb
     logger.warn(`application.chatBot.llmApiUrl ${colors.italic(llmApiUrl)} is not a valid URL (${colors.red('ERROR')})`)
     return false
   }
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopbackHostnames.includes(url.hostname))) {
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLoopbackHostname(url.hostname))) {
     logger.warn(`Chatbot conversations would be sent in cleartext to ${colors.italic(llmApiUrl)} but application.chatBot.llmApiUrl must use HTTPS for non-loopback hosts (${colors.red('ERROR')})`)
     return false
   }
