@@ -166,7 +166,16 @@ export function chat () {
           if (!order) return { error: 'Order not found' }
           if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
 
-          return order
+          return {
+            orderId: order.orderId,
+            products: order.products,
+            totalPrice: order.totalPrice,
+            deliveryPrice: order.deliveryPrice,
+            promotionalAmount: order.promotionalAmount,
+            bonus: order.bonus,
+            delivered: order.delivered,
+            eta: order.eta
+          }
         }
       }),
 
