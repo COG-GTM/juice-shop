@@ -15,7 +15,8 @@ import validateConfig, {
   checkUniqueSpecialOnMemories,
   checkSpecialMemoriesHaveNoUserAssociated,
   checkNecessaryExtraKeysOnSpecialProducts,
-  checkForIllogicalCombos
+  checkForIllogicalCombos,
+  checkLlmApiUrlIsEncrypted
 } from '../../lib/startup/validateConfig'
 import type { Memory, Product } from 'lib/config.types'
 
@@ -515,6 +516,25 @@ describe('configValidation', () => {
     it('should fail if systemWideNotifications url is set but pollFrequencySeconds is negative', () => {
       const config = { ...BASE_CONFIG, ctf: { ...BASE_CONFIG.ctf, systemWideNotifications: { url: 'http://example.com/notify', pollFrequencySeconds: -10 } } }
       expect(checkForIllogicalCombos(config)).to.equal(false)
+    })
+  })
+
+  describe('checkLlmApiUrlIsEncrypted', () => {
+    it('should accept a local LLM API over http', () => {
+      expect(checkLlmApiUrlIsEncrypted('http://localhost:11434/v1')).to.equal(true)
+      expect(checkLlmApiUrlIsEncrypted('http://127.0.0.1:11434/v1')).to.equal(true)
+    })
+
+    it('should accept a remote LLM API over https', () => {
+      expect(checkLlmApiUrlIsEncrypted('https://api.example.com/v1')).to.equal(true)
+    })
+
+    it('should fail for a remote LLM API over http', () => {
+      expect(checkLlmApiUrlIsEncrypted('http://api.example.com/v1')).to.equal(false)
+    })
+
+    it('should fail for a malformed LLM API URL', () => {
+      expect(checkLlmApiUrlIsEncrypted('not-a-url')).to.equal(false)
     })
   })
 })
