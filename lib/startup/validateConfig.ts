@@ -76,7 +76,11 @@ export const checkLlmApiUrlIsEncrypted = (llmApiUrl: string = config.get<string>
     logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} is not a valid URL (${colors.red('ERROR')})`)
     return false
   }
-  const isLoopback = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(hostname)
+  if (protocol !== 'https:' && protocol !== 'http:') {
+    logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} does not use http or https (${colors.red('ERROR')})`)
+    return false
+  }
+  const isLoopback = hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(hostname)
   if (protocol !== 'https:' && !isLoopback) {
     logger.warn(`Chat messages and customer data would be sent unencrypted to remote LLM API ${colors.bold(llmApiUrl)} (${colors.red('ERROR')})`)
     return false

@@ -525,6 +525,16 @@ describe('configValidation', () => {
       expect(checkLlmApiUrlIsEncrypted('http://127.0.0.1:11434/v1')).to.equal(true)
     })
 
+    it('should accept any loopback address over http', () => {
+      expect(checkLlmApiUrlIsEncrypted('http://127.0.0.2:11434/v1')).to.equal(true)
+      expect(checkLlmApiUrlIsEncrypted('http://[::1]:11434/v1')).to.equal(true)
+    })
+
+    it('should fail for a protocol the chat client cannot use', () => {
+      expect(checkLlmApiUrlIsEncrypted('ftp://localhost/v1')).to.equal(false)
+      expect(checkLlmApiUrlIsEncrypted('ws://127.0.0.1:11434/v1')).to.equal(false)
+    })
+
     it('should accept a remote LLM API over https', () => {
       expect(checkLlmApiUrlIsEncrypted('https://api.example.com/v1')).to.equal(true)
     })
