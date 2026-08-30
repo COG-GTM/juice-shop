@@ -40,6 +40,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   success = checkUniqueSpecialOnMemories(memories) && success
   success = checkSpecialMemoriesHaveNoUserAssociated(memories) && success
   success = checkForIllogicalCombos() && success
+  success = checkLlmApiUrlIsEncrypted() && success
   if (success) {
     logger.info(`Configuration ${colors.bold(process.env.NODE_ENV ?? 'default')} validated (${colors.green('SUCCESS')})`)
   } else {
@@ -64,6 +65,27 @@ export const checkYamlSchema = (configuration = config.util.toObject()): configu
     success = false
   }
   return success
+}
+
+export const checkLlmApiUrlIsEncrypted = (llmApiUrl: string = config.get<string>('application.chatBot.llmApiUrl')) => {
+  let hostname: string
+  let protocol: string
+  try {
+    ({ hostname, protocol } = new URL(llmApiUrl))
+  } catch {
+    logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} is not a valid URL (${colors.red('ERROR')})`)
+    return false
+  }
+  if (protocol !== 'https:' && protocol !== 'http:') {
+    logger.warn(`Configured LLM API URL ${colors.bold(llmApiUrl)} does not use http or https (${colors.red('ERROR')})`)
+    return false
+  }
+  const isLoopback = hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(hostname)
+  if (protocol !== 'https:' && !isLoopback) {
+    logger.warn(`Chat messages and customer data would be sent unencrypted to remote LLM API ${colors.bold(llmApiUrl)} (${colors.red('ERROR')})`)
+    return false
+  }
+  return true
 }
 
 export const checkMinimumRequiredNumberOfProducts = (products: ProductConfig[]) => {
