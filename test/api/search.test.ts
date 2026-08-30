@@ -176,6 +176,14 @@ void describe('/rest/products/search', () => {
     assert.equal(res.body.data[0].name, pastebinLeakProduct.name)
   })
 
+  void it('GET product search treats UNION SELECT payload as literal search criteria', async () => {
+    const res = await request(app)
+      .get("/rest/products/search?q=')) union select id,'2','3',email,password,'6','7','8','9' from users--")
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, 0)
+  })
+
   void it('GET product search with empty search parameter returns all products', async () => {
     const productsRes = await request(app)
       .get('/api/Products')
