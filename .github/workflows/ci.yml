@@ -258,8 +258,8 @@ jobs:
           browser: ${{ matrix.browser }}
           start: npm start
           wait-on: http://localhost:3000
-          record: true
-          group: ${{ matrix.browser }} @ ${{ matrix.os }}
+          record: ${{ github.repository == 'juice-shop/juice-shop' }}
+          group: ${{ github.repository == 'juice-shop/juice-shop' && format('{0} @ {1}', matrix.browser, matrix.os) || '' }}
         env:
           SOLUTIONS_WEBHOOK: ${{ secrets.E2E_SOLUTIONS_WEBHOOK }}
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
@@ -273,8 +273,8 @@ jobs:
           browser: ${{ matrix.browser }}
           start: npm start
           wait-on: http://localhost:3000
-          record: true
-          group: ${{ matrix.browser }} @ ${{ matrix.os }}
+          record: ${{ github.repository == 'juice-shop/juice-shop' }}
+          group: ${{ github.repository == 'juice-shop/juice-shop' && format('{0} @ {1}', matrix.browser, matrix.os) || '' }}
         env:
           CYPRESS_CACHE_FOLDER: /Users/runner/Library/Caches/Cypress
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
