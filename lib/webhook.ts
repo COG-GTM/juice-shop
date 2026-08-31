@@ -25,8 +25,8 @@ const assertEgressAllowed = (url: URL) => {
   if (url.protocol !== 'https:' && !loopbackHosts.includes(url.hostname)) {
     throw new Error(`Refusing to send solution data to non-HTTPS webhook host ${url.host}`)
   }
-  const allowedHosts = (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map((host) => host.trim()).filter((host) => host.length > 0)
-  if (allowedHosts.length > 0 && !allowedHosts.includes(url.hostname)) {
+  const allowedHosts = (process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS ?? '').split(',').map((host) => host.trim().toLowerCase()).filter((host) => host.length > 0)
+  if (allowedHosts.length > 0 && !allowedHosts.includes(url.hostname.toLowerCase())) {
     throw new Error(`Webhook host ${url.hostname} is not in SOLUTIONS_WEBHOOK_ALLOWED_HOSTS`)
   }
 }
@@ -39,6 +39,7 @@ export const notify = async (challenge: { key: any, name: any }, cheatScore = -1
   assertEgressAllowed(url)
   const res = await fetch(webhook, {
     method: 'POST',
+    redirect: 'error',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       solution: {

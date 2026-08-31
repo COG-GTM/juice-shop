@@ -34,6 +34,46 @@ describe('webhook', () => {
       }
     })
 
+    it('refuses plaintext HTTP webhooks on non-loopback hosts', async () => {
+      try {
+        await webhook.notify(challenge, 0, 0, 0, 'http://example.com/hook')
+        chai.assert.fail('Expected error was not thrown')
+      } catch (error) {
+        expect((error as Error).message).to.equal('Refusing to send solution data to non-HTTPS webhook host example.com')
+      }
+    })
+
+    it('refuses webhook hosts missing from the allowlist', async () => {
+      process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS = 'hooks.example.com'
+      try {
+        await webhook.notify(challenge, 0, 0, 0, 'https://other.example.com/hook')
+        chai.assert.fail('Expected error was not thrown')
+      } catch (error) {
+        expect((error as Error).message).to.equal('Webhook host other.example.com is not in SOLUTIONS_WEBHOOK_ALLOWED_HOSTS')
+      } finally {
+        delete process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS
+      }
+    })
+
+    it('matches allowlist entries case-insensitively', async () => {
+      const server = http.createServer((req, res) => {
+        res.statusCode = 200
+        res.end('OK')
+      })
+
+      await new Promise<void>((resolve) => server.listen(0, resolve))
+
+      const port = (server.address() as AddressInfo)?.port
+      process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS = 'LOCALHOST'
+
+      try {
+        await webhook.notify(challenge, 0, 0, 0, `http://localhost:${port}`)
+      } finally {
+        delete process.env.SOLUTIONS_WEBHOOK_ALLOWED_HOSTS
+        server.close()
+      }
+    })
+
     it('submits POST with payload to existing URL', async () => {
       const server = http.createServer((req, res) => {
         res.statusCode = 200
