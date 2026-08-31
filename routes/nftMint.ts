@@ -12,10 +12,15 @@ let isEventListenerCreated = false
 
 export function nftMintListener () {
   return async (req: Request, res: Response) => {
+    const alchemyApiKey = process.env.ALCHEMY_API_KEY
+    if (!alchemyApiKey) {
+      res.status(503).json({ success: false, message: 'Web3 features are disabled because ALCHEMY_API_KEY is not configured' })
+      return
+    }
     try {
       if (!isEventListenerCreated) {
         const { WebSocketProvider, Contract } = await import('ethers')
-        const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
+        const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${alchemyApiKey}`)
         provider.websocket.onerror = (error: any) => {
           logger.error(`WebSocket error (NFT Mint Listener): ${error.message || error}`)
           isEventListenerCreated = false
