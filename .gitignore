@@ -67,3 +67,7 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# JWT keys generated/published at runtime
+jwt.key
+encryptionkeys/jwt.pub
