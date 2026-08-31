@@ -19,8 +19,50 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+// Path of the JWT signing key file. Deliberately outside the publicly served
+// encryptionkeys/ directory so the signing key cannot be downloaded.
+export const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
+
+// Resolves the signing key at runtime: from the JWT_PRIVATE_KEY secret, from a
+// local key file or - as a last resort - from a freshly generated key pair. No
+// key material is ever kept in the source code.
+const loadSigningKey = (): string => {
+  const configuredKey = process.env.JWT_PRIVATE_KEY
+  if (configuredKey) {
+    return configuredKey.includes('\\n') ? configuredKey.replace(/\\n/g, '\n') : configuredKey
+  }
+  if (fs.existsSync(privateKeyFile)) {
+    return fs.readFileSync(privateKeyFile, 'utf8')
+  }
+  const generatedKey = crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+    publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+  }).privateKey
+  try {
+    fs.writeFileSync(privateKeyFile, generatedKey, { mode: 0o600 })
+  } catch {
+    /* read-only deployments keep the generated key in memory only */
+  }
+  return generatedKey
+}
+
+const privateKey = loadSigningKey()
+// Always derived from the active signing key so verification cannot drift away
+// from signing when the key is rotated.
+export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
+
+// Publish the active public key for clients (and the key server) instead of
+// shipping a static one that would no longer match the signer.
+try {
+  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+} catch {
+  /* read-only deployments simply do not offer the public key for download */
+}
+
+// Secret for entitlement HMACs, kept separate from the JWT signing key so that
+// neither can be derived from the other.
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 interface ResponseWithUser {
   status?: string
@@ -149,7 +191,7 @@ export const roles = {
 }
 
 export const deluxeToken = (email: string) => {
-  const hmac = crypto.createHmac('sha256', privateKey)
+  const hmac = crypto.createHmac('sha256', deluxeTokenSecret)
   return hmac.update(email + roles.deluxe).digest('hex')
 }
 
