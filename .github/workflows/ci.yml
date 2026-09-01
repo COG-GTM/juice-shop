@@ -199,7 +199,7 @@ jobs:
         with:
           name: api-test-lcov
       - name: "Publish coverage to Coveralls"
-        uses: coverallsapp/github-action@v2
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 #v2.3.8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           files: frontend-lcov.info server-lcov.info api-lcov.info
