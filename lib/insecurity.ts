@@ -38,7 +38,11 @@ const loadPrivateKey = (): string => {
   })
   try {
     fs.writeFileSync(privateKeyFile, privateKey, { mode: 0o600, flag: 'wx' })
-  } catch {}
+  } catch {
+    try {
+      return fs.readFileSync(privateKeyFile, 'utf8')
+    } catch {}
+  }
   return privateKey
 }
 

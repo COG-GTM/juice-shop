@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -224,6 +225,58 @@ MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa
       const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
 
       expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('JWT middleware', () => {
+    it('rejects HS256 tokens in isAuthorized without calling next', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+      const req = { headers: { authorization: `Bearer ${token}` } }
+      const res = { status: sinon.stub(), json: sinon.spy() }
+      const next = sinon.spy()
+      res.status.returns(res)
+
+      security.isAuthorized()(req as unknown as Request, res as unknown as any, next)
+
+      expect(res.status.calledWith(401)).to.equal(true)
+      expect(res.json.calledOnce).to.equal(true)
+      expect(next.called).to.equal(false)
+    })
+
+    it('passes RS256 tokens through isAuthorized', () => {
+      const token = security.authorize({ data: { email: 'authorized@juice-sh.op' } })
+      const req = { headers: { authorization: `Bearer ${token}` } }
+      const res = {}
+      const next = sinon.spy()
+
+      security.isAuthorized()(req as unknown as Request, res as unknown as any, next)
+
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('does not register HS256 tokens in updateAuthenticatedUsers', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+      const req = { headers: { authorization: `Bearer ${token}` }, cookies: {} }
+      const res = { cookie: sinon.spy() }
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req as unknown as Request, res as unknown as any, next)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('registers RS256 tokens in updateAuthenticatedUsers', () => {
+      const token = security.authorize({ data: { email: 'registered@juice-sh.op' } })
+      const req = { headers: {}, cookies: { token } }
+      const res = { cookie: sinon.spy() }
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req as unknown as Request, res as unknown as any, next)
+
+      expect(security.authenticatedUsers.get(token)).to.not.equal(undefined)
+      expect(res.cookie.calledWith('token', token)).to.equal(true)
+      expect(next.calledOnce).to.equal(true)
     })
   })
 })
