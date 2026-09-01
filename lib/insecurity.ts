@@ -27,22 +27,41 @@ const loadPrivateKey = (): string => {
     return configuredKey.replace(/\\n/g, '\n')
   }
 
-  try {
-    return fs.readFileSync(privateKeyFile, 'utf8')
-  } catch {}
+  const readCompleteKey = (): string | undefined => {
+    try {
+      const contents = fs.readFileSync(privateKeyFile, 'utf8')
+      return contents.includes('-----END') ? contents : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const existing = readCompleteKey()
+  if (existing) {
+    return existing
+  }
 
   const { privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
     privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
     publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
   })
+
+  const tempFile = `${privateKeyFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
   try {
-    fs.writeFileSync(privateKeyFile, privateKey, { mode: 0o600, flag: 'wx' })
-  } catch {
+    fs.writeFileSync(tempFile, privateKey, { mode: 0o600 })
     try {
-      return fs.readFileSync(privateKeyFile, 'utf8')
-    } catch {}
-  }
+      fs.linkSync(tempFile, privateKeyFile)
+    } catch {
+      const winner = readCompleteKey()
+      if (winner) {
+        return winner
+      }
+    } finally {
+      try { fs.unlinkSync(tempFile) } catch {}
+    }
+  } catch {}
+
   return privateKey
 }
 
