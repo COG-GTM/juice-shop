@@ -9,6 +9,7 @@ import { Server } from 'socket.io'
 import { notifications, challenges } from '../../data/datacache'
 import * as challengeUtils from '../challengeUtils'
 import * as security from '../insecurity'
+import logger from '../logger'
 
 let firstConnectedSocket: any = null
 
@@ -22,6 +23,10 @@ const registerWebsocketEvents = (server: any) => {
   globalWithSocketIO.io = io
 
   io.on('connection', (socket: any) => {
+    socket.on('error', (error: unknown) => {
+      logger.warn('Websocket error: ' + utils.getErrorMessage(error))
+    })
+
     if (firstConnectedSocket === null) {
       socket.emit('server started')
       firstConnectedSocket = socket.id
