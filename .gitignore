@@ -69,4 +69,5 @@ config/*.yml
 .DS_Store
 
 jwt.key
+jwt.key.*.tmp
 encryptionkeys/jwt.pub
