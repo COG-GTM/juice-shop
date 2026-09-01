@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 import { createTestApp } from './helpers/setup'
 
 const MOCK_LLM_PORT = 43210
@@ -70,6 +72,21 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+function orderToolLlm (capture: { toolResult?: string }) {
+  let callCount = 0
+  return (_req: http.IncomingMessage, body: string, res: http.ServerResponse) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [toolCallChunk('call_order', 'getOrderById', '{"orderId":"1234-abcdef0123456"}'), finishChunk('tool_calls')])
+    } else {
+      const parsed = JSON.parse(body)
+      const toolMsg = parsed.messages.find((m: { role: string }) => m.role === 'tool')
+      capture.toolResult = typeof toolMsg?.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg?.content)
+      sendSSE(res, [contentChunk('Let me check that order.'), finishChunk()])
+    }
+  }
 }
 
 before(async () => {
@@ -265,5 +282,63 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void it('POST returns unauthenticated for requests without an Authorization header', { timeout: 15000 }, async () => {
+    const capture: { toolResult?: string } = {}
+    onLlmRequest = orderToolLlm(capture)
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Where is my order 1234-abcdef0123456?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('data: [DONE]'))
+    assert.ok(capture.toolResult?.includes('Customer not authenticated'))
+  })
+
+  void it('POST returns unauthenticated for malformed Authorization tokens', { timeout: 15000 }, async () => {
+    const capture: { toolResult?: string } = {}
+    onLlmRequest = orderToolLlm(capture)
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ Authorization: 'Bearer garbage', 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Where is my order 1234-abcdef0123456?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('data: [DONE]'))
+    assert.ok(capture.toolResult?.includes('Customer not authenticated'))
+  })
+
+  void it('POST returns unauthenticated for forged tokens absent from the session map', { timeout: 15000 }, async () => {
+    const capture: { toolResult?: string } = {}
+    onLlmRequest = orderToolLlm(capture)
+    const forged = security.authorize({ id: 1, role: 'admin' })
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ Authorization: `Bearer ${forged}`, 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Where is my order 1234-abcdef0123456?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('data: [DONE]'))
+    assert.ok(capture.toolResult?.includes('Customer not authenticated'))
+  })
+
+  void it('POST accepts a real authenticated session token for order lookup', { timeout: 15000 }, async () => {
+    const capture: { toolResult?: string } = {}
+    onLlmRequest = orderToolLlm(capture)
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Where is my order 1234-abcdef0123456?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('data: [DONE]'))
+    assert.ok(capture.toolResult?.includes('Order not found'))
   })
 })
