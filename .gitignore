@@ -70,5 +70,4 @@ config/*.yml
 
 jwt.key
 jwt.key.*.tmp
-jwt.key.lock
 encryptionkeys/jwt.pub
