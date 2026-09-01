@@ -3,9 +3,15 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +207,135 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT signing keys', () => {
+    const oldPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=
+-----END RSA PRIVATE KEY-----`
+
+    it('rejects tokens signed with the old hardcoded private key', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, oldPrivateKey, { algorithm: 'RS256' })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('verifies tokens signed with the active private key', () => {
+      expect(security.verify(security.authorize())).to.equal(true)
+    })
+
+    it('rejects tokens using the HS256 algorithm', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('loadJwtPrivateKey', () => {
+    let tempDir: string
+    let originalConfiguredKey: string | undefined
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwtkey-'))
+      originalConfiguredKey = process.env.JWT_PRIVATE_KEY
+      delete process.env.JWT_PRIVATE_KEY
+    })
+
+    afterEach(() => {
+      sinon.restore()
+      if (originalConfiguredKey === undefined) {
+        delete process.env.JWT_PRIVATE_KEY
+      } else {
+        process.env.JWT_PRIVATE_KEY = originalConfiguredKey
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('generates and persists a key when the file is missing', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.include('-----END')
+      expect(fs.existsSync(keyFile)).to.equal(true)
+      expect(fs.readFileSync(keyFile, 'utf8')).to.equal(key)
+    })
+
+    it('adopts the winning key when the destination appears after the initial probe', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+      const { privateKey: existingKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      fs.writeFileSync(keyFile, existingKey)
+      sinon.stub(fs, 'readFileSync').onFirstCall().throws(new Error('ENOENT')).callThrough()
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.equal(existingKey)
+    })
+
+    it('fails fast when the existing key file is unusable', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+      const malformedKey = '-----BEGIN RSA PRIVATE KEY-----\nnot-a-complete-key'
+      fs.writeFileSync(keyFile, malformedKey)
+
+      expect(() => security.loadJwtPrivateKey(keyFile)).to.throw('JWT_PRIVATE_KEY')
+      expect(fs.readFileSync(keyFile, 'utf8')).to.equal(malformedKey)
+    })
+  })
+
+  describe('JWT middleware', () => {
+    it('rejects HS256 tokens in isAuthorized without calling next', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+      const req = { headers: { authorization: `Bearer ${token}` } }
+      const res = { status: sinon.stub(), json: sinon.spy() }
+      const next = sinon.spy()
+      res.status.returns(res)
+
+      security.isAuthorized()(req as unknown as Request, res as unknown as any, next)
+
+      expect(res.status.calledWith(401)).to.equal(true)
+      expect(res.json.calledOnce).to.equal(true)
+      expect(next.called).to.equal(false)
+    })
+
+    it('passes RS256 tokens through isAuthorized', () => {
+      const token = security.authorize({ data: { email: 'authorized@juice-sh.op' } })
+      const req = { headers: { authorization: `Bearer ${token}` } }
+      const res = {}
+      const next = sinon.spy()
+
+      security.isAuthorized()(req as unknown as Request, res as unknown as any, next)
+
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('does not register HS256 tokens in updateAuthenticatedUsers', () => {
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
+      const req = { headers: { authorization: `Bearer ${token}` }, cookies: {} }
+      const res = { cookie: sinon.spy() }
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req as unknown as Request, res as unknown as any, next)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('registers RS256 tokens in updateAuthenticatedUsers', () => {
+      const token = security.authorize({ data: { email: 'registered@juice-sh.op' } })
+      const req = { headers: {}, cookies: { token } }
+      const res = { cookie: sinon.spy() }
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req as unknown as Request, res as unknown as any, next)
+
+      expect(security.authenticatedUsers.get(token)).to.not.equal(undefined)
+      expect(res.cookie.calledWith('token', token)).to.equal(true)
+      expect(next.calledOnce).to.equal(true)
     })
   })
 })

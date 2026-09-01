@@ -67,3 +67,7 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+jwt.key
+jwt.key.*.tmp
+encryptionkeys/jwt.pub
