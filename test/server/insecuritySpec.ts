@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -225,6 +229,63 @@ MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa
       const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, security.publicKey, { algorithm: 'HS256' })
 
       expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('loadJwtPrivateKey', () => {
+    let tempDir: string
+    let originalConfiguredKey: string | undefined
+
+    beforeEach(() => {
+      tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwtkey-'))
+      originalConfiguredKey = process.env.JWT_PRIVATE_KEY
+      delete process.env.JWT_PRIVATE_KEY
+    })
+
+    afterEach(() => {
+      sinon.restore()
+      if (originalConfiguredKey === undefined) {
+        delete process.env.JWT_PRIVATE_KEY
+      } else {
+        process.env.JWT_PRIVATE_KEY = originalConfiguredKey
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    })
+
+    it('generates and persists a key when the file is missing', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.include('-----END')
+      expect(fs.existsSync(keyFile)).to.equal(true)
+      expect(fs.readFileSync(keyFile, 'utf8')).to.equal(key)
+    })
+
+    it('recovers from a truncated existing key file', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+      fs.writeFileSync(keyFile, '-----BEGIN RSA PRIVATE KEY-----\nnot-a-complete-key')
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.include('-----END')
+      expect(() => crypto.createPublicKey(key)).to.not.throw()
+      expect(fs.readFileSync(keyFile, 'utf8')).to.equal(key)
+    })
+
+    it('adopts the winning key when the destination appears after the initial probe', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+      const { privateKey: existingKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      fs.writeFileSync(keyFile, existingKey)
+      sinon.stub(fs, 'readFileSync').onFirstCall().throws(new Error('ENOENT')).callThrough()
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.equal(existingKey)
     })
   })
 

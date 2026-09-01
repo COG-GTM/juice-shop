@@ -21,7 +21,7 @@ import * as z85 from 'z85'
 
 const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
 
-const loadPrivateKey = (): string => {
+export const loadJwtPrivateKey = (keyFile: string): string => {
   const configuredKey = process.env.JWT_PRIVATE_KEY
   if (configuredKey) {
     return configuredKey.replace(/\\n/g, '\n')
@@ -29,7 +29,7 @@ const loadPrivateKey = (): string => {
 
   const readCompleteKey = (): string | undefined => {
     try {
-      const contents = fs.readFileSync(privateKeyFile, 'utf8')
+      const contents = fs.readFileSync(keyFile, 'utf8')
       return contents.includes('-----END') ? contents : undefined
     } catch {
       return undefined
@@ -47,25 +47,30 @@ const loadPrivateKey = (): string => {
     publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
   })
 
-  const tempFile = `${privateKeyFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
+  const tempFile = `${keyFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
   try {
     fs.writeFileSync(tempFile, privateKey, { mode: 0o600 })
     try {
-      fs.linkSync(tempFile, privateKeyFile)
+      fs.linkSync(tempFile, keyFile)
+      return privateKey
     } catch {
       const winner = readCompleteKey()
       if (winner) {
         return winner
       }
+      fs.renameSync(tempFile, keyFile)
+      return readCompleteKey() ?? privateKey
     } finally {
       try { fs.unlinkSync(tempFile) } catch {}
     }
-  } catch {}
-
-  return privateKey
+  } catch {
+    return readCompleteKey() ?? privateKey
+  } finally {
+    try { fs.unlinkSync(tempFile) } catch {}
+  }
 }
 
-const privateKey = loadPrivateKey()
+const privateKey = loadJwtPrivateKey(privateKeyFile)
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 
 try {
