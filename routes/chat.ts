@@ -39,15 +39,18 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function loggedInUser (req: Request) {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  if (!token || !security.verify(utils.unquote(token))) return undefined
+  return security.authenticatedUsers.get(token)
+}
+
+function getUserId (req: Request): number | undefined {
+  return loggedInUser(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
-  const userId = await getUserId(req)
+  const userId = getUserId(req)
   if (!userId) return undefined
   const user = await UserModel.findByPk(userId, { attributes: ['username'] })
   return user?.username ?? undefined
@@ -154,7 +157,7 @@ export function chat () {
           orderId: z.string().describe('The order ID to get details for (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ orderId }) => {
-          const userId = await getUserId(req)
+          const userId = getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
           const user = await UserModel.findByPk(userId, { attributes: ['email'] })
@@ -217,9 +220,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
+              const role = loggedInUser(req)?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
