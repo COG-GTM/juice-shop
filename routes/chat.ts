@@ -41,16 +41,21 @@ const appName = config.get<string>('application.name')
 
 function loggedInUser (req: Request) {
   const token = utils.jwtFrom(req)
-  if (!token || !security.verify(utils.unquote(token))) return undefined
+  if (!token) return undefined
+  try {
+    if (!security.verify(utils.unquote(token))) return undefined
+  } catch {
+    return undefined
+  }
   return security.authenticatedUsers.get(token)
 }
 
-function getUserId (req: Request): number | undefined {
+async function getUserId (req: Request): Promise<number | undefined> {
   return loggedInUser(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
-  const userId = getUserId(req)
+  const userId = await getUserId(req)
   if (!userId) return undefined
   const user = await UserModel.findByPk(userId, { attributes: ['username'] })
   return user?.username ?? undefined
@@ -157,7 +162,7 @@ export function chat () {
           orderId: z.string().describe('The order ID to get details for (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ orderId }) => {
-          const userId = getUserId(req)
+          const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
           const user = await UserModel.findByPk(userId, { attributes: ['email'] })
