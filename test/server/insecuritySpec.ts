@@ -287,6 +287,41 @@ MIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa
 
       expect(key).to.equal(existingKey)
     })
+
+    it('adopts a key published by a concurrent recovery instead of overwriting it', () => {
+      const keyFile = path.join(tempDir, 'jwt.key')
+      const lockFile = `${keyFile}.lock`
+      const malformedKey = '-----BEGIN RSA PRIVATE KEY-----\nnot-a-complete-key'
+      const { privateKey: existingKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      fs.writeFileSync(keyFile, malformedKey)
+      fs.writeFileSync(lockFile, '')
+      const readFileStub = sinon.stub(fs, 'readFileSync').returns(existingKey)
+      readFileStub.onFirstCall().returns(malformedKey)
+      readFileStub.onSecondCall().returns(malformedKey)
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.equal(existingKey)
+    })
+
+    it('takes over a stale recovery lock', function () {
+      this.timeout(10000)
+      const keyFile = path.join(tempDir, 'jwt.key')
+      const lockFile = `${keyFile}.lock`
+      fs.writeFileSync(keyFile, '-----BEGIN RSA PRIVATE KEY-----\nnot-a-complete-key')
+      fs.writeFileSync(lockFile, '')
+
+      const key = security.loadJwtPrivateKey(keyFile)
+
+      expect(key).to.include('-----END')
+      expect(() => crypto.createPublicKey(key)).to.not.throw()
+      expect(fs.readFileSync(keyFile, 'utf8')).to.equal(key)
+      expect(fs.existsSync(lockFile)).to.equal(false)
+    })
   })
 
   describe('JWT middleware', () => {

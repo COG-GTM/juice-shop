@@ -20,6 +20,12 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
+const KEY_RECOVERY_POLL_INTERVAL_MS = 25
+const KEY_RECOVERY_TIMEOUT_MS = 1000
+
+const sleepSync = (ms: number) => {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
 
 export const loadJwtPrivateKey = (keyFile: string): string => {
   const configuredKey = process.env.JWT_PRIVATE_KEY
@@ -48,6 +54,44 @@ export const loadJwtPrivateKey = (keyFile: string): string => {
   })
 
   const tempFile = `${keyFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`
+  const recover = (): string => {
+    const lockFile = `${keyFile}.lock`
+    const acquireLock = (): boolean => {
+      try {
+        fs.closeSync(fs.openSync(lockFile, 'wx'))
+        return true
+      } catch {
+        return false
+      }
+    }
+
+    if (!acquireLock()) {
+      const deadline = Date.now() + KEY_RECOVERY_TIMEOUT_MS
+      while (Date.now() < deadline) {
+        const adopted = readCompleteKey()
+        if (adopted) {
+          return adopted
+        }
+        sleepSync(KEY_RECOVERY_POLL_INTERVAL_MS)
+      }
+      try { fs.unlinkSync(lockFile) } catch {}
+      if (!acquireLock()) {
+        return readCompleteKey() ?? privateKey
+      }
+    }
+
+    try {
+      const winner = readCompleteKey()
+      if (winner) {
+        return winner
+      }
+      fs.renameSync(tempFile, keyFile)
+      return readCompleteKey() ?? privateKey
+    } finally {
+      try { fs.unlinkSync(lockFile) } catch {}
+    }
+  }
+
   try {
     fs.writeFileSync(tempFile, privateKey, { mode: 0o600 })
     try {
@@ -58,8 +102,7 @@ export const loadJwtPrivateKey = (keyFile: string): string => {
       if (winner) {
         return winner
       }
-      fs.renameSync(tempFile, keyFile)
-      return readCompleteKey() ?? privateKey
+      return recover()
     }
   } catch {
     return readCompleteKey() ?? privateKey
