@@ -60,8 +60,6 @@ export const loadJwtPrivateKey = (keyFile: string): string => {
       }
       fs.renameSync(tempFile, keyFile)
       return readCompleteKey() ?? privateKey
-    } finally {
-      try { fs.unlinkSync(tempFile) } catch {}
     }
   } catch {
     return readCompleteKey() ?? privateKey
