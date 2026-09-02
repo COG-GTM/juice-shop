@@ -22,6 +22,7 @@ import { EditorView, basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { getLanguageExtension } from '../shared/codemirror-extensions'
 import { juiceShopTheme } from '../shared/codemirror-theme'
+import { SOLC_RELEASES, fetchVerifiedSolcBundle } from './solc-releases'
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const client = createClient({
@@ -29,17 +30,6 @@ const client = createClient({
   provider: getDefaultProvider()
 })
 const { ethereum } = window
-const compilerReleases = {
-  '0.8.21': 'soljson-v0.8.21+commit.d9974bed.js',
-  '0.8.9': 'soljson-v0.8.9+commit.e5eed63a.js',
-  '0.7.6': 'soljson-v0.7.6+commit.7338295f.js',
-  '0.6.12': 'soljson-v0.6.12+commit.27d51765.js',
-  '0.5.17': 'soljson-v0.5.17+commit.d19bba13.js',
-  '0.4.26': 'soljson-v0.4.26+commit.4563c3fc.js',
-  '0.3.6': 'soljson-v0.3.6+commit.3fc68da5.js',
-  '0.2.2': 'soljson-v0.2.2+commit.ef92f566.js',
-  '0.1.7': 'soljson-v0.1.7+commit.b4e666cc.js'
-}
 @Component({
   selector: 'app-web3-sandbox',
   templateUrl: './web3-sandbox.component.html',
@@ -70,7 +60,7 @@ export class Web3SandboxComponent implements OnInit, AfterViewInit, OnDestroy {
   contractFunctions = []
   invokeOutput = ''
   selectedCompilerVersion = '0.8.21'
-  compilerVersions: string[] = Object.keys(compilerReleases)
+  compilerVersions: string[] = SOLC_RELEASES.map((release) => release.version)
   compilerErrors = []
 
   code = `// SPDX-License-Identifier: MIT
@@ -109,20 +99,20 @@ contract HelloWorld {
   async compileAndFetchContracts (code: string) {
     try {
       this.deployedContractAddress = ''
-      const selectedVersion = compilerReleases[
-        this.selectedCompilerVersion
-      ] as string
+      const release = SOLC_RELEASES.find((candidate) => candidate.version === this.selectedCompilerVersion)
 
-      if (!selectedVersion) {
+      if (!release) {
         console.error('Selected compiler version not found.')
         return
       }
 
-      const compilerInput = {
-        version: `https://binaries.soliditylang.org/bin/${selectedVersion}`,
-        contractBody: code
+      const compilerUrl = await fetchVerifiedSolcBundle(release)
+      let output
+      try {
+        output = await solidityCompiler({ version: compilerUrl, contractBody: code })
+      } finally {
+        URL.revokeObjectURL(compilerUrl)
       }
-      const output = await solidityCompiler(compilerInput)
       if (output.errors && output.errors.length > 0 && !output.contracts) {
         this.compiledContracts = null
         console.log(output.errors)
