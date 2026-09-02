@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { utils } from 'ethers'
+
 export const SOLC_BINARIES_BASE_URL = 'https://binaries.soliditylang.org/bin/'
 
 export interface SolcRelease {
@@ -23,17 +25,13 @@ export const SOLC_RELEASES: readonly SolcRelease[] = [
   { version: '0.1.7', file: 'soljson-v0.1.7+commit.b4e666cc.js', sha256: '41a0cbd38f6fb957ed3748688078f6e6186d9a2e8b6706de9a63dbf65c62ffd3' }
 ]
 
-function toHex (buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
 export async function fetchVerifiedSolcBundle (release: SolcRelease): Promise<string> {
   const response = await fetch(SOLC_BINARIES_BASE_URL + release.file)
   if (!response.ok) {
     throw new Error(`Failed to download Solidity compiler ${release.version} (HTTP ${response.status})`)
   }
   const bytes = await response.arrayBuffer()
-  const digest = toHex(await crypto.subtle.digest('SHA-256', bytes))
+  const digest = utils.sha256(new Uint8Array(bytes)).slice(2)
   if (digest !== release.sha256) {
     throw new Error(`Integrity check failed for Solidity compiler ${release.version}`)
   }
