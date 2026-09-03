@@ -335,6 +335,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     verbose: false,
     max_logs: '2d'
   })
+  morgan.token('url', (req) => utils.redactCredentialQueryParams(req.url ?? ''))
   app.use(morgan('combined', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge

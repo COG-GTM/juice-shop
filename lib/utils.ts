@@ -114,6 +114,22 @@ export const extractFilename = (url: string) => {
   return file
 }
 
+const CREDENTIAL_QUERY_PARAMS = ['current', 'new', 'repeat', 'password']
+
+export const redactCredentialQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const params = new URLSearchParams(url.substring(queryStart + 1))
+  let redacted = false
+  for (const name of CREDENTIAL_QUERY_PARAMS) {
+    if (params.has(name)) {
+      params.set(name, '[REDACTED]')
+      redacted = true
+    }
+  }
+  return redacted ? url.substring(0, queryStart + 1) + params.toString() : url
+}
+
 export const downloadToFile = async (url: string, dest: string) => {
   try {
     const data = await download(url)
