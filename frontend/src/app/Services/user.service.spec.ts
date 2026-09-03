@@ -181,10 +181,11 @@ describe('UserService', () => {
         let res: any
         service.oauthLogin('at').subscribe((data) => (res = data))
 
-        const req = httpMock.expectOne('https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=at')
+        const req = httpMock.expectOne('https://www.googleapis.com/oauth2/v1/userinfo?alt=json')
         req.flush({ id: '123' })
 
         expect(req.request.method).toBe('GET')
+        expect(req.request.headers.get('Authorization')).toBe('Bearer at')
         expect(res).toEqual({ id: '123' })
         httpMock.verify()
     })
