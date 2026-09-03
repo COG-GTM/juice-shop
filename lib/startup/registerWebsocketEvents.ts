@@ -17,7 +17,7 @@ const globalWithSocketIO = global as typeof globalThis & {
 }
 
 const registerWebsocketEvents = (server: any) => {
-  const io = new Server(server, { cors: { origin: 'http://localhost:4200' } })
+  const io = new Server(server, { cors: { origin: 'http://localhost:4200' }, allowEIO3: true })
   // @ts-expect-error FIXME Type safety issue when setting global socket-io object
   globalWithSocketIO.io = io
 
