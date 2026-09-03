@@ -3,37 +3,30 @@
  * SPDX-License-Identifier: MIT
  */
 
-import vm from 'node:vm'
-import { type Request, type Response, type NextFunction } from 'express'
-// @ts-expect-error FIXME due to non-existing type definitions for notevil
-import { eval as safeEval } from 'notevil'
+import { type Request, type Response } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
+
+const MAX_ORDER_LINES_LENGTH = 100000
 
 export function b2bOrder () {
-  return ({ body }: Request, res: Response, next: NextFunction) => {
-    if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-      const orderLinesData = body.orderLinesData || ''
-      try {
-        const sandbox = { safeEval, orderLinesData }
-        vm.createContext(sandbox)
-        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })
-        res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
-      } catch (err) {
-        if (utils.getErrorMessage(err).match(/Script execution timed out.*/) != null) {
-          challengeUtils.solveIf(challenges.rceOccupyChallenge, () => { return true })
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          challengeUtils.solveIf(challenges.rceChallenge, () => { return utils.getErrorMessage(err) === 'Infinite loop detected - reached max iterations' })
-          next(err)
-        }
+  return ({ body }: Request, res: Response) => {
+    const orderLinesData = body.orderLinesData
+    if (orderLinesData !== undefined && orderLinesData !== null && orderLinesData !== '') {
+      if (typeof orderLinesData !== 'string' || orderLinesData.length > MAX_ORDER_LINES_LENGTH || !isJson(orderLinesData)) {
+        res.status(400).json({ error: 'Invalid order lines data. Expected a JSON string.' })
+        return
       }
-    } else {
-      res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
+    }
+    res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
+  }
+
+  function isJson (data: string) {
+    try {
+      JSON.parse(data)
+      return true
+    } catch {
+      return false
     }
   }
 
