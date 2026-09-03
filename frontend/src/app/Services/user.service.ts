@@ -65,7 +65,7 @@ export class UserService {
   }
 
   oauthLogin (accessToken: string) {
-    return this.http.get('https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token=' + accessToken)
+    return this.http.get('https://www.googleapis.com/oauth2/v1/userinfo?alt=json', { headers: { Authorization: `Bearer ${accessToken}` } })
   }
 
   saveLastLoginIp () {
