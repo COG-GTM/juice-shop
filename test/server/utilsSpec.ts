@@ -61,6 +61,11 @@ describe('utils', () => {
         .to.equal('/rest/user/change-password?current=%5BREDACTED%5D&new=%5BREDACTED%5D&repeat=%5BREDACTED%5D')
     })
 
+    it('redacts percent-encoded and repeated credential parameter names', () => {
+      expect(utils.redactCredentialQueryParams('/rest/user/change-password?%63urrent=a&ne%77=b&repeat=c&current=d'))
+        .to.equal('/rest/user/change-password?current=%5BREDACTED%5D&new=%5BREDACTED%5D&repeat=%5BREDACTED%5D')
+    })
+
     it('keeps non-credential parameters while redacting credential ones', () => {
       expect(utils.redactCredentialQueryParams('/rest/user/login?email=a%40b.c&password=s3cret'))
         .to.equal('/rest/user/login?email=a%40b.c&password=%5BREDACTED%5D')
