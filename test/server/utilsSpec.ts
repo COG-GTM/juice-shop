@@ -47,6 +47,26 @@ describe('utils', () => {
     })
   })
 
+  describe('redactCredentialQueryParams', () => {
+    it('returns URL without query string unchanged', () => {
+      expect(utils.redactCredentialQueryParams('/rest/user/whoami')).to.equal('/rest/user/whoami')
+    })
+
+    it('returns URL without credential parameters unchanged', () => {
+      expect(utils.redactCredentialQueryParams('/rest/products/search?q=apple&page=2')).to.equal('/rest/products/search?q=apple&page=2')
+    })
+
+    it('redacts password parameters of change-password request', () => {
+      expect(utils.redactCredentialQueryParams('/rest/user/change-password?current=kunigunde&new=foo&repeat=foo'))
+        .to.equal('/rest/user/change-password?current=%5BREDACTED%5D&new=%5BREDACTED%5D&repeat=%5BREDACTED%5D')
+    })
+
+    it('keeps non-credential parameters while redacting credential ones', () => {
+      expect(utils.redactCredentialQueryParams('/rest/user/login?email=a%40b.c&password=s3cret'))
+        .to.equal('/rest/user/login?email=a%40b.c&password=%5BREDACTED%5D')
+    })
+  })
+
   describe('matchesSystemIniFile', () => {
     it('fails on plain input string', () => {
       expect(utils.matchesSystemIniFile('Bla Blubb')).to.equal(false)
