@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -20,9 +21,14 @@ describe('AboutComponent', () => {
     let component: AboutComponent
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
+    let feedbackService
     let translateService
 
     beforeEach(async () => {
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
         configurationService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
@@ -43,6 +49,7 @@ describe('AboutComponent', () => {
                 TranslateModule.forRoot()],
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
+                { provide: FeedbackService, useValue: feedbackService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -115,5 +122,20 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the gallery as plain text without marking them as trusted HTML', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">', rating: 2 }]))
+        component.galleryRef = { addImage: vi.fn().mockName('GalleryRef.addImage') } as any
+
+        component.populateSlideshowFromFeedbacks()
+
+        expect(component.galleryRef.addImage).toHaveBeenCalledWith({
+            src: 'assets/public/images/carousel/1.jpg',
+            args: {
+                comment: '<iframe src="javascript:alert(`xss`)">',
+                stars: ['fas fa-star', 'fas fa-star', 'far fa-star', 'far fa-star', 'far fa-star']
+            }
+        })
     })
 })
