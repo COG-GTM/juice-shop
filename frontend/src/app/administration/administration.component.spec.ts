@@ -91,6 +91,13 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should keep user emails as plain strings', () => {
+        userService.find.mockReturnValue(of([{ email: 'admin@juice-sh.op' }]))
+        component.findAllUsers()
+
+        expect(component.userDataSource.data[0].email).toBe('admin@juice-sh.op')
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
