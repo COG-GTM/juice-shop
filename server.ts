@@ -358,8 +358,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/BasketItems/:id', security.isAuthorized())
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
-  /* Feedbacks: Only administrators may delete existing feedback */
-  app.delete('/api/Feedbacks/:id', security.isAdmin())
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -454,6 +452,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Feedbacks: Only administrators may delete existing feedback */
+  app.delete('/api/Feedbacks/:id', security.isAdmin())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
