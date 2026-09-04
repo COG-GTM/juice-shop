@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { CardModel } from '../../models/card'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -56,6 +57,21 @@ void describe('/api/Cards', () => {
     const res = await request(app).get('/api/Cards').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(JSON.stringify(res.body).includes('"cardNum":"************4321"'))
+  })
+
+  void it('POST new card persists only the last four digits of the card number', async () => {
+    const res = await request(app).post('/api/Cards').set(authHeader).send({
+      fullName: 'Jim',
+      cardNum: 1234567887650042,
+      expMonth: 1,
+      expYear: 2085
+    })
+    assert.equal(res.status, 201)
+    const stored = await CardModel.findByPk(res.body.data.id)
+    assert.equal(stored?.cardNum, 42)
+
+    const cards = await request(app).get('/api/Cards').set(authHeader)
+    assert.ok(JSON.stringify(cards.body).includes('"cardNum":"************0042"'))
   })
 
   void it('POST new card with invalid card number', async () => {
