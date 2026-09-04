@@ -63,9 +63,16 @@ const CardModelInit = (sequelize: Sequelize) => {
     },
     {
       tableName: 'Cards',
-      sequelize
+      sequelize,
+      hooks: {
+        beforeSave: (card: Card) => {
+          card.cardNum = truncateToLastFourDigits(card.cardNum)
+        }
+      }
     }
   )
 }
+
+const truncateToLastFourDigits = (cardNum: number) => Number(String(cardNum).slice(-4))
 
 export { Card as CardModel, CardModelInit }
