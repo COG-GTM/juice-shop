@@ -212,4 +212,22 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Something went wrong. Please try again!')
   })
+
+  void it('POST upgrade deluxe membership fails for customers with unknown payment mode', async () => {
+    const { token } = await login(app, {
+      email: `amy@${config.get<string>('application.domain')}`,
+      password: 'K1f.....................'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: null
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
 })
