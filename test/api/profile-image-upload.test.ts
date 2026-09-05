@@ -56,7 +56,7 @@ void describe('/profile/image/file', () => {
     assert.ok(res.text.includes('Error: Profile image upload does not accept this file type'))
   })
 
-  void it('POST profile image file with malformed ASF header (zero-size sub-header) is rejected without hanging', async () => {
+  void it('POST profile image file with malformed ASF header (zero-size sub-header) is rejected without hanging', { timeout: 10000 }, async () => {
     const asfHeaderGuid = Buffer.from([0x30, 0x26, 0xB2, 0x75, 0x8E, 0x66, 0xCF, 0x11, 0xA6, 0xD9])
     const malformedAsf = Buffer.concat([asfHeaderGuid, Buffer.alloc(30), Buffer.alloc(16), Buffer.alloc(8), Buffer.alloc(200)])
 
@@ -72,7 +72,7 @@ void describe('/profile/image/file', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Error: Illegal file type'))
-  }, { timeout: 10000 })
+  })
 
   void it('POST profile image file forbidden for anonymous user', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
