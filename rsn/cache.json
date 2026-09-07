@@ -1136,27 +1136,43 @@
 	},
 	"resetPasswordMortyChallenge_1.ts": {
 		"added": [
-			2
-		],
-		"removed": []
-	},
-	"resetPasswordMortyChallenge_2.ts": {
-		"added": [],
-		"removed": []
-	},
-	"resetPasswordMortyChallenge_3.ts": {
-		"added": [
-			4,
-			5
+			4
 		],
 		"removed": [
 			4,
 			5
 		]
 	},
+	"resetPasswordMortyChallenge_2.ts": {
+		"added": [
+			4
+		],
+		"removed": [
+			2,
+			4,
+			5
+		]
+	},
+	"resetPasswordMortyChallenge_3.ts": {
+		"added": [
+			3,
+			4
+		],
+		"removed": [
+			2,
+			3,
+			4,
+			5
+		]
+	},
 	"resetPasswordMortyChallenge_4_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			4
+		],
+		"removed": [
+			2,
+			4
+		]
 	},
 	"resetPasswordUvoginChallenge_1.yml": {
 		"added": [],
