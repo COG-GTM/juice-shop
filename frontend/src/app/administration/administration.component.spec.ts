@@ -106,6 +106,12 @@ describe('AdministrationComponent', () => {
         expect(component.feedbackDataSource.data[1].comment.toString()).toContain('Feedback2')
     })
 
+    it('should keep feedback comments as plain text instead of trusted HTML', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllFeedbacks()
+        expect(component.feedbackDataSource.data[0].comment).toBe('<iframe src="javascript:alert(`xss`)">')
+    })
+
     it('should give an error if FeedbackService fails to find all feedbacks', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         feedbackService.find.mockReturnValue(throwError('Error'))
