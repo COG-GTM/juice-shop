@@ -21,7 +21,7 @@ paths:
       operationId: createCustomerOrder
       tags: [Order]
       description: 'Create new customer order'
-      responses: { '200': { description: 'New customer order is created', content: { application/json: { schema: { $ref: '#/components/schemas/OrderConfirmation' } } } } }
+      responses: { '200': { description: 'New customer order is created', content: { application/json: { schema: { $ref: '#/components/schemas/OrderConfirmation' } } } }, '400': { description: 'Order line data is not valid JSON' } }
       requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }, description: 'Customer order to be placed' }
 components:
   securitySchemes:
