@@ -61,20 +61,24 @@ void describe('/file-upload', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
+    void it('POST file type XML with XXE attack against Windows does not disclose the referenced file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!utils.matchesSystemIniFile(res.text))
+      assert.ok(!challenges.xxeFileDisclosureChallenge.solved)
     })
 
-    void it('POST file type XML with XXE attack against Linux', async () => {
+    void it('POST file type XML with XXE attack against Linux does not disclose the referenced file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!utils.matchesEtcPasswdFile(res.text))
+      assert.ok(!challenges.xxeFileDisclosureChallenge.solved)
     })
 
     void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
