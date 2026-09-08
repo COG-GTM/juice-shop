@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
@@ -15,11 +16,18 @@ export function serveKeyFiles () {
     if (file.includes('/')) {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
+      return
+    }
+
+    const filePath = path.resolve('encryptionkeys/', file)
+    if (!fs.existsSync(filePath)) {
+      res.status(404)
+      next(new Error('File not found!'))
     } else if (!publicKeyFiles.includes(file)) {
       res.status(403)
       next(new Error('Only public key files can be downloaded!'))
     } else {
-      res.sendFile(path.resolve('encryptionkeys/', file))
+      res.sendFile(filePath)
     }
   }
 }
