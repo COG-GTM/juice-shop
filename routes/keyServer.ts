@@ -19,15 +19,15 @@ export function serveKeyFiles () {
       return
     }
 
-    const filePath = path.resolve('encryptionkeys/', file)
-    if (!fs.existsSync(filePath)) {
+    const keyDirectory = path.resolve('encryptionkeys/')
+    if (!fs.readdirSync(keyDirectory).includes(file)) {
       res.status(404)
       next(new Error('File not found!'))
     } else if (!publicKeyFiles.includes(file)) {
       res.status(403)
       next(new Error('Only public key files can be downloaded!'))
     } else {
-      res.sendFile(filePath)
+      res.sendFile(path.join(keyDirectory, file))
     }
   }
 }
