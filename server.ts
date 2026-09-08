@@ -167,6 +167,26 @@ void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
+function buildCorsOptions (): cors.CorsOptions {
+  const configuredOrigins: string[] = config.has('server.corsAllowedOrigins') ? config.get<string[]>('server.corsAllowedOrigins') : []
+  const envOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '').split(',')
+  const allowedOrigins = new Set(
+    [config.get<string>('server.baseUrl'), ...configuredOrigins, ...envOrigins]
+      .map(origin => origin.trim().replace(/\/+$/, ''))
+      .filter(origin => origin.length > 0)
+  )
+  return {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin.replace(/\/+$/, ''))) {
+        callback(null, true)
+      } else {
+        callback(null, false)
+      }
+    },
+    credentials: false
+  }
+}
+
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
   app.locals.captchaId = 0
@@ -178,9 +198,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS: only allow the app's own origin(s), never a wildcard */
+  const corsOptions = buildCorsOptions()
+  app.options('*', cors(corsOptions))
+  app.use(cors(corsOptions))
 
   /* Security middleware */
   app.use(helmet.noSniff())
