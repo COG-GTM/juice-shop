@@ -59,12 +59,16 @@ describe('TrackResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should consider order number as trusted HTML', () => {
+    it('should render order number as plain text instead of trusted HTML', () => {
         component.orderId = '<a src="link">Link</a>'
         trackOrderService.find.mockReturnValue(of({ data: [{ orderId: component.orderId }] }))
         component.ngOnInit()
+        fixture.detectChanges()
 
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<code><a src="link">Link</a></code>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        expect(component.results.orderNo).toBe('<a src="link">Link</a>')
+        expect(fixture.nativeElement.querySelector('h1 code').textContent).toBe('<a src="link">Link</a>')
+        expect(fixture.nativeElement.querySelector('h1 a')).toBeNull()
     })
 
     it('should set "delivered" status for delivered orders', () => {
