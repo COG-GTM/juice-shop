@@ -54,7 +54,7 @@ export const cutOffPoisonNullByte = (str: string) => {
 const jwtAlgorithm = 'RS256'
 
 export const isAuthorized = () => expressjwt({ secret: publicKey, algorithms: [jwtAlgorithm] })
-export const denyAll = () => expressjwt({ secret: '' + Math.random(), algorithms: ['HS256'] })
+export const denyAll = () => expressjwt({ secret: crypto.randomBytes(32).toString('hex'), algorithms: ['HS256'] })
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm, allowInsecureKeySizes: true })
 export const verify = (token: string) => token ? jws.verify(token, jwtAlgorithm, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
