@@ -105,7 +105,9 @@ html(lang='en')
             var subtitle = document.getElementById('subtitle');
             var track = video.addTextTrack('subtitles', subtitle.dataset.label, subtitle.dataset.lang);
             track.mode = "showing";
-            quick_and_dirty_vtt_or_srt_parser(subtitle.innerHTML).map(function(cue) {
+            var decoder = document.createElement('textarea');
+            decoder.innerHTML = subtitle.innerHTML;
+            quick_and_dirty_vtt_or_srt_parser(decoder.value).map(function(cue) {
             track.addCue(cue);
             });
             }

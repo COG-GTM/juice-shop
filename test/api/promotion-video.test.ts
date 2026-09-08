@@ -36,6 +36,16 @@ void describe('/promotion', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">'))
   })
+
+  void it('GET promotion video page does not contain raw HTML from subtitle file', async () => {
+    const res = await request(app)
+      .get('/promotion')
+    const start = res.text.indexOf('<script id="subtitle"')
+    const end = res.text.indexOf('</script>', start)
+    const subtitleBlock = res.text.substring(start + res.text.substring(start).indexOf('>') + 1, end)
+    assert.ok(!subtitleBlock.includes('<'))
+    assert.ok(!subtitleBlock.includes('>'))
+  })
 })
 
 void describe('/video', () => {
