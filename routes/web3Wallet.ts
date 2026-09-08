@@ -12,11 +12,11 @@ const WALLET_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/
 const walletsConnected = new Set<string>()
 let isEventListenerCreated = false
 
-function isValidWalletAddress (address: unknown): address is string {
+export function isValidWalletAddress (address: unknown): address is string {
   return typeof address === 'string' && WALLET_ADDRESS_PATTERN.test(address)
 }
 
-function rememberWallet (address: string) {
+export function rememberWallet (address: string) {
   const normalized = address.toLowerCase()
   walletsConnected.delete(normalized)
   walletsConnected.add(normalized)
@@ -24,6 +24,10 @@ function rememberWallet (address: string) {
     const oldest = walletsConnected.values().next().value
     if (oldest !== undefined) walletsConnected.delete(oldest)
   }
+}
+
+export function getWalletsConnected () {
+  return walletsConnected
 }
 
 export function contractExploitListener () {
