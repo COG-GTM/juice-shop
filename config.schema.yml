@@ -5,6 +5,8 @@ server:
     type: string
   baseUrl:
     type: string
+  corsAllowedOrigins:
+    - type: string
 application:
   domain:
     type: string
