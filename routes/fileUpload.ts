@@ -24,6 +24,24 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+
+function resolveSafeExtractionPath (entryPath: string): string | null {
+  if (path.isAbsolute(entryPath) || /^[a-zA-Z]:/.test(entryPath) || entryPath.includes('\0')) {
+    return null
+  }
+  const segments = entryPath.split(/[\\/]+/).filter(segment => segment !== '')
+  if (segments.length === 0 || segments.some(segment => segment === '.' || segment === '..')) {
+    return null
+  }
+  const destination = path.join(complaintsDir, segments[segments.length - 1])
+  const relative = path.relative(complaintsDir, destination)
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null
+  }
+  return destination
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -38,11 +56,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const destination = resolveSafeExtractionPath(entry.path)
+                if (entry.type === 'File' && destination != null) {
+                  entry.pipe(fs.createWriteStream(destination).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
