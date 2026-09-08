@@ -104,6 +104,15 @@ void describe('/api/Products/:id', () => {
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
     assert.equal(res.status, 401)
+
+    const authenticatedRes = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(authHeader)
+      .set(jsonHeader)
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(authenticatedRes.status, 401)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
