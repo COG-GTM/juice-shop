@@ -13,6 +13,7 @@ import type { Product as ProductConfig } from '../../lib/config.types'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { login } from './helpers/auth'
 
 const tamperingProductId = config.get<ProductConfig[]>('products').findIndex((product) => !!product.urlForProductTamperingChallenge) + 1
 
@@ -96,10 +97,38 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product is forbidden for customers', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product is possible for accountants', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
