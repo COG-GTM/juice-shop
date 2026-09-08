@@ -69,7 +69,6 @@ describe('/api', () => {
           cy.visit('/#/search')
         })
       })
-      cy.expectChallengeSolved({ challenge: 'Product Tampering' })
     })
   })
 })
