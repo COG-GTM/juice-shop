@@ -223,6 +223,9 @@
     "typescript": "~5.3.3",
     "typescript-eslint": "^8.57.1"
   },
+  "overrides": {
+    "ws@7": "~7.5.10"
+  },
   "engines": {
     "node": "22 - 25"
   },
