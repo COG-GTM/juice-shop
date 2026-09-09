@@ -14,12 +14,12 @@ export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id
-      const user = security.authenticatedUsers.from(req)
-      if (!user?.bid || user.bid !== parseInt(id, 10)) {
+      const userId = security.decode(utils.jwtFrom(req))?.data?.id
+      const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+      if (basket == null || userId === undefined || basket.UserId !== userId) {
         res.status(403).json({ error: 'Access to basket ' + id + ' denied' })
         return
       }
-      const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       if (((basket?.Products) != null) && basket.Products.length > 0) {
         for (let i = 0; i < basket.Products.length; i++) {
           basket.Products[i].name = req.__(basket.Products[i].name)

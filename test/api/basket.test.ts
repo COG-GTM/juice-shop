@@ -54,6 +54,17 @@ void describe('/rest/basket/:id', () => {
     assert.ok(Array.isArray(res.body.data.Products))
   })
 
+  void it('GET own basket with a re-issued token whose session state has no bid', async () => {
+    const user = { data: { id: 2, email: 'jim@juice-sh.op', role: security.roles.deluxe } }
+    const token = security.authorize(user)
+    security.authenticatedUsers.put(token, user)
+    const res = await request(app)
+      .get('/rest/basket/2')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
+  })
+
   void it.skip('GET basket should accept forged JWTs', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
     const payload = Buffer.from(JSON.stringify({ data: { email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
