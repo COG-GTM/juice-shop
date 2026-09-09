@@ -41,19 +41,28 @@ void describe('/rest/basket/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET empty basket when requesting non-existing basket id', async () => {
+  void it('GET non-existing basket id is denied', async () => {
     const res = await request(app).get('/rest/basket/4711').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(res.body.data === null || (typeof res.body.data === 'object' && Object.keys(res.body.data).length === 0))
+    assert.equal(res.status, 403)
   })
 
-  void it('GET existing basket with contained products by id', async () => {
-    const res = await request(app).get('/rest/basket/1').set(authHeader)
+  void it('GET own basket with contained products by id', async () => {
+    const res = await request(app).get('/rest/basket/2').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.id, 1)
-    assert.equal(res.body.data.Products.length, 3)
+    assert.equal(res.body.data.id, 2)
+    assert.ok(Array.isArray(res.body.data.Products))
+  })
+
+  void it('GET own basket with a re-issued token whose session state has no bid', async () => {
+    const user = { data: { id: 2, email: 'jim@juice-sh.op', role: security.roles.deluxe } }
+    const token = security.authorize(user)
+    security.authenticatedUsers.put(token, user)
+    const res = await request(app)
+      .get('/rest/basket/2')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
   })
 
   void it.skip('GET basket should accept forged JWTs', async () => {
@@ -104,7 +113,7 @@ void describe('/api/Baskets/:id', () => {
 })
 
 void describe('/rest/basket/:id', () => {
-  void it('GET existing basket of another user', async () => {
+  void it('GET existing basket of another user is denied', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -112,9 +121,7 @@ void describe('/rest/basket/:id', () => {
     const res = await request(app)
       .get('/rest/basket/2')
       .set({ Authorization: 'Bearer ' + token })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.id, 2)
+    assert.equal(res.status, 403)
   })
 })
 
