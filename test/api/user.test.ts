@@ -37,7 +37,7 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
+  void it('GET all users is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
     assert.equal(res.status, 403)
   })
