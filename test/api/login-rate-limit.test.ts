@@ -17,7 +17,7 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/login rate limiting', () => {
-  void it('allows 100 failed logins and rate limits the 101st request', { timeout: 60000 }, async () => {
+  void it('allows 100 failed logins, rate limits the 101st and ignores X-Forwarded-For rotation', { timeout: 60000 }, async () => {
     for (let i = 0; i < 100; i++) {
       const res = await request(app)
         .post('/rest/user/login')
@@ -39,10 +39,8 @@ void describe('/rest/user/login rate limiting', () => {
       })
 
     assert.equal(res.status, 429)
-  })
 
-  void it('does not reset the rate limit when X-Forwarded-For rotates', async () => {
-    const res = await request(app)
+    const rotatedRes = await request(app)
       .post('/rest/user/login')
       .set({
         'content-type': 'application/json',
@@ -53,6 +51,6 @@ void describe('/rest/user/login rate limiting', () => {
         password: 'wrong-password'
       })
 
-    assert.equal(res.status, 429)
+    assert.equal(rotatedRes.status, 429)
   })
 })
