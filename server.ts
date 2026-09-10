@@ -593,7 +593,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Custom Restful API */
   app.post('/rest/user/login',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 100,
+      validate: false,
+      keyGenerator: (req) => req.socket.remoteAddress ?? req.ip ?? 'unknown'
+    }),
     login()
   )
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
