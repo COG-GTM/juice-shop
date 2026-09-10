@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jws from 'jws'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -60,6 +61,13 @@ export default defineConfig({
               return i + 1
             }
           }
+        },
+        GenerateForgedJwt (email: string) {
+          return jws.sign({
+            header: { alg: 'HS256', typ: 'JWT' },
+            payload: { data: { email }, iat: 1583037711 },
+            secret: security.publicKey
+          })
         },
         GenerateAuthenticator (inputString: string) {
           return generateSync({ secret: inputString })
