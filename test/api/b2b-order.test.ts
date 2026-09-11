@@ -7,8 +7,6 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import { challenges } from '../../data/datacache'
-import * as utils from '../../lib/utils'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
@@ -21,41 +19,29 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/b2b/v2/orders', () => {
-  if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-    void it('POST endless loop exploit in "orderLinesData" will raise explicit error', async () => {
-      const res = await request(app)
-        .post('/b2b/v2/orders')
-        .set(authHeader)
-        .send({
-          orderLinesData: '(function dos() { while(true); })()'
-        })
+  void it('POST endless loop payload in "orderLinesData" is not evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: '(function dos() { while(true); })()'
+      })
 
-      assert.equal(res.status, 500)
-      assert.ok(res.text.includes('Infinite loop detected - reached max iterations'))
-    })
+    assert.equal(res.status, 200)
+    assert.equal(typeof res.body.orderNo, 'string')
+  })
 
-    void it('POST busy spinning regex attack does not raise an error', async () => {
-      const res = await request(app)
-        .post('/b2b/v2/orders')
-        .set(authHeader)
-        .send({
-          orderLinesData: '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
-        })
+  void it('POST sandbox breakout payload in "orderLinesData" is not evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: 'this.constructor.constructor("return process")().exit()'
+      })
 
-      assert.equal(res.status, 503)
-    })
-
-    void it('POST sandbox breakout attack in "orderLinesData" will raise error', async () => {
-      const res = await request(app)
-        .post('/b2b/v2/orders')
-        .set(authHeader)
-        .send({
-          orderLinesData: 'this.constructor.constructor("return process")().exit()'
-        })
-
-      assert.equal(res.status, 500)
-    })
-  }
+    assert.equal(res.status, 200)
+    assert.equal(typeof res.body.orderNo, 'string')
+  })
 
   void it('POST new B2B order is forbidden without authorization token', async () => {
     const res = await request(app)
