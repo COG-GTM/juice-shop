@@ -352,7 +352,7 @@
   "BONUS_POINTS_EARNED": "Bonus Points Earned: {{bonus}}",
   "BONUS_FOR_FUTURE_PURCHASES": "The bonus points from this order will be <em>added 1:1 to your wallet ¤-fund</em> for future purchases!",
   "ENTER_COUPON_CODE": "Please enter your coupon code",
-  "COUPON_CODE_HINT": "Coupon code must be 10 characters long.",
+  "COUPON_CODE_HINT": "Coupon code must be between 10 and 35 characters long.",
   "CHARGED_WALLET": "Wallet successfully charged.",
   "BTN_SHOW_ONLY_TUTORIALS": "Show tutorials only",
   "INFO_FULL_CHALLENGE_MODE": "Complete the remaining tutorial challenges to unveil all {{num}} challenges and unlock the advanced Score Board filters!",

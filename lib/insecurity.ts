@@ -96,9 +96,22 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? privateKey
+const MIN_COUPON_SIGNATURE_LENGTH = 16
+
+const couponSignature = (payload: string) => {
+  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex')
+  // z85 requires the encoded input length to be a multiple of 4
+  let length = MIN_COUPON_SIGNATURE_LENGTH
+  while ((payload.length + 1 + length) % 4 !== 0) {
+    length++
+  }
+  return digest.substring(0, length)
+}
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  const payload = utils.toMMMYY(date) + '-' + discount
+  return z85.encode(payload + '-' + couponSignature(payload))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
@@ -107,17 +120,19 @@ export const discountFromCoupon = (coupon?: string) => {
   }
   const decoded = z85.decode(coupon)
   if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
+    const [validity, discount, signature] = decoded.toString().split('-')
+    const expected = couponSignature(validity + '-' + discount)
+    if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      return undefined
+    }
     if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
       return parseInt(discount)
     }
   }
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}-[0-9a-f]+$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

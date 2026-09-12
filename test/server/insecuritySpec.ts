@@ -36,8 +36,15 @@ describe('insecurity', () => {
   describe('generateCoupon', () => {
     it('returns base85-encoded month, year and discount as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(z85.decode(coupon).toString()).to.match(/^JAN80-20-[0-9a-f]+$/)
+    })
+
+    it('signs coupon code so it cannot be forged from a plain encoded payload', () => {
+      const validity = z85.decode(security.generateCoupon(20)).toString().split('-')[0]
+      expect(security.discountFromCoupon(z85.encode(validity + '-99-abc'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(validity + '-99-00000000'))).to.equal(undefined)
+      const tampered = z85.decode(security.generateCoupon(10)).toString().replace('-10-', '-99-')
+      expect(security.discountFromCoupon(z85.encode(tampered))).to.equal(undefined)
     })
 
     it('uses current month and year if not specified', () => {
