@@ -96,9 +96,28 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? privateKey
+// signature = one hex nonce digit + truncated HMAC-SHA256(payload + nonce)
+const COUPON_SIGNATURE_LENGTH = 19 // (payload.length + 1 + 19) % 4 === 0, as required by z85
+const COUPON_NONCES = '0123456789abcdef'
+// z85 output may contain '%' (breaks URL path decoding) or '{...}' (interpreted as key sequence by automated typing)
+const UNSAFE_COUPON_CHARS = /%|\{[^{}]*\}/
+
+const couponSignature = (payload: string, nonce: string) => {
+  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload + nonce).digest('hex')
+  return nonce + digest.substring(0, COUPON_SIGNATURE_LENGTH - 1)
+}
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  const payload = utils.toMMMYY(date) + '-' + discount
+  let coupon = ''
+  for (const nonce of COUPON_NONCES) {
+    coupon = z85.encode(payload + '-' + couponSignature(payload, nonce))
+    if (!UNSAFE_COUPON_CHARS.test(coupon)) {
+      break
+    }
+  }
+  return coupon
 }
 
 export const discountFromCoupon = (coupon?: string) => {
@@ -107,17 +126,19 @@ export const discountFromCoupon = (coupon?: string) => {
   }
   const decoded = z85.decode(coupon)
   if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
+    const [validity, discount, signature] = decoded.toString().split('-')
+    const expected = couponSignature(validity + '-' + discount, signature.charAt(0))
+    if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      return undefined
+    }
     if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
       return parseInt(discount)
     }
   }
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}-[0-9a-f]+$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

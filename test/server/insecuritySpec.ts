@@ -36,8 +36,28 @@ describe('insecurity', () => {
   describe('generateCoupon', () => {
     it('returns base85-encoded month, year and discount as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(z85.decode(coupon).toString()).to.match(/^JAN80-20-[0-9a-f]+$/)
+    })
+
+    it('signs coupon code so it cannot be forged from a plain encoded payload', () => {
+      const validity = z85.decode(security.generateCoupon(20)).toString().split('-')[0]
+      expect(security.discountFromCoupon(z85.encode(validity + '-99-abc'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(validity + '-99-00000000'))).to.equal(undefined)
+      const tampered = z85.decode(security.generateCoupon(10)).toString().replace('-10-', '-99-')
+      expect(security.discountFromCoupon(z85.encode(tampered))).to.equal(undefined)
+      const [validity2, discount, signature] = z85.decode(security.generateCoupon(10)).toString().split('-')
+      const swappedNonce = (parseInt(signature.charAt(0), 16) + 1) % 16
+      expect(security.discountFromCoupon(z85.encode(validity2 + '-' + discount + '-' + swappedNonce.toString(16) + signature.substring(1)))).to.equal(undefined)
+    })
+
+    it('generates coupon codes without characters that break URL decoding or automated input', () => {
+      for (let month = 0; month < 12; month++) {
+        for (const discount of [10, 15, 20, 50, 80, 90, 99]) {
+          const coupon = security.generateCoupon(discount, new Date(2024, month, 1))
+          expect(coupon.length).to.equal(35)
+          expect(coupon).to.not.match(/\{[^{}]*\}/)
+        }
+      }
     })
 
     it('uses current month and year if not specified', () => {
