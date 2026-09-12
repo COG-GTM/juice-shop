@@ -45,6 +45,19 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon(z85.encode(validity + '-99-00000000'))).to.equal(undefined)
       const tampered = z85.decode(security.generateCoupon(10)).toString().replace('-10-', '-99-')
       expect(security.discountFromCoupon(z85.encode(tampered))).to.equal(undefined)
+      const [validity2, discount, signature] = z85.decode(security.generateCoupon(10)).toString().split('-')
+      const swappedNonce = (parseInt(signature.charAt(0), 16) + 1) % 16
+      expect(security.discountFromCoupon(z85.encode(validity2 + '-' + discount + '-' + swappedNonce.toString(16) + signature.substring(1)))).to.equal(undefined)
+    })
+
+    it('generates coupon codes without characters that break URL decoding or automated input', () => {
+      for (let month = 0; month < 12; month++) {
+        for (const discount of [10, 15, 20, 50, 80, 90, 99]) {
+          const coupon = security.generateCoupon(discount, new Date(2024, month, 1))
+          expect(coupon.length).to.equal(35)
+          expect(coupon).to.not.match(/\{[^{}]*\}/)
+        }
+      }
     })
 
     it('uses current month and year if not specified', () => {

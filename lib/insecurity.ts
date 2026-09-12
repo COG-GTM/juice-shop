@@ -97,21 +97,27 @@ export const userEmailFrom = ({ headers }: any) => {
 }
 
 const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? privateKey
-const MIN_COUPON_SIGNATURE_LENGTH = 16
+// signature = one hex nonce digit + truncated HMAC-SHA256(payload + nonce)
+const COUPON_SIGNATURE_LENGTH = 19 // (payload.length + 1 + 19) % 4 === 0, as required by z85
+const COUPON_NONCES = '0123456789abcdef'
+// z85 output may contain '%' (breaks URL path decoding) or '{...}' (interpreted as key sequence by automated typing)
+const UNSAFE_COUPON_CHARS = /%|\{[^{}]*\}/
 
-const couponSignature = (payload: string) => {
-  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex')
-  // z85 requires the encoded input length to be a multiple of 4
-  let length = MIN_COUPON_SIGNATURE_LENGTH
-  while ((payload.length + 1 + length) % 4 !== 0) {
-    length++
-  }
-  return digest.substring(0, length)
+const couponSignature = (payload: string, nonce: string) => {
+  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload + nonce).digest('hex')
+  return nonce + digest.substring(0, COUPON_SIGNATURE_LENGTH - 1)
 }
 
 export const generateCoupon = (discount: number, date = new Date()) => {
   const payload = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(payload + '-' + couponSignature(payload))
+  let coupon = ''
+  for (const nonce of COUPON_NONCES) {
+    coupon = z85.encode(payload + '-' + couponSignature(payload, nonce))
+    if (!UNSAFE_COUPON_CHARS.test(coupon)) {
+      break
+    }
+  }
+  return coupon
 }
 
 export const discountFromCoupon = (coupon?: string) => {
@@ -121,7 +127,7 @@ export const discountFromCoupon = (coupon?: string) => {
   const decoded = z85.decode(coupon)
   if (decoded && (hasValidFormat(decoded.toString()) != null)) {
     const [validity, discount, signature] = decoded.toString().split('-')
-    const expected = couponSignature(validity + '-' + discount)
+    const expected = couponSignature(validity + '-' + discount, signature.charAt(0))
     if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
       return undefined
     }

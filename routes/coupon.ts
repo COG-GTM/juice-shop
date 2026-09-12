@@ -11,7 +11,7 @@ export function applyCoupon () {
   return async ({ params }: Request, res: Response, next: NextFunction) => {
     try {
       const id = params.id
-      let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
+      let coupon: string | undefined | null = params.coupon ? safeDecodeURIComponent(params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
 
@@ -30,5 +30,13 @@ export function applyCoupon () {
     } catch (error) {
       next(error)
     }
+  }
+}
+
+function safeDecodeURIComponent (value: string) {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
   }
 }
