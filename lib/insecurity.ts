@@ -97,7 +97,7 @@ export const userEmailFrom = ({ headers }: any) => {
 }
 
 const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? privateKey
-const MIN_COUPON_SIGNATURE_LENGTH = 8
+const MIN_COUPON_SIGNATURE_LENGTH = 16
 
 const couponSignature = (payload: string) => {
   const digest = crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex')
