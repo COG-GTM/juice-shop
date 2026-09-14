@@ -12,16 +12,29 @@ import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 import { ordersCollection } from '../data/mongodb'
 
-const tokenFrom = (req: Request): string | undefined => {
+const cookieToken = (req: Request): string | undefined => {
   if (req.cookies?.token) return req.cookies.token
   const raw = req.headers.cookie?.split(';').map(cookie => cookie.trim()).find(cookie => cookie.startsWith('token='))?.slice('token='.length)
-  return raw ? decodeURIComponent(raw) : utils.jwtFrom(req)
+  if (!raw) return undefined
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
 }
 
 const orderOwnerEmail = (req: Request): string | undefined => {
-  const token = tokenFrom(req)
-  if (!token || !security.verify(token)) return undefined
-  return security.decode(token)?.data?.email
+  for (const token of [cookieToken(req), utils.jwtFrom(req)]) {
+    try {
+      if (token && security.verify(token)) {
+        const email = security.decode(token)?.data?.email
+        if (email) return email
+      }
+    } catch {
+      continue
+    }
+  }
+  return undefined
 }
 
 export function servePublicFiles () {
@@ -45,7 +58,10 @@ export function servePublicFiles () {
           next(error instanceof Error ? error : new Error(String(error)))
           return
         }
-        if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) {
+        const ownsOrder = order != null &&
+          order.email === email.replace(/[aeiou]/gi, '*') &&
+          orderId.startsWith(security.hash(email).slice(0, 4) + '-')
+        if (!ownsOrder) {
           res.status(403)
           next(new Error('Order confirmations can only be downloaded by the customer who placed the order!'))
           return

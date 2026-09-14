@@ -77,11 +77,52 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should serve order confirmation PDFs to the customer who placed the order', async () => {
-    const token = security.authorize({ data: { email: 'a@juice-sh.op' } })
+  it('should deny order confirmation PDFs with a matching email but a different hash prefix', async () => {
+    const email = 'a@juice-sh.op'
+    const token = security.authorize({ data: { email } })
     req.headers.cookie = 'token=' + token
+    req.params.file = 'order_zzzz-0123456789abcdef.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId: 'zzzz-0123456789abcdef', email: '*@j**c*-sh.*p' })
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(403)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should use a valid bearer token when the cookie token is invalid', async () => {
+    const email = 'a@juice-sh.op'
+    const token = security.authorize({ data: { email } })
+    const orderId = security.hash(email).slice(0, 4) + '-0123456789abcdef'
+    req.headers.cookie = 'token=invalid-token'
+    req.headers.authorization = 'Bearer ' + token
+    req.params.file = 'order_' + orderId + '.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId, email: '*@j**c*-sh.*p' })
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]order_/))
+  })
+
+  it('should deny malformed cookie tokens without throwing', async () => {
+    req.headers.cookie = 'token=%E0%A4%A'
     req.params.file = 'order_1234-0123456789abcdef.pdf'
-    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId: '1234-0123456789abcdef', email: '*@j**c*-sh.*p' })
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(401)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should serve order confirmation PDFs to the customer who placed the order', async () => {
+    const email = 'a@juice-sh.op'
+    const token = security.authorize({ data: { email } })
+    const orderId = security.hash(email).slice(0, 4) + '-0123456789abcdef'
+    req.headers.cookie = 'token=' + token
+    req.params.file = 'order_' + orderId + '.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId, email: '*@j**c*-sh.*p' })
 
     await servePublicFiles()(req, res, next)
 
