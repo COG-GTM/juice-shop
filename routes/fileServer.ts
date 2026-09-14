@@ -10,23 +10,42 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
+import { ordersCollection } from '../data/mongodb'
+
+const tokenFrom = (req: Request): string | undefined => {
+  if (req.cookies?.token) return req.cookies.token
+  const raw = req.headers.cookie?.split(';').map(cookie => cookie.trim()).find(cookie => cookie.startsWith('token='))?.slice('token='.length)
+  return raw ? decodeURIComponent(raw) : utils.jwtFrom(req)
+}
+
+const orderOwnerEmail = (req: Request): string | undefined => {
+  const token = tokenFrom(req)
+  if (!token || !security.verify(token)) return undefined
+  return security.decode(token)?.data?.email
+}
 
 export function servePublicFiles () {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const file = req.params.file
 
     if (!file.includes('/')) {
       const effectiveFile = security.cutOffPoisonNullByte(file)
       if (effectiveFile.startsWith('order_')) {
-        const token = req.cookies?.token ?? utils.jwtFrom(req)
-        const user = security.authenticatedUsers.get(token)
-        if (!user) {
+        const email = orderOwnerEmail(req)
+        if (!email) {
           res.status(401)
           next(new Error('Order confirmations can only be downloaded by logged-in customers!'))
           return
         }
-        const ownerPrefix = 'order_' + security.hash(user.data.email).slice(0, 4) + '-'
-        if (!effectiveFile.startsWith(ownerPrefix)) {
+        const orderId = effectiveFile.slice('order_'.length).replace(/\.pdf$/i, '')
+        let order
+        try {
+          order = await ordersCollection.findOne({ orderId })
+        } catch (error: unknown) {
+          next(error instanceof Error ? error : new Error(String(error)))
+          return
+        }
+        if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) {
           res.status(403)
           next(new Error('Order confirmations can only be downloaded by the customer who placed the order!'))
           return

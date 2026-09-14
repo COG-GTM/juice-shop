@@ -9,6 +9,7 @@ import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { servePublicFiles } from '../../routes/fileServer'
 import * as security from '../../lib/insecurity'
+import * as mongodb from '../../data/mongodb'
 import { type Challenge } from 'data/types'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -28,6 +29,10 @@ describe('fileServer', () => {
     })
   })
 
+  afterEach(() => {
+    sinon.restore()
+  })
+
   it('should serve PDF files from folder /ftp', () => {
     req.params.file = 'test.pdf'
 
@@ -36,34 +41,49 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.pdf/))
   })
 
-  it('should deny order confirmation PDFs to anonymous requests', () => {
+  it('should deny order confirmation PDFs to anonymous requests', async () => {
     req.params.file = 'order_1234-0123456789abcdef.pdf'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(401)
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should deny order confirmation PDFs of other customers', () => {
-    security.authenticatedUsers.put('token-a', { token: 'token-a', bid: 1, data: { email: 'a@juice-sh.op' } } as any)
-    req.cookies = { token: 'token-a' }
-    req.params.file = 'order_zzzz-0123456789abcdef.pdf'
+  it('should deny order confirmation PDFs of other customers', async () => {
+    const token = security.authorize({ data: { email: 'a@juice-sh.op' } })
+    req.headers.cookie = 'token=' + token
+    req.params.file = 'order_1234-0123456789abcdef.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId: '1234-0123456789abcdef', email: 'b@j**c*-sh.*p' })
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(403)
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should serve order confirmation PDFs to the customer who placed the order', () => {
-    security.authenticatedUsers.put('token-a', { token: 'token-a', bid: 1, data: { email: 'a@juice-sh.op' } } as any)
-    req.cookies = { token: 'token-a' }
-    req.params.file = `order_${security.hash('a@juice-sh.op').slice(0, 4)}-0123456789abcdef.pdf`
+  it('should deny order confirmation PDFs for an unknown order', async () => {
+    const token = security.authorize({ data: { email: 'a@juice-sh.op' } })
+    req.headers.cookie = 'token=' + token
+    req.params.file = 'order_1234-0123456789abcdef.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves(null)
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(403)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should serve order confirmation PDFs to the customer who placed the order', async () => {
+    const token = security.authorize({ data: { email: 'a@juice-sh.op' } })
+    req.headers.cookie = 'token=' + token
+    req.params.file = 'order_1234-0123456789abcdef.pdf'
+    sinon.stub(mongodb.ordersCollection, 'findOne').resolves({ orderId: '1234-0123456789abcdef', email: '*@j**c*-sh.*p' })
+
+    await servePublicFiles()(req, res, next)
 
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]order_/))
   })
