@@ -37,7 +37,7 @@ export function updateAddressById () {
     try {
       await address.update(updateData)
     } catch (error: unknown) {
-      res.status(400).json({ status: 'error', data: utils.getErrorMessage(error) })
+      res.status(400).json({ status: 'error', error: utils.getErrorMessage(error) })
       return
     }
     res.status(200).json({ status: 'success', data: address })
