@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -39,6 +40,20 @@ void describe('/ftp', () => {
     const res = await request(app)
       .get('/ftp/doesnotexist.pdf')
     assert.equal(res.status, 404)
+  })
+
+  void it('GET an order confirmation PDF anonymously will return 401', async () => {
+    const res = await request(app)
+      .get('/ftp/order_1234-0123456789abcdef.pdf')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET a non-existing order confirmation PDF with a valid token will return 403', async () => {
+    const token = security.authorize({ data: { email: 'jim@juice-sh.op' } })
+    const res = await request(app)
+      .get('/ftp/order_1234-0123456789abcdef.pdf')
+      .set('Cookie', 'token=' + token)
+    assert.equal(res.status, 403)
   })
 
   void it('GET a non-existing file in /ftp will return a 403 error for invalid file type', async () => {
