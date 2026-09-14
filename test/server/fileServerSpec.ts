@@ -8,6 +8,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { servePublicFiles } from '../../routes/fileServer'
+import * as security from '../../lib/insecurity'
 import { type Challenge } from 'data/types'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -20,7 +21,7 @@ describe('fileServer', () => {
 
   beforeEach(() => {
     res = { sendFile: sinon.spy(), status: sinon.spy() }
-    req = { params: {}, query: {} }
+    req = { params: {}, query: {}, headers: {}, cookies: {} }
     next = sinon.spy()
     save = () => ({
       then () { }
@@ -33,6 +34,38 @@ describe('fileServer', () => {
     servePublicFiles()(req, res, next)
 
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.pdf/))
+  })
+
+  it('should deny order confirmation PDFs to anonymous requests', () => {
+    req.params.file = 'order_1234-0123456789abcdef.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(401)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should deny order confirmation PDFs of other customers', () => {
+    security.authenticatedUsers.put('token-a', { token: 'token-a', bid: 1, data: { email: 'a@juice-sh.op' } } as any)
+    req.cookies = { token: 'token-a' }
+    req.params.file = 'order_zzzz-0123456789abcdef.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(403)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should serve order confirmation PDFs to the customer who placed the order', () => {
+    security.authenticatedUsers.put('token-a', { token: 'token-a', bid: 1, data: { email: 'a@juice-sh.op' } } as any)
+    req.cookies = { token: 'token-a' }
+    req.params.file = `order_${security.hash('a@juice-sh.op').slice(0, 4)}-0123456789abcdef.pdf`
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]order_/))
   })
 
   it('should serve Markdown files from folder /ftp', () => {

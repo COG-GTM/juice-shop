@@ -12,10 +12,26 @@ import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
 export function servePublicFiles () {
-  return ({ params, query }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+  return (req: Request, res: Response, next: NextFunction) => {
+    const file = req.params.file
 
     if (!file.includes('/')) {
+      const effectiveFile = security.cutOffPoisonNullByte(file)
+      if (effectiveFile.startsWith('order_')) {
+        const token = req.cookies?.token ?? utils.jwtFrom(req)
+        const user = security.authenticatedUsers.get(token)
+        if (!user) {
+          res.status(401)
+          next(new Error('Order confirmations can only be downloaded by logged-in customers!'))
+          return
+        }
+        const ownerPrefix = 'order_' + security.hash(user.data.email).slice(0, 4) + '-'
+        if (!effectiveFile.startsWith(ownerPrefix)) {
+          res.status(403)
+          next(new Error('Order confirmations can only be downloaded by the customer who placed the order!'))
+          return
+        }
+      }
       verify(file, res, next)
     } else {
       res.status(403)
