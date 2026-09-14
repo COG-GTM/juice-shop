@@ -5,6 +5,7 @@
 
 import { type Request, type Response } from 'express'
 import { AddressModel } from '../models/address'
+import * as utils from '../lib/utils'
 
 export function getAddress () {
   return async (req: Request, res: Response) => {
@@ -21,6 +22,25 @@ export function getAddressById () {
     } else {
       res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
     }
+  }
+}
+
+export function updateAddressById () {
+  return async (req: Request, res: Response) => {
+    const address = await AddressModel.findOne({ where: { id: req.params.id, UserId: req.body.UserId } })
+    if (address == null) {
+      res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
+      return
+    }
+    const fields = ['fullName', 'mobileNum', 'zipCode', 'streetAddress', 'city', 'state', 'country'] as const
+    const updateData = Object.fromEntries(fields.filter(field => field in req.body).map(field => [field, req.body[field]]))
+    try {
+      await address.update(updateData)
+    } catch (error: unknown) {
+      res.status(400).json({ status: 'error', data: utils.getErrorMessage(error) })
+      return
+    }
+    res.status(200).json({ status: 'success', data: address })
   }
 }
 
