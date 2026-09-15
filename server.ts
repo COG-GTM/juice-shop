@@ -419,6 +419,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body != null) {
+      delete req.body.role
+      delete req.body.deluxeToken
+    }
+    next()
+  })
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
