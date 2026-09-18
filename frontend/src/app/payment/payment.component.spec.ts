@@ -12,7 +12,7 @@ import { PaymentComponent } from './payment.component'
 import { MatInputModule } from '@angular/material/input'
 import { ReactiveFormsModule } from '@angular/forms'
 
-import { of, throwError } from 'rxjs'
+import { BehaviorSubject, of, throwError } from 'rxjs'
 import { MatTableModule } from '@angular/material/table'
 import { MatExpansionModule } from '@angular/material/expansion'
 import { MatDividerModule } from '@angular/material/divider'
@@ -23,7 +23,7 @@ import { BasketService } from '../Services/basket.service'
 import { QrCodeComponent } from '../qr-code/qr-code.component'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { PaymentMethodComponent } from '../payment-method/payment-method.component'
-import { RouterModule } from '@angular/router'
+import { ActivatedRoute, convertToParamMap, type ParamMap, Router, RouterModule } from '@angular/router'
 import { OrderSummaryComponent } from '../order-summary/order-summary.component'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
 import { CookieService } from 'ngy-cookie'
@@ -38,6 +38,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 
 describe('PaymentComponent', () => {
     let component: PaymentComponent
@@ -51,6 +52,8 @@ describe('PaymentComponent', () => {
     let deliveryService: any
     let userService: any
     let snackBar: any
+    let snackBarHelperService: any
+    let paramMap: BehaviorSubject<ParamMap>
 
     @Component({ template: '' })
     class DummyDeluxeMembershipComponent {
@@ -106,6 +109,10 @@ describe('PaymentComponent', () => {
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
+        snackBarHelperService = {
+            open: vi.fn().mockName("SnackBarHelperService.open")
+        }
+        paramMap = new BehaviorSubject<ParamMap>(convertToParamMap({}))
 
         TestBed.configureTestingModule({
             imports: [RouterModule.forRoot([
@@ -138,6 +145,8 @@ describe('PaymentComponent', () => {
                 { provide: DeliveryService, useValue: deliveryService },
                 { provide: UserService, useValue: userService },
                 { provide: MatSnackBar, useValue: snackBar },
+                { provide: SnackBarHelperService, useValue: snackBarHelperService },
+                { provide: ActivatedRoute, useValue: { paramMap: paramMap.asObservable(), snapshot: { paramMap: convertToParamMap({}) } } },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting(),
                 provideZoneChangeDetection()
@@ -154,7 +163,9 @@ describe('PaymentComponent', () => {
     })
 
     afterEach(() => {
+        vi.useRealTimers()
         vi.restoreAllMocks()
+        sessionStorage.clear()
     })
 
     it('should create', () => {
@@ -247,6 +258,170 @@ describe('PaymentComponent', () => {
         const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
         component.showConfirmation(70)
         expect(setItemSpy).toHaveBeenCalledWith('couponDiscount', 70 as any)
+    })
+
+    describe('campaign coupons', () => {
+        const campaignCode = 'WMNSDY2023'
+        const campaignValidOn = 1678230000000
+        const campaignDiscount = 60
+
+        // A campaign date maps to a wall clock time that depends on the local timezone.
+        const wallClockWhenValid = (validOn: number) => {
+            const offsetTimeZone = (new Date(validOn).getTimezoneOffset() + 60) * 60 * 1000
+            return validOn + offsetTimeZone + 12 * 60 * 60 * 1000
+        }
+
+        it('should apply the campaign discount when the client date matches the campaign date', () => {
+            vi.useFakeTimers()
+            vi.setSystemTime(wallClockWhenValid(campaignValidOn))
+            const showConfirmationSpy = vi.spyOn(component, 'showConfirmation')
+
+            component.couponControl.setValue(campaignCode)
+            component.applyCoupon()
+
+            expect(component.clientDate).toBe(campaignValidOn)
+            expect(showConfirmationSpy).toHaveBeenCalledWith(campaignDiscount)
+            expect(basketService.applyCoupon).not.toHaveBeenCalled()
+        })
+
+        it('should reject a campaign coupon outside of its campaign date', () => {
+            vi.useFakeTimers()
+            vi.setSystemTime(wallClockWhenValid(campaignValidOn) + 5 * 24 * 60 * 60 * 1000)
+            translateService.get.mockReturnValue(of('Translation of INVALID_COUPON'))
+
+            component.couponControl.setValue(campaignCode)
+            component.applyCoupon()
+
+            expect(component.clientDate).not.toBe(campaignValidOn)
+            expect(translateService.get).toHaveBeenCalledWith('INVALID_COUPON')
+            expect(component.couponConfirmation).toBeUndefined()
+            expect(component.couponError).toEqual({ error: 'Translation of INVALID_COUPON' })
+            expect(component.couponControl.value).toBe('')
+            expect(component.couponControl.pristine).toBe(true)
+            expect(basketService.applyCoupon).not.toHaveBeenCalled()
+        })
+
+        it('should fall back to the translation id when INVALID_COUPON cannot be translated', () => {
+            vi.useFakeTimers()
+            vi.setSystemTime(wallClockWhenValid(campaignValidOn) + 5 * 24 * 60 * 60 * 1000)
+            translateService.get.mockReturnValue(throwError(() => 'INVALID_COUPON'))
+
+            component.couponControl.setValue(campaignCode)
+            component.applyCoupon()
+
+            expect(component.couponError).toEqual({ error: 'INVALID_COUPON' })
+        })
+    })
+
+    describe('initTotal', () => {
+        it('should use the wallet total in wallet mode', () => {
+            sessionStorage.setItem('walletTotal', '20.5')
+            paramMap.next(convertToParamMap({ entity: 'wallet' }))
+
+            component.initTotal()
+
+            expect(component.totalPrice).toBe(20.5)
+        })
+
+        it('should use the membership cost in deluxe mode', () => {
+            userService.deluxeStatus.mockReturnValue(of({ membershipCost: 49 }))
+            paramMap.next(convertToParamMap({ entity: 'deluxe' }))
+
+            component.initTotal()
+
+            expect(component.totalPrice).toBe(49)
+        })
+
+        it('should log error while getting deluxe membership status directly to browser console', () => {
+            userService.deluxeStatus.mockReturnValue(throwError(() => 'Error'))
+            paramMap.next(convertToParamMap({ entity: 'deluxe' }))
+            console.log = vi.fn()
+
+            component.initTotal()
+
+            expect(console.log).toHaveBeenCalledWith('Error')
+        })
+
+        it('should add the delivery price and subtract the coupon discount in shop mode', () => {
+            sessionStorage.setItem('itemTotal', '100')
+            sessionStorage.setItem('couponDiscount', '20')
+            sessionStorage.setItem('deliveryMethodId', '1')
+            deliveryService.getById.mockReturnValue(of({ price: 10 }))
+            paramMap.next(convertToParamMap({ entity: 'shop' }))
+
+            component.initTotal()
+
+            expect(deliveryService.getById).toHaveBeenCalledWith('1')
+            expect(component.totalPrice).toBe(90)
+        })
+
+        it('should only add the delivery price in shop mode when no coupon discount is stored', () => {
+            sessionStorage.setItem('itemTotal', '100')
+            sessionStorage.setItem('deliveryMethodId', '1')
+            deliveryService.getById.mockReturnValue(of({ price: 5 }))
+            paramMap.next(convertToParamMap({ entity: 'shop' }))
+
+            component.initTotal()
+
+            expect(component.totalPrice).toBe(105)
+        })
+    })
+
+    describe('choosePayment', () => {
+        it('should charge the wallet and route to the wallet page in wallet mode', () => {
+            const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true)
+            walletService.put.mockReturnValue(of({}))
+            component.mode = 'wallet'
+            component.totalPrice = 42
+            component.paymentId = 1
+
+            component.choosePayment()
+
+            expect(walletService.put).toHaveBeenCalledWith({ balance: 42, paymentId: 1 })
+            expect(navigateSpy).toHaveBeenCalledWith(['/wallet'])
+            expect(snackBarHelperService.open).toHaveBeenCalledWith('CHARGED_WALLET', 'confirmBar')
+        })
+
+        it('should show an error and not route away when charging the wallet fails', () => {
+            const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true)
+            walletService.put.mockReturnValue(throwError(() => ({ error: { message: 'Wallet charge failed' } })))
+            component.mode = 'wallet'
+            console.log = vi.fn()
+
+            component.choosePayment()
+
+            expect(snackBarHelperService.open).toHaveBeenCalledWith('Wallet charge failed', 'errorBar')
+            expect(navigateSpy).not.toHaveBeenCalled()
+        })
+
+        it('should not pay with the wallet in shop mode when its balance is below the total price', () => {
+            const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true)
+            const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+            component.mode = 'shop'
+            component.paymentMode = 'wallet'
+            component.walletBalance = 10
+            component.totalPrice = 100
+
+            component.choosePayment()
+
+            expect(snackBarHelperService.open).toHaveBeenCalledWith('INSUFFICIENT_WALLET_BALANCE', 'errorBar')
+            expect(setItemSpy).not.toHaveBeenCalledWith('paymentId', 'wallet')
+            expect(navigateSpy).not.toHaveBeenCalled()
+        })
+
+        it('should pay with the wallet in shop mode when its balance covers the total price', () => {
+            const navigateSpy = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true)
+            const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+            component.mode = 'shop'
+            component.paymentMode = 'wallet'
+            component.walletBalance = 100
+            component.totalPrice = 100
+
+            component.choosePayment()
+
+            expect(setItemSpy).toHaveBeenCalledWith('paymentId', 'wallet')
+            expect(navigateSpy).toHaveBeenCalledWith(['/order-summary'])
+        })
     })
 
     it('should store payment id on calling getMessage', () => {
