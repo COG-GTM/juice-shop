@@ -47,6 +47,7 @@ describe('ProductComponent', () => {
         productService.search.mockReturnValue(of([]))
         productService.get.mockReturnValue(of({ name: 'test' } as any))
         basketService = {
+            addToGuestBasket: vi.fn().mockName("BasketService.addToGuestBasket"),
             find: vi.fn().mockName("BasketService.find"),
             get: vi.fn().mockName("BasketService.get"),
             put: vi.fn().mockName("BasketService.put"),
@@ -244,5 +245,51 @@ describe('ProductComponent', () => {
         sessionStorage.setItem('bid', '4711')
         component.addToBasket(2)
         expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    describe('when not logged in', () => {
+        beforeEach(() => {
+            fixture.componentRef.setInput('isLoggedIn', false)
+            fixture.detectChanges()
+        })
+
+        it('should add product to guest basket without using the server-side basket', () => {
+            productService.get.mockReturnValue(of({ name: 'Cherry Juice' }))
+            component.addToBasket(1)
+            expect(basketService.addToGuestBasket).toHaveBeenCalledWith(1)
+            expect(basketService.find).not.toHaveBeenCalled()
+            expect(basketService.save).not.toHaveBeenCalled()
+            expect(productService.get).toHaveBeenCalledWith(1)
+            expect(translateServiceGetSpy).toHaveBeenCalledWith('BASKET_ADD_PRODUCT', { product: 'Cherry Juice' })
+        })
+
+        it('should show translated confirmation when product was added to guest basket', () => {
+            productService.get.mockReturnValue(of({ name: 'Cherry Juice' }))
+            translateServiceGetSpy.mockReturnValue(of('Translation of BASKET_ADD_PRODUCT'))
+            component.addToBasket(1)
+            expect(snackBarHelper.open).toHaveBeenCalledWith('Translation of BASKET_ADD_PRODUCT', 'confirmBar')
+        })
+
+        it('should show translation id as confirmation when translation fails', () => {
+            productService.get.mockReturnValue(of({ name: 'Cherry Juice' }))
+            translateServiceGetSpy.mockReturnValue(throwError(() => 'BASKET_ADD_PRODUCT'))
+            component.addToBasket(1)
+            expect(snackBarHelper.open).toHaveBeenCalledWith('BASKET_ADD_PRODUCT', 'confirmBar')
+        })
+
+        it('should log errors retrieving product for guest basket directly to browser console', () => {
+            productService.get.mockReturnValue(throwError(() => 'Error'))
+            console.log = vi.fn()
+            component.addToBasket(1)
+            expect(basketService.addToGuestBasket).toHaveBeenCalledWith(1)
+            expect(console.log).toHaveBeenCalledWith('Error')
+            expect(snackBarHelper.open).not.toHaveBeenCalled()
+        })
+
+        it('should not add anything to the guest basket without product id', () => {
+            component.addToBasket(undefined)
+            expect(basketService.addToGuestBasket).not.toHaveBeenCalled()
+            expect(productService.get).not.toHaveBeenCalled()
+        })
     })
 })
