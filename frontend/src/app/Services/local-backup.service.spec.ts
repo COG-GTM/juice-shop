@@ -111,11 +111,11 @@ describe('LocalBackupService', () => {
         challengeService.continueCodeFindIt.mockReturnValue(throwError('Error'))
         challengeService.continueCodeFixIt.mockReturnValue(throwError('Error'))
 
-        console.log = vi.fn()
+        const log = vi.spyOn(console, 'log').mockImplementation(() => {})
 
         await service.save('test-backup')
 
-        expect(console.log).toHaveBeenCalledWith('Failed to retrieve continue code(s) for backup from server. Using cookie values as fallback.')
+        expect(log).toHaveBeenCalledWith('Failed to retrieve continue code(s) for backup from server. Using cookie values as fallback.')
         expect(saveFileSpy).toHaveBeenCalled()
     })
 
