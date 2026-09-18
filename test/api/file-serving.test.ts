@@ -207,4 +207,11 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })
+
+  void it('GET a log file whose name contains a "/" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/support/logs/%2fetc%2fos-release%2500.log')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+  })
 })
