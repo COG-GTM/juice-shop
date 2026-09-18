@@ -202,6 +202,9 @@ export async function updateMetrics () {
 export function observeMetrics () {
   Prometheus.collectDefaultMetrics({})
   register.setDefaultLabels({ app: metricsPrefix })
+  for (const metric of [fileUploadsCountMetric, fileUploadErrorsMetric, httpRequestsMetric, versionMetrics, challengeSolvedMetrics, challengeTotalMetrics, codingChallengesProgressMetrics, cheatScoreMetrics, accuracyMetrics, orderMetrics, userMetrics, userTotalMetrics, walletMetrics, interactionsMetrics]) {
+    register.registerMetric(metric)
+  }
 
   const updateLoop = () => setInterval(() => {
     void updateMetrics()
