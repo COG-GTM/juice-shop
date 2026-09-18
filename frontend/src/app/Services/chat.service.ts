@@ -56,7 +56,15 @@ export class ChatService {
               return
             }
 
-            const parsed = JSON.parse(data)
+            let parsed
+            try {
+              parsed = JSON.parse(data)
+            } catch {
+              chunks.push({ error: 'invalid_chunk' })
+              done = true
+              resolve?.()
+              return
+            }
 
             if (parsed.error) {
               chunks.push({ error: parsed.error })
