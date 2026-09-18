@@ -6,7 +6,9 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import sinon from 'sinon'
 import type { Express } from 'express'
+import { WalletModel } from '../../models/wallet'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -72,5 +74,32 @@ void describe('/api/Wallets', () => {
       .set(authHeader)
       .send({ balance: 10 })
     assert.equal(res.status, 402)
+  })
+
+  void it('GET wallet of user without wallet returns error', async () => {
+    const findOne = sinon.stub(WalletModel, 'findOne').resolves(null)
+    try {
+      const res = await request(app)
+        .get('/rest/wallet/balance')
+        .set(authHeader)
+      assert.equal(res.status, 404)
+      assert.equal(res.body.status, 'error')
+    } finally {
+      findOne.restore()
+    }
+  })
+
+  void it('PUT charge wallet returns error when balance increment fails', async () => {
+    const increment = sinon.stub(WalletModel, 'increment').rejects(new Error('increment failed'))
+    try {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId: 2 })
+      assert.equal(res.status, 404)
+      assert.equal(res.body.status, 'error')
+    } finally {
+      increment.restore()
+    }
   })
 })
