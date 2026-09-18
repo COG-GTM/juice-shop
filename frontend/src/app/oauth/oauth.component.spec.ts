@@ -17,17 +17,19 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { OAuthComponent } from './oauth.component'
 import { LoginComponent } from '../login/login.component'
 import { ReactiveFormsModule } from '@angular/forms'
-import { ActivatedRoute } from '@angular/router'
+import { ActivatedRoute, Router } from '@angular/router'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { UserService } from '../Services/user.service'
-import { CookieModule } from 'ngy-cookie'
+import { CookieModule, CookieService } from 'ngy-cookie'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('OAuthComponent', () => {
     let component: OAuthComponent
     let fixture: ComponentFixture<OAuthComponent>
     let userService: any
+    let cookieService: CookieService
+    let router: Router
 
     beforeEach(async () => {
         userService = {
@@ -68,9 +70,17 @@ describe('OAuthComponent', () => {
     })
 
     beforeEach(() => {
+        cookieService = TestBed.inject(CookieService)
+        router = TestBed.inject(Router)
         fixture = TestBed.createComponent(OAuthComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
+    })
+
+    afterEach(() => {
+        localStorage.removeItem('token')
+        sessionStorage.removeItem('bid')
+        cookieService.remove('token')
     })
 
     it('should create', () => {
@@ -96,6 +106,33 @@ describe('OAuthComponent', () => {
         userService.save.mockReturnValue(throwError({ error: 'Account already exists' }))
         component.ngOnInit()
         expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
+    })
+
+    it('passes the access token parsed from the redirect url to the OAuth login', () => {
+        userService.oauthLogin.mockClear()
+        TestBed.createComponent(OAuthComponent).detectChanges()
+        expect(userService.oauthLogin).toHaveBeenCalledTimes(1)
+        expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
+    })
+
+    it('establishes the session and navigates home on successful OAuth login', async () => {
+        const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        const cookieSpy = vi.spyOn(cookieService, 'put')
+        userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
+        userService.login.mockReturnValue(of({ token: 'apiToken', bid: 42 }))
+        userService.isLoggedIn.next.mockClear()
+        localStorage.removeItem('token')
+        sessionStorage.removeItem('bid')
+
+        const successFixture = TestBed.createComponent(OAuthComponent)
+        successFixture.detectChanges()
+        await successFixture.whenStable()
+
+        expect(cookieSpy).toHaveBeenCalledWith('token', 'apiToken', expect.objectContaining({ expires: expect.any(Date) }))
+        expect(localStorage.getItem('token')).toBe('apiToken')
+        expect(sessionStorage.getItem('bid')).toBe('42')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
+        expect(navigateSpy).toHaveBeenCalledWith(['/'])
     })
 
     it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
