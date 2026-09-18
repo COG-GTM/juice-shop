@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +52,42 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST update username is forbidden for unauthenticated user', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .field('username', 'Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST update username is forbidden for unknown token', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${security.authorize({ data: { id: 42, email: 'unknown@juice-sh.op' } })}`)
+      .field('username', 'Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST update username fails for token of non-existing user', async () => {
+    const token = 'token-of-non-existing-user'
+    security.authenticatedUsers.put(token, { data: UserModel.build({ id: 999999, email: 'ghost@juice-sh.op' }) })
+
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${token}`)
+      .field('username', 'Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: User not found'))
   })
 })
