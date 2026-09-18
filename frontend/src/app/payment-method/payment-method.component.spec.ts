@@ -186,4 +186,41 @@ describe('PaymentMethodComponent', () => {
         expect(snackBar.open).toHaveBeenCalled()
         expect(component.resetForm).toHaveBeenCalled()
     })
+
+    it('should show the selection column instead of the remove column when deletion is not allowed', () => {
+        expect(component.displayedColumns).toEqual(['Selection', 'Number', 'Name', 'Expiry'])
+    })
+
+    it('should show the remove column instead of the selection column when deletion is allowed', () => {
+        const deleteFixture = TestBed.createComponent(PaymentMethodComponent)
+        deleteFixture.componentInstance.allowDelete = true
+        deleteFixture.detectChanges()
+        expect(deleteFixture.componentInstance.displayedColumns).toEqual(['Number', 'Name', 'Expiry', 'Remove'])
+    })
+
+    it('should reload the cards after deleting a card', () => {
+        paymentService.del.mockReturnValue(of({}))
+        vi.spyOn(component, 'load')
+        component.delete(1)
+        expect(paymentService.del).toHaveBeenCalledWith(1)
+        expect(component.load).toHaveBeenCalled()
+    })
+
+    it('should log error while deleting a card directly to the browser console and keep the cards unchanged', () => {
+        paymentService.get.mockReturnValue(of([{ cardNum: '************1231' }]))
+        component.load()
+        paymentService.del.mockReturnValue(throwError('Error'))
+        console.log = vi.fn()
+        vi.spyOn(component, 'load')
+        component.delete(1)
+        expect(console.log).toHaveBeenCalledWith('Error')
+        expect(component.load).not.toHaveBeenCalled()
+        expect(component.storedCards).toEqual([{ cardNum: '************1231' }])
+    })
+
+    it('should emit the selected card id to the parent component', () => {
+        vi.spyOn(component.emitSelection, 'emit')
+        component.emitSelectionToParent(42)
+        expect(component.emitSelection.emit).toHaveBeenCalledWith(42)
+    })
 })
