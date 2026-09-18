@@ -24,6 +24,7 @@ import { MatMenuModule } from '@angular/material/menu'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { SocketIoService } from '../Services/socket-io.service'
+import { LanguagesService } from '../Services/languages.service'
 import { of, throwError } from 'rxjs'
 import { MatCardModule } from '@angular/material/card'
 import { MatInputModule } from '@angular/material/input'
@@ -37,6 +38,12 @@ import { MatRadioModule } from '@angular/material/radio'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { MatSearchBarComponent } from '../mat-search-bar/mat-search-bar.component'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+
+const sampleLanguages = [
+    { key: 'en', lang: 'English', shortKey: 'EN' },
+    { key: 'de', lang: 'Deutsch', shortKey: 'DE' },
+    { key: 'zz', lang: 'Testish', shortKey: 'QQ' }
+]
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -55,6 +62,7 @@ describe('NavbarComponent', () => {
     let cookieService: any
     let mockSocket: any
     let socketIoService: any
+    let languagesService: any
     let location: Location
     let loginGuard
 
@@ -93,6 +101,10 @@ describe('NavbarComponent', () => {
             socket: vi.fn().mockName("SocketIoService.socket")
         }
         socketIoService.socket.mockReturnValue(mockSocket)
+        languagesService = {
+            getLanguages: vi.fn().mockName("LanguagesService.getLanguages")
+        }
+        languagesService.getLanguages.mockReturnValue(of(sampleLanguages))
         loginGuard = {
             tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode")
         }
@@ -128,6 +140,7 @@ describe('NavbarComponent', () => {
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: CookieService, useValue: cookieService },
                 { provide: SocketIoService, useValue: socketIoService },
+                { provide: LanguagesService, useValue: languagesService },
                 { provide: LoginGuard, useValue: loginGuard },
                 TranslateService,
                 provideHttpClient(withInterceptorsFromDi()),
@@ -307,5 +320,81 @@ describe('NavbarComponent', () => {
         vi.spyOn(translateService, 'use').mockImplementation((lang: any) => lang)
         component.changeLanguage('xx')
         expect(translateService.use).toHaveBeenCalledWith('xx')
+    })
+
+    it('should populate languages and filtered languages from the LanguagesService', () => {
+        component.getLanguages()
+        expect(component.languages).toEqual(sampleLanguages)
+        expect(component.filteredLanguages).toEqual(sampleLanguages)
+    })
+
+    it('should use empty language lists if the backend does not return an array', () => {
+        languagesService.getLanguages.mockReturnValue(of(undefined))
+        component.getLanguages()
+        expect(component.languages).toEqual([])
+        expect(component.filteredLanguages).toEqual([])
+    })
+
+    it('should select the language stored in the cookie', () => {
+        vi.spyOn(translateService, 'use').mockImplementation((lang: any) => lang)
+        cookieService.get.mockReturnValue('de')
+        component.getLanguages()
+        expect(translateService.use).toHaveBeenCalledWith('de')
+        expect(component.selectedLanguage).toEqual(sampleLanguages[1])
+        expect(component.shortKeyLang).toBe('DE')
+    })
+
+    it('should default to English if no language cookie is set', () => {
+        vi.spyOn(translateService, 'use').mockImplementation((lang: any) => lang)
+        cookieService.get.mockReturnValue(undefined)
+        component.getLanguages()
+        expect(translateService.use).toHaveBeenCalledWith('en')
+        expect(component.selectedLanguage).toEqual(sampleLanguages[0])
+        expect(component.shortKeyLang).toBe('EN')
+    })
+
+    it('should keep the placeholder language if the cookie language is unknown', () => {
+        vi.spyOn(translateService, 'use').mockImplementation((lang: any) => lang)
+        cookieService.get.mockReturnValue('xx')
+        component.selectedLanguage = 'placeholder'
+        component.shortKeyLang = 'placeholder'
+        component.getLanguages()
+        expect(component.selectedLanguage).toBe('placeholder')
+        expect(component.shortKeyLang).toBe('placeholder')
+    })
+
+    it('should show all languages for an empty search query', () => {
+        component.getLanguages()
+        component.languageSearchQuery = ''
+        component.filterLanguages()
+        expect(component.filteredLanguages).toEqual(sampleLanguages)
+    })
+
+    it('should filter languages by name', () => {
+        component.getLanguages()
+        component.languageSearchQuery = 'deut'
+        component.filterLanguages()
+        expect(component.filteredLanguages).toEqual([sampleLanguages[1]])
+    })
+
+    it('should filter languages by key', () => {
+        component.getLanguages()
+        component.languageSearchQuery = 'zz'
+        component.filterLanguages()
+        expect(component.filteredLanguages).toEqual([sampleLanguages[2]])
+    })
+
+    it('should filter languages by short key', () => {
+        component.getLanguages()
+        component.languageSearchQuery = 'qq'
+        component.filterLanguages()
+        expect(component.filteredLanguages).toEqual([sampleLanguages[2]])
+    })
+
+    it('should filter out all languages if nothing matches the search query', () => {
+        component.getLanguages()
+        component.languageSearchQuery = 'klingon'
+        component.filterLanguages()
+        expect(component.filteredLanguages).toEqual([])
     })
 })

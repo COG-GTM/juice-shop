@@ -201,15 +201,18 @@ export class NavbarComponent implements OnInit {
   }
 
   checkLanguage () {
-    if (this.cookieService.get('language')) {
-      const langKey = this.cookieService.get('language')
-      this.translate.use(langKey)
-      this.selectedLanguage = this.languages.find((y: { key: string }) => y.key === langKey)
-      this.shortKeyLang = this.languages.find((y: { key: string }) => y.key === langKey).shortKey
+    const cookieLangKey = this.cookieService.get('language')
+    if (cookieLangKey) {
+      this.translate.use(cookieLangKey)
     } else {
       this.changeLanguage('en')
-      this.selectedLanguage = this.languages.find((y: { key: string }) => y.key === 'en')
-      this.shortKeyLang = this.languages.find((y: { key: string }) => y.key === 'en').shortKey
+    }
+
+    const langKey = cookieLangKey || 'en'
+    const language = this.languages.find((y: { key: string }) => y.key === langKey)
+    if (language) {
+      this.selectedLanguage = language
+      this.shortKeyLang = language.shortKey
     }
   }
 
@@ -293,8 +296,8 @@ export class NavbarComponent implements OnInit {
 
   getLanguages () {
     this.langService.getLanguages().subscribe((res: any[]) => {
-      this.languages = res
-      this.filteredLanguages = Array.isArray(res) ? [...res] : []
+      this.languages = Array.isArray(res) ? res : []
+      this.filteredLanguages = [...this.languages]
       this.checkLanguage()
     })
   }
