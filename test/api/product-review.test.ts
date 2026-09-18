@@ -123,6 +123,42 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST single product review cannot be liked by unauthenticated user', async () => {
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .send({
+        id: reviewId
+      })
+    assert.equal(res.status, 401)
+    assert.equal(res.body.error, 'Unauthorized')
+  })
+
+  void it('POST single product review cannot be liked twice by the same user', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const reviews = await request(app).get('/rest/products/2/reviews')
+    const otherReviewId = reviews.body.data[0]._id
+
+    const firstLike = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: otherReviewId
+      })
+    assert.equal(firstLike.status, 200)
+
+    const secondLike = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: otherReviewId
+      })
+    assert.equal(secondLike.status, 403)
+    assert.equal(secondLike.body.error, 'Not allowed')
+  })
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 
