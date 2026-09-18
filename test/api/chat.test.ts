@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import { challenges } from '../../data/datacache'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -70,6 +72,34 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+async function runToolCall (toolName: string, args: string, callId: string): Promise<{ toolResult: any, text: string }> {
+  let toolMessage: any
+  let callCount = 0
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk(callId, toolName, args),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const parsed = JSON.parse(body)
+      toolMessage = parsed.messages.find((m: { role: string }) => m.role === 'tool')
+      sendSSE(res, [contentChunk('Here you go!'), finishChunk()])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json' })
+    .send({ messages: [{ role: 'user', content: 'Please help me' }] })
+
+  assert.equal(res.status, 200)
+  assert.ok(toolMessage, `no tool result was sent back to the LLM for ${toolName}`)
+  assert.equal(toolMessage.tool_call_id, callId)
+  return { toolResult: JSON.parse(toolMessage.content), text: res.text }
 }
 
 before(async () => {
@@ -205,6 +235,59 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST handles getProductReviews tool call and returns the reviews of the product', { timeout: 15000 }, async () => {
+    const { toolResult, text } = await runToolCall('getProductReviews', '{"id":"1"}', 'call_reviews')
+
+    assert.ok(Array.isArray(toolResult))
+    assert.ok(toolResult.length > 0)
+    for (const review of toolResult) {
+      assert.equal(review.product, 1)
+      assert.equal(typeof review.message, 'string')
+    }
+    assert.ok(toolResult.some((review: { message: string }) => review.message === 'One of my favorites!'))
+    assert.ok(text.includes('data: [DONE]'))
+  })
+
+  void it('POST getProductReviews tool call with a non-numeric id returns no reviews', { timeout: 15000 }, async () => {
+    const { toolResult } = await runToolCall('getProductReviews', '{"id":"1; return true"}', 'call_reviews_injection')
+
+    assert.deepEqual(toolResult, [])
+  })
+
+  void it('POST generateCoupon tool call below 10% discount mints a coupon without solving a challenge', { timeout: 15000 }, async () => {
+    const { toolResult } = await runToolCall('generateCoupon', '{"discount":9}', 'call_coupon_9')
+
+    assert.equal(toolResult.discount, 9)
+    assert.equal(toolResult.couponCode, security.generateCoupon(9))
+    assert.equal(challenges.chatbotPromptInjectionChallenge.solved, false)
+    assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, false)
+  })
+
+  void it('POST generateCoupon tool call with 10% discount solves the prompt injection challenge only', { timeout: 15000 }, async () => {
+    const { toolResult } = await runToolCall('generateCoupon', '{"discount":10}', 'call_coupon_10')
+
+    assert.equal(toolResult.discount, 10)
+    assert.equal(toolResult.couponCode, security.generateCoupon(10))
+    assert.equal(challenges.chatbotPromptInjectionChallenge.solved, true)
+    assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, false)
+  })
+
+  void it('POST generateCoupon tool call below 50% discount does not solve the greedy injection challenge', { timeout: 15000 }, async () => {
+    const { toolResult } = await runToolCall('generateCoupon', '{"discount":49}', 'call_coupon_49')
+
+    assert.equal(toolResult.discount, 49)
+    assert.equal(toolResult.couponCode, security.generateCoupon(49))
+    assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, false)
+  })
+
+  void it('POST generateCoupon tool call with 50% discount solves the greedy injection challenge', { timeout: 15000 }, async () => {
+    const { toolResult } = await runToolCall('generateCoupon', '{"discount":50}', 'call_coupon_50')
+
+    assert.equal(toolResult.discount, 50)
+    assert.equal(toolResult.couponCode, security.generateCoupon(50))
+    assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, true)
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
