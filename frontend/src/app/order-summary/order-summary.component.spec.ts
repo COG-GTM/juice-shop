@@ -26,6 +26,7 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { DeliveryService } from '../Services/delivery.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('OrderSummaryComponent', () => {
@@ -37,6 +38,7 @@ describe('OrderSummaryComponent', () => {
     let deliveryService: any
     let deluxeGuard
     let snackBar: any
+    let snackBarHelperService: any
 
     beforeEach(async () => {
         addressService = {
@@ -68,6 +70,9 @@ describe('OrderSummaryComponent', () => {
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
+        snackBarHelperService = {
+            open: vi.fn().mockName("SnackBarHelperService.open")
+        }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule.withRoutes([
@@ -91,6 +96,7 @@ describe('OrderSummaryComponent', () => {
                 { provide: DeliveryService, useValue: deliveryService },
                 { provide: DeluxeGuard, useValue: deluxeGuard },
                 { provide: MatSnackBar, useValue: snackBar },
+                { provide: SnackBarHelperService, useValue: snackBarHelperService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -169,5 +175,12 @@ describe('OrderSummaryComponent', () => {
         expect(removeItemSpy).toHaveBeenCalledWith('deliveryMethodId')
         expect(removeItemSpy).toHaveBeenCalledWith('couponDetails')
         expect(removeItemSpy).toHaveBeenCalledWith('couponDiscount')
+    })
+
+    it('should show an error snackbar when checkout fails', () => {
+        basketService.checkout.mockReturnValue(throwError(() => ({ error: { error: { message: 'Order failed' } } })))
+        console.log = vi.fn()
+        component.placeOrder()
+        expect(snackBarHelperService.open).toHaveBeenCalledWith('Order failed', 'errorBar')
     })
 })
