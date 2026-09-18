@@ -5,10 +5,12 @@
 
 import { SearchResultComponent } from '../search-result/search-result.component'
 import { WindowRefService } from '../Services/window-ref.service'
+import { BasketService } from '../Services/basket.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { UserService } from '../Services/user.service'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { LoginComponent } from './login.component'
+import { ActivatedRoute, Router } from '@angular/router'
 import { RouterTestingModule } from '@angular/router/testing'
 import { ReactiveFormsModule } from '@angular/forms'
 
@@ -33,6 +35,9 @@ describe('LoginComponent', () => {
     let component: LoginComponent
     let fixture: ComponentFixture<LoginComponent>
     let userService: any
+    let basketService: BasketService
+    let router: Router
+    let route: ActivatedRoute
     let location: Location
 
     beforeEach(async () => {
@@ -75,15 +80,23 @@ describe('LoginComponent', () => {
             .compileComponents()
 
         location = TestBed.inject(Location)
+        basketService = TestBed.inject(BasketService)
+        router = TestBed.inject(Router)
+        route = TestBed.inject(ActivatedRoute)
     })
 
     beforeEach(() => {
         localStorage.removeItem('token')
         localStorage.removeItem('email')
+        localStorage.removeItem('totp_tmp_token')
         sessionStorage.removeItem('bid')
         fixture = TestBed.createComponent(LoginComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
     })
 
     it('should create', () => {
@@ -172,5 +185,56 @@ describe('LoginComponent', () => {
         component.rememberMe.setValue(true)
         component.login()
         expect(localStorage.getItem('email')).toBe('horst@juice-sh.op')
+    })
+
+    it('merges the guest basket into the user basket on successful login', () => {
+        const mergeGuestBasket = vi.spyOn(basketService, 'mergeGuestBasketIntoUserBasket').mockReturnValue(of(void 0))
+        userService.login.mockReturnValue(of({ token: 'token', bid: 4711 }))
+        component.login()
+        expect(mergeGuestBasket).toHaveBeenCalledWith(4711)
+    })
+
+    it('completes login even if merging the guest basket fails', async () => {
+        vi.spyOn(basketService, 'mergeGuestBasketIntoUserBasket').mockReturnValue(throwError(() => new Error('Merge failed')))
+        userService.login.mockReturnValue(of({ token: 'token', bid: 4711 }))
+        component.login()
+        await fixture.whenStable()
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
+        expect(location.path()).toBe('/search')
+    })
+
+    it('forwards to the redirect URL given as query parameter after successful login', () => {
+        vi.spyOn(route.snapshot.queryParamMap, 'get').mockReturnValue('/basket')
+        const navigateByUrl = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true)
+        userService.login.mockReturnValue(of({ token: 'token' }))
+        component.login()
+        expect(navigateByUrl).toHaveBeenCalledWith('/basket')
+    })
+
+    it('stores the temporary token and forwards to 2FA entry when a TOTP token is required', () => {
+        const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        userService.login.mockReturnValue(throwError({ error: { status: 'totp_token_required', data: { tmpToken: 'tmpToken' } } }))
+        component.login()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('tmpToken')
+        expect(navigate).toHaveBeenCalledWith(['/2fa/enter'])
+    })
+
+    it('keeps the authentication token and error untouched when a TOTP token is required', () => {
+        vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        localStorage.setItem('token', 'token')
+        userService.login.mockReturnValue(throwError({ error: { status: 'totp_token_required', data: { tmpToken: 'tmpToken' } } }))
+        component.login()
+        expect(localStorage.getItem('token')).toBe('token')
+        expect(component.error).toBeUndefined()
+        expect(userService.isLoggedIn.next).not.toHaveBeenCalled()
+    })
+
+    it('redirects to the OAuth provider on Google login', () => {
+        const replace = vi.fn()
+        vi.spyOn(WindowRefService.prototype, 'nativeWindow', 'get').mockReturnValue({ location: { replace } })
+        component.clientId = 'clientId'
+        component.redirectUri = 'http://localhost:3000'
+        component.googleLogin()
+        expect(replace).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?client_id=clientId&response_type=token&scope=email&redirect_uri=http://localhost:3000')
     })
 })
