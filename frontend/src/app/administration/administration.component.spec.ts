@@ -80,6 +80,10 @@ describe('AdministrationComponent', () => {
         fixture.detectChanges()
     })
 
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
+
     it('should create', () => {
         expect(component).toBeTruthy()
     })
@@ -89,6 +93,31 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data.length).toBe(2)
         expect(component.userDataSource.data[0].email.toString()).toContain('User1')
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
+    })
+
+    it('should mark users with a recent login as having an active session', () => {
+        const nowInSeconds = Date.now() / 1000
+        userService.find.mockReturnValue(of([
+            { email: 'ActiveUser', lastLoginTime: nowInSeconds - 60 },
+            { email: 'InactiveUser', lastLoginTime: nowInSeconds - (60 * 60 * 7) },
+            { email: 'NeverLoggedInUser' }
+        ]))
+        component.findAllUsers()
+
+        expect(component.userDataSource.data[0].email.toString()).toContain('class="confirmation"')
+        expect(component.userDataSource.data[1].email.toString()).toContain('class="error"')
+        expect(component.userDataSource.data[2].email.toString()).toContain('class="error"')
+    })
+
+    it('should determine an active session from the six hour login window', () => {
+        const nowInSeconds = 1700000000
+        const sixHoursInSeconds = 60 * 60 * 6
+        vi.spyOn(Date, 'now').mockReturnValue(nowInSeconds * 1000)
+
+        expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: nowInSeconds - sixHoursInSeconds + 1 })).toBe(true)
+        expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: nowInSeconds - sixHoursInSeconds })).toBe(false)
+        expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: nowInSeconds - sixHoursInSeconds - 1 })).toBe(false)
+        expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: undefined as unknown as number })).toBeFalsy()
     })
 
     it('should give an error if UserService fails to find all users', () => {
