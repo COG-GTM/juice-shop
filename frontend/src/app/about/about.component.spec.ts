@@ -77,6 +77,10 @@ describe('AboutComponent', () => {
         fixture.detectChanges()
     })
 
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
+
     it('should create', () => {
         expect(component).toBeTruthy()
     })
@@ -144,8 +148,6 @@ describe('AboutComponent', () => {
         expect(() => { component.ngOnInit() }).not.toThrow()
         expect(component.twitterUrl).toBeUndefined()
         expect(consoleError).toHaveBeenCalled()
-
-        consoleError.mockRestore()
     })
 
     it('should add a gallery image with sanitized star caption for each feedback', () => {
@@ -182,7 +184,5 @@ describe('AboutComponent', () => {
         expect(() => { component.ngOnInit() }).not.toThrow()
         expect(galleryRef.addImage).not.toHaveBeenCalled()
         expect(consoleError).toHaveBeenCalled()
-
-        consoleError.mockRestore()
     })
 })
