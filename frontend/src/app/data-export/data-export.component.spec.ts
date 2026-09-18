@@ -56,10 +56,15 @@ describe('DataExportComponent', () => {
     })
 
     beforeEach(() => {
+        localStorage.removeItem('lstdtxprt')
         fixture = TestBed.createComponent(DataExportComponent)
         component = fixture.componentInstance
         domSanitizer = TestBed.inject(DomSanitizer)
         fixture.detectChanges()
+    })
+
+    afterEach(() => {
+        localStorage.removeItem('lstdtxprt')
     })
 
     it('should compile', () => {
@@ -95,6 +100,48 @@ describe('DataExportComponent', () => {
         component.getNewCaptcha()
         const sanitezedCaptcha = domSanitizer.sanitize(SecurityContext.HTML, component.captcha)
         expect(sanitezedCaptcha).toBe('<svg>captcha</svg>')
+    })
+
+    it('should require a captcha when the last export was less than five minutes ago', () => {
+        localStorage.setItem('lstdtxprt', JSON.stringify(new Date(Date.now() - 60000)))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.needCaptcha()
+        expect(component.presenceOfCaptcha).toBe(true)
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
+    it('should not require a captcha when the last export was more than five minutes ago', () => {
+        localStorage.setItem('lstdtxprt', JSON.stringify(new Date(Date.now() - 300001)))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.needCaptcha()
+        expect(component.presenceOfCaptcha).toBe(false)
+        expect(imageCaptchaService.getCaptcha).not.toHaveBeenCalled()
+    })
+
+    it('should not require a captcha when no previous export is recorded', () => {
+        imageCaptchaService.getCaptcha.mockClear()
+        component.needCaptcha()
+        expect(component.presenceOfCaptcha).toBe(false)
+        expect(imageCaptchaService.getCaptcha).not.toHaveBeenCalled()
+    })
+
+    it('should attach the captcha answer to the data export request when a captcha is present', () => {
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        component.presenceOfCaptcha = true
+        component.captchaControl.setValue('12345')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith(expect.objectContaining({ answer: '12345', format: '1' }))
+    })
+
+    it('should not attach a captcha answer to the data export request when no captcha is present', () => {
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        component.captchaControl.setValue('12345')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith(expect.not.objectContaining({ answer: expect.anything() }))
     })
 
     it('should show the confirmation and fetch user data and reset data export form on requesting data export', () => {
