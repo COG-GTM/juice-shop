@@ -7,10 +7,19 @@ import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import config from 'config'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
+import { ordersCollection } from '../../data/mongodb'
 
 const MOCK_LLM_PORT = 43210
+
+const ADMIN_EMAIL = 'admin@' + config.get<string>('application.domain')
+const ADMIN_MASKED_EMAIL = '*dm*n@j**c*-sh.*p'
+const OWN_ORDER_ID = 'chat-own-order-1234'
+const FOREIGN_ORDER_ID = 'chat-foreign-order-1234'
 
 let app: Express
 let mockServer: http.Server
@@ -86,6 +95,23 @@ before(async () => {
   })
   const result = await createTestApp()
   app = result.app
+
+  await ordersCollection.insert({
+    orderId: OWN_ORDER_ID,
+    email: ADMIN_MASKED_EMAIL,
+    totalPrice: 9.99,
+    products: [{ quantity: 1, name: 'Apple Juice (1000ml)', price: 9.99, total: 9.99 }],
+    eta: '2',
+    delivered: false
+  })
+  await ordersCollection.insert({
+    orderId: FOREIGN_ORDER_ID,
+    email: 'j*m@j**c*-sh.*p',
+    totalPrice: 1.99,
+    products: [{ quantity: 1, name: 'Orange Juice (1000ml)', price: 1.99, total: 1.99 }],
+    eta: '5',
+    delivered: false
+  })
 }, { timeout: 60000 })
 
 after(async () => {
@@ -97,6 +123,35 @@ after(async () => {
     mockServer.close(() => { resolve() })
   })
 })
+
+async function callGetOrderByIdTool (orderId: string, token?: string): Promise<{ status: number, toolResult: any }> {
+  let callCount = 0
+  let toolContent: string | undefined
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const parsed = JSON.parse(body)
+      toolContent = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
+      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
+    }
+  }
+
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (token) headers.Authorization = 'Bearer ' + token
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set(headers)
+    .send({ messages: [{ role: 'user', content: `Where is my order ${orderId}?` }] })
+
+  if (!toolContent) throw new Error('LLM mock did not receive a getOrderById tool result')
+  return { status: res.status, toolResult: JSON.parse(toolContent) }
+}
 
 void describe('/rest/chat', { timeout: 120000 }, () => {
   void it('POST returns streamed text content as SSE events', { timeout: 15000 }, async () => {
@@ -205,6 +260,53 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST getOrderById tool call rejects unauthenticated customers', { timeout: 15000 }, async () => {
+    const { status, toolResult } = await callGetOrderByIdTool(OWN_ORDER_ID)
+
+    assert.equal(status, 200)
+    assert.equal(toolResult.error, 'Customer not authenticated')
+  })
+
+  void it('POST getOrderById tool call rejects tokens of unknown customers', { timeout: 15000 }, async () => {
+    const token = security.authorize({ data: { id: 999999 } })
+
+    const { status, toolResult } = await callGetOrderByIdTool(OWN_ORDER_ID, token)
+
+    assert.equal(status, 200)
+    assert.equal(toolResult.error, 'Customer not found')
+  })
+
+  void it('POST getOrderById tool call returns an order of the current customer', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: ADMIN_EMAIL, password: 'admin123' })
+
+    const { status, toolResult } = await callGetOrderByIdTool(OWN_ORDER_ID, token)
+
+    assert.equal(status, 200)
+    assert.equal(toolResult.orderId, OWN_ORDER_ID)
+    assert.equal(toolResult.email, ADMIN_MASKED_EMAIL)
+    assert.equal(toolResult.totalPrice, 9.99)
+    assert.equal(toolResult.eta, '2')
+  })
+
+  void it('POST getOrderById tool call denies access to an order of another customer', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: ADMIN_EMAIL, password: 'admin123' })
+
+    const { status, toolResult } = await callGetOrderByIdTool(FOREIGN_ORDER_ID, token)
+
+    assert.equal(status, 200)
+    assert.equal(toolResult.error, 'Order does not belong to the current customer')
+    assert.equal(toolResult.products, undefined)
+  })
+
+  void it('POST getOrderById tool call reports unknown order ids', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: ADMIN_EMAIL, password: 'admin123' })
+
+    const { status, toolResult } = await callGetOrderByIdTool('does-not-exist-0000', token)
+
+    assert.equal(status, 200)
+    assert.equal(toolResult.error, 'Order not found')
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
