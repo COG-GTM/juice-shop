@@ -109,7 +109,9 @@ describe('OAuthComponent', () => {
     })
 
     it('passes the access token parsed from the redirect url to the OAuth login', () => {
-        component.ngOnInit()
+        userService.oauthLogin.mockClear()
+        TestBed.createComponent(OAuthComponent).detectChanges()
+        expect(userService.oauthLogin).toHaveBeenCalledTimes(1)
         expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
     })
 
@@ -118,9 +120,13 @@ describe('OAuthComponent', () => {
         const cookieSpy = vi.spyOn(cookieService, 'put')
         userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
         userService.login.mockReturnValue(of({ token: 'apiToken', bid: 42 }))
+        userService.isLoggedIn.next.mockClear()
+        localStorage.removeItem('token')
+        sessionStorage.removeItem('bid')
 
-        component.ngOnInit()
-        await fixture.whenStable()
+        const successFixture = TestBed.createComponent(OAuthComponent)
+        successFixture.detectChanges()
+        await successFixture.whenStable()
 
         expect(cookieSpy).toHaveBeenCalledWith('token', 'apiToken', expect.objectContaining({ expires: expect.any(Date) }))
         expect(localStorage.getItem('token')).toBe('apiToken')
