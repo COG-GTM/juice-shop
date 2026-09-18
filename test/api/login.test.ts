@@ -278,4 +278,10 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '127.0.0.1')
   })
+
+  void it('GET last login IP is not saved when not logged in', async () => {
+    const res = await request(app).get('/rest/saveLoginIp')
+
+    assert.equal(res.status, 401)
+  })
 })
