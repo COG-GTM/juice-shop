@@ -12,10 +12,13 @@ describe('PasswordStrengthComponent', () => {
     let component: PasswordStrengthComponent
     let fixture: ComponentFixture<PasswordStrengthComponent>
 
+    let firstPasswordChange = true
+
     const setPassword = (password: string) => {
         const previous = component.password
         component.password = password
-        component.ngOnChanges({ password: new SimpleChange(previous, password, previous === '') })
+        component.ngOnChanges({ password: new SimpleChange(previous, password, firstPasswordChange) })
+        firstPasswordChange = false
         fixture.detectChanges()
     }
 
@@ -27,6 +30,7 @@ describe('PasswordStrengthComponent', () => {
 
         fixture = TestBed.createComponent(PasswordStrengthComponent)
         component = fixture.componentInstance
+        firstPasswordChange = true
         fixture.detectChanges()
     })
 
