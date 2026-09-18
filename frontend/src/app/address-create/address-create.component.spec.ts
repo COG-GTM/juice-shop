@@ -14,6 +14,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 
 import { of, throwError } from 'rxjs'
 import { RouterTestingModule } from '@angular/router/testing'
+import { ActivatedRoute, convertToParamMap } from '@angular/router'
 import { AddressService } from '../Services/address.service'
 import { MatGridListModule } from '@angular/material/grid-list'
 import { EventEmitter } from '@angular/core'
@@ -233,5 +234,71 @@ describe('AddressCreateComponent', () => {
         expect(component.addressControl.value).toBe('Bakers Street')
         expect(component.cityControl.value).toBe('NYC')
         expect(component.stateControl.value).toBe('NY')
+    })
+
+    it('should stay in create mode when no addressId is in the route', () => {
+        expect(component.mode).toBe('create')
+        expect(addressService.getById).not.toHaveBeenCalled()
+    })
+})
+
+describe('AddressCreateComponent in edit mode', () => {
+    let component: AddressCreateComponent
+    let addressService
+
+    beforeEach(async () => {
+        addressService = {
+            getById: vi.fn().mockName("AddressService.getById"),
+            put: vi.fn().mockName("AddressService.put"),
+            save: vi.fn().mockName("AddressService.save")
+        }
+        addressService.getById.mockReturnValue(of({ country: 'US', fullName: 'jim', mobileNum: 9800000000, zipCode: 'NX 101', streetAddress: 'Bakers Street', city: 'NYC', state: 'NY' }))
+        addressService.put.mockReturnValue(of({}))
+        addressService.save.mockReturnValue(of({}))
+
+        TestBed.configureTestingModule({
+            imports: [RouterTestingModule,
+                TranslateModule.forRoot(),
+                ReactiveFormsModule,
+                MatCardModule,
+                MatFormFieldModule,
+                MatInputModule,
+                MatGridListModule,
+                MatIconModule,
+                MatSnackBarModule,
+                AddressCreateComponent],
+            providers: [
+                { provide: AddressService, useValue: addressService },
+                { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ addressId: '42' })) } },
+                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClientTesting()
+            ]
+        })
+        await TestBed.compileComponents()
+
+        const editFixture = TestBed.createComponent(AddressCreateComponent)
+        component = editFixture.componentInstance
+        editFixture.detectChanges()
+    })
+
+    it('should switch to edit mode and load the address given by the route', () => {
+        expect(component.mode).toBe('edit')
+        expect(addressService.getById).toHaveBeenCalledWith('42')
+    })
+
+    it('should prepopulate the form with the loaded address', () => {
+        expect(component.countryControl.value).toBe('US')
+        expect(component.nameControl.value).toBe('jim')
+        expect(component.numberControl.value).toBe(9800000000)
+        expect(component.pinControl.value).toBe('NX 101')
+        expect(component.addressControl.value).toBe('Bakers Street')
+        expect(component.cityControl.value).toBe('NYC')
+        expect(component.stateControl.value).toBe('NY')
+    })
+
+    it('should update the address loaded from the route on save', () => {
+        component.save()
+        expect(addressService.put).toHaveBeenCalledWith('42', expect.objectContaining({ city: 'NYC' }))
+        expect(addressService.save).not.toHaveBeenCalled()
     })
 })
