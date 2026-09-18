@@ -25,8 +25,14 @@ export class ConversationStorageService {
   getAll (): StoredConversation[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const conversations: StoredConversation[] = JSON.parse(raw)
-    return conversations.sort((a, b) => b.updatedAt - a.updatedAt)
+    let conversations: unknown
+    try {
+      conversations = JSON.parse(raw)
+    } catch {
+      return []
+    }
+    if (!Array.isArray(conversations)) return []
+    return (conversations as StoredConversation[]).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   getById (id: string): StoredConversation | undefined {
