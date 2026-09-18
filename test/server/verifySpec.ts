@@ -12,11 +12,24 @@ import type { Product, Challenge } from 'data/types'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as security from '../../lib/insecurity'
 import { type UserModel } from 'models/user'
+import { ComplaintModel } from '../../models/complaint'
+import { FeedbackModel } from '../../models/feedback'
 import * as verify from '../../routes/verify'
 import { isWindows } from '../../lib/utils'
 const expect = chai.expect
 
 chai.use(sinonChai)
+
+async function drainPendingPromises () {
+  const unhandledRejections: unknown[] = []
+  const onUnhandledRejection = (reason: unknown) => unhandledRejections.push(reason)
+  process.on('unhandledRejection', onUnhandledRejection)
+  for (let tick = 0; tick < 10; tick++) {
+    await new Promise(resolve => setImmediate(resolve))
+  }
+  process.off('unhandledRejection', onUnhandledRejection)
+  return unhandledRejections
+}
 
 describe('verify', () => {
   let req: any
@@ -245,6 +258,96 @@ describe('verify', () => {
         verify.databaseRelatedChallenges()(req, res, next)
 
         expect(challenges.changeProductChallenge.solved).to.equal(false)
+      })
+    })
+
+    describe('challenges querying feedback and complaints', () => {
+      let feedbackStub: sinon.SinonStub
+      let complaintStub: sinon.SinonStub
+
+      beforeEach(() => {
+        challenges.changeProductChallenge = { solved: true, save } as unknown as Challenge
+        challenges.feedbackChallenge = { key: 'feedbackChallenge', solved: false, save } as unknown as Challenge
+        challenges.knownVulnerableComponentChallenge = { key: 'knownVulnerableComponentChallenge', solved: false, save } as unknown as Challenge
+        challenges.weirdCryptoChallenge = { key: 'weirdCryptoChallenge', solved: true, save } as unknown as Challenge
+        challenges.typosquattingNpmChallenge = { key: 'typosquattingNpmChallenge', solved: true, save } as unknown as Challenge
+        challenges.typosquattingAngularChallenge = { key: 'typosquattingAngularChallenge', solved: true, save } as unknown as Challenge
+        challenges.hiddenImageChallenge = { key: 'hiddenImageChallenge', solved: true, save } as unknown as Challenge
+        challenges.supplyChainAttackChallenge = { key: 'supplyChainAttackChallenge', solved: true, save } as unknown as Challenge
+        challenges.dlpPastebinDataLeakChallenge = { key: 'dlpPastebinDataLeakChallenge', solved: true, save } as unknown as Challenge
+        challenges.csafChallenge = { key: 'csafChallenge', solved: true, save } as unknown as Challenge
+        challenges.leakedApiKeyChallenge = { key: 'leakedApiKeyChallenge', solved: true, save } as unknown as Challenge
+        feedbackStub = sinon.stub(FeedbackModel, 'findAndCountAll')
+        complaintStub = sinon.stub(ComplaintModel, 'findAndCountAll')
+      })
+
+      afterEach(() => {
+        feedbackStub.restore()
+        complaintStub.restore()
+      })
+
+      it('"feedbackChallenge" is solved when no 5-star feedback exists', async () => {
+        feedbackStub.resolves({ count: 0, rows: [] })
+        complaintStub.resolves({ count: 0, rows: [] })
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await drainPendingPromises()
+
+        expect(challenges.feedbackChallenge.solved).to.equal(true)
+      })
+
+      it('"knownVulnerableComponentChallenge" is solved when a feedback matches a vulnerable component', async () => {
+        feedbackStub.resolves({ count: 1, rows: [] })
+        complaintStub.resolves({ count: 0, rows: [] })
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await drainPendingPromises()
+
+        expect(challenges.knownVulnerableComponentChallenge.solved).to.equal(true)
+      })
+
+      it('"knownVulnerableComponentChallenge" is solved when a complaint matches a vulnerable component', async () => {
+        feedbackStub.resolves({ count: 0, rows: [] })
+        complaintStub.resolves({ count: 1, rows: [] })
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await drainPendingPromises()
+
+        expect(challenges.knownVulnerableComponentChallenge.solved).to.equal(true)
+      })
+
+      it('no challenge is solved and no rejection is left unhandled when the feedback query fails', async () => {
+        feedbackStub.rejects(new Error('Database unavailable'))
+        complaintStub.resolves({ count: 0, rows: [] })
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        const unhandledRejections = await drainPendingPromises()
+
+        expect(unhandledRejections).to.deep.equal([])
+        expect(challenges.feedbackChallenge.solved).to.equal(false)
+        expect(challenges.knownVulnerableComponentChallenge.solved).to.equal(false)
+      })
+
+      it('no challenge is solved and no rejection is left unhandled when the complaint query fails', async () => {
+        feedbackStub.resolves({ count: 0, rows: [] })
+        complaintStub.rejects(new Error('Database unavailable'))
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        const unhandledRejections = await drainPendingPromises()
+
+        expect(unhandledRejections).to.deep.equal([])
+        expect(challenges.knownVulnerableComponentChallenge.solved).to.equal(false)
+      })
+
+      it('the complaint result is still evaluated when the feedback query fails', async () => {
+        feedbackStub.rejects(new Error('Database unavailable'))
+        complaintStub.resolves({ count: 1, rows: [] })
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        const unhandledRejections = await drainPendingPromises()
+
+        expect(unhandledRejections).to.deep.equal([])
+        expect(challenges.knownVulnerableComponentChallenge.solved).to.equal(true)
       })
     })
   })

@@ -17,6 +17,7 @@ import { ComplaintModel } from '../models/complaint'
 import { FeedbackModel } from '../models/feedback'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 export const emptyUserRegistration = () => (req: Request, res: Response, next: NextFunction) => {
   challengeUtils.solveIf(challenges.emptyUserRegistration, () => {
@@ -146,7 +147,7 @@ async function checkPatternInFeedbackAndComplaints (
       challengeUtils.solve(challenge)
     }
   }).catch(() => {
-    throw new Error('Unable to retrieve feedback details. Please try again')
+    logger.warn(`Unable to retrieve feedback details for challenge ${challenge.key}`)
   })
 
   const complaintCheck = ComplaintModel.findAndCountAll({
@@ -156,7 +157,7 @@ async function checkPatternInFeedbackAndComplaints (
       challengeUtils.solve(challenge)
     }
   }).catch(() => {
-    throw new Error('Unable to retrieve complaint details. Please try again')
+    logger.warn(`Unable to retrieve complaint details for challenge ${challenge.key}`)
   })
 
   await Promise.all([feedbackCheck, complaintCheck])
@@ -219,12 +220,12 @@ function changeProductChallenge (osaft: Product) {
 }
 
 function feedbackChallenge () {
-  FeedbackModel.findAndCountAll({ where: { rating: 5 } }).then(({ count }: { count: number }) => {
+  void FeedbackModel.findAndCountAll({ where: { rating: 5 } }).then(({ count }: { count: number }) => {
     if (count === 0) {
       challengeUtils.solve(challenges.feedbackChallenge)
     }
   }).catch(() => {
-    throw new Error('Unable to retrieve feedback details. Please try again')
+    logger.warn(`Unable to retrieve feedback details for challenge ${challenges.feedbackChallenge.key}`)
   })
 }
 
