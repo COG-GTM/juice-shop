@@ -111,7 +111,7 @@ describe('saveLoginIp', () => {
     await saveLoginIp()(req, res, next)
 
     expect(next).to.have.been.calledWith(error)
-    expect(res.json).to.have.not.been.called
+    expect(res.json).to.have.callCount(0)
   })
 
   it('returns 401 for a request without a valid authentication token', async () => {
@@ -120,6 +120,6 @@ describe('saveLoginIp', () => {
     await saveLoginIp()(req, res, next)
 
     expect(res.sendStatus).to.have.been.calledWith(401)
-    expect(findByPk).to.have.not.been.called
+    expect(findByPk).to.have.callCount(0)
   })
 })
