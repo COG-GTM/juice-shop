@@ -62,6 +62,7 @@ describe('LocalBackupService', () => {
 
     afterEach(() => {
         vi.restoreAllMocks()
+        vi.unstubAllGlobals()
     })
 
     it('should be created', () => {
@@ -179,5 +180,7 @@ describe('LocalBackupService', () => {
 })
 
 function mockLocationReload () {
-    return vi.spyOn(Location.prototype, 'reload').mockImplementation(() => {})
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...globalThis.location, reload })
+    return reload
 }
