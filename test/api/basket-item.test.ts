@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as utils from '../../lib/utils'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -72,6 +74,27 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
+
+  void it('POST new basket item into another users basket is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 3, ProductId: 2, quantity: 1 })
+    assert.equal(res.status, 401)
+    assert.match(res.text, /Invalid BasketId/)
+  })
+
+  if (utils.isChallengeEnabled(challenges.basketManipulateChallenge)) {
+    void it('POST new basket item into another users basket solves "basketManipulateChallenge" when own basket id is sent first', async () => {
+      const res = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send('{"BasketId":2,"ProductId":2,"quantity":1,"BasketId":3}')
+      assert.equal(res.status, 200)
+      assert.equal(res.body.data.BasketId, 3)
+      assert.equal(challenges.basketManipulateChallenge.solved, true)
+    })
+  }
 })
 
 void describe('/api/BasketItems/:id', () => {
