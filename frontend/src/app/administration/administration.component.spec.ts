@@ -80,6 +80,10 @@ describe('AdministrationComponent', () => {
         fixture.detectChanges()
     })
 
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
+
     it('should create', () => {
         expect(component).toBeTruthy()
     })
@@ -114,8 +118,6 @@ describe('AdministrationComponent', () => {
         expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: nowInSeconds - sixHoursInSeconds })).toBe(false)
         expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: nowInSeconds - sixHoursInSeconds - 1 })).toBe(false)
         expect(component.doesUserHaveAnActiveSession({ email: 'User', lastLoginTime: undefined as unknown as number })).toBeFalsy()
-
-        vi.mocked(Date.now).mockRestore()
     })
 
     it('should give an error if UserService fails to find all users', () => {
