@@ -7,11 +7,13 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let deluxeAuthHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +26,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: deluxeToken } = await login(app, {
+      email: 'ciso@' + config.get<string>('application.domain'),
+      password: 'mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb'
+    })
+    deluxeAuthHeader = {
+      Authorization: 'Bearer ' + deluxeToken,
       'content-type': 'application/json'
     }
   },
@@ -71,6 +82,24 @@ void describe('/api/BasketItems', () => {
       .send({ BasketId: 2, ProductId: 1, quantity: 6 })
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
+  })
+
+  void it('POST new basket item with more than allowed quantity is permitted for deluxe members', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(deluxeAuthHeader)
+      .send({ ProductId: 1, quantity: 6 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.quantity, 6)
+  })
+
+  void it('POST new basket item for product without quantity information fails', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 999999, quantity: 1 })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('No such product found!'))
   })
 })
 
@@ -196,6 +225,30 @@ void describe('/api/BasketItems/:id', () => {
       .send({ quantity: 6 })
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
+  })
+
+  void it('PUT update basket item with more than allowed quantity is permitted for deluxe members', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(deluxeAuthHeader)
+      .send({ ProductId: 1, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(deluxeAuthHeader)
+      .send({ quantity: 6 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.quantity, 6)
+  })
+
+  void it('PUT update non-existing basket item fails', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/999999')
+      .set(authHeader)
+      .send({ quantity: 2 })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('No such item found!'))
   })
 
   void it('DELETE newly created basket item', async () => {
