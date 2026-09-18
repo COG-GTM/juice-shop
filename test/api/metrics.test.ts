@@ -19,7 +19,6 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
-// The request/upload counters are incremented in an 'on-finished' callback, which runs after the response has been received
 const settleObservedMetrics = async () => { await new Promise((resolve) => setImmediate(resolve)) }
 
 void describe('/metrics', () => {
