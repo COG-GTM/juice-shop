@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { updateMetrics } from '../../routes/metrics'
 
 let app: Express
 
@@ -18,8 +19,15 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
+// The request/upload counters are incremented in an 'on-finished' callback, which runs after the response has been received
+const settleObservedMetrics = async () => { await new Promise((resolve) => setImmediate(resolve)) }
+
 void describe('/metrics', () => {
-  void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET metrics via public API that are available instantaneously', async () => {
+    await updateMetrics()
+    await request(app).get('/metrics').expect(200)
+    await settleObservedMetrics()
+
     const res = await request(app)
       .get('/metrics')
       .expect(200)
@@ -40,13 +48,14 @@ void describe('/metrics', () => {
     assert.match(res.text, /^http_requests_count{status_code="[0-9]XX",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload metrics via public API', async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
 
     await request(app)
       .post('/file-upload')
       .attach('file', fs.readFileSync(file), 'validSizeAndTypeForClient.pdf')
       .expect(204)
+    await settleObservedMetrics()
 
     const res = await request(app)
       .get('/metrics')
@@ -56,13 +65,14 @@ void describe('/metrics', () => {
     assert.match(res.text, /^file_uploads_count{file_type=".*",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload error metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload error metrics via public API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
 
     await request(app)
       .post('/file-upload')
       .attach('file', fs.readFileSync(file), 'invalidSizeForServer.pdf')
       .expect(500)
+    await settleObservedMetrics()
 
     const res = await request(app)
       .get('/metrics')
