@@ -18,6 +18,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatButtonToggleModule } from '@angular/material/button-toggle'
 import { RouterTestingModule } from '@angular/router/testing'
+import { Router } from '@angular/router'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
@@ -28,6 +29,7 @@ describe('BasketComponent', () => {
     let fixture: ComponentFixture<BasketComponent>
     let deluxeGuard
     let snackBar: any
+    let router: Router
 
     beforeEach(async () => {
         TestBed.configureTestingModule({
@@ -57,10 +59,12 @@ describe('BasketComponent', () => {
     beforeEach(() => {
         fixture = TestBed.createComponent(BasketComponent)
         component = fixture.componentInstance
+        router = TestBed.inject(Router)
         fixture.detectChanges()
     })
 
     afterEach(() => {
+        localStorage.removeItem('token')
         vi.restoreAllMocks()
     })
 
@@ -82,5 +86,19 @@ describe('BasketComponent', () => {
         const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
         component.getBonusPoints([1, 10])
         expect(setItemSpy).toHaveBeenCalledWith('itemTotal', '1')
+    })
+
+    it('should redirect to login with basket as redirect url on checkout without token', () => {
+        localStorage.removeItem('token')
+        const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        component.checkout()
+        expect(navigateSpy).toHaveBeenCalledWith(['/login'], { queryParams: { redirectUrl: '/basket' } })
+    })
+
+    it('should forward to address selection on checkout with token', () => {
+        localStorage.setItem('token', 'apiToken')
+        const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        component.checkout()
+        expect(navigateSpy).toHaveBeenCalledWith(['/address/select'])
     })
 })
