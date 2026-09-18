@@ -6,11 +6,18 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { PasswordStrengthComponent } from './password-strength.component'
-import { provideZoneChangeDetection } from '@angular/core'
+import { provideZoneChangeDetection, SimpleChange } from '@angular/core'
 
 describe('PasswordStrengthComponent', () => {
     let component: PasswordStrengthComponent
     let fixture: ComponentFixture<PasswordStrengthComponent>
+
+    const setPassword = (password: string) => {
+        const previous = component.password
+        component.password = password
+        component.ngOnChanges({ password: new SimpleChange(previous, password, previous === '') })
+        fixture.detectChanges()
+    }
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
@@ -84,5 +91,85 @@ describe('PasswordStrengthComponent', () => {
         fixture.detectChanges()
         const progressBar = fixture.nativeElement.querySelector('mat-progress-bar')
         expect(progressBar.getAttribute('aria-valuenow')).toBe('45')
+    })
+
+    it('should not recalculate strength when password did not change', () => {
+        component.password = 'Str0ng!Password'
+        component.ngOnChanges({})
+        expect(component.passwordStrength).toBe(0)
+    })
+
+    it('should score an empty password as 0', () => {
+        setPassword('')
+        expect(component.passwordStrength).toBe(0)
+    })
+
+    it('should score each additional fulfilled check with 20 percent', () => {
+        setPassword('abcdefgh')
+        expect(component.passwordStrength).toBe(40)
+
+        setPassword('Abcdefgh')
+        expect(component.passwordStrength).toBe(60)
+
+        setPassword('Abcdefg1')
+        expect(component.passwordStrength).toBe(80)
+
+        setPassword('Abcdefg1!')
+        expect(component.passwordStrength).toBe(100)
+    })
+
+    it('should score a short lowercase-only password with a single check', () => {
+        setPassword('abc')
+        expect(component.passwordStrength).toBe(20)
+    })
+
+    it('should reflect the calculated strength in the progress bar', () => {
+        setPassword('Abcdefg1!')
+        const progressBar = fixture.nativeElement.querySelector('mat-progress-bar')
+        expect(progressBar.getAttribute('aria-valuenow')).toBe('100')
+        expect(progressBar.classList).toContain('high')
+    })
+
+    it('should require at least the minimum number of characters', () => {
+        setPassword('Abcdef1')
+        expect(component.containAtLeastMinChars).toBe(false)
+
+        setPassword('Abcdefg1')
+        expect(component.containAtLeastMinChars).toBe(true)
+    })
+
+    it('should detect lower case letters', () => {
+        setPassword('ABCDEFG1!')
+        expect(component.containAtLeastOneLowerCaseLetter).toBe(false)
+
+        setPassword('ABCDEFg1!')
+        expect(component.containAtLeastOneLowerCaseLetter).toBe(true)
+    })
+
+    it('should detect upper case letters', () => {
+        setPassword('abcdefg1!')
+        expect(component.containAtLeastOneUpperCaseLetter).toBe(false)
+
+        setPassword('abcdefG1!')
+        expect(component.containAtLeastOneUpperCaseLetter).toBe(true)
+    })
+
+    it('should detect digits', () => {
+        setPassword('Abcdefgh!')
+        expect(component.containAtLeastOneDigit).toBe(false)
+
+        setPassword('Abcdefg1!')
+        expect(component.containAtLeastOneDigit).toBe(true)
+    })
+
+    it('should detect special characters', () => {
+        setPassword('Abcdefg1')
+        expect(component.containAtLeastOneSpecialChar).toBe(false)
+
+        setPassword('Abcdefg1#')
+        expect(component.containAtLeastOneSpecialChar).toBe(true)
+
+        setPassword('Abcdefg1 ')
+        expect(component.containAtLeastOneSpecialChar).toBe(true)
     })
 })
