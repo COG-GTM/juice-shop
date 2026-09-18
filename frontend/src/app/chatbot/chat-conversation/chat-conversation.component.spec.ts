@@ -5,7 +5,7 @@
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { TranslateModule } from '@ngx-translate/core'
-import { ActivatedRoute } from '@angular/router'
+import { ActivatedRoute, Router } from '@angular/router'
 import { ChatConversationComponent } from './chat-conversation.component'
 import { ChatService } from '../../Services/chat.service'
 import { ConversationStorageService } from '../../Services/conversation-storage.service'
@@ -172,6 +172,39 @@ describe('ChatConversationComponent', () => {
         await component.sendMessage('Hello')
 
         expect(conversationStorage.save).toHaveBeenCalled()
+    })
+
+    it('should replace the assistant message with an error and stop streaming', async () => {
+        const afterError = vi.fn()
+        async function* errorStream() {
+            yield { deltaContent: 'partial' }
+            yield { error: true }
+            afterError()
+            yield { deltaContent: 'ignored' }
+        }
+        chatService.streamMessages.mockReturnValue(errorStream())
+
+        await component.sendMessage('Hi')
+
+        expect(component.messages()[1]).toEqual({
+            role: 'assistant',
+            content: 'CHATBOT_ERROR_LLM_UNREACHABLE',
+            error: true
+        })
+        expect(afterError).not.toHaveBeenCalled()
+        expect(component.isLoading()).toBe(false)
+    })
+
+    it('should send the initialMessage query param on init and clear it', () => {
+        const route = TestBed.inject(ActivatedRoute)
+        route.snapshot.queryParams = { initialMessage: 'Hi there' }
+        const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true)
+        const sendMessage = vi.spyOn(component, 'sendMessage').mockResolvedValue(undefined)
+
+        component.ngOnInit()
+
+        expect(sendMessage).toHaveBeenCalledWith('Hi there')
+        expect(navigate).toHaveBeenCalledWith([], { relativeTo: route, queryParams: {}, replaceUrl: true })
     })
 
     it('should load existing conversation on init', () => {
