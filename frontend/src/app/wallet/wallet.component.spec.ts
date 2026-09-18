@@ -13,6 +13,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 
 import { of, throwError } from 'rxjs'
 import { RouterTestingModule } from '@angular/router/testing'
+import { Router } from '@angular/router'
 import { MatGridListModule } from '@angular/material/grid-list'
 import { WalletComponent } from './wallet.component'
 import { WalletService } from '../Services/wallet.service'
@@ -98,6 +99,19 @@ describe('WalletComponent', () => {
         component.ngOnInit()
         fixture.detectChanges()
         expect(component.balance).toBe('100.00')
+    })
+
+    it('should store the chosen amount and navigate to the wallet payment page on continue', async () => {
+        const router = TestBed.inject(Router)
+        const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+        component.balanceControl.setValue(100)
+
+        component.continue()
+        await fixture.whenStable()
+
+        expect(setItemSpy).toHaveBeenCalledWith('walletTotal', 100)
+        expect(navigateSpy).toHaveBeenCalledWith(['/payment', 'wallet'])
     })
 
     it('should log error while getting balance from backend API directly to browser console', () => {
