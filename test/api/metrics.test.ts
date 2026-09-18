@@ -24,7 +24,7 @@ const settleObservedMetrics = async () => { await new Promise((resolve) => setIm
 void describe('/metrics', () => {
   void it('GET metrics via public API that are available instantaneously', async () => {
     await updateMetrics()
-    await request(app).get('/metrics').expect(200)
+    await request(app).get('/rest/admin/application-version').expect(200)
     await settleObservedMetrics()
 
     const res = await request(app)
@@ -65,12 +65,12 @@ void describe('/metrics', () => {
   })
 
   void it('GET file upload error metrics via public API', async () => {
-    const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
+    const file = path.resolve(__dirname, '../files/invalidProfileImageType.docx')
 
     await request(app)
-      .post('/file-upload')
-      .attach('file', fs.readFileSync(file), 'invalidSizeForServer.pdf')
-      .expect(500)
+      .post('/profile/image/file')
+      .attach('file', fs.readFileSync(file), 'invalidProfileImageType.docx')
+      .expect(415)
     await settleObservedMetrics()
 
     const res = await request(app)
