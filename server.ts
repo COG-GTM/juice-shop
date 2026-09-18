@@ -776,6 +776,8 @@ export async function createApp (options?: { inMemoryDb?: boolean }) {
   Prometheus.register.clear()
   const testApp = express()
   testApp.set('view engine', 'hbs')
+  metrics.observeMetrics()
+  testApp.get('/metrics', utils.asyncHandler(metrics.serveMetrics()))
   configureApp(testApp, seq)
   await seq.sync({ force: true })
   await datacreator()
