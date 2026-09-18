@@ -99,6 +99,42 @@ void describe('/dataerasure', () => {
     assert.ok(res.text.includes('no such file or directory'))
   })
 
+  void it('POST erasure request with file path in encryptionkeys folder as layout parameter is not allowed', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: '../encryptionkeys/jwt.pub' })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('File access not allowed'))
+  })
+
+  void it('POST erasure request with file path in ftp folder as layout parameter is not allowed', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: '../ftp/legal.md' })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('File access not allowed'))
+  })
+
+  void it('POST erasure request with ctf.key file as layout parameter is not allowed', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: '../ctf.key' })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('File access not allowed'))
+  })
+
   void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
