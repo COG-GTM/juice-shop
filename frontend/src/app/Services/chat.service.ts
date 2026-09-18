@@ -33,6 +33,7 @@ export class ChatService {
     let resolve: (() => void) | null = null
     let done = false
     let processedLength = 0
+    let buffer = ''
 
     this.http.post(this.host, { messages }, {
       responseType: 'text',
@@ -42,10 +43,11 @@ export class ChatService {
       next: (event) => {
         if (event.type === HttpEventType.DownloadProgress) {
           const text = (event as HttpDownloadProgressEvent).partialText ?? ''
-          const newText = text.slice(processedLength)
+          buffer += text.slice(processedLength)
           processedLength = text.length
 
-          const lines = newText.split('\n')
+          const lines = buffer.split('\n')
+          buffer = lines.pop() ?? ''
           for (const line of lines) {
             const trimmed = line.trim()
             if (!trimmed || !trimmed.startsWith('data: ')) continue
@@ -56,7 +58,16 @@ export class ChatService {
               return
             }
 
-            const parsed = JSON.parse(data)
+            let parsed
+            try {
+              parsed = JSON.parse(data)
+              if (parsed === null || typeof parsed !== 'object') throw new Error('unexpected chunk shape')
+            } catch {
+              chunks.push({ error: 'invalid_chunk' })
+              done = true
+              resolve?.()
+              return
+            }
 
             if (parsed.error) {
               chunks.push({ error: parsed.error })
@@ -68,14 +79,12 @@ export class ChatService {
             const delta = parsed.choices?.[0]?.delta
             const finishReason = parsed.choices?.[0]?.finish_reason
 
-            if (delta) {
-              const chunk: ChatChunk = {}
-              if (delta.content) chunk.deltaContent = delta.content
-              if (delta.tool_calls) chunk.deltaToolCalls = delta.tool_calls
-              if (finishReason) chunk.finishReason = finishReason
-              if (chunk.deltaContent || chunk.deltaToolCalls || chunk.finishReason) {
-                chunks.push(chunk)
-              }
+            const chunk: ChatChunk = {}
+            if (delta?.content) chunk.deltaContent = delta.content
+            if (delta?.tool_calls) chunk.deltaToolCalls = delta.tool_calls
+            if (finishReason) chunk.finishReason = finishReason
+            if (chunk.deltaContent || chunk.deltaToolCalls || chunk.finishReason) {
+              chunks.push(chunk)
             }
           }
           resolve?.()

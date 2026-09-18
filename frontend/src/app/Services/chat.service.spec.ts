@@ -121,6 +121,113 @@ describe('ChatService', () => {
     expect(chunks).toEqual([{ error: 'some_error' }])
   })
 
+  it('should propagate the finish reason of a finish-only chunk', async () => {
+    const messages = [{ role: 'user', content: 'finish' }]
+    const generator = service.streamMessages(messages)
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.event({
+      type: HttpEventType.DownloadProgress,
+      loaded: 50,
+      total: 100,
+      partialText: 'data: {"choices": [{"finish_reason": "stop"}]}\n\ndata: [DONE]\n'
+    })
+
+    req.flush('', { status: 200, statusText: 'OK' })
+    await processPromise
+
+    expect(chunks).toEqual([{ finishReason: 'stop' }])
+  })
+
+  it('should handle malformed chunks', async () => {
+    const messages = [{ role: 'user', content: 'malformed' }]
+    const generator = service.streamMessages(messages)
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.event({
+      type: HttpEventType.DownloadProgress,
+      loaded: 50,
+      total: 100,
+      partialText: 'data: {not json}\n'
+    })
+
+    req.flush('', { status: 200, statusText: 'OK' })
+    await processPromise
+
+    expect(chunks).toEqual([{ error: 'invalid_chunk' }])
+  })
+
+  it('should handle chunks that are valid JSON but not objects', async () => {
+    const messages = [{ role: 'user', content: 'null' }]
+    const generator = service.streamMessages(messages)
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.event({
+      type: HttpEventType.DownloadProgress,
+      loaded: 50,
+      total: 100,
+      partialText: 'data: null\n'
+    })
+
+    req.flush('', { status: 200, statusText: 'OK' })
+    await processPromise
+
+    expect(chunks).toEqual([{ error: 'invalid_chunk' }])
+  })
+
+  it('should buffer events split across progress events', async () => {
+    const messages = [{ role: 'user', content: 'split' }]
+    const generator = service.streamMessages(messages)
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.event({
+      type: HttpEventType.DownloadProgress,
+      loaded: 25,
+      total: 100,
+      partialText: 'data: {"choices"'
+    })
+
+    req.event({
+      type: HttpEventType.DownloadProgress,
+      loaded: 50,
+      total: 100,
+      partialText: 'data: {"choices": [{"delta": {"content": "Hi"}}]}\ndata: [DONE]\n'
+    })
+
+    req.flush('', { status: 200, statusText: 'OK' })
+    await processPromise
+
+    expect(chunks).toEqual([{ deltaContent: 'Hi' }])
+  })
+
   it('should handle connection failure', async () => {
     const messages = [{ role: 'user', content: 'fail' }]
     const generator = service.streamMessages(messages)
