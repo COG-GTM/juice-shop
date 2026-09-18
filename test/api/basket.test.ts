@@ -11,12 +11,76 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
+interface AuthHeader { Authorization: string, 'content-type': string }
+
 let app: Express
-let authHeader: { Authorization: string, 'content-type': string }
+let authHeader: AuthHeader
+let jimUserId: number
 
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const womensDay2019 = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+
+const round = (amount: number) => Math.round(amount * 100) / 100
+
+async function product (id: number) {
+  const res = await request(app).get(`/api/Products/${id}`).set(authHeader)
+  assert.equal(res.status, 200)
+  return res.body.data as { price: number, deluxePrice: number }
+}
+
+async function addToBasket (basketId: number, productId: number, quantity: number, header: AuthHeader) {
+  const res = await request(app)
+    .post('/api/BasketItems')
+    .set(header)
+    .send({ BasketId: basketId, ProductId: productId, quantity })
+  assert.equal(res.status, 200)
+  return res.body.data.id as number
+}
+
+async function emptyBasket (basketId: number, header: AuthHeader) {
+  const res = await request(app).get(`/rest/basket/${basketId}`).set(header)
+  assert.equal(res.status, 200)
+  for (const { BasketItem } of res.body.data.Products ?? []) {
+    await request(app).delete(`/api/BasketItems/${BasketItem.id}`).set(header)
+  }
+}
+
+async function userId (header: AuthHeader) {
+  const res = await request(app).get('/rest/user/whoami').set(header)
+  assert.equal(res.status, 200)
+  return res.body.user.id as number
+}
+
+async function stock (productId: number) {
+  const res = await request(app).get('/api/Quantitys').set(authHeader)
+  assert.equal(res.status, 200)
+  const quantityRow = res.body.data.find((row: { ProductId: number }) => row.ProductId === productId)
+  return quantityRow.quantity as number
+}
+
+async function walletBalance (header: AuthHeader) {
+  const res = await request(app).get('/rest/wallet/balance').set(header)
+  assert.equal(res.status, 200)
+  return res.body.data as number
+}
+
+async function topUpWallet (header: AuthHeader, amount: number) {
+  const cardsRes = await request(app).get('/api/Cards').set(header)
+  assert.equal(cardsRes.status, 200)
+  const res = await request(app)
+    .put('/rest/wallet/balance')
+    .set(header)
+    .send({ balance: amount, paymentId: cardsRes.body.data[0].id })
+  assert.equal(res.status, 200, res.text)
+}
+
+async function trackOrder (orderId: string) {
+  const res = await request(app).get(`/rest/track-order/${orderId}`).set(authHeader)
+  assert.equal(res.status, 200)
+  return res.body.data[0]
+}
 
 before(
   async () => {
@@ -31,6 +95,8 @@ before(
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
     }
+
+    jimUserId = await userId(authHeader)
   },
   { timeout: 60000 }
 )
@@ -159,6 +225,138 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order paid by wallet debits the total price and credits the bonus points', async () => {
+    await emptyBasket(2, authHeader)
+    const { price } = await product(1)
+    const quantity = 2
+    await addToBasket(2, 1, quantity, authHeader)
+    await topUpWallet(authHeader, 1000)
+    const balanceBefore = await walletBalance(authHeader)
+    assert.ok(balanceBefore >= price * quantity, `balance ${balanceBefore} does not cover ${quantity}x ${price}`)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ UserId: jimUserId, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 200, res.text)
+
+    const order = await trackOrder(res.body.orderConfirmation)
+    assert.equal(round(order.totalPrice), round(price * quantity))
+    assert.equal(order.bonus, Math.round(price / 10) * quantity)
+    assert.equal(round(await walletBalance(authHeader)), round(balanceBefore - order.totalPrice + order.bonus))
+  })
+
+  void it('POST placing an order paid by wallet fails when the wallet balance is too low', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const benderUserId = await userId(benderHeader)
+    assert.equal(await walletBalance(benderHeader), 0)
+    await emptyBasket(3, benderHeader)
+    const basketItemId = await addToBasket(3, 1, 1, benderHeader)
+    const stockBefore = await stock(1)
+
+    const res = await request(app)
+      .post('/rest/basket/3/checkout')
+      .set(benderHeader)
+      .send({ UserId: benderUserId, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Insufficient wallet balance.'))
+    assert.equal(await walletBalance(benderHeader), 0)
+    assert.equal(await stock(1), stockBefore - 1, 'stock is decremented before the payment is rejected')
+
+    await request(app).delete(`/api/BasketItems/${basketItemId}`).set(benderHeader)
+  })
+
+  void it('POST placing an order with a delivery method adds its price and eta to the order', async () => {
+    const deliveryRes = await request(app).get('/api/Deliverys/1').set(authHeader)
+    assert.equal(deliveryRes.status, 200)
+    const deliveryMethod = deliveryRes.body.data
+    const { price } = await product(1)
+    await emptyBasket(2, authHeader)
+    await addToBasket(2, 1, 1, authHeader)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ orderDetails: { deliveryMethodId: deliveryMethod.id } })
+    assert.equal(res.status, 200, res.text)
+
+    const order = await trackOrder(res.body.orderConfirmation)
+    assert.equal(order.deliveryPrice, deliveryMethod.price)
+    assert.equal(order.eta, String(deliveryMethod.eta))
+    assert.equal(round(order.totalPrice), round(price + deliveryMethod.price))
+  })
+
+  void it('POST placing an order as a deluxe member uses deluxe product and delivery prices', async () => {
+    const { token } = await login(app, {
+      email: 'uvogin@juice-sh.op',
+      password: 'muda-muda > ora-ora'
+    })
+    const customerHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const { deluxePrice } = await product(1)
+    await emptyBasket(5, customerHeader)
+    await addToBasket(5, 1, 1, customerHeader)
+
+    const upgradeRes = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(customerHeader)
+      .send({ UserId: await userId(customerHeader), paymentMode: 'wallet' })
+    assert.equal(upgradeRes.status, 200)
+    const deluxeHeader = { Authorization: 'Bearer ' + upgradeRes.body.data.token, 'content-type': 'application/json' }
+
+    const deliveryRes = await request(app).get('/api/Deliverys/1').set(deluxeHeader)
+    const deluxeDeliveryPrice = deliveryRes.body.data.price
+
+    const res = await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(deluxeHeader)
+      .send({ orderDetails: { deliveryMethodId: 1 } })
+    assert.equal(res.status, 200, res.text)
+
+    const order = await trackOrder(res.body.orderConfirmation)
+    assert.equal(order.deliveryPrice, deluxeDeliveryPrice)
+    const orderedProduct = order.products.find((item: { id: number }) => item.id === 1)
+    assert.equal(orderedProduct.price, deluxePrice)
+    const expectedTotal = order.products.reduce((sum: number, item: { total: number }) => sum + item.total, deluxeDeliveryPrice)
+    assert.equal(round(order.totalPrice), round(expectedTotal))
+  })
+
+  void it('POST placing an order with a campaign coupon applies its discount', async () => {
+    const { price } = await product(1)
+    await emptyBasket(2, authHeader)
+    await addToBasket(2, 1, 1, authHeader)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ couponData: Buffer.from(`WMNSDY2019-${womensDay2019}`).toString('base64') })
+    assert.equal(res.status, 200, res.text)
+
+    const order = await trackOrder(res.body.orderConfirmation)
+    const discountAmount = (price * 0.75).toFixed(2)
+    assert.equal(order.promotionalAmount, discountAmount)
+    assert.equal(round(order.totalPrice), round(price - parseFloat(discountAmount)))
+  })
+
+  void it('POST placing an order with a campaign coupon for another date is not discounted', async () => {
+    const { price } = await product(1)
+    await emptyBasket(2, authHeader)
+    await addToBasket(2, 1, 1, authHeader)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ couponData: Buffer.from(`WMNSDY2019-${womensDay2019 + 1}`).toString('base64') })
+    assert.equal(res.status, 200, res.text)
+
+    const order = await trackOrder(res.body.orderConfirmation)
+    assert.equal(order.promotionalAmount, '0')
+    assert.equal(round(order.totalPrice), round(price))
   })
 })
 
