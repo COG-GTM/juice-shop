@@ -189,4 +189,33 @@ describe('RegisterComponent', () => {
         component.save()
         expect(console.log).toHaveBeenCalledWith('Error')
     })
+
+    it('should capitalize error message from backend API on failing to save user', () => {
+        userService.save.mockReturnValue(throwError({ error: { errors: [{ message: 'email must be unique' }] } }))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBe('Email must be unique')
+    })
+
+    it('should use raw error from backend API when it has no message on failing to save user', () => {
+        userService.save.mockReturnValue(throwError({ error: { errors: ['Internal Server Error'] } }))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBe('Internal Server Error')
+    })
+
+    it('should not fail on empty error message from backend API when saving user', () => {
+        const backendError = { message: '' }
+        userService.save.mockReturnValue(throwError({ error: { errors: [backendError] } }))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBe(backendError)
+    })
+
+    it('should hold no error when backend API returns no errors on failing to save user', () => {
+        userService.save.mockReturnValue(throwError({ error: {} }))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBeNull()
+    })
 })
