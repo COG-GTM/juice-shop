@@ -201,15 +201,21 @@ export class NavbarComponent implements OnInit {
   }
 
   checkLanguage () {
-    if (this.cookieService.get('language')) {
-      const langKey = this.cookieService.get('language')
-      this.translate.use(langKey)
-      this.selectedLanguage = this.languages.find((y: { key: string }) => y.key === langKey)
-      this.shortKeyLang = this.languages.find((y: { key: string }) => y.key === langKey).shortKey
-    } else {
-      this.changeLanguage('en')
-      this.selectedLanguage = this.languages.find((y: { key: string }) => y.key === 'en')
-      this.shortKeyLang = this.languages.find((y: { key: string }) => y.key === 'en').shortKey
+    const cookieLangKey = this.cookieService.get('language')
+    const cookieLanguage = cookieLangKey ? this.languages.find((y: { key: string }) => y.key === cookieLangKey) : undefined
+
+    if (cookieLanguage) {
+      this.translate.use(cookieLangKey)
+      this.selectedLanguage = cookieLanguage
+      this.shortKeyLang = cookieLanguage.shortKey
+      return
+    }
+
+    this.changeLanguage('en')
+    const defaultLanguage = this.languages.find((y: { key: string }) => y.key === 'en')
+    if (defaultLanguage) {
+      this.selectedLanguage = defaultLanguage
+      this.shortKeyLang = defaultLanguage.shortKey
     }
   }
 
@@ -293,8 +299,8 @@ export class NavbarComponent implements OnInit {
 
   getLanguages () {
     this.langService.getLanguages().subscribe((res: any[]) => {
-      this.languages = res
-      this.filteredLanguages = Array.isArray(res) ? [...res] : []
+      this.languages = Array.isArray(res) ? res : []
+      this.filteredLanguages = [...this.languages]
       this.checkLanguage()
     })
   }
