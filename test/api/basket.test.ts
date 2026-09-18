@@ -66,6 +66,16 @@ async function walletBalance (header: AuthHeader) {
   return res.body.data as number
 }
 
+async function topUpWallet (header: AuthHeader, amount: number) {
+  const cardsRes = await request(app).get('/api/Cards').set(header)
+  assert.equal(cardsRes.status, 200)
+  const res = await request(app)
+    .put('/rest/wallet/balance')
+    .set(header)
+    .send({ balance: amount, paymentId: cardsRes.body.data[0].id })
+  assert.equal(res.status, 200, res.text)
+}
+
 async function trackOrder (orderId: string) {
   const res = await request(app).get(`/rest/track-order/${orderId}`).set(authHeader)
   assert.equal(res.status, 200)
@@ -222,6 +232,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const { price } = await product(1)
     const quantity = 2
     await addToBasket(2, 1, quantity, authHeader)
+    await topUpWallet(authHeader, Math.ceil(price * quantity))
     const balanceBefore = await walletBalance(authHeader)
     assert.ok(balanceBefore >= price * quantity)
 
