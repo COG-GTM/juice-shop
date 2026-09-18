@@ -218,6 +218,20 @@ describe('UserService', () => {
         httpMock.verify()
     })
 
+    it('should emit only the response body when changing the password fails', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let errorResponse: any
+        service.changePassword({ current: 'foo', new: 'bar', repeat: 'baz' }).subscribe({ next: () => { }, error: (err) => (errorResponse = err) })
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/change-password?current=foo&new=bar&repeat=baz')
+        req.flush({ error: 'New and repeated password do not match.' }, { status: 401, statusText: 'Unauthorized' })
+
+        expect(errorResponse).toEqual({ error: 'New and repeated password do not match.' })
+        expect(errorResponse.status).toBeUndefined()
+        httpMock.verify()
+    })
+
     it('should handle error when fetching whoAmI', () => {
         const service = TestBed.inject(UserService)
         const httpMock = TestBed.inject(HttpTestingController)
