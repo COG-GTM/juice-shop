@@ -63,6 +63,33 @@ describe('ProductService', () => {
         httpMock.verify()
     })
 
+    it('should update a product directly via the rest api', () => {
+        const service = TestBed.inject(ProductService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res: any
+        service.put(42, { name: 'Juice' }).subscribe((data) => (res = data))
+        const req = httpMock.expectOne('http://localhost:3000/api/Products/42')
+        req.flush({ data: 'apiResponse' })
+        expect(req.request.method).toBe('PUT')
+        expect(req.request.body).toEqual({ name: 'Juice' })
+        expect(res).toBe('apiResponse')
+        httpMock.verify()
+    })
+
+    it('should handle error when updating a product', () => {
+        const service = TestBed.inject(ProductService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let errorResponse: any
+        service.put(42, { name: 'Juice' }).subscribe({ next: () => { }, error: (err) => (errorResponse = err) })
+        const req = httpMock.expectOne('http://localhost:3000/api/Products/42')
+        req.error(new ErrorEvent('Request failed'), { status: 400, statusText: 'Bad Request' })
+        expect(errorResponse).toBeTruthy()
+        expect(errorResponse.status).toBe(400)
+        httpMock.verify()
+    })
+
     it('should handle error when searching products', () => {
         const service = TestBed.inject(ProductService)
         const httpMock = TestBed.inject(HttpTestingController)
