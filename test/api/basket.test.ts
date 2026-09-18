@@ -232,9 +232,9 @@ void describe('/rest/basket/:id/checkout', () => {
     const { price } = await product(1)
     const quantity = 2
     await addToBasket(2, 1, quantity, authHeader)
-    await topUpWallet(authHeader, Math.ceil(price * quantity))
+    await topUpWallet(authHeader, 1000)
     const balanceBefore = await walletBalance(authHeader)
-    assert.ok(balanceBefore >= price * quantity)
+    assert.ok(balanceBefore >= price * quantity, `balance ${balanceBefore} does not cover ${quantity}x ${price}`)
 
     const res = await request(app)
       .post('/rest/basket/2/checkout')
