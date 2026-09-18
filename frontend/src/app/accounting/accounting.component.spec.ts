@@ -202,7 +202,7 @@ describe('AccountingComponent', () => {
         component.tableData = [{ id: 1, name: 'Apple Juice' }]
         quantityService.getAll.mockReturnValue(of([]))
         component.modifyQuantity(1, 100)
-        expect(quantityService.put).toHaveBeenCalled()
+        expect(quantityService.put).toHaveBeenCalledWith(1, { quantity: 100 })
         expect(quantityService.getAll).toHaveBeenCalled()
     })
 
@@ -210,7 +210,30 @@ describe('AccountingComponent', () => {
         productService.search.mockReturnValue(of([]))
         productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
         component.modifyPrice(1, 100)
-        expect(productService.put).toHaveBeenCalled()
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 100 })
         expect(productService.search).toHaveBeenCalled()
+    })
+
+    it('should clamp negative quantity to zero', () => {
+        quantityService.put.mockReturnValue(of({ ProductId: 1 }))
+        component.tableData = [{ id: 1, name: 'Apple Juice' }]
+        component.modifyQuantity(1, -5)
+        expect(quantityService.put).toHaveBeenCalledWith(1, { quantity: 0 })
+    })
+
+    it('should clamp negative price to zero', () => {
+        productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
+        component.modifyPrice(1, -5)
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 0 })
+    })
+
+    it('should not clamp zero quantity or price', () => {
+        quantityService.put.mockReturnValue(of({ ProductId: 1 }))
+        productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
+        component.tableData = [{ id: 1, name: 'Apple Juice' }]
+        component.modifyQuantity(1, 0)
+        component.modifyPrice(1, 0)
+        expect(quantityService.put).toHaveBeenCalledWith(1, { quantity: 0 })
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 0 })
     })
 })
