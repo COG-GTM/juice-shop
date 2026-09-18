@@ -39,6 +39,14 @@ async function addToBasket (basketId: number, productId: number, quantity: numbe
   return res.body.data.id as number
 }
 
+async function emptyBasket (basketId: number, header: AuthHeader) {
+  const res = await request(app).get(`/rest/basket/${basketId}`).set(header)
+  assert.equal(res.status, 200)
+  for (const { BasketItem } of res.body.data.Products ?? []) {
+    await request(app).delete(`/api/BasketItems/${BasketItem.id}`).set(header)
+  }
+}
+
 async function userId (header: AuthHeader) {
   const res = await request(app).get('/rest/user/whoami').set(header)
   assert.equal(res.status, 200)
@@ -210,16 +218,18 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order paid by wallet debits the total price and credits the bonus points', async () => {
-    const { price } = await product(3)
+    await emptyBasket(2, authHeader)
+    const { price } = await product(1)
     const quantity = 2
-    await addToBasket(2, 3, quantity, authHeader)
+    await addToBasket(2, 1, quantity, authHeader)
     const balanceBefore = await walletBalance(authHeader)
+    assert.ok(balanceBefore >= price * quantity)
 
     const res = await request(app)
       .post('/rest/basket/2/checkout')
       .set(authHeader)
       .send({ UserId: jimUserId, orderDetails: { paymentId: 'wallet' } })
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 200, res.text)
 
     const order = await trackOrder(res.body.orderConfirmation)
     assert.equal(round(order.totalPrice), round(price * quantity))
@@ -235,6 +245,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
     const benderUserId = await userId(benderHeader)
     assert.equal(await walletBalance(benderHeader), 0)
+    await emptyBasket(3, benderHeader)
     const basketItemId = await addToBasket(3, 1, 1, benderHeader)
     const stockBefore = await stock(1)
 
@@ -255,13 +266,14 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(deliveryRes.status, 200)
     const deliveryMethod = deliveryRes.body.data
     const { price } = await product(1)
+    await emptyBasket(2, authHeader)
     await addToBasket(2, 1, 1, authHeader)
 
     const res = await request(app)
       .post('/rest/basket/2/checkout')
       .set(authHeader)
       .send({ orderDetails: { deliveryMethodId: deliveryMethod.id } })
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 200, res.text)
 
     const order = await trackOrder(res.body.orderConfirmation)
     assert.equal(order.deliveryPrice, deliveryMethod.price)
@@ -276,6 +288,7 @@ void describe('/rest/basket/:id/checkout', () => {
     })
     const customerHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
     const { deluxePrice } = await product(1)
+    await emptyBasket(5, customerHeader)
     await addToBasket(5, 1, 1, customerHeader)
 
     const upgradeRes = await request(app)
@@ -292,7 +305,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .post('/rest/basket/5/checkout')
       .set(deluxeHeader)
       .send({ orderDetails: { deliveryMethodId: 1 } })
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 200, res.text)
 
     const order = await trackOrder(res.body.orderConfirmation)
     assert.equal(order.deliveryPrice, deluxeDeliveryPrice)
@@ -304,13 +317,14 @@ void describe('/rest/basket/:id/checkout', () => {
 
   void it('POST placing an order with a campaign coupon applies its discount', async () => {
     const { price } = await product(1)
+    await emptyBasket(2, authHeader)
     await addToBasket(2, 1, 1, authHeader)
 
     const res = await request(app)
       .post('/rest/basket/2/checkout')
       .set(authHeader)
       .send({ couponData: Buffer.from(`WMNSDY2019-${womensDay2019}`).toString('base64') })
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 200, res.text)
 
     const order = await trackOrder(res.body.orderConfirmation)
     const discountAmount = (price * 0.75).toFixed(2)
@@ -320,13 +334,14 @@ void describe('/rest/basket/:id/checkout', () => {
 
   void it('POST placing an order with a campaign coupon for another date is not discounted', async () => {
     const { price } = await product(1)
+    await emptyBasket(2, authHeader)
     await addToBasket(2, 1, 1, authHeader)
 
     const res = await request(app)
       .post('/rest/basket/2/checkout')
       .set(authHeader)
       .send({ couponData: Buffer.from(`WMNSDY2019-${womensDay2019 + 1}`).toString('base64') })
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 200, res.text)
 
     const order = await trackOrder(res.body.orderConfirmation)
     assert.equal(order.promotionalAmount, '0')
