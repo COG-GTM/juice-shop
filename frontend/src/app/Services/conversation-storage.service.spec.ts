@@ -101,6 +101,17 @@ describe('ConversationStorageService', () => {
             expect(result[1].id).toBe('conv_mid')
             expect(result[2].id).toBe('conv_old')
         })
+
+        it('should return an empty array when localStorage holds a non-JSON value', () => {
+            localStorage.setItem(STORAGE_KEY, 'not json at all')
+            expect(() => service.getAll()).not.toThrow()
+            expect(service.getAll()).toEqual([])
+        })
+
+        it('should return an empty array when localStorage holds valid JSON that is not an array', () => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ id: 'conv_1' }))
+            expect(service.getAll()).toEqual([])
+        })
     })
 
     describe('getById', () => {
@@ -222,6 +233,36 @@ describe('ConversationStorageService', () => {
 
             expect(() => service.delete('nonexistent_id')).not.toThrow()
             expect(service.getAll().length).toBe(1)
+        })
+    })
+
+    describe('deleteAll', () => {
+        it('should remove every stored conversation and the storage key', () => {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify([
+                { id: 'conv_1', title: 'A', messages: [], createdAt: 1000, updatedAt: 1000 },
+                { id: 'conv_2', title: 'B', messages: [], createdAt: 2000, updatedAt: 2000 }
+            ]))
+
+            service.deleteAll()
+
+            expect(service.getAll()).toEqual([])
+            expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
+        })
+
+        it('should not affect unrelated localStorage keys', () => {
+            localStorage.setItem('unrelated_key', 'keep me')
+            localStorage.setItem(STORAGE_KEY, JSON.stringify([
+                { id: 'conv_1', title: 'A', messages: [], createdAt: 1000, updatedAt: 1000 }
+            ]))
+
+            service.deleteAll()
+
+            expect(localStorage.getItem('unrelated_key')).toBe('keep me')
+        })
+
+        it('should not throw when there is nothing stored', () => {
+            expect(() => service.deleteAll()).not.toThrow()
+            expect(service.getAll()).toEqual([])
         })
     })
 })
