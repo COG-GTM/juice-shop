@@ -44,6 +44,32 @@ describe('ConfigurationService', () => {
         httpMock.verify()
     })
 
+    it('should reuse the cached configuration observable on subsequent calls', () => {
+        const service = TestBed.inject(ConfigurationService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        const first = service.getApplicationConfiguration()
+        const second = service.getApplicationConfiguration()
+
+        expect(second).toBe(first)
+
+        let res: any
+        first.subscribe(data => { res = data })
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration')
+        req.flush({
+            config: {
+                version: '8.0.0',
+                showGitHubLinks: false
+            }
+        })
+
+        expect(res.version).toBe('8.0.0')
+        httpMock.expectNone('http://localhost:3000/rest/admin/application-configuration')
+
+        httpMock.verify()
+    })
+
     it('should throw an error on recieving an error from the server', () => {
         const service = TestBed.inject(ConfigurationService)
         const httpMock = TestBed.inject(HttpTestingController)
