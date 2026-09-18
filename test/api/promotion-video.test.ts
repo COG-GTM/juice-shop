@@ -5,9 +5,12 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+
+const videoPath = 'frontend/dist/frontend/assets/public/videos/owasp_promo.mp4'
 
 let app: Express
 
@@ -44,5 +47,27 @@ void describe('/video', () => {
       .get('/video')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('video/mp4'))
+  })
+
+  void it('GET promotion video with range header returns partial content', async () => {
+    const fileSize = fs.statSync(videoPath).size
+    const res = await request(app)
+      .get('/video')
+      .set('Range', 'bytes=0-1023')
+    assert.equal(res.status, 206)
+    assert.equal(res.headers['content-range'], `bytes 0-1023/${fileSize}`)
+    assert.equal(res.headers['accept-ranges'], 'bytes')
+    assert.equal(res.headers['content-length'], '1024')
+    assert.ok(res.headers['content-type']?.includes('video/mp4'))
+  })
+
+  void it('GET promotion video with open-ended range returns rest of file', async () => {
+    const fileSize = fs.statSync(videoPath).size
+    const res = await request(app)
+      .get('/video')
+      .set('Range', 'bytes=100-')
+    assert.equal(res.status, 206)
+    assert.equal(res.headers['content-range'], `bytes 100-${fileSize - 1}/${fileSize}`)
+    assert.equal(res.headers['content-length'], String(fileSize - 100))
   })
 })
