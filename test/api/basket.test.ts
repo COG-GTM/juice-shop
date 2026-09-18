@@ -45,6 +45,13 @@ async function userId (header: AuthHeader) {
   return res.body.user.id as number
 }
 
+async function stock (productId: number) {
+  const res = await request(app).get('/api/Quantitys').set(authHeader)
+  assert.equal(res.status, 200)
+  const quantityRow = res.body.data.find((row: { ProductId: number }) => row.ProductId === productId)
+  return quantityRow.quantity as number
+}
+
 async function walletBalance (header: AuthHeader) {
   const res = await request(app).get('/rest/wallet/balance').set(header)
   assert.equal(res.status, 200)
@@ -229,6 +236,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const benderUserId = await userId(benderHeader)
     assert.equal(await walletBalance(benderHeader), 0)
     const basketItemId = await addToBasket(3, 1, 1, benderHeader)
+    const stockBefore = await stock(1)
 
     const res = await request(app)
       .post('/rest/basket/3/checkout')
@@ -237,6 +245,7 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Error: Insufficient wallet balance.'))
     assert.equal(await walletBalance(benderHeader), 0)
+    assert.equal(await stock(1), stockBefore - 1, 'stock is decremented before the payment is rejected')
 
     await request(app).delete(`/api/BasketItems/${basketItemId}`).set(benderHeader)
   })
