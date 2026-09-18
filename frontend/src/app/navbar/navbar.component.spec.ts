@@ -37,6 +37,7 @@ import { MatRadioModule } from '@angular/material/radio'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { MatSearchBarComponent } from '../mat-search-bar/mat-search-bar.component'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { roles } from '../roles'
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -301,6 +302,24 @@ describe('NavbarComponent', () => {
         component.logout()
         await fixture.whenStable()
         expect(location.path()).toBe('/')
+    })
+
+    it('should show accounting functionality when user has according role', () => {
+        loginGuard.tokenDecode.mockReturnValue({ data: { role: roles.accounting } })
+
+        expect(component.isAccounting()).toBe(true)
+    })
+
+    it('should not show accounting functionality when user lacks according role', () => {
+        loginGuard.tokenDecode.mockReturnValue({ data: { role: roles.customer } })
+
+        expect(component.isAccounting()).toBe(false)
+    })
+
+    it('should not show accounting functionality when token cannot be decoded', () => {
+        loginGuard.tokenDecode.mockReturnValue(null)
+
+        expect(component.isAccounting()).toBeFalsy()
     })
 
     it('should set selected a language', () => {
