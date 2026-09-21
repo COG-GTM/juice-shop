@@ -18,14 +18,31 @@ export function getWalletBalance () {
   }
 }
 
+const MIN_TOP_UP_AMOUNT = 10
+const MAX_TOP_UP_AMOUNT = 1000
+
+function parseTopUpAmount (balance: unknown) {
+  const amount = typeof balance === 'number' ? balance : Number(balance)
+  if (typeof balance !== 'number' && typeof balance !== 'string') return null
+  if (!Number.isFinite(amount)) return null
+  if (Math.round(amount * 100) !== amount * 100) return null
+  if (amount < MIN_TOP_UP_AMOUNT || amount > MAX_TOP_UP_AMOUNT) return null
+  return amount
+}
+
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const amount = parseTopUpAmount(req.body.balance)
+    if (amount === null) {
+      res.status(400).json({ status: 'error', message: `Amount must be a number between ${MIN_TOP_UP_AMOUNT} and ${MAX_TOP_UP_AMOUNT} with at most two decimal places.` })
+      return
+    }
     const cardId = req.body.paymentId
     const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
     if (card != null) {
       try {
-        await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })
-        res.status(200).json({ status: 'success', data: req.body.balance })
+        await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
+        res.status(200).json({ status: 'success', data: amount })
       } catch {
         res.status(404).json({ status: 'error' })
       }
