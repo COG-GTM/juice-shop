@@ -21,12 +21,17 @@ export function retrieveBasket () {
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
         return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
       })
-      if (!user?.bid || Number(user.bid) !== parseInt(id, 10)) {
+      const userId = user?.data?.id
+      if (!userId) {
         res.status(401).json({ error: 'Invalid BasketId' })
         return
       }
-      const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
-      if (((basket?.Products) != null) && basket.Products.length > 0) {
+      const basket = await BasketModel.findOne({ where: { id, UserId: userId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+      if (basket == null) {
+        res.status(401).json({ error: 'Invalid BasketId' })
+        return
+      }
+      if ((basket.Products != null) && basket.Products.length > 0) {
         for (let i = 0; i < basket.Products.length; i++) {
           basket.Products[i].name = req.__(basket.Products[i].name)
         }
