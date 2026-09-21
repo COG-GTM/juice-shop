@@ -44,6 +44,7 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       return
     }
     const captchas = await ImageCaptchaModel.findAll({
+      limit: 1,
       where: {
         UserId,
         createdAt: {
@@ -52,8 +53,8 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       },
       order: [['createdAt', 'DESC']]
     })
-    const captcha = captchas.find((candidate) => candidate.answer === req.body.answer)
-    if (!captcha) {
+    const captcha = captchas[0]
+    if (!captcha || req.body.answer !== captcha.answer) {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
       return
     }
