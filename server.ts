@@ -634,7 +634,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/products/reviews', security.isAuthorized(), utils.asyncHandler(likeProductReviews()))
 
   /* Chat API endpoint */
-  app.post('/rest/chat', utils.asyncHandler(chat()))
+  app.post('/rest/chat',
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 60, validate: false }),
+    utils.asyncHandler(chat())
+  )
 
   /* Web3 API endpoints */
   app.post('/rest/web3/submitKey', utils.asyncHandler(checkKeys()))

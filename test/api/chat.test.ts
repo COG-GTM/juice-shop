@@ -241,6 +241,41 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(res.text.includes('data: [DONE]'))
   })
 
+  void it('POST with an oversized message is rejected with 413', { timeout: 15000 }, async () => {
+    let llmCalled = false
+    onLlmRequest = (_req, _body, res) => {
+      llmCalled = true
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'a'.repeat(9000) }] })
+
+    assert.equal(res.status, 413)
+    assert.equal(llmCalled, false)
+  })
+
+  void it('POST forwards only the most recent messages to the LLM', { timeout: 15000 }, async () => {
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const messages = Array.from({ length: 60 }, (_, i) => ({ role: 'user', content: `message ${i}` }))
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages })
+
+    assert.equal(res.status, 200)
+    assert.equal(parsedBody.messages.length, 51) // system prompt + 50 most recent messages
+    assert.equal(parsedBody.messages[1].content, 'message 10')
+    assert.equal(parsedBody.messages[50].content, 'message 59')
+  })
+
   void it('POST response SSE data lines contain valid JSON', { timeout: 15000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       sendSSE(res, [

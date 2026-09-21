@@ -78,6 +78,30 @@ const metricToolCalls = new Counter({
   labelNames: ['tool'],
 })
 
+const MAX_MESSAGES = 50
+const MAX_MESSAGE_CHARS = 8192
+const MAX_TOTAL_CHARS = 32768
+
+function messageSize (message: unknown): number {
+  return JSON.stringify(message ?? '').length
+}
+
+/* Keeps only the most recent messages fitting the count and character budget so that long
+   conversations stay usable while the payload forwarded to the LLM remains bounded. */
+export function limitMessages (messages: unknown): { error?: string, messages: unknown[] } {
+  if (!Array.isArray(messages)) return { error: 'Invalid messages payload', messages: [] }
+  const limited: unknown[] = []
+  let totalChars = 0
+  for (const message of messages.slice(-MAX_MESSAGES).reverse()) {
+    const size = messageSize(message)
+    if (size > MAX_MESSAGE_CHARS) return { error: `Message too long (maximum ${MAX_MESSAGE_CHARS} characters)`, messages: [] }
+    if (totalChars + size > MAX_TOTAL_CHARS) break
+    totalChars += size
+    limited.unshift(message)
+  }
+  return { messages: limited }
+}
+
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
 function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
   const userIdentifier = userName ? `\nThe customer you are currently chatting with is ${userName}.` : ''
@@ -186,7 +210,11 @@ export function chat () {
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
+    const { error: validationError, messages } = limitMessages(req.body?.messages ?? [])
+    if (validationError) {
+      res.status(413).json({ error: validationError })
+      return
+    }
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
