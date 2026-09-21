@@ -78,6 +78,11 @@ before(async () => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
+        if (body === '') { // aborted request of an already finished test
+          res.writeHead(400)
+          res.end()
+          return
+        }
         onLlmRequest(req, body, res)
       })
     })
