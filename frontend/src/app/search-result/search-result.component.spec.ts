@@ -221,4 +221,13 @@ describe('SearchResultComponent', () => {
         expect(component.searchValue).toBe('<script>scripttag</script>')
         expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<script>scripttag</script>')
     })
+
+    it('should render the search query escaped instead of as markup', () => {
+        activatedRoute.setQueryParameter('<img src=x onerror="alert(1)">')
+        component.filterTable()
+        fixture.detectChanges()
+        const searchValueElement: HTMLElement = fixture.nativeElement.querySelector('#searchValue')
+        expect(searchValueElement.querySelector('img')).toBeNull()
+        expect(searchValueElement.textContent).toBe('<img src=x onerror="alert(1)">')
+    })
 })
