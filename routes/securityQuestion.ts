@@ -9,7 +9,8 @@ import { SecurityAnswerModel } from '../models/securityAnswer'
 import { UserModel } from '../models/user'
 import { SecurityQuestionModel } from '../models/securityQuestion'
 
-const decoyKey = randomBytes(32)
+// Set SECURITY_QUESTION_DECOY_KEY to keep decoys consistent across replicas of a multi-instance deployment
+const decoyKey = process.env.SECURITY_QUESTION_DECOY_KEY ?? randomBytes(32).toString('hex')
 
 // Keeps the response shape identical for unknown accounts so the endpoint cannot be used to enumerate registered emails
 async function decoyQuestionFor (email: string) {
