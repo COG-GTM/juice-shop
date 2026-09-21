@@ -207,6 +207,38 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(res.text.includes('data: [DONE]'))
   })
 
+  void it('POST rejects getOrderById for a forged JWT', { timeout: 15000 }, async () => {
+    const forgedToken = [
+      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+      Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' } })).toString('base64url'),
+      ''
+    ].join('.')
+
+    let toolResult: string | undefined
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_order', 'getOrderById', '{"orderId":"5267-f9cd5c0e7e7a1ee5"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        const parsed = JSON.parse(body)
+        toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
+        sendSSE(res, [contentChunk('Please log in first.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${forgedToken}` })
+      .send({ messages: [{ role: 'user', content: 'Show me order 5267-f9cd5c0e7e7a1ee5' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(toolResult?.includes('Customer not authenticated'))
+  })
+
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' })
