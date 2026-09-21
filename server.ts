@@ -12,6 +12,7 @@ import multer from 'multer'
 import helmet from 'helmet'
 import http from 'node:http'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import express from 'express'
 import colors from 'colors/safe'
 import serveIndex from 'serve-index'
@@ -133,6 +134,8 @@ const server = new http.Server(app)
 // errorhandler requires us from overwriting a string property on it's module which is a big no-no with esmodules :/
 
 const errorhandler = require('errorhandler')
+
+const cookieParserSecret = process.env.COOKIE_PARSER_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 const startTime = Date.now()
 
@@ -286,7 +289,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
 
   app.use(express.static(path.resolve('frontend/dist/frontend')))
-  app.use(cookieParser('kekse'))
+  app.use(cookieParser(cookieParserSecret))
   // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
 
   /* Serve vendor dependencies locally instead of from CDN */
