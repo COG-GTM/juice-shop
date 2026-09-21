@@ -208,4 +208,18 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('leaves URL without query string untouched', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/whoami')).to.equal('/rest/user/whoami')
+    })
+
+    it('leaves URL without sensitive query parameters untouched', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple juice')).to.equal('/rest/products/search?q=apple juice')
+    })
+
+    it('redacts sensitive query parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=foo&new=bar&repeat=bar')).to.equal('/rest/user/change-password?current=REDACTED&new=REDACTED&repeat=REDACTED')
+    })
+  })
 })

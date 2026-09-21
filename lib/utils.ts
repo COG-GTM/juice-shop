@@ -229,6 +229,24 @@ export const matchesEtcPasswdFile = (text: string) => {
   return match !== null && match.length >= 1
 }
 
+const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'token']
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const separatorIndex = url.indexOf('?')
+  if (separatorIndex === -1) {
+    return url
+  }
+  const params = new URLSearchParams(url.substring(separatorIndex + 1))
+  const redacted = sensitiveQueryParams.filter((param) => params.has(param))
+  if (redacted.length === 0) {
+    return url
+  }
+  for (const param of redacted) {
+    params.set(param, 'REDACTED')
+  }
+  return `${url.substring(0, separatorIndex)}?${params.toString()}`
+}
+
 /**
  * Wrapper for asynchronous Express route handlers to ensure any rejected promises are caught and passed to the next() function.
  * TODO: Revisit the need for this wrapper once the project is migrated to Express 5 which supports async handlers natively.
