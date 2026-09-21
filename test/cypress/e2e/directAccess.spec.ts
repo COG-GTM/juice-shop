@@ -40,7 +40,9 @@ describe('/', () => {
       cy.getCookie('token').then((token) => {
         cy.request({
           url: '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility',
-          headers: { Authorization: `Bearer ${token?.value}` }
+          headers: { Authorization: `Bearer ${token?.value}` },
+          // the served image is not present in all build variants hence a non 2xx status code is tolerated
+          failOnStatusCode: false
         })
       })
       cy.expectChallengeSolved({ challenge: 'Privacy Policy Inspection' })
