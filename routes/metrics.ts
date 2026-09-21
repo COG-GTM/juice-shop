@@ -52,11 +52,32 @@ export function observeRequestMetricsMiddleware () {
   }
 }
 
+const KNOWN_FILE_TYPES = new Set([
+  'application/json',
+  'application/pdf',
+  'application/x-yaml',
+  'application/xml',
+  'application/zip',
+  'image/gif',
+  'image/jpeg',
+  'image/png',
+  'image/svg+xml',
+  'image/webp',
+  'text/plain',
+  'text/xml',
+  'text/yaml'
+])
+
+export function fileTypeLabel (mimeType?: string) {
+  return (mimeType != null && KNOWN_FILE_TYPES.has(mimeType.toLowerCase())) ? mimeType.toLowerCase() : 'other'
+}
+
 export function observeFileUploadMetricsMiddleware () {
   return ({ file }: Request, res: Response, next: NextFunction) => {
     onFinished(res, () => {
       if (file != null) {
-        res.statusCode < 400 ? fileUploadsCountMetric.labels(file.mimetype).inc() : fileUploadErrorsMetric.labels(file.mimetype).inc()
+        const fileType = fileTypeLabel(file.mimetype)
+        res.statusCode < 400 ? fileUploadsCountMetric.labels(fileType).inc() : fileUploadErrorsMetric.labels(fileType).inc()
       }
     })
     next()
