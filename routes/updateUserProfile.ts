@@ -47,16 +47,16 @@ export function updateUserProfile () {
         return
       }
 
+      if (isCrossOriginRequest(req)) {
+        res.status(403).json({ error: 'Cross-origin profile update rejected' })
+        return
+      }
+
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
         return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
           (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
           req.body.username !== user.username
       })
-
-      if (isCrossOriginRequest(req)) {
-        res.status(403).json({ error: 'Cross-origin profile update rejected' })
-        return
-      }
 
       const savedUser = await user.update({ username: req.body.username })
       const userWithStatus = utils.queryResultToJson(savedUser)
