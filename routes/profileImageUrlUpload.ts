@@ -4,10 +4,11 @@
  */
 
 import fs from 'node:fs'
-import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
+import { fetchProfileImage, MAX_IMAGE_BYTES } from '../lib/imageUrlFetch'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
@@ -21,13 +22,20 @@ export function profileImageUrlUpload () {
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
-          const response = await fetch(url)
-          if (!response.ok || !response.body) {
-            throw new Error('url returned a non-OK status code or an empty body')
-          }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
+          const { response, ext } = await fetchProfileImage(url)
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          let downloadedBytes = 0
+          const sizeLimit = new Transform({
+            transform (chunk, _encoding, callback) {
+              downloadedBytes += chunk.length
+              if (downloadedBytes > MAX_IMAGE_BYTES) {
+                callback(new Error('image exceeds the maximum allowed size'))
+                return
+              }
+              callback(null, chunk)
+            }
+          })
+          await pipeline(Readable.fromWeb(response.body as any), sizeLimit, fileStream)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {

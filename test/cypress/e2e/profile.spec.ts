@@ -3,7 +3,7 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    it('should be possible to request internal resources using image upload URL', () => {
+    it('should not be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
       cy.get('#url').type(
@@ -11,7 +11,10 @@ describe('/profile', () => {
       )
       cy.get('#submitUrl').click()
       cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'SSRF' })
+      cy.request('/api/Challenges/?name=SSRF').then((response) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        expect(response.body.data[0].solved).to.be.false
+      })
     })
   })
 
