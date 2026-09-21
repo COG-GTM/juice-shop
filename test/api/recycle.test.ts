@@ -19,8 +19,9 @@ before(async () => {
   app = result.app
   const { token } = await login(app, { email: 'demo', password: 'demo' })
   authHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
-  const whoami = await request(app).get('/rest/user/whoami').set(authHeader)
+  const whoami = await request(app).get('/rest/user/whoami').set({ Cookie: `token=${token}` })
   userId = whoami.body.user.id
+  assert.equal(typeof userId, 'number')
 }, { timeout: 60000 })
 
 void describe('/api/Recycles', () => {
