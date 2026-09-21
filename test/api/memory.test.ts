@@ -102,6 +102,19 @@ void describe('/rest/memories', () => {
     assert.equal(res.body.data.UserId, 2)
   })
 
+  void it('POST new memory image file exceeding the size limit', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', Buffer.alloc(200001), { filename: 'too-large.png', contentType: 'image/png' })
+      .field('caption', 'Too Large Image')
+    assert.equal(res.status, 500)
+  })
+
   void it('Should not crash the node-js server when sending invalid content like described in CVE-2022-24434', async () => {
     const res = await request(app)
       .post('/rest/memories')
