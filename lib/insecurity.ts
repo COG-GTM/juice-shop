@@ -57,6 +57,25 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+/**
+ * Signature check pinned to RS256 and the RSA public key, rejecting `alg: none`
+ * and HMAC-with-public-key forgeries as well as expired tokens.
+ */
+export const verifySigned = (token: string) => {
+  if (!token) {
+    return false
+  }
+  const decoded = jws.decode(token)
+  if (decoded?.header?.alg !== 'RS256') {
+    return false
+  }
+  if (!(jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)) {
+    return false
+  }
+  const exp = decoded.payload?.exp
+  return typeof exp !== 'number' || exp * 1000 > Date.now()
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
