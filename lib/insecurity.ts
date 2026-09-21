@@ -108,15 +108,21 @@ const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? couponSigningKeyIn('d
 // Deployments with more than one instance have to set COUPON_SIGNING_KEY instead.
 export function couponSigningKeyIn (directory: string) {
   const keyFile = path.resolve(directory, 'juiceshop.coupon.key')
+  const key = crypto.randomBytes(32).toString('hex')
   try {
-    fs.writeFileSync(keyFile, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
-  } catch (error: any) {
-    if (error.code !== 'EEXIST') {
-      return crypto.randomBytes(32).toString('hex')
+    if (!fs.existsSync(keyFile)) {
+      const stagedKeyFile = `${keyFile}.${process.pid}`
+      fs.writeFileSync(stagedKeyFile, key, { mode: 0o600 })
+      try {
+        fs.linkSync(stagedKeyFile, keyFile) // publishes the fully written key, never clobbering another process' key
+      } catch { /* another process won the race */ }
+      fs.unlinkSync(stagedKeyFile)
     }
+    const persistedKey = fs.readFileSync(keyFile, 'utf8')
+    return persistedKey.length > 0 ? persistedKey : key
+  } catch {
+    return key
   }
-  const key = fs.readFileSync(keyFile, 'utf8')
-  return key.length > 0 ? key : crypto.randomBytes(32).toString('hex')
 }
 
 const couponSignature = (payload: string) => {

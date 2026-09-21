@@ -79,6 +79,11 @@ describe('insecurity', () => {
     it('returns a key even when the directory cannot be written to', () => {
       expect(security.couponSigningKeyIn(path.join(directory, 'missing'))).to.match(/^[0-9a-f]{64}$/)
     })
+
+    it('returns a key even when the persisted key cannot be read', () => {
+      fs.mkdirSync(path.join(directory, 'juiceshop.coupon.key'))
+      expect(security.couponSigningKeyIn(directory)).to.match(/^[0-9a-f]{64}$/)
+    })
   })
 
   describe('discountFromCoupon', () => {
