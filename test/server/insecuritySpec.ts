@@ -188,6 +188,57 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const requestWithToken = (token: string) => ({ headers: { authorization: `Bearer ${token}` } } as Request)
+    const responseSpy = () => {
+      const res: any = {
+        statusCode: undefined,
+        body: undefined,
+        status (code: number) {
+          res.statusCode = code
+          return res
+        },
+        json (body: any) {
+          res.body = body
+          return res
+        }
+      }
+      return res
+    }
+
+    it('passes request of user with admin role on to next middleware', () => {
+      const token = security.authorize({ data: { role: 'admin' } })
+      const res = responseSpy()
+      let nextCalled = false
+
+      security.isAdmin()(requestWithToken(token), res, () => { nextCalled = true })
+
+      expect(nextCalled).to.equal(true)
+      expect(res.statusCode).to.equal(undefined)
+    })
+
+    it('rejects request of user without admin role with error 403', () => {
+      const token = security.authorize({ data: { role: 'customer' } })
+      const res = responseSpy()
+      let nextCalled = false
+
+      security.isAdmin()(requestWithToken(token), res, () => { nextCalled = true })
+
+      expect(nextCalled).to.equal(false)
+      expect(res.statusCode).to.equal(403)
+    })
+
+    it('rejects request without token with error 403', () => {
+      const res = responseSpy()
+      let nextCalled = false
+
+      security.isAdmin()({ headers: {} } as Request, res, () => { nextCalled = true })
+
+      expect(nextCalled).to.equal(false)
+      expect(res.statusCode).to.equal(403)
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
