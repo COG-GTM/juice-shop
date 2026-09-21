@@ -11,7 +11,9 @@ import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
+import { Gallery } from 'ng-gallery'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -21,8 +23,22 @@ describe('AboutComponent', () => {
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
     let translateService
+    let feedbackService
+    let galleryRef
+    let gallery
 
     beforeEach(async () => {
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
+        galleryRef = {
+            addImage: vi.fn().mockName("GalleryRef.addImage"),
+            load: vi.fn().mockName("GalleryRef.load")
+        }
+        gallery = {
+            ref: vi.fn().mockName("Gallery.ref").mockReturnValue(galleryRef)
+        }
         configurationService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
@@ -44,6 +60,8 @@ describe('AboutComponent', () => {
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
+                { provide: FeedbackService, useValue: feedbackService },
+                { provide: Gallery, useValue: gallery },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -115,5 +133,20 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the gallery as unmodified text along with their rating', () => {
+        feedbackService.find.mockReturnValue(of([
+            { comment: '<iframe src="javascript:alert(`xss`)">', rating: 0 },
+            { comment: 'Great shop!', rating: 5 }
+        ]))
+        component.ngOnInit()
+
+        expect(galleryRef.addImage).toHaveBeenCalledWith(expect.objectContaining({
+            args: { comment: '<iframe src="javascript:alert(`xss`)">', rating: 0 }
+        }))
+        expect(galleryRef.addImage).toHaveBeenCalledWith(expect.objectContaining({
+            args: { comment: 'Great shop!', rating: 5 }
+        }))
     })
 })
