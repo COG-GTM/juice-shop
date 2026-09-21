@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -55,6 +58,26 @@ describe('insecurity', () => {
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 01, 1999 01:00:00')))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 02, 1999')))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 31, 1999 23:59:59')))
+    })
+  })
+
+  describe('couponSigningKeyIn', () => {
+    let directory: string
+
+    beforeEach(() => {
+      directory = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-coupon-key-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(directory, { recursive: true, force: true })
+    })
+
+    it('returns the same key on subsequent startups', () => {
+      expect(security.couponSigningKeyIn(directory)).to.equal(security.couponSigningKeyIn(directory))
+    })
+
+    it('returns a key even when the directory cannot be written to', () => {
+      expect(security.couponSigningKeyIn(path.join(directory, 'missing'))).to.match(/^[0-9a-f]{64}$/)
     })
   })
 

@@ -4,7 +4,6 @@
  */
 
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -103,20 +102,21 @@ export const MAX_COUPON_DISCOUNT = 99
 const couponSignatureLength = 12
 const couponSignaturePattern = new RegExp(`^[0-9a-f]{${couponSignatureLength}}$`)
 const couponSignatureSeparator = '_' // not part of the z85 alphabet
-const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? persistedCouponSigningKey()
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? couponSigningKeyIn('data')
 
-function persistedCouponSigningKey () { // shared by all processes of a deployment so coupons survive restarts
-  const keyFile = path.join(os.tmpdir(), 'juice-shop.coupon.key')
+// Stored next to the SQLite database so all processes of a single deployment share one key.
+// Deployments with more than one instance have to set COUPON_SIGNING_KEY instead.
+export function couponSigningKeyIn (directory: string) {
+  const keyFile = path.resolve(directory, 'juiceshop.coupon.key')
   try {
-    if (fs.existsSync(keyFile)) {
-      return fs.readFileSync(keyFile, 'utf8')
+    fs.writeFileSync(keyFile, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
+  } catch (error: any) {
+    if (error.code !== 'EEXIST') {
+      return crypto.randomBytes(32).toString('hex')
     }
-    const key = crypto.randomBytes(32).toString('hex')
-    fs.writeFileSync(keyFile, key, { mode: 0o600 })
-    return key
-  } catch {
-    return crypto.randomBytes(32).toString('hex')
   }
+  const key = fs.readFileSync(keyFile, 'utf8')
+  return key.length > 0 ? key : crypto.randomBytes(32).toString('hex')
 }
 
 const couponSignature = (payload: string) => {
