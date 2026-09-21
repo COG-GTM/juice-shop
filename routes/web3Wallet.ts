@@ -7,13 +7,27 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { web3WalletABI } from '../data/static/contractABIs'
 
 const web3WalletAddress = '0x413744D59d31AFDC2889aeE602636177805Bd7b0'
-const walletsConnected = new Set()
+const walletAddressRegex = /^0x[a-fA-F0-9]{40}$/
+const maxWalletsConnected = 1000
+const walletsConnected = new Set<string>()
 let isEventListenerCreated = false
+
+function trackWallet (walletAddress: unknown) {
+  if (typeof walletAddress !== 'string' || !walletAddressRegex.test(walletAddress)) {
+    return
+  }
+  const normalizedAddress = walletAddress.toLowerCase()
+  walletsConnected.delete(normalizedAddress)
+  walletsConnected.add(normalizedAddress)
+  for (const oldestAddress of walletsConnected) {
+    if (walletsConnected.size <= maxWalletsConnected) break
+    walletsConnected.delete(oldestAddress)
+  }
+}
 
 export function contractExploitListener () {
   return async (req: Request, res: Response) => {
-    const metamaskAddress = req.body.walletAddress
-    walletsConnected.add(metamaskAddress)
+    trackWallet(req.body.walletAddress)
     try {
       if (!isEventListenerCreated) {
         const { WebSocketProvider, Contract } = await import('ethers')
@@ -24,8 +38,9 @@ export function contractExploitListener () {
         }
         const contract = new Contract(web3WalletAddress, web3WalletABI, provider as any)
         void contract.on('ContractExploited', (exploiter: string) => {
-          if (walletsConnected.has(exploiter)) {
-            walletsConnected.delete(exploiter)
+          const normalizedExploiter = exploiter.toLowerCase()
+          if (walletsConnected.has(normalizedExploiter)) {
+            walletsConnected.delete(normalizedExploiter)
             challengeUtils.solveIf(challenges.web3WalletChallenge, () => true)
           }
         })
