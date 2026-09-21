@@ -11,6 +11,21 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+function isCrossOriginRequest (req: Request) {
+  const source = req.headers.origin ?? req.headers.referer
+  if (!source) {
+    return false
+  }
+  if (!req.headers.host) {
+    return true
+  }
+  try {
+    return new URL(source).host !== req.headers.host
+  } catch {
+    return true
+  }
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -20,10 +35,20 @@ export function updateUserProfile () {
       return
     }
 
+    if (req.body.username !== undefined && typeof req.body.username !== 'string') {
+      res.status(400).json({ error: 'Invalid username' })
+      return
+    }
+
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
         next(new Error('User not found'))
+        return
+      }
+
+      if (isCrossOriginRequest(req)) {
+        res.status(403).json({ error: 'Cross-origin profile update rejected' })
         return
       }
 
@@ -37,7 +62,7 @@ export function updateUserProfile () {
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      res.cookie('token', updatedToken, { sameSite: 'strict' })
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {
