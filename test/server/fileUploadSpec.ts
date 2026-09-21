@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
+import yaml from 'js-yaml'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, countExpandedNodes, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +65,64 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('countExpandedNodes', () => {
+    it('should count every node of YAML without aliases', () => {
+      expect(countExpandedNodes(yaml.load('a: 1\nb:\n  - 2\n  - 3\n'))).to.equal(5)
+    })
+
+    it('should count aliased nodes once per reference', () => {
+      expect(countExpandedNodes(yaml.load('a: &x [1, 2, 3]\nb: *x\nc: *x\n'))).to.equal(13)
+    })
+
+    it('should not count quoted text that looks like anchors and aliases', () => {
+      expect(countExpandedNodes(yaml.load('a: "&x [1, 2, 3]"\nb: "*x *x *x"\n'))).to.equal(3)
+    })
+
+    it('should exceed the node limit for a Billion Laughs-style YAML bomb', () => {
+      const bomb = fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8')
+
+      expect(countExpandedNodes(yaml.load(bomb))).to.be.above(200000)
+    })
+  })
+
+  describe('handleYamlUpload', () => {
+    const upload = (buffer: Buffer) => {
+      const statusCodes: number[] = []
+      const response: any = { status: (code: number) => { statusCodes.push(code); return response }, end: () => {} }
+      const errors: Error[] = []
+
+      handleYamlUpload({ file: { originalname: 'complaint.yml', buffer } } as any, response, (err: Error) => { errors.push(err) })
+
+      return { statusCode: statusCodes[0], error: errors[0] }
+    }
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    it('should reject files exceeding the YAML size limit without parsing them', () => {
+      const { statusCode, error } = upload(Buffer.from('a: '.padEnd(100001, 'b')))
+
+      expect(statusCode).to.equal(413)
+      expect(error.message).to.contain('too large')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should solve "yamlBombChallenge" when the document expands beyond the node limit', () => {
+      const { statusCode } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
+
+      expect(statusCode).to.equal(503)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve "yamlBombChallenge" for a harmless document', () => {
+      const { statusCode } = upload(Buffer.from('a: &x [1, 2, 3]\nb: *x\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
   })
 })
