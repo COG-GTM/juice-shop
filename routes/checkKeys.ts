@@ -1,14 +1,15 @@
-import config from 'config'
 import { type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 
+const nftWalletAddress = '0x8343d2eb2B13A2495De435a1b15e85b98115Ce05'
+
 export function checkKeys () {
   return async (req: Request, res: Response) => {
     try {
       const { Wallet, computeAddress, getAddress } = await import('ethers')
-      const walletAddress = getAddress(config.get<string>('challenges.nftWalletAddress'))
+      const walletAddress = getAddress(nftWalletAddress)
       const submittedKey = typeof req.body.privateKey === 'string' ? req.body.privateKey : ''
 
       const addressOf = (derive: (key: string) => string) => {
