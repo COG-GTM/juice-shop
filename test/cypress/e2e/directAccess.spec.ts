@@ -25,12 +25,24 @@ describe('/', () => {
   })
 
   describe('challenge "privacyPolicyProof"', () => {
+    it('should not be able to access proof url without being logged in', () => {
+      cy.request({
+        url: '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility',
+        failOnStatusCode: false
+      }).then((response) => {
+        expect(response.status).to.equal(401)
+      })
+    })
+
     it('should be able to access proof url for reading the privacy policy', () => {
-      // cy.visit fails on a non 2xx status code hence passed the parameter
-      cy.visit(
-        '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility',
-        { failOnStatusCode: false }
-      )
+      cy.login({ email: 'jim', password: 'ncc-1701' })
+      cy.visit('/#/')
+      cy.getCookie('token').then((token) => {
+        cy.request({
+          url: '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility',
+          headers: { Authorization: `Bearer ${token?.value}` }
+        })
+      })
       cy.expectChallengeSolved({ challenge: 'Privacy Policy Inspection' })
     })
   })
