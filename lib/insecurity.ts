@@ -180,14 +180,12 @@ const tokenFromCookieHeader = (req: Request) => {
   return undefined
 }
 
-const verifiedToken = (req: Request) => {
+const verifiedToken = (req: Request): ResponseWithUser | undefined => {
   const token = utils.jwtFrom(req) || tokenFromCookieHeader(req)
-  if (!token) return undefined
-  try {
-    return jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as ResponseWithUser
-  } catch {
-    return undefined
-  }
+  if (!token || !verify(token)) return undefined
+  const payload = decode(token) as ResponseWithUser | undefined
+  if (!payload || (payload.exp !== undefined && payload.exp * 1000 <= Date.now())) return undefined
+  return payload
 }
 
 export const isAuthenticated = () => {
