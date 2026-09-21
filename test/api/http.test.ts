@@ -18,10 +18,16 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
-    const res = await request(app).get('/')
+  void it('response must contain CORS header for an allowed origin', async () => {
+    const res = await request(app).get('/').set('Origin', config.get('server.baseUrl'))
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.equal(res.headers['access-control-allow-origin'], config.get('server.baseUrl'))
+  })
+
+  void it('response must not contain CORS header for an unknown origin', async () => {
+    const res = await request(app).get('/').set('Origin', 'http://evil.test')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {
@@ -30,7 +36,7 @@ void describe('HTTP', () => {
     assert.equal(res.headers['x-frame-options'], 'SAMEORIGIN')
   })
 
-  void it('response must contain CORS header allowing all origins', async () => {
+  void it('response must contain nosniff content type options header', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)
     assert.equal(res.headers['x-content-type-options'], 'nosniff')

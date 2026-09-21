@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 import i18n from 'i18n'
-import cors from 'cors'
+import cors, { type CorsOptions } from 'cors'
 import fs from 'node:fs'
 import yaml from 'js-yaml'
 import config from 'config'
@@ -138,6 +138,17 @@ const startTime = Date.now()
 
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? `${config.get<string>('server.baseUrl')},http://localhost:4200`)
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(origin => origin !== '')
+
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    callback(null, origin === undefined || allowedOrigins.includes(origin))
+  }
+}
+
 const appName = config.get<string>('application.customMetricsPrefix')
 const startupGauge = new Prometheus.Gauge({
   name: `${appName}_startup_duration_seconds`,
@@ -178,9 +189,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to an explicit allowlist of trusted origins */
+  app.options('*', cors(corsOptions))
+  app.use(cors(corsOptions))
 
   /* Security middleware */
   app.use(helmet.noSniff())
