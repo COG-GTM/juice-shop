@@ -34,7 +34,8 @@ export function addBasketItem () {
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    const foreignBasketId = basketIds.some((basketId) => basketId && basketId !== 'undefined' && Number(user?.bid) !== Number(basketId))
+    if (!user || foreignBasketId) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
@@ -51,6 +52,26 @@ export function addBasketItem () {
       } catch (error) {
         next(error)
       }
+    }
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = security.authenticatedUsers.from(req)
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item?.BasketId && Number(item.BasketId) !== Number(user?.bid)) {
+        res.status(403).json({ error: 'Malicious activity detected' })
+        return
+      }
+      if (req.body?.BasketId && Number(req.body.BasketId) !== Number(user?.bid)) {
+        res.status(403).json({ error: 'Malicious activity detected' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
     }
   }
 }
