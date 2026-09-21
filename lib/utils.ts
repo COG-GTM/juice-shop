@@ -78,9 +78,11 @@ const getCtfKey = () => {
   if (!cachedCtfKey) {
     if (process.env.CTF_KEY !== undefined && process.env.CTF_KEY !== '') {
       cachedCtfKey = process.env.CTF_KEY
+    } else if (fs.existsSync('ctf.key')) {
+      cachedCtfKey = fs.readFileSync('ctf.key', 'utf8')
     } else {
-      const data = fs.readFileSync('ctf.key', 'utf8')
-      cachedCtfKey = data
+      cachedCtfKey = crypto.randomBytes(32).toString('hex')
+      logger.warn('No CTF_KEY environment variable or ctf.key file found: Generated an ephemeral flag signing key which changes on every restart. Set CTF_KEY to a unique secret value when running a CTF!')
     }
   }
   return cachedCtfKey
