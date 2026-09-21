@@ -182,10 +182,16 @@ const tokenFromCookieHeader = (req: Request) => {
 
 const verifiedToken = (req: Request): ResponseWithUser | undefined => {
   const token = utils.jwtFrom(req) || tokenFromCookieHeader(req)
-  if (!token || !verify(token)) return undefined
-  const payload = decode(token) as ResponseWithUser | undefined
-  if (!payload || (payload.exp !== undefined && payload.exp * 1000 <= Date.now())) return undefined
-  return payload
+  if (!token) return undefined
+  try {
+    if (!jws.verify(token, 'RS256', publicKey)) return undefined
+    const payload = decode(token) as ResponseWithUser | undefined
+    if (typeof payload !== 'object' || payload === null) return undefined
+    if (payload.exp !== undefined && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
 }
 
 export const isAuthenticated = () => {
