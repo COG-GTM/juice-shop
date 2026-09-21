@@ -90,6 +90,20 @@ describe('DataExportComponent', () => {
         expect(component.captchaControl.valid).toBe(true)
     })
 
+    it('should request a captcha on initialization', () => {
+        expect(component.presenceOfCaptcha).toBe(true)
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
+    it('should submit the captcha answer along with the export request', () => {
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        component.captchaControl.setValue('12345')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith({ answer: '12345', format: '1' })
+    })
+
     it('should store the captcha on getting new captcha', () => {
         imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
         component.getNewCaptcha()
@@ -117,5 +131,6 @@ describe('DataExportComponent', () => {
         expect(component.confirmation).toBeNull()
         expect(component.error).toBe('Error')
         expect(component.resetFormError).toHaveBeenCalled()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(2)
     })
 })

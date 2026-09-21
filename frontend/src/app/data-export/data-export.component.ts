@@ -65,6 +65,7 @@ export class DataExportComponent implements OnInit {
       error: (error) => {
         this.error = error.error
         this.confirmation = null
+        this.getNewCaptcha()
         this.resetFormError()
       }
     })

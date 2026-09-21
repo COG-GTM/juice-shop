@@ -28,9 +28,9 @@ async function requestCaptcha (authHeader: Record<string, string>) {
   assert.equal(captchaRes.status, 200)
   assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
   assert.equal(captchaRes.body.answer, undefined)
+  assert.equal(captchaRes.body.UserId, undefined)
 
   const captcha = await ImageCaptchaModel.findOne({
-    where: { UserId: captchaRes.body.UserId },
     order: [['createdAt', 'DESC']]
   })
   assert.ok(captcha)
