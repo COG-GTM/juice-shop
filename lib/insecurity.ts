@@ -184,7 +184,7 @@ const verifiedToken = (req: Request): ResponseWithUser | undefined => {
   const token = utils.jwtFrom(req) || tokenFromCookieHeader(req)
   if (!token) return undefined
   try {
-    if (!jws.verify(token, 'RS256', publicKey)) return undefined
+    if (jws.decode(token)?.header?.alg !== 'RS256' || !verify(token)) return undefined
     const payload = decode(token) as ResponseWithUser | undefined
     if (typeof payload !== 'object' || payload === null) return undefined
     if (payload.exp !== undefined && payload.exp * 1000 <= Date.now()) return undefined
