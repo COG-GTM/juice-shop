@@ -39,9 +39,9 @@ const signingKey = resolveSigningKey()
 const privateKey = signingKey.export({ type: 'pkcs8', format: 'pem' }).toString()
 export const publicKey = crypto.createPublicKey(signingKey).export({ type: 'spki', format: 'pem' }).toString()
 
-if (fs?.existsSync('encryptionkeys')) {
+export const publishPublicKey = () => {
   try {
-    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+    fs?.writeFileSync('encryptionkeys/jwt.pub', publicKey)
   } catch { }
 }
 
