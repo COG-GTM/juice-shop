@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
-import path from 'node:path'
 import config from 'config'
 import { themes } from '../views/themes/themes'
 import * as utils from '../lib/utils'
@@ -12,24 +11,12 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import { SecurityQuestionModel } from '../models/securityQuestion'
 import { PrivacyRequestModel } from '../models/privacyRequests'
 import { SecurityAnswerModel } from '../models/securityAnswer'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
 const entities = new Entities()
 
 const router = express.Router()
-
-const allowedLayouts = new Set(['dataErasureForm', 'dataErasureResult'])
-
-const resolveLayout = (app: express.Application, layout: string): string | undefined => {
-  if (!allowedLayouts.has(layout)) {
-    return undefined
-  }
-  const viewsDir = app.get('views') as string | string[]
-  return path.join(Array.isArray(viewsDir) ? viewsDir[0] : viewsDir, layout + '.hbs')
-}
 
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
@@ -111,23 +98,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       }
 
       if (req.body.layout) {
-        const layout = resolveLayout(req.app, req.body.layout)
-        if (layout) {
-          res.render('dataErasureResult', {
-            layout,
-            ...themeVars
-          }, (error, html) => {
-            if (!html || error) {
-              next(new Error(error.message))
-            } else {
-              const sendlfrResponse: string = html.slice(0, 100) + '......'
-              res.send(sendlfrResponse)
-              challengeUtils.solveIf(challenges.lfrChallenge, () => { return true })
-            }
-          })
-        } else {
-          next(new Error('File access not allowed'))
-        }
+        next(new Error('File access not allowed'))
       } else {
         res.render('dataErasureResult', themeVars)
       }
