@@ -221,5 +221,9 @@ describe('utils', () => {
     it('redacts sensitive query parameters', () => {
       expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=foo&new=bar&repeat=bar')).to.equal('/rest/user/change-password?current=REDACTED&new=REDACTED&repeat=REDACTED')
     })
+
+    it('redacts sensitive query parameters regardless of their case', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/whoami?Token=foo')).to.equal('/rest/user/whoami?Token=REDACTED')
+    })
   })
 })

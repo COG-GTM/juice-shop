@@ -11,10 +11,10 @@ import * as security from '../lib/insecurity'
 
 export function changePassword () {
   return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = body.current as string
-    const newPassword = body.new as string
+    const currentPassword = body?.current as string
+    const newPassword = body?.new as string
     const newPasswordInString = newPassword?.toString()
-    const repeatPassword = body.repeat
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))

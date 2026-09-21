@@ -237,7 +237,7 @@ export const redactSensitiveQueryParams = (url: string) => {
     return url
   }
   const params = new URLSearchParams(url.substring(separatorIndex + 1))
-  const redacted = sensitiveQueryParams.filter((param) => params.has(param))
+  const redacted = [...new Set(params.keys())].filter((key) => sensitiveQueryParams.includes(key.toLowerCase()))
   if (redacted.length === 0) {
     return url
   }
