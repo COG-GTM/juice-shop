@@ -13,6 +13,36 @@ import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
+const MAX_FAILED_ATTEMPTS = 5
+const ATTEMPT_WINDOW = 15 * 60 * 1000
+const BASE_LOCKOUT = 60 * 1000
+
+interface FailedAttempts {
+  count: number
+  lastAttempt: number
+  lockedUntil: number
+}
+
+const failedAttemptsByEmail = new Map<string, FailedAttempts>()
+
+function getFailedAttempts (email: string) {
+  const attempts = failedAttemptsByEmail.get(email)
+  if (!attempts || Date.now() - attempts.lastAttempt > ATTEMPT_WINDOW) {
+    return { count: 0, lastAttempt: 0, lockedUntil: 0 }
+  }
+  return attempts
+}
+
+function registerFailedAttempt (email: string) {
+  const attempts = getFailedAttempts(email)
+  attempts.count++
+  attempts.lastAttempt = Date.now()
+  if (attempts.count >= MAX_FAILED_ATTEMPTS) {
+    attempts.lockedUntil = attempts.lastAttempt + BASE_LOCKOUT * Math.pow(2, attempts.count - MAX_FAILED_ATTEMPTS)
+  }
+  failedAttemptsByEmail.set(email, attempts)
+}
+
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
     const email = body.email
@@ -31,6 +61,12 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
+    const lockedFor = getFailedAttempts(email).lockedUntil - Date.now()
+    if (lockedFor > 0) {
+      res.set('Retry-After', Math.ceil(lockedFor / 1000).toString())
+      res.status(429).send(res.__('Too many failed attempts to answer the security question. Please try again later.'))
+      return
+    }
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -42,10 +78,12 @@ export function resetPassword () {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
           const updatedUser = await user.update({ password: newPassword })
+          failedAttemptsByEmail.delete(email)
           verifySecurityAnswerChallenges(updatedUser, answer)
           res.json({ user: updatedUser })
         }
       } else {
+        registerFailedAttempt(email)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
