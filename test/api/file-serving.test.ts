@@ -9,10 +9,12 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
 
 let app: Express
+let authHeader: { Authorization: string }
 
 let blueprint: string
 
@@ -26,6 +28,12 @@ for (const product of config.get<ProductConfig[]>('products')) {
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const { token } = await login(app, {
+    email: 'jim@juice-sh.op',
+    password: 'ncc-1701'
+  })
+  authHeader = { Authorization: 'Bearer ' + token }
 }, { timeout: 60000 })
 
 void describe('Server', () => {
@@ -176,9 +184,16 @@ void describe('Hidden URL', () => {
     assert.equal(res.headers['content-type'], 'image/jpeg')
   })
 
+  void it('GET the "Thank you!" image for assembling the URL hidden in the Privacy Policy is not allowed via public API', async () => {
+    const res = await request(app)
+      .get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility')
+    assert.equal(res.status, 401)
+  })
+
   void it('GET the missing "Thank you!" image for assembling the URL hidden in the Privacy Policy', async () => {
     const res = await request(app)
       .get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility')
+      .set(authHeader)
     assert.equal(res.status, 404)
   })
 
