@@ -5,6 +5,10 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
@@ -206,6 +210,33 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('resolveCtfKey', () => {
+    const keyFile = path.join(os.tmpdir(), 'utilsSpec-ctf.key')
+
+    afterEach(() => {
+      if (fs.existsSync(keyFile)) {
+        fs.unlinkSync(keyFile)
+      }
+    })
+
+    it('uses the configured key when one is given', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.resolveCtfKey('key from environment', keyFile)).to.equal('key from environment')
+    })
+
+    it('uses the key file when no key is configured', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.resolveCtfKey(undefined, keyFile)).to.equal('key from file')
+      expect(utils.resolveCtfKey('', keyFile)).to.equal('key from file')
+    })
+
+    it('generates a different random key on each call when neither is available', () => {
+      const key = utils.resolveCtfKey(undefined, keyFile)
+      expect(key).to.have.lengthOf(64)
+      expect(utils.resolveCtfKey(undefined, keyFile)).to.not.equal(key)
     })
   })
 })
