@@ -78,7 +78,7 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => {
   if (!hasExpectedAlgorithm(token)) return false
   try {
-    return jws.verify(token, jwtAlgorithm, publicKey)
+    return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
   } catch {
     return false
   }
