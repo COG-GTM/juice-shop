@@ -5,10 +5,12 @@
 
 import chai from 'chai'
 import * as challengeUtils from '../../lib/challengeUtils'
-import { challenges } from '../../data/datacache'
+import { challenges, notifications } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 
 const expect = chai.expect
+
+const globalWithSocketIO = global as typeof globalThis & { io?: any }
 
 describe('challengeUtils', () => {
   beforeEach(() => {
@@ -32,6 +34,40 @@ describe('challengeUtils', () => {
 
     it('returns existing challenge', () => {
       expect(challengeUtils.findChallengeById(42)).to.deep.equal({ id: 42, name: 'scoreBoardChallenge' })
+    })
+  })
+
+  describe('sendNotification', () => {
+    const solvedChallenge = { key: 'scoreBoardChallenge', name: 'scoreBoardChallenge', description: 'Find the carefully hidden Score Board page.', solved: true }
+    let emitted: any[]
+    let previousIo: any
+
+    beforeEach(() => {
+      emitted = []
+      previousIo = globalWithSocketIO.io
+      globalWithSocketIO.io = { emit: (_event: string, notification: any) => emitted.push(notification) }
+      notifications.length = 0
+    })
+
+    afterEach(() => {
+      globalWithSocketIO.io = previousIo
+      notifications.length = 0
+    })
+
+    it('emits and caches a notification with CTF flag by default', () => {
+      challengeUtils.sendNotification(solvedChallenge, false)
+
+      expect(emitted).to.have.lengthOf(1)
+      expect(emitted[0].flag).to.be.a('string')
+      expect(notifications).to.have.lengthOf(1)
+    })
+
+    it('emits a notification without CTF flag and leaves the cache untouched when flag is excluded', () => {
+      challengeUtils.sendNotification(solvedChallenge, true, false)
+
+      expect(emitted).to.have.lengthOf(1)
+      expect(emitted[0].flag).to.equal(undefined)
+      expect(notifications).to.have.lengthOf(0)
     })
   })
 })
