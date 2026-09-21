@@ -96,9 +96,23 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+export const MAX_COUPON_DISCOUNT = 100
+
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
+
+const couponSignature = (payload: string) => {
+  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex')
+  let length = 16
+  while ((payload.length + 1 + length) % 4 !== 0) { // z85 only encodes inputs with a length divisible by 4
+    length++
+  }
+  return digest.substring(0, length)
+}
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  const cappedDiscount = Math.min(Math.max(Math.trunc(discount), 0), MAX_COUPON_DISCOUNT)
+  const payload = utils.toMMMYY(date) + '-' + cappedDiscount
+  return z85.encode(payload + '-' + couponSignature(payload))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
@@ -106,18 +120,30 @@ export const discountFromCoupon = (coupon?: string) => {
     return undefined
   }
   const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  if (!decoded || hasValidFormat(decoded.toString()) == null) {
+    return undefined
   }
+  const [validity, discount, signature] = decoded.toString().split('-')
+  if (!hasValidSignature(validity + '-' + discount, signature)) {
+    return undefined
+  }
+  if (utils.toMMMYY(new Date()) !== validity) {
+    return undefined
+  }
+  const parsedDiscount = parseInt(discount, 10)
+  if (parsedDiscount < 0 || parsedDiscount > MAX_COUPON_DISCOUNT) {
+    return undefined
+  }
+  return parsedDiscount
+}
+
+function hasValidSignature (payload: string, signature: string) {
+  const expected = couponSignature(payload)
+  return signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{1,3}-[0-9a-f]+$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
