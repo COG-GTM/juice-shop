@@ -5,13 +5,14 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
 import { WalletModel } from '../models/wallet'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import { CardModel } from '../models/card'
 import * as utils from '../lib/utils'
+
+const DELUXE_MEMBERSHIP_COST = 49
+const SUPPORTED_PAYMENT_MODES = ['wallet', 'card']
 
 export function upgradeToDeluxe () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -21,14 +22,18 @@ export function upgradeToDeluxe () {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
         return
       }
+      if (!SUPPORTED_PAYMENT_MODES.includes(req.body.paymentMode)) {
+        res.status(400).json({ status: 'error', error: 'Invalid payment mode' })
+        return
+      }
+
       if (req.body.paymentMode === 'wallet') {
         const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-        if ((wallet != null) && wallet.balance < 49) {
+        if ((wallet == null) || wallet.balance < DELUXE_MEMBERSHIP_COST) {
           res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
           return
-        } else {
-          await WalletModel.decrement({ balance: 49 }, { where: { UserId: req.body.UserId } })
         }
+        await wallet.decrement({ balance: DELUXE_MEMBERSHIP_COST })
       }
 
       if (req.body.paymentMode === 'card') {
@@ -41,9 +46,6 @@ export function upgradeToDeluxe () {
 
       try {
         const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })
-        challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
-          return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
-        })
         const userWithStatus = utils.queryResultToJson(updatedUser)
         const updatedToken = security.authorize(userWithStatus)
         security.authenticatedUsers.put(updatedToken, userWithStatus)
