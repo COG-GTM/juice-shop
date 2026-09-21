@@ -4,14 +4,16 @@
  */
 
 import dns from 'node:dns/promises'
+import { type IncomingMessage } from 'node:http'
+import https from 'node:https'
 import net from 'node:net'
 
 const MAX_REDIRECTS = 3
-const FETCH_TIMEOUT_MS = 5000
+const REQUEST_TIMEOUT_MS = 5000
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-export const IMAGE_CONTENT_TYPES: Record<string, string> = {
+const IMAGE_CONTENT_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
   'image/png': 'png',
@@ -62,48 +64,68 @@ function addressBlocked (address: string): boolean {
   return true
 }
 
-async function assertPubliclyRoutableHttpsUrl (url: string) {
+async function resolvePublicAddress (hostname: string) {
+  if (net.isIP(hostname) !== 0) {
+    if (addressBlocked(hostname)) throw new Error('url resolves to a non-public address')
+    return { address: hostname, family: net.isIP(hostname) }
+  }
+  const resolved = await dns.lookup(hostname, { all: true, verbatim: true })
+  const target = resolved[0]
+  if (target === undefined || resolved.some(({ address }) => addressBlocked(address))) {
+    throw new Error('url resolves to a non-public address')
+  }
+  return target
+}
+
+/* Connects to the address validated beforehand so that a DNS record changing between
+   validation and connection cannot redirect the request to an internal host. */
+async function requestImage (url: string): Promise<IncomingMessage> {
   const parsed = new URL(url)
   if (parsed.protocol !== 'https:') {
     throw new Error('only https urls are allowed for profile images')
   }
   const hostname = parsed.hostname.replace(/^\[|\]$/g, '')
-  if (net.isIP(hostname) !== 0) {
-    if (addressBlocked(hostname)) throw new Error('url resolves to a non-public address')
-    return
-  }
-  const resolved = await dns.lookup(hostname, { all: true, verbatim: true })
-  if (resolved.length === 0 || resolved.some(({ address }) => addressBlocked(address))) {
-    throw new Error('url resolves to a non-public address')
-  }
+  const pinned = await resolvePublicAddress(hostname)
+  return await new Promise<IncomingMessage>((resolve, reject) => {
+    const request = https.request({
+      hostname,
+      port: parsed.port === '' ? 443 : Number(parsed.port),
+      path: `${parsed.pathname}${parsed.search}`,
+      timeout: REQUEST_TIMEOUT_MS,
+      lookup: (_hostname, _options, callback) => { callback(null, pinned.address, pinned.family) }
+    }, resolve)
+    request.on('timeout', () => { request.destroy(new Error('timed out while retrieving the image')) })
+    request.on('error', reject)
+    request.end()
+  })
 }
 
-export async function fetchProfileImage (url: string): Promise<{ response: Response, ext: string }> {
+export async function fetchProfileImage (url: string): Promise<{ stream: IncomingMessage, ext: string }> {
   let target = url
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
-    await assertPubliclyRoutableHttpsUrl(target)
-    const response = await fetch(target, { redirect: 'manual', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get('location')
-      if (location === null) throw new Error('url returned a redirect without a location header')
-      await response.body?.cancel()
+    const response = await requestImage(target)
+    const status = response.statusCode ?? 0
+    if (status >= 300 && status < 400) {
+      response.destroy()
+      const location = response.headers.location
+      if (location === undefined) throw new Error('url returned a redirect without a location header')
       target = new URL(location, target).toString()
       continue
     }
-    if (!response.ok || !response.body) {
-      throw new Error('url returned a non-OK status code or an empty body')
+    if (status < 200 || status >= 300) {
+      response.destroy()
+      throw new Error('url returned a non-OK status code')
     }
-    const ext = IMAGE_CONTENT_TYPES[response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '']
+    const ext = IMAGE_CONTENT_TYPES[response.headers['content-type']?.split(';')[0].trim().toLowerCase() ?? '']
     if (ext === undefined) {
-      await response.body.cancel()
+      response.destroy()
       throw new Error('url did not return a supported image content type')
     }
-    const length = Number(response.headers.get('content-length'))
-    if (Number.isFinite(length) && length > MAX_IMAGE_BYTES) {
-      await response.body.cancel()
+    if (Number(response.headers['content-length']) > MAX_IMAGE_BYTES) {
+      response.destroy()
       throw new Error('image exceeds the maximum allowed size')
     }
-    return { response, ext }
+    return { stream: response, ext }
   }
   throw new Error('url exceeded the maximum number of redirects')
 }

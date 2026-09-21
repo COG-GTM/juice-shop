@@ -4,7 +4,7 @@
  */
 
 import fs from 'node:fs'
-import { Readable, Transform } from 'node:stream'
+import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
@@ -18,11 +18,10 @@ export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
-      if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         try {
-          const { response, ext } = await fetchProfileImage(url)
+          const { stream, ext } = await fetchProfileImage(url)
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
           let downloadedBytes = 0
           const sizeLimit = new Transform({
@@ -35,7 +34,7 @@ export function profileImageUrlUpload () {
               callback(null, chunk)
             }
           })
-          await pipeline(Readable.fromWeb(response.body as any), sizeLimit, fileStream)
+          await pipeline(stream, sizeLimit, fileStream)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {

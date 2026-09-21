@@ -97,12 +97,6 @@ export const serverSideChallenges = () => (req: Request, res: Response, next: Ne
       res.status(204).send()
       return
     }
-
-    if (challengeUtils.notSolved(challenges.ssrfChallenge) && req.app.locals.abused_ssrf_bug === true) {
-      challengeUtils.solve(challenges.ssrfChallenge)
-      res.status(204).send()
-      return
-    }
   }
   next()
 }
