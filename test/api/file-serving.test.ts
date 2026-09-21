@@ -11,6 +11,9 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
+
+const adminHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: security.roles.admin } })}` }
 
 let app: Express
 
@@ -135,6 +138,7 @@ void describe('/encryptionkeys', () => {
   void it('GET serves a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
+      .set(adminHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
@@ -143,20 +147,23 @@ void describe('/encryptionkeys', () => {
   void it('GET a non-existing file in will return a 404 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/doesnotexist.md')
+      .set(adminHeader)
     assert.equal(res.status, 404)
   })
 
   void it('GET the Premium Content AES key', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
+      .set(adminHeader)
     assert.equal(res.status, 200)
   })
 
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
+      .set(adminHeader)
     assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+    assert.ok(res.text.includes('Error: File names cannot contain path separators!'))
   })
 })
 
@@ -204,6 +211,7 @@ void describe('Hidden URL', () => {
   void it('GET folder containing access log files for "Access Log" challenge', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set(adminHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })

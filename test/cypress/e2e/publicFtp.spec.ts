@@ -1,4 +1,9 @@
 describe('/ftp', () => {
+  beforeEach(() => {
+    cy.login({ email: 'admin', password: 'admin123' })
+    cy.getCookie('token').should('exist')
+  })
+
   describe('challenge "confidentialDocument"', () => {
     it('should be able to access file /ftp/acquisitions.md', () => {
       cy.request('/ftp/acquisitions.md')

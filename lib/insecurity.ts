@@ -164,6 +164,56 @@ export const isAccounting = () => {
   }
 }
 
+const tokenFromCookieHeader = (req: Request) => {
+  const cookies = req.headers?.cookie
+  if (!cookies) return undefined
+  for (const cookie of cookies.split(';')) {
+    const [name, ...value] = cookie.trim().split('=')
+    if (name === 'token') {
+      try {
+        return decodeURIComponent(value.join('='))
+      } catch {
+        return undefined
+      }
+    }
+  }
+  return undefined
+}
+
+const verifiedToken = (req: Request): ResponseWithUser | undefined => {
+  const token = utils.jwtFrom(req) || tokenFromCookieHeader(req)
+  if (!token) return undefined
+  try {
+    if (jws.decode(token)?.header?.alg !== 'RS256' || !verify(token)) return undefined
+    const payload = decode(token) as ResponseWithUser | undefined
+    if (typeof payload !== 'object' || payload === null) return undefined
+    if (payload.exp !== undefined && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
+export const isAuthenticated = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedToken(req)) {
+      next()
+    } else {
+      res.status(401).json({ error: 'Unauthorized' })
+    }
+  }
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedToken(req)?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
