@@ -219,6 +219,34 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST feedback cannot be created by reusing an already solved CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const firstRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'First submission',
+        rating: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(firstRes.status, 201)
+
+    const secondRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Replayed submission',
+        rating: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(secondRes.status, 401)
+  })
+
   void it('POST feedback cannot be created with invalid CAPTCHA id', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
