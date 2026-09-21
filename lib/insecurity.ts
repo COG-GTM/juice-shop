@@ -169,7 +169,13 @@ const tokenFromCookieHeader = (req: Request) => {
   if (!cookies) return undefined
   for (const cookie of cookies.split(';')) {
     const [name, ...value] = cookie.trim().split('=')
-    if (name === 'token') return decodeURIComponent(value.join('='))
+    if (name === 'token') {
+      try {
+        return decodeURIComponent(value.join('='))
+      } catch {
+        return undefined
+      }
+    }
   }
   return undefined
 }
