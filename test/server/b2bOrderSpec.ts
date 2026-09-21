@@ -66,7 +66,7 @@ describe('b2bOrder', () => {
     b2bOrder()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(413)
-    expect(res.json).to.not.have.been.called
+    expect(res.json.called).to.equal(false)
   })
 
   it('deserializing broken JSON should not solve "rceChallenge"', () => {
