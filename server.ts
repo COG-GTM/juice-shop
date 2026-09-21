@@ -135,7 +135,7 @@ const server = new http.Server(app)
 
 const errorhandler = require('errorhandler')
 
-const cookieParserSecret = process.env.COOKIE_PARSER_SECRET ?? crypto.randomBytes(32).toString('hex')
+const cookieParserSecret = process.env.COOKIE_PARSER_SECRET || crypto.randomBytes(32).toString('hex')
 
 const startTime = Date.now()
 
