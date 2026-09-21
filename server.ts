@@ -83,6 +83,7 @@ import { retrieveBasket } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
+import { sanitizeUserRegistration } from './routes/userRegistration'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
 import { performRedirect } from './routes/redirect'
@@ -474,6 +475,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+
+  /* Privileged fields must never be assignable through self-registration */
+  app.post('/api/Users', sanitizeUserRegistration())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
