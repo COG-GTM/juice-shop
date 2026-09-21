@@ -336,7 +336,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     verbose: false,
     max_logs: '2d'
   })
-  morgan.token<Request>('url-without-query', (req) => (req.originalUrl ?? req.url).split('?')[0])
+  morgan.token<Request>('url-without-query', (req) => utils.urlWithoutQuery(req.originalUrl ?? req.url))
   const accessLogFormat = ':remote-addr - :remote-user [:date[clf]] ":method :url-without-query HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'
   app.use(morgan(accessLogFormat, { stream: accessLogStream }))
 
