@@ -57,7 +57,8 @@ void describe('/profile', () => {
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .set('Origin', 'http://evil.example.com')
-      .field('username', 'CSRF')
+      .type('form')
+      .send('username=CSRF')
       .redirects(0)
 
     assert.equal(res.status, 403)

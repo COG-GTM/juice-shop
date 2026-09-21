@@ -35,7 +35,7 @@ export function updateUserProfile () {
       return
     }
 
-    if (typeof req.body.username !== 'string') {
+    if (req.body.username !== undefined && typeof req.body.username !== 'string') {
       res.status(400).json({ error: 'Invalid username' })
       return
     }
