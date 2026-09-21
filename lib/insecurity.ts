@@ -41,7 +41,31 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 }
+const SCRYPT_KEY_LENGTH = 32
+const SCRYPT_SALT_LENGTH = 16
+
+const securityAnswerPepper = () => process.env.SECURITY_ANSWER_PEPPER ?? ''
+
+const deriveSecurityAnswerKey = (answer: string, salt: Buffer, params = SCRYPT_PARAMS) =>
+  crypto.scryptSync(answer.normalize('NFKC') + securityAnswerPepper(), salt, SCRYPT_KEY_LENGTH, params)
+
+export const hashSecurityAnswer = (answer: string) => {
+  const salt = crypto.randomBytes(SCRYPT_SALT_LENGTH)
+  const key = deriveSecurityAnswerKey(answer, salt)
+  return `scrypt$${SCRYPT_PARAMS.N}$${SCRYPT_PARAMS.r}$${SCRYPT_PARAMS.p}$${salt.toString('hex')}$${key.toString('hex')}`
+}
+
+export const verifySecurityAnswer = (answer: string, storedHash: string) => {
+  const [algorithm, N, r, p, salt, key] = storedHash?.split('$') ?? []
+  if (algorithm !== 'scrypt' || !salt || !key) {
+    return false
+  }
+  const expected = Buffer.from(key, 'hex')
+  const actual = deriveSecurityAnswerKey(answer, Buffer.from(salt, 'hex'), { N: Number(N), r: Number(r), p: Number(p) })
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
