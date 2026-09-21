@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { createHmac, randomBytes } from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { SecurityAnswerModel } from '../models/securityAnswer'
 import { UserModel } from '../models/user'
 import { SecurityQuestionModel } from '../models/securityQuestion'
-import * as security from '../lib/insecurity'
+
+const decoyKey = randomBytes(32)
 
 // Keeps the response shape identical for unknown accounts so the endpoint cannot be used to enumerate registered emails
 async function decoyQuestionFor (email: string) {
@@ -15,8 +17,8 @@ async function decoyQuestionFor (email: string) {
   if (questions.length === 0) {
     return null
   }
-  const index = parseInt(security.hmac(`security-question-decoy:${email.toLowerCase()}`).slice(0, 8), 16) % questions.length
-  return questions[index]
+  const digest = createHmac('sha256', decoyKey).update(email.toLowerCase()).digest('hex')
+  return questions[parseInt(digest.slice(0, 8), 16) % questions.length]
 }
 
 export function securityQuestion () {

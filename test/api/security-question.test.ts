@@ -80,11 +80,16 @@ void describe('/rest/user/security-question', () => {
   })
 
   void it('GET security question returns an indistinguishable decoy question for an unknown email address', async () => {
-    const res = await request(app)
+    const known = await request(app)
+      .get(`/rest/user/security-question?email=jim@${config.get<string>('application.domain')}`)
+    const unknown = await request(app)
       .get('/rest/user/security-question?email=horst@unknown-us.er')
 
-    assert.equal(res.status, 200)
-    assert.equal(typeof res.body.question?.question, 'string')
+    assert.equal(unknown.status, known.status)
+    assert.equal(unknown.headers['content-type'], known.headers['content-type'])
+    assert.deepEqual(Object.keys(unknown.body), Object.keys(known.body))
+    assert.deepEqual(Object.keys(unknown.body.question).sort(), Object.keys(known.body.question).sort())
+    assert.equal(typeof unknown.body.question.question, 'string')
   })
 
   void it('GET security question returns the same decoy question for repeated requests with an unknown email address', async () => {
