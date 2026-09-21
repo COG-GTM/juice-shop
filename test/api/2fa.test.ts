@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import config from 'config'
 import jwt from 'jsonwebtoken'
@@ -17,6 +18,15 @@ import { login, register } from './helpers/auth'
 const jsonHeader = { 'content-type': 'application/json' }
 
 let app: Express
+
+function forgeTmpToken (alg: 'none' | 'HS256') {
+  const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const signingInput = `${encode({ alg, typ: 'JWT' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token' })}`
+  const signature = alg === 'none'
+    ? ''
+    : crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')
+  return `${signingInput}.${signature}`
+}
 
 function getStatus (token: string) {
   return request(app)
@@ -89,6 +99,34 @@ void describe('/rest/2fa/verify', () => {
       .set(jsonHeader)
       .send({
         tmpToken: tmpTokenWurstbrot,
+        totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an unsigned "alg: none" tmp token is used', async () => {
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: forgeTmpToken('none'),
+        totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token signed with the public key as HMAC secret is used', async () => {
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: forgeTmpToken('HS256'),
         totpToken
       })
 

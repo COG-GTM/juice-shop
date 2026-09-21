@@ -17,7 +17,10 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    if (!security.verifySigned(tmpToken)) {
+      throw new Error('Invalid tmp token')
+    }
+    const { userId, type } = security.decode(tmpToken)
 
     if (type !== 'password_valid_needs_second_factor_token') {
       throw new Error('Invalid token type')
@@ -112,7 +115,10 @@ export async function setup (req: Request, res: Response) {
       throw new Error('User has 2fa already setup')
     }
 
-    const { secret, type } = security.verify(setupToken) && security.decode(setupToken)
+    if (!security.verifySigned(setupToken)) {
+      throw new Error('Invalid setup token')
+    }
+    const { secret, type } = security.decode(setupToken)
     if (type !== 'totp_setup_secret') {
       throw new Error('SetupToken is of wrong type')
     }
