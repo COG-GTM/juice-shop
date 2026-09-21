@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, estimateYamlExpansion } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,21 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('estimateYamlExpansion', () => {
+    it('should stay low for YAML without aliases', () => {
+      expect(estimateYamlExpansion('a: 1\nb:\n  - 2\n  - 3\n')).to.equal(1)
+    })
+
+    it('should count each resolved alias for YAML with few aliases', () => {
+      expect(estimateYamlExpansion('a: &x [1, 2, 3]\nb: *x\nc: *x\n')).to.equal(3)
+    })
+
+    it('should exceed the node limit for a Billion Laughs-style YAML bomb', () => {
+      const bomb = fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8')
+
+      expect(estimateYamlExpansion(bomb)).to.be.above(200000)
+    })
   })
 })
