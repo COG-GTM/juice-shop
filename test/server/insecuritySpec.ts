@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -79,6 +80,29 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('verify', () => {
+    const payload = 'eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ'
+    const rsaSignedToken = `eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.${payload}.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0`
+
+    it('accepts token signed with the private RSA-key', () => {
+      expect(security.verify(rsaSignedToken)).to.equal(true)
+    })
+
+    it('rejects unsigned token', () => {
+      expect(security.verify(`eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects token HMAC-signed with the public RSA-key', () => {
+      const header = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9'
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing token', () => {
+      expect(security.verify('')).to.equal(false)
     })
   })
 
