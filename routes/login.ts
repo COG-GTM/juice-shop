@@ -89,9 +89,13 @@ export function login () {
     if (!security.isLegacyPasswordHash(user.password) || !security.verifyPassword(clearTextPassword, user.password)) {
       return
     }
-    const userModel = await UserModel.findByPk(user.id)
-    if (userModel) {
-      await userModel.update({ password: clearTextPassword })
+    try {
+      const userModel = await UserModel.findByPk(user.id)
+      if (userModel) {
+        await userModel.update({ password: clearTextPassword })
+      }
+    } catch {
+      // a failed rehash must not break an otherwise valid login
     }
   }
 

@@ -224,6 +224,13 @@ describe('insecurity', () => {
       expect(security.verifyPassword('admin123', '')).to.equal(false)
       expect(security.verifyPassword('admin123', 'not-a-hash')).to.equal(false)
     })
+
+    it('rejects stored hashes with invalid scrypt parameters or fields', () => {
+      expect(security.verifyPassword('admin123', 'scrypt$x$8$1$00$00')).to.equal(false)
+      expect(security.verifyPassword('admin123', `scrypt$1048576$8$1$${'0'.repeat(32)}$${'0'.repeat(128)}`)).to.equal(false)
+      expect(security.verifyPassword('admin123', `scrypt$16384$8$1$zz$${'0'.repeat(128)}`)).to.equal(false)
+      expect(security.verifyPassword('admin123', `${security.hashPassword('admin123')}$extra`)).to.equal(false)
+    })
   })
 
   describe('isLegacyPasswordHash', () => {

@@ -69,11 +69,18 @@ export const verifyPassword = (clearTextPassword: string, storedPassword: string
   if (isLegacyPasswordHash(storedPassword)) {
     return timingSafeCompare(hash(clearTextPassword ?? ''), storedPassword)
   }
-  const [prefix, n, r, p, salt, derivedKey] = storedPassword.split('$')
-  if (prefix !== SCRYPT_PREFIX || !salt || !derivedKey) {
+  const fields = storedPassword.split('$')
+  if (fields.length !== 6) {
     return false
   }
-  const candidate = crypto.scryptSync(clearTextPassword ?? '', Buffer.from(salt, 'hex'), derivedKey.length / 2, { N: Number(n), r: Number(r), p: Number(p) })
+  const [prefix, n, r, p, salt, derivedKey] = fields
+  if (prefix !== SCRYPT_PREFIX || Number(n) !== SCRYPT_PARAMS.N || Number(r) !== SCRYPT_PARAMS.r || Number(p) !== SCRYPT_PARAMS.p) {
+    return false
+  }
+  if (!/^[0-9a-f]+$/.test(salt) || derivedKey.length !== SCRYPT_KEY_BYTES * 2 || !/^[0-9a-f]+$/.test(derivedKey)) {
+    return false
+  }
+  const candidate = crypto.scryptSync(clearTextPassword ?? '', Buffer.from(salt, 'hex'), SCRYPT_KEY_BYTES, SCRYPT_PARAMS)
   return timingSafeCompare(candidate.toString('hex'), derivedKey)
 }
 
