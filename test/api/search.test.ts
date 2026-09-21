@@ -8,7 +8,6 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
-import * as security from '../../lib/insecurity'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import { createTestApp } from './helpers/setup'
 
