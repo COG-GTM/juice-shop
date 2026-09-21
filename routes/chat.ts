@@ -8,6 +8,7 @@ import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
+import jwt from 'jsonwebtoken'
 import { Op } from 'sequelize'
 import { ProductModel } from '../models/product'
 import { UserModel } from '../models/user'
@@ -40,7 +41,14 @@ const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
 function getUserId (req: Request): number | undefined {
-  return security.authenticatedUsers.from(req)?.data?.id
+  const token = utils.jwtFrom(req)
+  if (!token) return undefined
+  try {
+    const verified = jwt.verify(token, security.publicKey, { algorithms: ['RS256'] }) as { data?: { id?: number } }
+    return verified.data?.id
+  } catch {
+    return undefined
+  }
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
