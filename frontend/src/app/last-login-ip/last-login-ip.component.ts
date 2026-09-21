@@ -16,7 +16,7 @@ import { MatCardModule } from '@angular/material/card'
 })
 
 export class LastLoginIpComponent implements OnInit {
-  lastLoginIp: string = '?'
+  lastLoginIp = '?'
 
   ngOnInit (): void {
     try {
