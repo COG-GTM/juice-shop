@@ -709,7 +709,8 @@ const uploadToDisk = multer({
       const ext = mimeTypeMap[file.mimetype]
       cb(null, name + '-' + Date.now() + '.' + ext)
     }
-  })
+  }),
+  limits: { fileSize: 200000, files: 1 }
 })
 
 const expectedModels = ['Address', 'Basket', 'BasketItem', 'Captcha', 'Card', 'Challenge', 'ChallengeDependency', 'Complaint', 'Delivery', 'Feedback', 'ImageCaptcha', 'Memory', 'PrivacyRequestModel', 'Product', 'Quantity', 'Recycle', 'SecurityAnswer', 'SecurityQuestion', 'User', 'Wallet', 'Hint']
