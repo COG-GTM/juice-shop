@@ -218,9 +218,19 @@ describe('insecurity', () => {
       expect(security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
     })
 
-    it('rejects hashes not in scrypt format', () => {
-      expect(security.verifySecurityAnswer('admin123', '6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')).to.equal(false)
-      expect(security.verifySecurityAnswer('admin123', '')).to.equal(false)
+    it('rejects malformed hashes without throwing', () => {
+      const hashes = [
+        '6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20',
+        '',
+        'scrypt$16384$8$1$00$aa',
+        'scrypt$x$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$16383$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$1048576$32$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$16384$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32) + '$extra'
+      ]
+      for (const hash of hashes) {
+        expect(security.verifySecurityAnswer('admin123', hash)).to.equal(false)
+      }
     })
   })
 })
