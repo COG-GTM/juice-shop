@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jwt from 'jsonwebtoken'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -73,6 +74,9 @@ export default defineConfig({
         },
         isWindows () {
           return utils.isWindows()
+        },
+        ForgeJwtWithPublicKey (publicKey: string) {
+          return jwt.sign({ data: { email: 'rsa_lord@juice-sh.op' }, iat: 1583037711 }, publicKey, { algorithm: 'HS256' })
         }
       })
     }

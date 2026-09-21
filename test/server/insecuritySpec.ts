@@ -188,6 +188,24 @@ describe('insecurity', () => {
     })
   })
 
+  describe('jwt signing key', () => {
+    it('signs tokens that verify against the exported public key', () => {
+      expect(security.verify(security.authorize({ data: { id: 1, email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('exports the public key belonging to the active signing key', () => {
+      expect(security.publicKey).to.match(/^-----BEGIN PUBLIC KEY-----/)
+      expect(security.verify('eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxfSwiaWF0IjoxNTgyMjIyMzY0fQ.invalid')).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is an HMAC over email and deluxe role that is stable within a process', () => {
+      expect(security.deluxeToken('test@juice-sh.op')).to.equal(security.deluxeToken('test@juice-sh.op'))
+      expect(security.deluxeToken('test@juice-sh.op')).to.not.equal(security.deluxeToken('other@juice-sh.op'))
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
