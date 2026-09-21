@@ -34,9 +34,12 @@ export function captchas () {
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
-      await captcha.destroy()
+    const { captchaId, captcha } = req.body
+    /* Deleting the matching captcha is atomic, so concurrent requests cannot reuse the same solved captcha */
+    const consumed = (captchaId != null && captcha != null)
+      ? await CaptchaModel.destroy({ where: { captchaId, answer: String(captcha) } })
+      : 0
+    if (consumed > 0) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
