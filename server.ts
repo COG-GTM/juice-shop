@@ -347,6 +347,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
+  app.use('/rest/user/security-question', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 100,
+    validate: false
+  }))
+
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
   /* Checks on JWT in Authorization header */ // vuln-code-snippet hide-line

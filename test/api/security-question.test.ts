@@ -79,12 +79,21 @@ void describe('/rest/user/security-question', () => {
     assert.equal(res.body.question.question, 'Your eldest siblings middle name?')
   })
 
-  void it('GET security question returns nothing for an unknown email address', async () => {
+  void it('GET security question returns an indistinguishable decoy question for an unknown email address', async () => {
     const res = await request(app)
       .get('/rest/user/security-question?email=horst@unknown-us.er')
 
     assert.equal(res.status, 200)
-    assert.deepEqual(res.body, {})
+    assert.equal(typeof res.body.question?.question, 'string')
+  })
+
+  void it('GET security question returns the same decoy question for repeated requests with an unknown email address', async () => {
+    const first = await request(app)
+      .get('/rest/user/security-question?email=horst@unknown-us.er')
+    const second = await request(app)
+      .get('/rest/user/security-question?email=HORST@unknown-us.er')
+
+    assert.equal(first.body.question.id, second.body.question.id)
   })
 
   void it('GET security question throws error for missing email address', async () => {
