@@ -5,6 +5,8 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -15,10 +17,6 @@ before(async () => {
   const result = await createTestApp()
   app = result.app
 }, { timeout: 60000 })
-
-function responseText (res: request.Response): string {
-  return res.text ?? (Buffer.isBuffer(res.body) ? res.body.toString('utf-8') : '')
-}
 
 void describe('/ftp', () => {
   void it('GET serves a directory listing', async () => {
@@ -84,68 +82,13 @@ void describe('/ftp', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET the easter egg file by using Poison Null Byte attack with .pdf suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/eastere.gg%2500.pdf')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('Congratulations, you found the easter egg!'))
-  })
-
-  void it('GET the easter egg file by using Poison Null Byte attack with .md suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/eastere.gg%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('Congratulations, you found the easter egg!'))
-  })
-
-  void it('GET the SIEM signature file by using Poison Null Byte attack with .pdf suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/suspicious_errors.yml%2500.pdf')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('Suspicious error messages specific to the application'))
-  })
-
-  void it('GET the SIEM signature file by using Poison Null Byte attack with .md suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/suspicious_errors.yml%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('Suspicious error messages specific to the application'))
-  })
-
-  void it('GET the 2013 coupon code file by using Poison Null Byte attack with .pdf suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/coupons_2013.md.bak%2500.pdf')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('n<MibgC7sn'))
-  })
-
-  void it('GET the 2013 coupon code file by using an Poison Null Byte attack with .md suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/coupons_2013.md.bak%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('n<MibgC7sn'))
-  })
-
-  void it('GET the package.json.bak file by using Poison Null Byte attack with .pdf suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/package.json.bak%2500.pdf')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('"name": "juice-shop",'))
-  })
-
-  void it('GET the package.json.bak file by using Poison Null Byte attack with .md suffix', async () => {
-    const res = await request(app)
-      .get('/ftp/package.json.bak%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('"name": "juice-shop",'))
+  void it('GET a file with an encoded Poison Null Byte fails with a 403 error', async () => {
+    for (const file of ['eastere.gg%2500.pdf', 'eastere.gg%2500.md', 'suspicious_errors.yml%2500.md', 'coupons_2013.md.bak%2500.pdf', 'package.json.bak%2500.md', 'encrypt.pyc%2500.md']) {
+      const res = await request(app)
+        .get(`/ftp/${file}`)
+        .buffer(true)
+      assert.equal(res.status, 403)
+    }
   })
 
   void it('GET a restricted file directly from file system path on server by tricking route definitions fails with 403 error', async () => {
@@ -180,12 +123,9 @@ void describe('/ftp', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('GET the package.json.bak file contains a dependency on epilogue-js for "Typosquatting" challenge', async () => {
-    const res = await request(app)
-      .get('/ftp/package.json.bak%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('"epilogue-js": "~0.7",'))
+  void it('The package.json.bak file contains a dependency on epilogue-js for "Typosquatting" challenge', async () => {
+    const backup = await readFile(path.resolve('ftp/package.json.bak'), 'utf-8')
+    assert.ok(backup.includes('"epilogue-js": "~0.7",'))
   })
 
   void it('GET file /ftp/quarantine/juicy_malware_linux_amd_64.url', async () => {

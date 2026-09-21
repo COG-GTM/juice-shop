@@ -7,9 +7,10 @@ import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as utils from '../lib/utils'
-import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
+
+const ftpFolder = path.resolve('ftp/')
 
 export function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
@@ -24,20 +25,31 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
+    if (containsNullByte(file)) {
+      verifyAttemptedPoisonNullByteExploit(file.split(/\0|%00/)[0])
+      res.status(403)
+      next(new Error('File names cannot contain null bytes!'))
+      return
+    }
+
     if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
+      const resolvedPath = path.resolve(ftpFolder, file)
+      if (path.dirname(resolvedPath) !== ftpFolder) {
+        res.status(403)
+        next(new Error('File names cannot contain forward slashes!'))
+        return
+      }
 
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      res.sendFile(resolvedPath)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
   }
 
-  function verifySuccessfulPoisonNullByteExploit (file: string) {
+  function verifyAttemptedPoisonNullByteExploit (file: string) {
     challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
     challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
     challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
@@ -47,6 +59,10 @@ export function servePublicFiles () {
       return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
         challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
     })
+  }
+
+  function containsNullByte (param: string) {
+    return param.includes('\0') || utils.contains(param, '%00')
   }
 
   function endsWithAllowlistedFileType (param: string) {
