@@ -43,9 +43,9 @@ export const solve = function (challenge: any, isRestore = false, isCheating = f
   })
 }
 
-export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean) {
+export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, includeFlag: boolean = true) {
   if (!notSolved(challenge)) {
-    const flag = utils.ctfFlag(challenge.name)
+    const flag = includeFlag ? utils.ctfFlag(challenge.name) : undefined
 
     const challengeKey = challenge.key as ChallengeKey
     const fullChallenge = challenges[challengeKey]
@@ -65,7 +65,9 @@ export const sendNotification = function (challenge: { difficulty?: number, key:
       codingChallenge: config.get('challenges.codingChallengesEnabled') !== 'never' && hasCodingChallenge
     }
     const wasPreviouslyShown = notifications.some(({ key }) => key === challenge.key)
-    notifications.push(notification)
+    if (includeFlag) {
+      notifications.push(notification)
+    }
 
     if (globalWithSocketIO.io && (isRestore || !wasPreviouslyShown)) {
       globalWithSocketIO.io.emit('challenge solved', notification)
