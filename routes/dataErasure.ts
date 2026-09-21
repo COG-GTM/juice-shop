@@ -21,6 +21,11 @@ const entities = new Entities()
 
 const router = express.Router()
 
+const allowedLayouts = new Map<string, string>([
+  ['dataErasureForm', path.resolve(__dirname, '../views/dataErasureForm.hbs')],
+  ['dataErasureResult', path.resolve(__dirname, '../views/dataErasureResult.hbs')]
+])
+
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -101,11 +106,10 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       }
 
       if (req.body.layout) {
-        const filePath: string = path.resolve(req.body.layout).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
-        if (!isForbiddenFile) {
+        const layout = allowedLayouts.get(req.body.layout)
+        if (layout) {
           res.render('dataErasureResult', {
-            ...req.body,
+            layout,
             ...themeVars
           }, (error, html) => {
             if (!html || error) {
@@ -120,10 +124,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
           next(new Error('File access not allowed'))
         }
       } else {
-        res.render('dataErasureResult', {
-          ...req.body,
-          ...themeVars
-        })
+        res.render('dataErasureResult', themeVars)
       }
     } catch (error) {
       next(error)
