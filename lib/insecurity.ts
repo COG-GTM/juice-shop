@@ -164,10 +164,39 @@ export const isAccounting = () => {
   }
 }
 
+const tokenFromCookieHeader = (req: Request) => {
+  const cookies = req.headers?.cookie
+  if (!cookies) return undefined
+  for (const cookie of cookies.split(';')) {
+    const [name, ...value] = cookie.trim().split('=')
+    if (name === 'token') return decodeURIComponent(value.join('='))
+  }
+  return undefined
+}
+
+const verifiedToken = (req: Request) => {
+  const token = utils.jwtFrom(req) || tokenFromCookieHeader(req)
+  if (!token) return undefined
+  try {
+    return jwt.verify(token, publicKey, { algorithms: ['RS256'] }) as ResponseWithUser
+  } catch {
+    return undefined
+  }
+}
+
+export const isAuthenticated = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedToken(req)) {
+      next()
+    } else {
+      res.status(401).json({ error: 'Unauthorized' })
+    }
+  }
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.admin) {
+    if (verifiedToken(req)?.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
