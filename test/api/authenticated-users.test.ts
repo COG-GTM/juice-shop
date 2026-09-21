@@ -47,4 +47,29 @@ void describe('/rest/user/authentication-details', () => {
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
   })
+
+  void it('GET does not expose deluxeToken or lastLoginIp', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    for (const user of res.body.data) {
+      assert.equal(user.deluxeToken, undefined)
+      assert.equal(user.lastLoginIp, undefined)
+    }
+  })
+
+  void it('GET is forbidden for non-admin users', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set('Authorization', `Bearer ${token}`)
+
+    assert.equal(res.status, 403)
+  })
 })
