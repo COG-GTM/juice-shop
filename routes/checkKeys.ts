@@ -3,24 +3,33 @@ import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 
+const nftWalletAddress = '0x8343d2eb2B13A2495De435a1b15e85b98115Ce05'
+
 export function checkKeys () {
   return async (req: Request, res: Response) => {
     try {
-      const { HDNodeWallet } = await import('ethers')
-      const mnemonic = 'purpose betray marriage blame crunch monitor spin slide donate sport lift clutch'
-      const mnemonicWallet = HDNodeWallet.fromPhrase(mnemonic)
-      const privateKey = mnemonicWallet.privateKey
-      const publicKey = mnemonicWallet.publicKey
-      const address = mnemonicWallet.address
-      challengeUtils.solveIf(challenges.nftUnlockChallenge, () => {
-        return req.body.privateKey === privateKey
-      })
-      if (req.body.privateKey === privateKey) {
+      const { Wallet, computeAddress, getAddress } = await import('ethers')
+      const walletAddress = getAddress(nftWalletAddress)
+      const submittedKey = typeof req.body.privateKey === 'string' ? req.body.privateKey : ''
+
+      const addressOf = (derive: (key: string) => string) => {
+        try {
+          return derive(submittedKey)
+        } catch {
+          return undefined
+        }
+      }
+      const isPrivateKey = addressOf((key) => new Wallet(key).address) === walletAddress
+      const isPublicKey = addressOf((key) => computeAddress(key)) === walletAddress
+      const isAddress = addressOf((key) => getAddress(key)) === walletAddress
+
+      challengeUtils.solveIf(challenges.nftUnlockChallenge, () => isPrivateKey)
+      if (isPrivateKey) {
         res.status(200).json({ success: true, message: 'Challenge successfully solved', status: challenges.nftUnlockChallenge })
       } else {
-        if (req.body.privateKey === address) {
+        if (isAddress) {
           res.status(401).json({ success: false, message: 'Looks like you entered the public address of my ethereum wallet!', status: challenges.nftUnlockChallenge })
-        } else if (req.body.privateKey === publicKey) {
+        } else if (isPublicKey) {
           res.status(401).json({ success: false, message: 'Looks like you entered the public key of my ethereum wallet!', status: challenges.nftUnlockChallenge })
         } else {
           res.status(401).json({ success: false, message: 'Looks like you entered a non-Ethereum private key to access me.', status: challenges.nftUnlockChallenge })
