@@ -189,6 +189,28 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('Wrong answer to security question.'))
   })
 
+  void it('POST password reset is locked for an account after repeated wrong answers', async () => {
+    const resetRequest = async () => await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'brute-force@' + config.get<string>('application.domain'),
+        answer: 'wrong',
+        new: '12345',
+        repeat: '12345'
+      })
+
+    for (let i = 0; i < 5; i++) {
+      const res = await resetRequest()
+      assert.equal(res.status, 401)
+    }
+
+    const res = await resetRequest()
+
+    assert.equal(res.status, 429)
+    assert.ok(res.headers['retry-after'])
+  })
+
   void it('POST password reset without any data is blocked', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
