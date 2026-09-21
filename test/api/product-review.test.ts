@@ -48,7 +48,7 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is attributed to the authenticated user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -58,10 +58,15 @@ void describe('/rest/products/:id/reviews', () => {
       .set({ Authorization: `Bearer ${token}` })
       .send({
         message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        author: 'admin@juice-sh.op'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviews.body.data.find(({ message }: { message: string }) => message === 'Lorem Ipsum')
+    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
   })
 
   void it('PUT single product review creation needs an authenticated user', async () => {
@@ -72,26 +77,6 @@ void describe('/rest/products/:id/reviews', () => {
         author: 'Anonymous'
       })
     assert.equal(res.status, 401)
-  })
-
-  void it('PUT single product review is attributed to the authenticated user', async () => {
-    const { token } = await login(app, {
-      email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-    })
-    const createRes = await request(app)
-      .put('/rest/products/1/reviews')
-      .set({ Authorization: `Bearer ${token}` })
-      .send({
-        message: 'Attributed to the token identity',
-        author: 'admin@juice-sh.op'
-      })
-    assert.equal(createRes.status, 201)
-
-    const res = await request(app)
-      .get('/rest/products/1/reviews')
-    const review = res.body.data.find(({ message }: { message: string }) => message === 'Attributed to the token identity')
-    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
   })
 })
 
