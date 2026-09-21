@@ -96,45 +96,42 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
-export const MAX_COUPON_DISCOUNT = 100
+export const MAX_COUPON_DISCOUNT = 99
 
+const couponSignatureLength = 12
+const couponSignatureSeparator = '_' // not part of the z85 alphabet
 const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
 
 const couponSignature = (payload: string) => {
-  const digest = crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex')
-  let length = 16
-  while ((payload.length + 1 + length) % 4 !== 0) { // z85 only encodes inputs with a length divisible by 4
-    length++
-  }
-  return digest.substring(0, length)
+  return crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex').substring(0, couponSignatureLength)
 }
 
 export const generateCoupon = (discount: number, date = new Date()) => {
   const cappedDiscount = Math.min(Math.max(Math.trunc(discount), 0), MAX_COUPON_DISCOUNT)
-  const payload = utils.toMMMYY(date) + '-' + cappedDiscount
-  return z85.encode(payload + '-' + couponSignature(payload))
+  const payload = utils.toMMMYY(date) + '-' + String(cappedDiscount).padStart(2, '0')
+  return z85.encode(payload) + couponSignatureSeparator + couponSignature(payload)
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
+  const [encodedPayload, signature, ...rest] = coupon.split(couponSignatureSeparator)
+  if (!encodedPayload || !signature || rest.length > 0) {
+    return undefined
+  }
+  const decoded = z85.decode(encodedPayload)
   if (!decoded || hasValidFormat(decoded.toString()) == null) {
     return undefined
   }
-  const [validity, discount, signature] = decoded.toString().split('-')
-  if (!hasValidSignature(validity + '-' + discount, signature)) {
+  const [validity, discount] = decoded.toString().split('-')
+  if (!hasValidSignature(decoded.toString(), signature)) {
     return undefined
   }
   if (utils.toMMMYY(new Date()) !== validity) {
     return undefined
   }
-  const parsedDiscount = parseInt(discount, 10)
-  if (parsedDiscount < 0 || parsedDiscount > MAX_COUPON_DISCOUNT) {
-    return undefined
-  }
-  return parsedDiscount
+  return parseInt(discount, 10)
 }
 
 function hasValidSignature (payload: string, signature: string) {
@@ -143,7 +140,7 @@ function hasValidSignature (payload: string, signature: string) {
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{1,3}-[0-9a-f]+$/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
