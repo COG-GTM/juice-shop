@@ -1,6 +1,7 @@
 describe('/ftp', () => {
   beforeEach(() => {
-    cy.login({ email: 'jim', password: 'ncc-1701' })
+    cy.login({ email: 'admin', password: 'admin123' })
+    cy.getCookie('token').should('exist')
   })
 
   describe('challenge "confidentialDocument"', () => {
