@@ -60,6 +60,15 @@ describe('b2bOrder', () => {
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
+  it('oversized "orderLinesData" is rejected without being evaluated', () => {
+    req.body.orderLinesData = '"'.padEnd(1002, 'a') + '"'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(413)
+    expect(res.json.called).to.equal(false)
+  })
+
   it('deserializing broken JSON should not solve "rceChallenge"', () => {
     req.body.orderLinesData = '{ "productId: 28'
 

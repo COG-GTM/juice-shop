@@ -13,10 +13,17 @@ import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
+const MAX_ORDER_LINES_DATA_LENGTH = 1000
+
 export function b2bOrder () {
   return ({ body }: Request, res: Response, next: NextFunction) => {
     if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
       const orderLinesData = body.orderLinesData || ''
+      if (typeof orderLinesData !== 'string' || orderLinesData.length > MAX_ORDER_LINES_DATA_LENGTH) {
+        res.status(413)
+        next(new Error(`Order lines data must be a string of at most ${MAX_ORDER_LINES_DATA_LENGTH} characters`))
+        return
+      }
       try {
         const sandbox = { safeEval, orderLinesData }
         vm.createContext(sandbox)
