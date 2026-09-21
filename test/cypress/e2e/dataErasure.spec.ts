@@ -4,7 +4,7 @@ describe('/dataerasure', () => {
   })
 
   describe('challenge "lfr"', () => {
-    it('should be possible to perform local file read attack using the browser', () => {
+    it('should not be possible to perform local file read attack using the browser', () => {
       cy.window().then(async () => {
         const params = 'layout=../package.json'
 
@@ -18,12 +18,9 @@ describe('/dataerasure', () => {
           },
           body: params
         })
-        if (response.status === 200) {
-          console.log('Success')
-        }
+        expect(response.status).to.equal(500)
+        expect(await response.text()).to.contain('File access not allowed')
       })
-      cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'Local File Read' })
     })
   })
 })
