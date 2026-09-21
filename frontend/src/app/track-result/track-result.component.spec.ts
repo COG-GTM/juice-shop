@@ -56,6 +56,11 @@ describe('TrackResultComponent', () => {
         component.ngOnInit()
 
         expect(component.results.orderNo).toBe('<a src="link">Link</a>')
+
+        fixture.detectChanges()
+        const heading = fixture.nativeElement.querySelector('h1')
+        expect(heading.textContent).toContain('<a src="link">Link</a>')
+        expect(heading.querySelector('a')).toBeNull()
     })
 
     it('should set "delivered" status for delivered orders', () => {
