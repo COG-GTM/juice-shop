@@ -89,6 +89,30 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  it('should solve "forgottenDevBackupChallenge" when attempting a Poison Null Byte attack on package.json.bak', () => {
+    challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'package.json.bak%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(challenges.forgottenDevBackupChallenge.solved).to.equal(true)
+  })
+
+  it('should solve "nullByteChallenge" when attempting a Poison Null Byte attack on encrypt.pyc', () => {
+    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
+    challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
+    challenges.forgottenBackupChallenge = { solved: false, save } as unknown as Challenge
+    challenges.misplacedSignatureFileChallenge = { solved: false, save } as unknown as Challenge
+    challenges.nullByteChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'encrypt.pyc%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(challenges.nullByteChallenge.solved).to.equal(true)
+  })
+
   it('should raise error for filenames with a raw null byte', () => {
     req.params.file = 'package.json.bak\u0000.md'
 

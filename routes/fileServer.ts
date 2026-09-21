@@ -26,6 +26,7 @@ export function servePublicFiles () {
 
   function verify (file: string, res: Response, next: NextFunction) {
     if (containsNullByte(file)) {
+      verifyAttemptedPoisonNullByteExploit(file.split(/\0|%00/)[0])
       res.status(403)
       next(new Error('File names cannot contain null bytes!'))
       return
@@ -46,6 +47,18 @@ export function servePublicFiles () {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
+  }
+
+  function verifyAttemptedPoisonNullByteExploit (file: string) {
+    challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
+    challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
+    challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
+    challengeUtils.solveIf(challenges.misplacedSignatureFileChallenge, () => { return file.toLowerCase() === 'suspicious_errors.yml' })
+
+    challengeUtils.solveIf(challenges.nullByteChallenge, () => {
+      return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
+        challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
+    })
   }
 
   function containsNullByte (param: string) {
