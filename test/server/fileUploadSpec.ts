@@ -9,7 +9,7 @@ import chai from 'chai'
 import yaml from 'js-yaml'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType, countExpandedNodes } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, countExpandedNodes, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -84,6 +84,45 @@ describe('fileUpload', () => {
       const bomb = fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8')
 
       expect(countExpandedNodes(yaml.load(bomb))).to.be.above(200000)
+    })
+  })
+
+  describe('handleYamlUpload', () => {
+    const upload = (buffer: Buffer) => {
+      const statusCodes: number[] = []
+      const response: any = { status: (code: number) => { statusCodes.push(code); return response }, end: () => {} }
+      const errors: Error[] = []
+
+      handleYamlUpload({ file: { originalname: 'complaint.yml', buffer } } as any, response, (err: Error) => { errors.push(err) })
+
+      return { statusCode: statusCodes[0], error: errors[0] }
+    }
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    it('should reject files exceeding the YAML size limit without parsing them', () => {
+      const { statusCode, error } = upload(Buffer.from('a: '.padEnd(100001, 'b')))
+
+      expect(statusCode).to.equal(413)
+      expect(error.message).to.contain('too large')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should solve "yamlBombChallenge" when the document expands beyond the node limit', () => {
+      const { statusCode } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
+
+      expect(statusCode).to.equal(503)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve "yamlBombChallenge" for a harmless document', () => {
+      const { statusCode } = upload(Buffer.from('a: &x [1, 2, 3]\nb: *x\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
     })
   })
 })
