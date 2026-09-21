@@ -196,6 +196,44 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', () => {
+      expect(security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+    })
+
+    it('returns a different hash for the same password on every call', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the password a salted hash was derived from', () => {
+      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password', () => {
+      expect(security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('accepts a password matching a legacy MD5 hash', () => {
+      expect(security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.verifyPassword('admin124', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+    })
+
+    it('rejects empty or malformed stored hashes', () => {
+      expect(security.verifyPassword('admin123', '')).to.equal(false)
+      expect(security.verifyPassword('admin123', 'not-a-hash')).to.equal(false)
+    })
+  })
+
+  describe('isLegacyPasswordHash', () => {
+    it('detects unsalted MD5 hashes', () => {
+      expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.isLegacyPasswordHash(security.hashPassword('admin123'))).to.equal(false)
+      expect(security.isLegacyPasswordHash('')).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
