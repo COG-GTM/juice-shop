@@ -51,4 +51,15 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username is rejected for cross-origin request', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://evil.example.com')
+      .field('username', 'CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
 })
