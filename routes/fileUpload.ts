@@ -24,28 +24,49 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const UPLOAD_EXTRACTION_DIR = path.resolve('uploads/complaints')
+const MAX_DECOMPRESSED_BYTES = 10 * 1024 * 1024
+const MAX_ENTRIES = 100
+
+function isWithinExtractionDir (absolutePath: string) {
+  return absolutePath === UPLOAD_EXTRACTION_DIR || absolutePath.startsWith(UPLOAD_EXTRACTION_DIR + path.sep)
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
+      const filename = path.basename(file.originalname.toLowerCase())
       const tempFile = path.join(os.tmpdir(), filename)
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let totalBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const absolutePath = path.resolve(UPLOAD_EXTRACTION_DIR, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                entryCount++
+                if (entry.type === 'Directory' || entryCount > MAX_ENTRIES || !isWithinExtractionDir(absolutePath)) {
                   entry.autodrain()
+                  return
                 }
+                fs.mkdirSync(path.dirname(absolutePath), { recursive: true })
+                const writeStream = fs.createWriteStream(absolutePath).on('error', function (err) { next(err) })
+                entry.on('data', function (chunk: Buffer) {
+                  totalBytes += chunk.length
+                  if (totalBytes > MAX_DECOMPRESSED_BYTES) {
+                    entry.unpipe(writeStream)
+                    writeStream.destroy()
+                    entry.autodrain()
+                  }
+                })
+                entry.pipe(writeStream)
               }).on('error', function (err: unknown) { next(err) })
           })
         })
