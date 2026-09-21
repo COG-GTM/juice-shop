@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import { QueryTypes, Sequelize } from 'sequelize'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -40,6 +41,22 @@ export default defineConfig({
             if (memory[property]) {
               return memory[property]
             }
+          }
+        },
+        async GetImageCaptchaAnswer () {
+          const database = new Sequelize('database', 'username', 'password', {
+            dialect: 'sqlite',
+            storage: 'data/juiceshop.sqlite',
+            logging: false
+          })
+          try {
+            const captchas = await database.query<{ answer: string }>(
+              'SELECT answer FROM ImageCaptchas ORDER BY createdAt DESC LIMIT 1',
+              { type: QueryTypes.SELECT }
+            )
+            return captchas[0] ? captchas[0].answer : null
+          } finally {
+            await database.close()
           }
         },
         GetFromConfig (variable: string) {
