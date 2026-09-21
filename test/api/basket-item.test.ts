@@ -56,6 +56,14 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST new basket item with duplicate BasketId is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"BasketId":2,"ProductId":2,"quantity":1,"BasketId":3}')
+    assert.equal(res.status, 401)
+  })
+
   void it('POST new basket item with more than available quantity is forbidden', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
