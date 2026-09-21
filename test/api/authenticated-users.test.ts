@@ -13,7 +13,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -46,5 +46,30 @@ void describe('/rest/user/authentication-details', () => {
     const jim = res.body.data.find((user: any) => user.email.startsWith('jim@'))
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
+  })
+
+  void it('GET does not expose deluxeToken or lastLoginIp', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    for (const user of res.body.data) {
+      assert.equal(user.deluxeToken, undefined)
+      assert.equal(user.lastLoginIp, undefined)
+    }
+  })
+
+  void it('GET is forbidden for non-admin users', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set('Authorization', `Bearer ${token}`)
+
+    assert.equal(res.status, 403)
   })
 })
