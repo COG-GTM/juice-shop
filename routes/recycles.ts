@@ -10,18 +10,20 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 
 export const getRecycleItem = () => (req: Request, res: Response) => {
-  const id = Number.parseInt(req.params.id, 10)
-  if (!Number.isInteger(id)) {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id) || id < 1) {
     return res.status(400).send({ error: 'Invalid recycle id.' })
   }
-  const user = security.authenticatedUsers.from(req)
-  if (!user?.data?.id) {
+  const token = utils.jwtFrom(req)
+  const decodedToken = security.verify(token) ? security.decode(token) : null
+  const userId = decodedToken?.data?.id
+  if (!userId) {
     return res.status(401).send({ error: 'Authentication required.' })
   }
   RecycleModel.findAll({
     where: {
       id,
-      UserId: user.data.id
+      UserId: userId
     }
   }).then((Recycle) => {
     return res.send(utils.queryResultToJson(Recycle))

@@ -106,10 +106,12 @@ void describe('/api/Recycles', () => {
   })
 
   void it('Will reject non-numeric recycle id', async () => {
-    const res = await request(app)
-      .get('/api/Recycles/foobar')
-      .set(authHeader)
-    assert.equal(res.status, 400)
+    for (const id of ['foobar', '1junk', '0']) {
+      const res = await request(app)
+        .get(`/api/Recycles/${id}`)
+        .set(authHeader)
+      assert.equal(res.status, 400)
+    }
   })
 
   void it('PUT update existing recycle is forbidden', async () => {
