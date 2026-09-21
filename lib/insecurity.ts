@@ -39,6 +39,12 @@ const signingKey = resolveSigningKey()
 const privateKey = signingKey.export({ type: 'pkcs8', format: 'pem' }).toString()
 export const publicKey = crypto.createPublicKey(signingKey).export({ type: 'spki', format: 'pem' }).toString()
 
+if (fs?.existsSync('encryptionkeys')) {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  } catch { }
+}
+
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 interface ResponseWithUser {
