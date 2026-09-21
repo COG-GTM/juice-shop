@@ -41,7 +41,47 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 }
+const SCRYPT_KEY_LENGTH = 32
+const SCRYPT_SALT_LENGTH = 16
+
+const securityAnswerPepper = () => process.env.SECURITY_ANSWER_PEPPER ?? ''
+
+const deriveSecurityAnswerKey = (answer: string, salt: Buffer, params = SCRYPT_PARAMS) =>
+  crypto.scryptSync(answer.normalize('NFKC') + securityAnswerPepper(), salt, SCRYPT_KEY_LENGTH, params)
+
+export const hashSecurityAnswer = (answer: string) => {
+  const salt = crypto.randomBytes(SCRYPT_SALT_LENGTH)
+  const key = deriveSecurityAnswerKey(answer, salt)
+  return `scrypt$${SCRYPT_PARAMS.N}$${SCRYPT_PARAMS.r}$${SCRYPT_PARAMS.p}$${salt.toString('hex')}$${key.toString('hex')}`
+}
+
+const isDecimal = (value: string) => /^[1-9][0-9]*$/.test(value)
+const isHex = (value: string, bytes: number) => new RegExp(`^[0-9a-f]{${bytes * 2}}$`).test(value)
+
+// scrypt requires N to be a power of two and rejects parameters exceeding its default 32 MB memory limit
+const isSupportedScryptParams = ({ N, r, p }: { N: number, r: number, p: number }) =>
+  (N & (N - 1)) === 0 && N >= 2 && r <= 32 && p <= 4 && 128 * N * r <= 32 * 1024 * 1024
+
+export const verifySecurityAnswer = (answer: string, storedHash: string) => {
+  const fields = storedHash?.split('$') ?? []
+  if (fields.length !== 6) {
+    return false
+  }
+  const [algorithm, N, r, p, salt, key] = fields
+  if (algorithm !== 'scrypt' || !isDecimal(N) || !isDecimal(r) || !isDecimal(p) ||
+      !isHex(salt, SCRYPT_SALT_LENGTH) || !isHex(key, SCRYPT_KEY_LENGTH)) {
+    return false
+  }
+  const params = { N: Number(N), r: Number(r), p: Number(p) }
+  if (!isSupportedScryptParams(params)) {
+    return false
+  }
+  const expected = Buffer.from(key, 'hex')
+  const actual = deriveSecurityAnswerKey(answer, Buffer.from(salt, 'hex'), params)
+  return crypto.timingSafeEqual(expected, actual)
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'

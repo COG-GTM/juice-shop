@@ -196,11 +196,41 @@ describe('insecurity', () => {
     })
   })
 
-  describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+  describe('hashSecurityAnswer', () => {
+    it('returns a scrypt hash with per-call random salt', () => {
+      const hash = security.hashSecurityAnswer('Samuel')
+      const [algorithm, N, r, p, salt, key] = hash.split('$')
+      expect(algorithm).to.equal('scrypt')
+      expect([N, r, p]).to.deep.equal(['16384', '8', '1'])
+      expect(salt).to.have.lengthOf(32)
+      expect(key).to.have.lengthOf(64)
+      expect(security.hashSecurityAnswer('Samuel')).to.not.equal(hash)
+    })
+  })
+
+  describe('verifySecurityAnswer', () => {
+    it('accepts the answer the hash was derived from', () => {
+      expect(security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
+      expect(security.verifySecurityAnswer('', security.hashSecurityAnswer(''))).to.equal(true)
+    })
+
+    it('rejects a wrong answer', () => {
+      expect(security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    })
+
+    it('rejects malformed hashes without throwing', () => {
+      const hashes = [
+        '6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20',
+        '',
+        'scrypt$16384$8$1$00$aa',
+        'scrypt$x$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$16383$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$1048576$32$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32),
+        'scrypt$16384$8$1$' + '00'.repeat(16) + '$' + 'aa'.repeat(32) + '$extra'
+      ]
+      for (const hash of hashes) {
+        expect(security.verifySecurityAnswer('admin123', hash)).to.equal(false)
+      }
     })
   })
 })
