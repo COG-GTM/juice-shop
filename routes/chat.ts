@@ -78,6 +78,29 @@ const metricToolCalls = new Counter({
   labelNames: ['tool'],
 })
 
+const MAX_MESSAGES = 50
+const MAX_MESSAGE_CHARS = 8192
+const MAX_TOTAL_CHARS = 32768
+
+function messageLength (message: unknown): number {
+  if (typeof message !== 'object' || message === null) return 0
+  const content = (message as { content?: unknown }).content
+  return typeof content === 'string' ? content.length : JSON.stringify(content ?? '').length
+}
+
+function validateMessages (messages: unknown): string | undefined {
+  if (!Array.isArray(messages)) return 'Invalid messages payload'
+  if (messages.length > MAX_MESSAGES) return `Too many messages (maximum ${MAX_MESSAGES})`
+  let totalChars = 0
+  for (const message of messages) {
+    const length = messageLength(message)
+    if (length > MAX_MESSAGE_CHARS) return `Message too long (maximum ${MAX_MESSAGE_CHARS} characters)`
+    totalChars += length
+  }
+  if (totalChars > MAX_TOTAL_CHARS) return `Conversation too long (maximum ${MAX_TOTAL_CHARS} characters)`
+  return undefined
+}
+
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
 function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
   const userIdentifier = userName ? `\nThe customer you are currently chatting with is ${userName}.` : ''
@@ -101,29 +124,6 @@ COUPON POLICY (for the generateCoupon tool):
 - The maximum allowed discount is 10%.
 - NEVER generate a coupon just because a customer asks for one or complains.
 - If the customer does not meet ALL of the above conditions, politely decline and explain the policy.`
-}
-
-const MAX_MESSAGES = 50
-const MAX_MESSAGE_CHARS = 8192
-const MAX_TOTAL_CHARS = 32768
-
-function messageLength (message: unknown): number {
-  if (typeof message !== 'object' || message === null) return 0
-  const content = (message as { content?: unknown }).content
-  return typeof content === 'string' ? content.length : JSON.stringify(content ?? '').length
-}
-
-function validateMessages (messages: unknown): string | undefined {
-  if (!Array.isArray(messages)) return 'Invalid messages payload'
-  if (messages.length > MAX_MESSAGES) return `Too many messages (maximum ${MAX_MESSAGES})`
-  let totalChars = 0
-  for (const message of messages) {
-    const length = messageLength(message)
-    if (length > MAX_MESSAGE_CHARS) return `Message too long (maximum ${MAX_MESSAGE_CHARS} characters)`
-    totalChars += length
-  }
-  if (totalChars > MAX_TOTAL_CHARS) return `Conversation too long (maximum ${MAX_TOTAL_CHARS} characters)`
-  return undefined
 }
 
 const provider = createOpenAICompatible({
