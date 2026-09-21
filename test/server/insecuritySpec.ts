@@ -83,6 +83,7 @@ describe('insecurity', () => {
       const validity = z85.decode(security.generateCoupon(10).split('_')[0]).toString().split('-')[0]
       expect(security.discountFromCoupon(z85.encode(validity + '-99'))).to.equal(undefined)
       expect(security.discountFromCoupon(z85.encode(validity + '-99') + '_000000000000')).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(validity + '-99') + '_🍏🍏🍏🍏🍏🍏')).to.equal(undefined)
     })
 
     it('returns undefined for coupon code with tampered discount', () => {

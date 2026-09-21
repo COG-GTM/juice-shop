@@ -99,6 +99,7 @@ export const userEmailFrom = ({ headers }: any) => {
 export const MAX_COUPON_DISCOUNT = 99
 
 const couponSignatureLength = 12
+const couponSignaturePattern = new RegExp(`^[0-9a-f]{${couponSignatureLength}}$`)
 const couponSignatureSeparator = '_' // not part of the z85 alphabet
 const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
 
@@ -135,8 +136,10 @@ export const discountFromCoupon = (coupon?: string) => {
 }
 
 function hasValidSignature (payload: string, signature: string) {
-  const expected = couponSignature(payload)
-  return signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+  if (!couponSignaturePattern.test(signature)) {
+    return false
+  }
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(couponSignature(payload)))
 }
 
 function hasValidFormat (coupon: string) {
