@@ -34,6 +34,8 @@ export function login () {
     models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
         const user = utils.queryResultToJson(authenticatedUser)
+        if (!user.data?.id) { void loginWithSaltedPasswordHash(req, res, next); return } // vuln-code-snippet hide-line
+        void migrateLegacyPasswordHash(user.data, req.body.password || '') // vuln-code-snippet hide-line
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
             status: 'totp_token_required',
@@ -55,6 +57,47 @@ export function login () {
       })
   }
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
+
+  async function loginWithSaltedPasswordHash (req: Request, res: Response, next: NextFunction) {
+    try {
+      const authenticatedUser = await UserModel.findOne({ where: { email: req.body.email || '' } })
+      if (!authenticatedUser || !security.verifyPassword(req.body.password || '', authenticatedUser.password)) {
+        res.status(401).send(res.__('Invalid email or password.'))
+        return
+      }
+      const user = utils.queryResultToJson(authenticatedUser)
+      if (user.data.totpSecret !== '') {
+        res.status(401).json({
+          status: 'totp_token_required',
+          data: {
+            tmpToken: security.authorize({
+              userId: user.data.id,
+              type: 'password_valid_needs_second_factor_token'
+            })
+          }
+        })
+        return
+      }
+      // @ts-expect-error FIXME some properties missing in user
+      afterLogin(user, res, next)
+    } catch (error) {
+      next(error as Error)
+    }
+  }
+
+  async function migrateLegacyPasswordHash (user: { id: number, password: string }, clearTextPassword: string) {
+    if (!security.isLegacyPasswordHash(user.password) || !security.verifyPassword(clearTextPassword, user.password)) {
+      return
+    }
+    try {
+      const userModel = await UserModel.findByPk(user.id)
+      if (userModel) {
+        await userModel.update({ password: clearTextPassword })
+      }
+    } catch {
+      // a failed rehash must not break an otherwise valid login
+    }
+  }
 
   function verifyPreLoginChallenges (req: Request) {
     challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })

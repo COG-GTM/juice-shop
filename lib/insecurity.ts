@@ -43,6 +43,47 @@ interface IAuthenticatedUsers {
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
+const SCRYPT_PREFIX = 'scrypt'
+const SCRYPT_SALT_BYTES = 16
+const SCRYPT_KEY_BYTES = 64
+const SCRYPT_PARAMS = { N: 16384, r: 8, p: 1 }
+
+export const isLegacyPasswordHash = (storedPassword: string) => /^[0-9a-f]{32}$/i.test(storedPassword ?? '')
+
+export const hashPassword = (clearTextPassword: string) => {
+  const salt = crypto.randomBytes(SCRYPT_SALT_BYTES)
+  const derivedKey = crypto.scryptSync(clearTextPassword, salt, SCRYPT_KEY_BYTES, SCRYPT_PARAMS)
+  return [SCRYPT_PREFIX, SCRYPT_PARAMS.N, SCRYPT_PARAMS.r, SCRYPT_PARAMS.p, salt.toString('hex'), derivedKey.toString('hex')].join('$')
+}
+
+const timingSafeCompare = (a: string, b: string) => {
+  const bufferA = Buffer.from(a)
+  const bufferB = Buffer.from(b)
+  return bufferA.length === bufferB.length && crypto.timingSafeEqual(bufferA, bufferB)
+}
+
+export const verifyPassword = (clearTextPassword: string, storedPassword: string) => {
+  if (!storedPassword) {
+    return false
+  }
+  if (isLegacyPasswordHash(storedPassword)) {
+    return timingSafeCompare(hash(clearTextPassword ?? ''), storedPassword)
+  }
+  const fields = storedPassword.split('$')
+  if (fields.length !== 6) {
+    return false
+  }
+  const [prefix, n, r, p, salt, derivedKey] = fields
+  if (prefix !== SCRYPT_PREFIX || Number(n) !== SCRYPT_PARAMS.N || Number(r) !== SCRYPT_PARAMS.r || Number(p) !== SCRYPT_PARAMS.p) {
+    return false
+  }
+  if (salt.length !== SCRYPT_SALT_BYTES * 2 || !/^[0-9a-f]+$/.test(salt) || derivedKey.length !== SCRYPT_KEY_BYTES * 2 || !/^[0-9a-f]+$/.test(derivedKey)) {
+    return false
+  }
+  const candidate = crypto.scryptSync(clearTextPassword ?? '', Buffer.from(salt, 'hex'), SCRYPT_KEY_BYTES, SCRYPT_PARAMS)
+  return timingSafeCompare(candidate.toString('hex'), derivedKey)
+}
+
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
   if (utils.contains(str, nullByte)) {
