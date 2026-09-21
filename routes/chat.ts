@@ -82,23 +82,24 @@ const MAX_MESSAGES = 50
 const MAX_MESSAGE_CHARS = 8192
 const MAX_TOTAL_CHARS = 32768
 
-function messageLength (message: unknown): number {
-  if (typeof message !== 'object' || message === null) return 0
-  const content = (message as { content?: unknown }).content
-  return typeof content === 'string' ? content.length : JSON.stringify(content ?? '').length
+function messageSize (message: unknown): number {
+  return JSON.stringify(message ?? '').length
 }
 
-function validateMessages (messages: unknown): string | undefined {
-  if (!Array.isArray(messages)) return 'Invalid messages payload'
-  if (messages.length > MAX_MESSAGES) return `Too many messages (maximum ${MAX_MESSAGES})`
+/* Keeps only the most recent messages fitting the count and character budget so that long
+   conversations stay usable while the payload forwarded to the LLM remains bounded. */
+export function limitMessages (messages: unknown): { error?: string, messages: unknown[] } {
+  if (!Array.isArray(messages)) return { error: 'Invalid messages payload', messages: [] }
+  const limited: unknown[] = []
   let totalChars = 0
-  for (const message of messages) {
-    const length = messageLength(message)
-    if (length > MAX_MESSAGE_CHARS) return `Message too long (maximum ${MAX_MESSAGE_CHARS} characters)`
-    totalChars += length
+  for (const message of messages.slice(-MAX_MESSAGES).reverse()) {
+    const size = messageSize(message)
+    if (size > MAX_MESSAGE_CHARS) return { error: `Message too long (maximum ${MAX_MESSAGE_CHARS} characters)`, messages: [] }
+    if (totalChars + size > MAX_TOTAL_CHARS) break
+    totalChars += size
+    limited.unshift(message)
   }
-  if (totalChars > MAX_TOTAL_CHARS) return `Conversation too long (maximum ${MAX_TOTAL_CHARS} characters)`
-  return undefined
+  return { messages: limited }
 }
 
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
@@ -209,8 +210,7 @@ export function chat () {
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
-    const validationError = validateMessages(messages)
+    const { error: validationError, messages } = limitMessages(req.body?.messages ?? [])
     if (validationError) {
       res.status(413).json({ error: validationError })
       return
