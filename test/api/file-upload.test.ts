@@ -77,13 +77,13 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 410)
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST file type XML with Billion Laughs attack is rejected before parsing', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(res.text.includes('XML documents with a DOCTYPE or entity declaration are rejected'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
