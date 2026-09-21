@@ -54,9 +54,9 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "basketManipulateChallenge"', () => {
-      it('should manipulate basket of other user instead of the one associated to logged-in user', () => {
+      it('should not manipulate basket of other user via duplicated BasketId', () => {
         cy.window().then(async () => {
-          await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
+          const response = await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
             method: 'POST',
             cache: 'no-cache',
             headers: {
@@ -65,8 +65,8 @@ describe('/#/basket', () => {
             },
             body: '{ "ProductId": 14,"BasketId":"1","quantity":1,"BasketId":"2" }'
           })
+          expect(response.status).to.equal(401)
         })
-        cy.expectChallengeSolved({ challenge: 'Manipulate Basket' })
       })
     })
   })
