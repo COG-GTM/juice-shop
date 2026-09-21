@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +108,52 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const mockResponse = () => {
+      const res: { statusCode?: number, body?: unknown } = {}
+      const response = {
+        status (code: number) { res.statusCode = code; return response },
+        json (body: unknown) { res.body = body; return response }
+      }
+      return { res, response: response as unknown as Response }
+    }
+
+    const requestWithToken = (token?: string) => ({ headers: token ? { authorization: 'Bearer ' + token } : {} }) as unknown as Request
+
+    it('calls next for a valid token with admin role', () => {
+      const { res, response } = mockResponse()
+      let nextCalled = false
+      const next: NextFunction = () => { nextCalled = true }
+
+      security.isAdmin()(requestWithToken(security.authorize({ data: { role: security.roles.admin } })), response, next)
+
+      expect(nextCalled).to.equal(true)
+      expect(res.statusCode).to.equal(undefined)
+    })
+
+    it('responds with 403 for a valid token without admin role', () => {
+      const { res, response } = mockResponse()
+      let nextCalled = false
+      const next: NextFunction = () => { nextCalled = true }
+
+      security.isAdmin()(requestWithToken(security.authorize({ data: { role: security.roles.customer } })), response, next)
+
+      expect(nextCalled).to.equal(false)
+      expect(res.statusCode).to.equal(403)
+    })
+
+    it('responds with 403 when no token is present', () => {
+      const { res, response } = mockResponse()
+      let nextCalled = false
+      const next: NextFunction = () => { nextCalled = true }
+
+      security.isAdmin()(requestWithToken(), response, next)
+
+      expect(nextCalled).to.equal(false)
+      expect(res.statusCode).to.equal(403)
     })
   })
 
