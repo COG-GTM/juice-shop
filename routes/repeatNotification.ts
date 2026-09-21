@@ -12,7 +12,7 @@ export function repeatNotification () {
     const challenge = challengeUtils.findChallengeByName(challengeName)
 
     if (challenge?.solved) {
-      challengeUtils.sendNotification(challenge, true)
+      challengeUtils.sendNotification(challenge, true, false)
     }
 
     res.sendStatus(200)

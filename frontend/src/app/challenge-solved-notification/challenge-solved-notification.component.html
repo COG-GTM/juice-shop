@@ -23,7 +23,7 @@
           }</div>
 
           <button id="closeButton" mat-button (click)="closeNotification($index, $event.shiftKey)">X</button></div>
-        @if (showCtfFlagsInNotifications) {
+        @if (showCtfFlagsInNotifications && notification.flag) {
           <br/>
           <div>
             <span class="icon-box flag-box" (click)="copyToClipboard(notification.flag)" [matTooltip]="'COPY_TO_CLIPBOARD' | translate">
