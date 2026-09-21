@@ -9,7 +9,8 @@ import https from 'node:https'
 import net from 'node:net'
 
 const MAX_REDIRECTS = 3
-const REQUEST_TIMEOUT_MS = 5000
+const SOCKET_TIMEOUT_MS = 5000
+const TOTAL_TIMEOUT_MS = 15000
 
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
@@ -79,7 +80,7 @@ async function resolvePublicAddress (hostname: string) {
 
 /* Connects to the address validated beforehand so that a DNS record changing between
    validation and connection cannot redirect the request to an internal host. */
-async function requestImage (url: string): Promise<IncomingMessage> {
+async function requestImage (url: string, signal: AbortSignal): Promise<IncomingMessage> {
   const parsed = new URL(url)
   if (parsed.protocol !== 'https:') {
     throw new Error('only https urls are allowed for profile images')
@@ -91,8 +92,15 @@ async function requestImage (url: string): Promise<IncomingMessage> {
       hostname,
       port: parsed.port === '' ? 443 : Number(parsed.port),
       path: `${parsed.pathname}${parsed.search}`,
-      timeout: REQUEST_TIMEOUT_MS,
-      lookup: (_hostname, _options, callback) => { callback(null, pinned.address, pinned.family) }
+      timeout: SOCKET_TIMEOUT_MS,
+      signal,
+      lookup: (_hostname, options, callback) => {
+        if (options.all === true) {
+          callback(null, [{ address: pinned.address, family: pinned.family }])
+          return
+        }
+        callback(null, pinned.address, pinned.family)
+      }
     }, resolve)
     request.on('timeout', () => { request.destroy(new Error('timed out while retrieving the image')) })
     request.on('error', reject)
@@ -101,9 +109,10 @@ async function requestImage (url: string): Promise<IncomingMessage> {
 }
 
 export async function fetchProfileImage (url: string): Promise<{ stream: IncomingMessage, ext: string }> {
+  const signal = AbortSignal.timeout(TOTAL_TIMEOUT_MS)
   let target = url
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects++) {
-    const response = await requestImage(target)
+    const response = await requestImage(target, signal)
     const status = response.statusCode ?? 0
     if (status >= 300 && status < 400) {
       response.destroy()
