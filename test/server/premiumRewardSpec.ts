@@ -8,6 +8,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { type Challenge } from 'data/types'
 import { challenges } from '../../data/datacache'
+import * as security from '../../lib/insecurity'
 import { servePremiumContent } from '../../routes/premiumReward'
 
 const expect = chai.expect
@@ -17,13 +18,19 @@ describe('premiumReward', () => {
   let req: any
   let res: any
   let save: any
+  let isDeluxe: sinon.SinonStub
 
   beforeEach(() => {
-    res = { sendFile: sinon.spy() }
+    res = { sendFile: sinon.spy(), status: sinon.stub().returnsThis(), json: sinon.spy() }
     req = {}
     save = () => ({
       then () { }
     })
+    isDeluxe = sinon.stub(security, 'isDeluxe').returns(true)
+  })
+
+  afterEach(() => {
+    isDeluxe.restore()
   })
 
   it('should serve /frontend/dist/frontend/assets/private/JuiceShop_Wallpaper_1920x1080_VR.jpg', () => {
@@ -38,5 +45,16 @@ describe('premiumReward', () => {
     servePremiumContent()(req, res)
 
     expect(challenges.premiumPaywallChallenge.solved).to.equal(true)
+  })
+
+  it('should deny access for users without deluxe membership', () => {
+    isDeluxe.returns(false)
+    challenges.premiumPaywallChallenge = { solved: false, save } as unknown as Challenge
+
+    servePremiumContent()(req, res)
+
+    expect(res.status).to.have.been.calledWith(403)
+    expect(res.sendFile).to.not.have.been.called
+    expect(challenges.premiumPaywallChallenge.solved).to.equal(false)
   })
 })
