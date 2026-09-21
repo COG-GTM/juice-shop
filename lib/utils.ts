@@ -73,18 +73,20 @@ export const version = (module?: string) => {
   }
 }
 
+export const resolveCtfKey = (configuredKey?: string, keyFile: string = 'ctf.key') => {
+  if (configuredKey !== undefined && configuredKey !== '') {
+    return configuredKey
+  }
+  if (fs.existsSync(keyFile)) {
+    return fs.readFileSync(keyFile, 'utf8')
+  }
+  logger.warn(`No CTF_KEY environment variable or ${keyFile} file found: Generated an ephemeral flag signing key which changes on every restart. Set CTF_KEY to a unique secret value when running a CTF!`)
+  return crypto.randomBytes(32).toString('hex')
+}
+
 let cachedCtfKey: string | undefined
 const getCtfKey = () => {
-  if (!cachedCtfKey) {
-    if (process.env.CTF_KEY !== undefined && process.env.CTF_KEY !== '') {
-      cachedCtfKey = process.env.CTF_KEY
-    } else if (fs.existsSync('ctf.key')) {
-      cachedCtfKey = fs.readFileSync('ctf.key', 'utf8')
-    } else {
-      cachedCtfKey = crypto.randomBytes(32).toString('hex')
-      logger.warn('No CTF_KEY environment variable or ctf.key file found: Generated an ephemeral flag signing key which changes on every restart. Set CTF_KEY to a unique secret value when running a CTF!')
-    }
-  }
+  cachedCtfKey ??= resolveCtfKey(process.env.CTF_KEY)
   return cachedCtfKey
 }
 export const ctfFlag = (text: string) => {
