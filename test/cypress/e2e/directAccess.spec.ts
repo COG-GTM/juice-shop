@@ -81,6 +81,7 @@ describe('/', () => {
 
   describe('challenge "accessLogDisclosure"', () => {
     it("should be able to access today's access log file", () => {
+      cy.login({ email: 'admin', password: 'admin123' })
       // cy.visit requires a text/html response hence cy.request has been used
       cy.task<Date>('toISO8601').then((date: Date) => {
         cy.request(`/support/logs/access.log.${date.toString()}`)

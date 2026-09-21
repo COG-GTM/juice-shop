@@ -1,4 +1,8 @@
 describe('/ftp', () => {
+  beforeEach(() => {
+    cy.login({ email: 'jim', password: 'ncc-1701' })
+  })
+
   describe('challenge "confidentialDocument"', () => {
     it('should be able to access file /ftp/acquisitions.md', () => {
       cy.request('/ftp/acquisitions.md')
