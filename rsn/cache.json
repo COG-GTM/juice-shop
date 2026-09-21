@@ -56,9 +56,12 @@
 	},
 	"changeProductChallenge_3_correct.ts": {
 		"added": [
+			17,
 			48
 		],
-		"removed": []
+		"removed": [
+			17
+		]
 	},
 	"changeProductChallenge_4.ts": {
 		"added": [
