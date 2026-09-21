@@ -21,10 +21,15 @@ const entities = new Entities()
 
 const router = express.Router()
 
-const allowedLayouts = new Map<string, string>([
-  ['dataErasureForm', path.resolve(__dirname, '../views/dataErasureForm.hbs')],
-  ['dataErasureResult', path.resolve(__dirname, '../views/dataErasureResult.hbs')]
-])
+const allowedLayouts = new Set(['dataErasureForm', 'dataErasureResult'])
+
+const resolveLayout = (app: express.Application, layout: string): string | undefined => {
+  if (!allowedLayouts.has(layout)) {
+    return undefined
+  }
+  const viewsDir = app.get('views') as string | string[]
+  return path.join(Array.isArray(viewsDir) ? viewsDir[0] : viewsDir, layout + '.hbs')
+}
 
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
@@ -106,7 +111,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       }
 
       if (req.body.layout) {
-        const layout = allowedLayouts.get(req.body.layout)
+        const layout = resolveLayout(req.app, req.body.layout)
         if (layout) {
           res.render('dataErasureResult', {
             layout,
