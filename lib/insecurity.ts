@@ -116,7 +116,9 @@ export function couponSigningKeyIn (directory: string) {
       try {
         fs.linkSync(stagedKeyFile, keyFile) // publishes the fully written key, never clobbering another process' key
       } catch { /* another process won the race */ }
-      fs.unlinkSync(stagedKeyFile)
+      try {
+        fs.unlinkSync(stagedKeyFile)
+      } catch { /* cleanup must not keep the winner's key from being read */ }
     }
     const persistedKey = fs.readFileSync(keyFile, 'utf8')
     return persistedKey.length > 0 ? persistedKey : key
