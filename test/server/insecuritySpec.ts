@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -34,10 +37,15 @@ describe('insecurity', () => {
   })
 
   describe('generateCoupon', () => {
-    it('returns base85-encoded month, year and discount as coupon code', () => {
+    it('returns base85-encoded month, year and discount followed by a signature as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(coupon).to.match(/^.{10}_[0-9a-f]{12}$/)
+      expect(z85.decode(coupon.split('_')[0]).toString()).to.equal('JAN80-20')
+    })
+
+    it('caps the encoded discount at 99 percent', () => {
+      const coupon = security.generateCoupon(9999, new Date('1980-01-02'))
+      expect(z85.decode(coupon.split('_')[0]).toString()).to.equal('JAN80-99')
     })
 
     it('uses current month and year if not specified', () => {
@@ -53,6 +61,31 @@ describe('insecurity', () => {
     })
   })
 
+  describe('couponSigningKeyIn', () => {
+    let directory: string
+
+    beforeEach(() => {
+      directory = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-coupon-key-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(directory, { recursive: true, force: true })
+    })
+
+    it('returns the same key on subsequent startups', () => {
+      expect(security.couponSigningKeyIn(directory)).to.equal(security.couponSigningKeyIn(directory))
+    })
+
+    it('returns a key even when the directory cannot be written to', () => {
+      expect(security.couponSigningKeyIn(path.join(directory, 'missing'))).to.match(/^[0-9a-f]{64}$/)
+    })
+
+    it('returns a key even when the persisted key cannot be read', () => {
+      fs.mkdirSync(path.join(directory, 'juiceshop.coupon.key'))
+      expect(security.couponSigningKeyIn(directory)).to.match(/^[0-9a-f]{64}$/)
+    })
+  })
+
   describe('discountFromCoupon', () => {
     it('returns undefined when not passing in a coupon code', () => {
       expect(security.discountFromCoupon(undefined)).to.equal(undefined)
@@ -65,15 +98,26 @@ describe('insecurity', () => {
     })
 
     it('returns undefined for coupon code not according to expected pattern', () => {
-      expect(security.discountFromCoupon(z85.encode('Test'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('XXX00-10'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-999'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-1'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC2018-10'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode('Test') + '_000000000000')).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode('XXX00-10') + '_000000000000')).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode('DEC2018-10') + '_000000000000')).to.equal(undefined)
     })
 
     it('returns undefined for expired coupon code', () => {
-      expect(security.discountFromCoupon(z85.encode('SEP14-50'))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(50, new Date('2014-09-01')))).to.equal(undefined)
+    })
+
+    it('returns undefined for forged coupon code without valid signature', () => {
+      const validity = z85.decode(security.generateCoupon(10).split('_')[0]).toString().split('-')[0]
+      expect(security.discountFromCoupon(z85.encode(validity + '-99'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(validity + '-99') + '_000000000000')).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(validity + '-99') + '_🍏🍏🍏🍏🍏🍏')).to.equal(undefined)
+    })
+
+    it('returns undefined for coupon code with tampered discount', () => {
+      const [payload, signature] = security.generateCoupon(10).split('_')
+      const tampered = z85.decode(payload).toString().replace('-10', '-99')
+      expect(security.discountFromCoupon(z85.encode(tampered) + '_' + signature)).to.equal(undefined)
     })
 
     it('returns discount from valid coupon code', () => {

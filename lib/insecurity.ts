@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -96,28 +97,77 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+export const MAX_COUPON_DISCOUNT = 99
+
+const couponSignatureLength = 12
+const couponSignaturePattern = new RegExp(`^[0-9a-f]{${couponSignatureLength}}$`)
+const couponSignatureSeparator = '_' // not part of the z85 alphabet
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? couponSigningKeyIn('data')
+
+// Stored next to the SQLite database so all processes of a single deployment share one key.
+// Deployments with more than one instance have to set COUPON_SIGNING_KEY instead.
+export function couponSigningKeyIn (directory: string) {
+  const keyFile = path.resolve(directory, 'juiceshop.coupon.key')
+  const key = crypto.randomBytes(32).toString('hex')
+  try {
+    if (!fs.existsSync(keyFile)) {
+      const stagedKeyFile = `${keyFile}.${process.pid}`
+      fs.writeFileSync(stagedKeyFile, key, { mode: 0o600 })
+      try {
+        fs.linkSync(stagedKeyFile, keyFile) // publishes the fully written key, never clobbering another process' key
+      } catch { /* another process won the race */ }
+      try {
+        fs.unlinkSync(stagedKeyFile)
+      } catch { /* cleanup must not keep the winner's key from being read */ }
+    }
+    const persistedKey = fs.readFileSync(keyFile, 'utf8')
+    return persistedKey.length > 0 ? persistedKey : key
+  } catch {
+    return key
+  }
+}
+
+const couponSignature = (payload: string) => {
+  return crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex').substring(0, couponSignatureLength)
+}
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  const cappedDiscount = Math.min(Math.max(Math.trunc(discount), 0), MAX_COUPON_DISCOUNT)
+  const payload = utils.toMMMYY(date) + '-' + String(cappedDiscount).padStart(2, '0')
+  return z85.encode(payload) + couponSignatureSeparator + couponSignature(payload)
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const [encodedPayload, signature, ...rest] = coupon.split(couponSignatureSeparator)
+  if (!encodedPayload || !signature || rest.length > 0) {
+    return undefined
   }
+  const decoded = z85.decode(encodedPayload)
+  if (!decoded || hasValidFormat(decoded.toString()) == null) {
+    return undefined
+  }
+  const [validity, discount] = decoded.toString().split('-')
+  if (!hasValidSignature(decoded.toString(), signature)) {
+    return undefined
+  }
+  if (utils.toMMMYY(new Date()) !== validity) {
+    return undefined
+  }
+  return parseInt(discount, 10)
+}
+
+function hasValidSignature (payload: string, signature: string) {
+  if (!couponSignaturePattern.test(signature)) {
+    return false
+  }
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(couponSignature(payload)))
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
