@@ -132,6 +132,8 @@ challenges:
   safetyMode:
     type: string
     enum: ['enabled', 'disabled','auto']
+  nftWalletAddress:
+    type: string
   csafHashValue:
     type: string
   metricsIgnoredUserAgents:
