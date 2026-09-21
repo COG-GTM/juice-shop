@@ -77,7 +77,7 @@ export const verifyPassword = (clearTextPassword: string, storedPassword: string
   if (prefix !== SCRYPT_PREFIX || Number(n) !== SCRYPT_PARAMS.N || Number(r) !== SCRYPT_PARAMS.r || Number(p) !== SCRYPT_PARAMS.p) {
     return false
   }
-  if (!/^[0-9a-f]+$/.test(salt) || derivedKey.length !== SCRYPT_KEY_BYTES * 2 || !/^[0-9a-f]+$/.test(derivedKey)) {
+  if (salt.length !== SCRYPT_SALT_BYTES * 2 || !/^[0-9a-f]+$/.test(salt) || derivedKey.length !== SCRYPT_KEY_BYTES * 2 || !/^[0-9a-f]+$/.test(derivedKey)) {
     return false
   }
   const candidate = crypto.scryptSync(clearTextPassword ?? '', Buffer.from(salt, 'hex'), SCRYPT_KEY_BYTES, SCRYPT_PARAMS)
