@@ -337,15 +337,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   })
   app.use(morgan('combined', { stream: accessLogStream }))
 
-  // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
-  app.enable('trust proxy')
+  app.set('trust proxy', config.get<number>('server.trustProxyHops'))
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
-    max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    max: 100
   }))
-  // vuln-code-snippet end resetPasswordMortyChallenge
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
