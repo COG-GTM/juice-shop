@@ -26,7 +26,7 @@ export function contractExploitListener () {
   return async (req: Request, res: Response) => {
     const metamaskAddress = req.body.walletAddress
     if (typeof metamaskAddress === 'string' && ETH_ADDRESS_PATTERN.test(metamaskAddress)) {
-      rememberWallet(metamaskAddress)
+      rememberWallet(metamaskAddress.toLowerCase())
     }
     try {
       if (!isEventListenerCreated) {
@@ -38,8 +38,9 @@ export function contractExploitListener () {
         }
         const contract = new Contract(web3WalletAddress, web3WalletABI, provider as any)
         void contract.on('ContractExploited', (exploiter: string) => {
-          if (walletsConnected.has(exploiter)) {
-            walletsConnected.delete(exploiter)
+          const exploiterAddress = exploiter.toLowerCase()
+          if (walletsConnected.has(exploiterAddress)) {
+            walletsConnected.delete(exploiterAddress)
             challengeUtils.solveIf(challenges.web3WalletChallenge, () => true)
           }
         })
