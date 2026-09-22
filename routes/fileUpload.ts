@@ -72,6 +72,10 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+function declaresSensitiveFileEntity (xml: string) {
+  return /<!ENTITY\s+\S+\s+(SYSTEM|PUBLIC)[^>]*["'](file:\/\/)?\/?(etc\/passwd|[a-z]:[\\/]windows[\\/]system\.ini)["']/i.test(xml)
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -81,6 +85,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
         vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, dtdload: false, dtdvalid: false, nonet: true })', sandbox, { timeout: 2000 })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return declaresSensitiveFileEntity(data) })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
