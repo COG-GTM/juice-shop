@@ -67,3 +67,7 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# Locally generated secrets and derived public key
+.secrets/
+encryptionkeys/jwt.pub
