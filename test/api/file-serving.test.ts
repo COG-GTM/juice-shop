@@ -152,6 +152,13 @@ void describe('/encryptionkeys', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET the JWT public key returns the runtime public key', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
+    assert.equal(res.status, 200)
+    assert.ok(res.text.startsWith('-----BEGIN PUBLIC KEY-----'))
+  })
+
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
