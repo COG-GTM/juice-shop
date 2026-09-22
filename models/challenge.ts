@@ -122,7 +122,6 @@ const CHALLENGE_KEYS = [
   'csafChallenge',
   'exposedCredentialsChallenge',
   'leakedApiKeyChallenge',
-  'passwordHashLeakChallenge',
   'chatbotPromptInjectionChallenge',
   'chatbotGreedyInjectionChallenge',
   'aiDebuggingChallenge'
