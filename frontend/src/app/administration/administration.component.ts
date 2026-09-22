@@ -25,6 +25,8 @@ import { MatCardModule } from '@angular/material/card'
 
 library.add(faUser, faEye, faHome, faArchive, faTrashAlt)
 
+const MAX_RATING = 5
+
 @Component({
   selector: 'app-administration',
   templateUrl: './administration.component.html',
@@ -131,7 +133,8 @@ export class AdministrationComponent implements OnInit {
   }
 
   times (numberOfTimes: number) {
-    return Array(numberOfTimes).fill('★')
+    const stars = Math.min(Math.max(Math.floor(Number(numberOfTimes)) || 0, 0), MAX_RATING)
+    return Array(stars).fill('★')
   }
 
   doesUserHaveAnActiveSession (user: { email: string, lastLoginTime: number }) {
