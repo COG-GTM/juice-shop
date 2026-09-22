@@ -79,7 +79,7 @@ import { applyCoupon } from './routes/coupon'
 import dataErasure from './routes/dataErasure'
 import { dataExport } from './routes/dataExport'
 import { chat } from './routes/chat'
-import { retrieveBasket } from './routes/basket'
+import { retrieveBasket, isBasketOwner } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
@@ -395,8 +395,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
-  app.use('/rest/basket/:id', security.isAuthorized())
-  app.use('/rest/basket/:id/order', security.isAuthorized())
+  app.use('/rest/basket/:id', security.isAuthorized(), utils.asyncHandler(isBasketOwner()))
+  app.use('/rest/basket/:id/order', security.isAuthorized(), utils.asyncHandler(isBasketOwner()))
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
   app.post('/api/Feedbacks', verify.forgedFeedbackChallenge())
   /* Captcha verification before finale takes over */

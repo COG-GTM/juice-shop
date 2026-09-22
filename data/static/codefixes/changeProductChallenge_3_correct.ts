@@ -43,8 +43,8 @@
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
-  app.use('/rest/basket/:id', security.isAuthorized())
-  app.use('/rest/basket/:id/order', security.isAuthorized())
+  app.use('/rest/basket/:id', security.isAuthorized(), utils.asyncHandler(isBasketOwner()))
+  app.use('/rest/basket/:id/order', security.isAuthorized(), utils.asyncHandler(isBasketOwner()))
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
