@@ -165,6 +165,20 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.role, 'customer')
   })
 
+  void it('POST new user with isActive false is registered as active', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        isActive: false
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.isActive, true)
+  })
+
   void it('POST new user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
