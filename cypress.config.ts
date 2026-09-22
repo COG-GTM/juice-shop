@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import jwt from 'jsonwebtoken'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -19,6 +20,9 @@ export default defineConfig({
     supportFile: 'test/cypress/support/e2e.ts',
     setupNodeEvents (on: any) {
       on('task', {
+        forgeJwtWithPublicKey (publicKey: string) {
+          return jwt.sign({ data: { email: 'rsa_lord@juice-sh.op' }, iat: 1583037711 }, publicKey, { algorithm: 'HS256' })
+        },
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
         },
