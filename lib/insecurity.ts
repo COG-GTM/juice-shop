@@ -26,6 +26,14 @@ const generatedPrivateKeyFile = `${secretsDirectory}/jwt.key`
 const generatedDeluxeSecretFile = `${secretsDirectory}/deluxe.secret`
 const publicKeyFile = 'encryptionkeys/jwt.pub'
 
+const readFileIfPresent = (file: string) => {
+  try {
+    return fs.readFileSync(file, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
 const writeSecretFile = (file: string, content: string) => {
   fs.mkdirSync(secretsDirectory, { recursive: true, mode: 0o700 })
   fs.writeFileSync(file, content, { mode: 0o600 })
@@ -44,8 +52,10 @@ const resolvePrivateKey = () => {
   if (inlineKey) {
     return inlineKey.includes('-----BEGIN') ? inlineKey : Buffer.from(inlineKey, 'base64').toString('utf8')
   }
-  const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? (fs.existsSync(generatedPrivateKeyFile) ? generatedPrivateKeyFile : undefined)
-  return keyFile ? fs.readFileSync(keyFile, 'utf8') : generatePrivateKey()
+  if (process.env.JWT_PRIVATE_KEY_FILE) {
+    return fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+  }
+  return readFileIfPresent(generatedPrivateKeyFile) ?? generatePrivateKey()
 }
 
 const privateKey = fs ? resolvePrivateKey() : ''
@@ -53,7 +63,7 @@ export const publicKey = fs ? crypto.createPublicKey(privateKey).export({ type: 
 
 if (fs) {
   try {
-    if (!fs.existsSync(publicKeyFile) || fs.readFileSync(publicKeyFile, 'utf8') !== publicKey) {
+    if (readFileIfPresent(publicKeyFile) !== publicKey) {
       fs.writeFileSync(publicKeyFile, publicKey)
     }
   } catch {
@@ -65,8 +75,9 @@ const resolveDeluxeTokenSecret = () => {
   if (process.env.DELUXE_TOKEN_SECRET) {
     return process.env.DELUXE_TOKEN_SECRET
   }
-  if (fs.existsSync(generatedDeluxeSecretFile)) {
-    return fs.readFileSync(generatedDeluxeSecretFile, 'utf8')
+  const persistedSecret = readFileIfPresent(generatedDeluxeSecretFile)
+  if (persistedSecret) {
+    return persistedSecret
   }
   const secret = crypto.randomBytes(32).toString('hex')
   writeSecretFile(generatedDeluxeSecretFile, secret)
