@@ -8,7 +8,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { PaymentComponent } from './payment.component'
+import { PaymentComponent, startOfCampaignDay } from './payment.component'
 import { MatInputModule } from '@angular/material/input'
 import { ReactiveFormsModule } from '@angular/forms'
 
@@ -352,5 +352,20 @@ describe('PaymentComponent', () => {
         component.choosePayment()
         expect(setItemSpy).toHaveBeenCalledWith('token', 'tokenValue')
         expect(cookieService.put).toHaveBeenCalledWith('token', 'tokenValue')
+    })
+})
+
+describe('startOfCampaignDay', () => {
+    const wmnsdy2019 = 1551999600000 // Mar 08, 2019 00:00:00 GMT+0100
+    const oneDay = 24 * 60 * 60 * 1000
+
+    it('should map any moment of a campaign day to that campaign day', () => {
+        expect(startOfCampaignDay(wmnsdy2019)).toBe(wmnsdy2019)
+        expect(startOfCampaignDay(wmnsdy2019 + oneDay - 1)).toBe(wmnsdy2019)
+    })
+
+    it('should map moments outside the campaign day to a different day', () => {
+        expect(startOfCampaignDay(wmnsdy2019 - 1)).toBe(wmnsdy2019 - oneDay)
+        expect(startOfCampaignDay(wmnsdy2019 + oneDay)).toBe(wmnsdy2019 + oneDay)
     })
 })
