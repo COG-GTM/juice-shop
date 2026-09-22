@@ -19,6 +19,14 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/api/Quantitys', () => {
+  void it('GET quantity of all items is forbidden for anonymous users', async () => {
+    const res = await request(app)
+      .get('/api/Quantitys')
+      .set({ 'content-type': 'application/json' })
+
+    assert.equal(res.status, 401)
+  })
+
   void it('GET quantity of all items for customers', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,

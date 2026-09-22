@@ -1,6 +1,6 @@
 ngAfterViewInit () {
     const products = this.productService.search('')
-    const quantities = this.quantityService.getAll()
+    const quantities = this.quantityService.getAll().pipe(catchError(() => of([])))
     forkJoin([quantities, products]).subscribe({
       next: ([quantities, products]) => {
         const dataTable: ProductTableEntry[] = []

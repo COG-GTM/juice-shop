@@ -8,7 +8,8 @@ import { ActivatedRoute, Router } from '@angular/router'
 import { ProductService } from '../Services/product.service'
 import { type AfterViewInit, Component, NgZone, type OnDestroy, ViewChild, ChangeDetectorRef, ElementRef, inject } from '@angular/core'
 import { MatPaginator } from '@angular/material/paginator'
-import { BehaviorSubject, forkJoin, type Subscription } from 'rxjs'
+import { BehaviorSubject, forkJoin, of, type Subscription } from 'rxjs'
+import { catchError } from 'rxjs/operators'
 import { MatTableDataSource } from '@angular/material/table'
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser'
 import { TranslateModule } from '@ngx-translate/core'
@@ -60,7 +61,7 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
     const products = this.productService.search('')
-    const quantities = this.quantityService.getAll()
+    const quantities = this.quantityService.getAll().pipe(catchError(() => of([])))
     forkJoin([quantities, products]).subscribe({
       next: ([quantities, products]) => {
         const dataTable: ProductTableEntry[] = []

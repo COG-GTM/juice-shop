@@ -185,20 +185,13 @@ describe('SearchResultComponent', () => {
         expect(console.log).toHaveBeenCalledWith('Error')
     })
 
-    it('should hold no products when quantity getAll API call fails', () => {
-        vi.spyOn(console, 'log').mockImplementation(() => {})
+    it('should still hold products when quantity getAll API call fails', () => {
+        productService.search.mockReturnValue(of([{ id: 42, name: 'Apple Juice', description: 'juicy' }]))
         quantityService.getAll.mockReturnValue(throwError(() => 'Error'))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(component.tableData).toEqual([])
-    })
-
-    it('should log error from quantity getAll API call directly to browser console', () => {
-        quantityService.getAll.mockReturnValue(throwError(() => 'Error'))
-        console.log = vi.fn()
-        component.ngAfterViewInit()
-        fixture.detectChanges()
-        expect(console.log).toHaveBeenCalledWith('Error')
+        expect(component.tableData.length).toBe(1)
+        expect(component.dataSource.data.length).toBe(1)
     })
 
     it('should notify socket if search query includes DOM XSS payload while filtering table', () => {
