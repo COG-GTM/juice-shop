@@ -9,10 +9,21 @@ import { reviewsCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
+function authorFrom (req: Request) {
+  const user = security.authenticatedUsers.from(req)
+  if (user?.data?.email) {
+    return user.data.email
+  }
+  const token = utils.jwtFrom(req)
+  if (token && security.verify(token)) {
+    return (security.decode(token) as { data?: { email?: string } } | undefined)?.data?.email
+  }
+}
+
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
-    const user = security.authenticatedUsers.from(req)
-    if (!user?.data?.email) {
+    const author = authorFrom(req)
+    if (!author) {
       return res.status(401).json({ error: 'Unauthenticated' })
     }
 
@@ -20,7 +31,7 @@ export function createProductReviews () {
       await reviewsCollection.insert({
         product: req.params.id,
         message: req.body.message,
-        author: user.data.email,
+        author,
         likesCount: 0,
         likedBy: []
       })
