@@ -22,13 +22,11 @@ export function retrieveLoggedInUser () {
         user = security.authenticatedUsers.get(req.cookies.token)
 
         const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam
-          ? fieldsParam.split(',').map(f => f.trim()).filter((f): f is ExposableField => (exposableFields as readonly string[]).includes(f))
-          : []
 
         let baseUser: any = {}
 
-        if (requestedFields.length > 0) {
+        if (fieldsParam !== undefined) {
+          const requestedFields = fieldsParam.split(',').map(f => f.trim()).filter((f): f is ExposableField => (exposableFields as readonly string[]).includes(f))
           for (const field of requestedFields) {
             if (user?.data[field] !== undefined) {
               baseUser[field] = user?.data[field]
