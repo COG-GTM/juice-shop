@@ -194,6 +194,13 @@ void describe('/api/Users', () => {
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.data.lastLoginIp, '0.0.0.0')
     assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+
+    const { token } = await login(app, { email: 'horst7@horstma.nn', password: 'hooooorst' })
+    const statusRes = await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: `Bearer ${token}`, ...jsonHeader })
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, false)
   })
 
   void it('POST new user with unknown role is registered as customer', async () => {
