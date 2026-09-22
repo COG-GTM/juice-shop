@@ -150,13 +150,14 @@ describe('insecurity', () => {
       expect(security.sanitizeLegacy('Kosh III.')).to.equal('Kosh III.')
     })
 
-    it('removes all opening tags and subsequent character from HTML input', () => {
-      expect(security.sanitizeLegacy('<h1>Hello</h1>')).to.equal('ello</h1>')
-      expect(security.sanitizeLegacy('<img src="test">')).to.equal('rc="test">')
+    it('removes all Javascript from HTML input', () => {
+      expect(security.sanitizeLegacy('Sani<script>alert("ScriptXSS")</script>tizedScript')).to.equal('SanitizedScript')
+      expect(security.sanitizeLegacy('<img src="test">')).to.equal('')
     })
 
-    it('can be bypassed to allow working HTML payload to be returned', () => {
-      expect(security.sanitizeLegacy('<<a|ascript>alert(`xss`)</script>')).to.equal('<script>alert(`xss`)</script>')
+    it('cannot be bypassed by nested payloads', () => {
+      expect(security.sanitizeLegacy('<<a|ascript>alert(`xss`)</script>')).to.equal('')
+      expect(security.sanitizeLegacy('<<script>script>alert(1)<</script>/script>')).to.equal('<')
     })
   })
 
