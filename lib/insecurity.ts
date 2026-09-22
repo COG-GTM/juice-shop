@@ -29,8 +29,11 @@ const publicKeyFile = 'encryptionkeys/jwt.pub'
 const readFileIfPresent = (file: string) => {
   try {
     return fs.readFileSync(file, 'utf8')
-  } catch {
-    return undefined
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return undefined
+    }
+    throw error
   }
 }
 
