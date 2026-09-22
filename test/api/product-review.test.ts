@@ -68,6 +68,22 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(created.author, 'bjoern.kimminich@gmail.com')
   })
 
+  void it('PUT single product review can be created with a valid token unknown to the session map', async () => {
+    const token = security.authorize({ data: { id: 1, email: 'jwt.only@juice-sh.op' } } as any)
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Dolor Sit Amet',
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Dolor Sit Amet')
+    assert.equal(created.author, 'jwt.only@juice-sh.op')
+  })
+
   void it('PUT single product review creation needs an authenticated user', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
@@ -143,7 +159,8 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const reviewsCreatedByTests = 2
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, reviewsCreatedByTests)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
