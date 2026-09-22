@@ -16,8 +16,10 @@ export const getRecycleItem = () => (req: Request, res: Response) => {
     return
   }
 
-  const user = security.authenticatedUsers.from(req)
-  if (!user?.data?.id) {
+  const token = utils.jwtFrom(req)
+  const decodedToken = token && security.verify(token) ? security.decode(token) : null
+  const userId = decodedToken?.data?.id
+  if (!userId) {
     res.status(401).json({ error: 'Unauthorized' })
     return
   }
@@ -25,7 +27,7 @@ export const getRecycleItem = () => (req: Request, res: Response) => {
   RecycleModel.findAll({
     where: {
       id,
-      UserId: user.data.id
+      UserId: userId
     }
   }).then((Recycle) => {
     return res.send(utils.queryResultToJson(Recycle))
