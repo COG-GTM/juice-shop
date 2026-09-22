@@ -170,6 +170,24 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT update address of another user is forbidden', async () => {
+    const { token } = await login(app, {
+      email: 'demo',
+      password: 'demo'
+    })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Bender' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const unchanged = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(unchanged.body.data.fullName, 'Jimy')
+  })
+
   void it('DELETE address by id', async () => {
     const res = await request(app)
       .delete('/api/Addresss/' + addressId)
