@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as utils from '../../lib/utils'
+import { exposedConfigPaths } from '../../routes/appConfiguration'
 
 let app: Express
 
@@ -37,5 +38,30 @@ void describe('/rest/admin/application-configuration', () => {
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.config, 'object')
     assert.ok(res.body.config !== null)
+    assert.equal(res.body.config.application.name, 'OWASP Juice Shop')
+  })
+
+  void it('GET application configuration exposes only allowlisted properties', async () => {
+    const res = await request(app)
+      .get('/rest/admin/application-configuration')
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.config.application.chatBot.llmApiUrl, undefined)
+    assert.equal(res.body.config.application.chatBot.model, undefined)
+    assert.equal(res.body.config.products, undefined)
+    assert.equal(res.body.config.memories, undefined)
+    assert.equal(res.body.config.challenges.csafHashValue, undefined)
+    assert.equal(res.body.config.server.basePath, undefined)
+
+    const leafPaths = (value: unknown, prefix = ''): string[] => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return [prefix]
+      }
+      return Object.entries(value).flatMap(([key, child]) => leafPaths(child, prefix !== '' ? `${prefix}.${key}` : key))
+    }
+
+    for (const path of leafPaths(res.body.config)) {
+      assert.ok(exposedConfigPaths.includes(path), `unexpected configuration property ${path}`)
+    }
   })
 })
