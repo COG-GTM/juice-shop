@@ -202,6 +202,44 @@ void describe('/api/Feedbacks', () => {
     assert.ok(res.body.message.match(/notNull Violation: (Feedback\.)?rating cannot be null/))
   })
 
+  void it('POST feedback cannot be created with a rating above the maximum of five stars', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Way too many stars!',
+        rating: 2000000000,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 400)
+    assert.equal(typeof res.body.message, 'string')
+    assert.ok(res.body.message.match(/Validation max on rating failed/))
+  })
+
+  void it('POST feedback cannot be created with a negative rating', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Negative stars!',
+        rating: -1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 400)
+    assert.equal(typeof res.body.message, 'string')
+    assert.ok(res.body.message.match(/Validation min on rating failed/))
+  })
+
   void it('POST feedback cannot be created with wrong CAPTCHA answer', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
