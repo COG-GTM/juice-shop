@@ -338,6 +338,9 @@ ctf:
     leakedApiKeyChallenge:
       name: San Marino
       code: SM
+    passwordHashLeakChallenge:
+      name: Italy
+      code: IT
     chatbotPromptInjectionChallenge:
       name: Finland
       code: FI
