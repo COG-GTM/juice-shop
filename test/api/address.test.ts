@@ -160,6 +160,7 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ mobileNum: '10000000000' })
     assert.equal(res.status, 400)
+    assert.equal(res.body.errors[0].field, 'mobileNum')
   })
 
   void it('PUT update address by id with invalid pin code is forbidden', async () => {
@@ -168,6 +169,7 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ zipCode: 'NX 10111111' })
     assert.equal(res.status, 400)
+    assert.equal(res.body.errors[0].field, 'zipCode')
   })
 
   void it('PUT update address of another user is forbidden', async () => {

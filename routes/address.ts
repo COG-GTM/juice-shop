@@ -35,7 +35,10 @@ export function putAddressById () {
         res.status(200).json({ status: 'success', data: updatedAddress })
       } catch (error: unknown) {
         if (error instanceof ValidationError) {
-          res.status(400).json({ status: 'error', data: error.message })
+          res.status(400).json({
+            message: error.message,
+            errors: error.errors.map(({ path, message }) => ({ field: path, message }))
+          })
         } else {
           throw error
         }
