@@ -9,7 +9,7 @@ import * as security from '../lib/insecurity'
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
   try {
-    const users = await UserModel.findAll()
+    const users = await UserModel.findAll({ attributes: ['id', 'username', 'email', 'password', 'totpSecret', 'isActive'] })
 
     res.json({
       status: 'success',
@@ -22,7 +22,10 @@ async function retrieveUserList (req: Request, res: Response, next: NextFunction
         }
 
         return {
-          ...user.dataValues,
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          isActive: user.isActive,
           password: user.password?.replace(/./g, '*'),
           totpSecret: user.totpSecret?.replace(/./g, '*'),
           lastLoginTime
