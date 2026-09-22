@@ -9,13 +9,17 @@ import { type Request, type Response } from 'express'
 import * as db from '../data/mongodb'
 import { challenges } from '../data/datacache'
 
+const orderIdPattern = /^[\w-]+$/
+
 export function trackOrder () {
   return (req: Request, res: Response) => {
     // Truncate id to avoid unintentional RCE
     const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
 
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
-    db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
+    const orderId = orderIdPattern.test(id) ? id : ''
+    const lookup = orderId !== '' ? db.ordersCollection.find({ orderId }) : Promise.resolve([])
+    lookup.then((order: any) => {
       const result = utils.queryResultToJson(order)
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
