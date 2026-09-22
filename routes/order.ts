@@ -187,17 +187,21 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
+    const couponCode = Buffer.from(req.body.couponData, 'base64').toString().split('-')[0]
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
+    if (campaign && isSameCampaignDay(campaign.validOn, Date.now())) {
       return campaign.discount
     }
   }
   return 0
+}
+
+const CAMPAIGN_UTC_OFFSET_IN_MS = 60 * 60 * 1000 // campaigns below are defined as midnight at GMT+0100
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+function isSameCampaignDay (first: number, second: number) {
+  return Math.floor((first + CAMPAIGN_UTC_OFFSET_IN_MS) / MS_PER_DAY) === Math.floor((second + CAMPAIGN_UTC_OFFSET_IN_MS) / MS_PER_DAY)
 }
 
 const campaigns = {
