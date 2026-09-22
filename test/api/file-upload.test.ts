@@ -75,6 +75,7 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('root:'))
     })
 
     void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
