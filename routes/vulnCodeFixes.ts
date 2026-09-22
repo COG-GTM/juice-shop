@@ -17,11 +17,25 @@ type cache = Record<string, codeFix>
 
 const CodeFixes: cache = {}
 
+const ValidKeyPattern = /^[\w-]{1,64}$/
+
+let FixFiles: string[] | null = null
+
+const listFixFiles = () => {
+  if (FixFiles === null) {
+    FixFiles = fs.readdirSync(FixesDir)
+  }
+  return FixFiles
+}
+
 export const readFixes = (key: string) => {
   if (CodeFixes[key]) {
     return CodeFixes[key]
   }
-  const files = fs.readdirSync(FixesDir)
+  if (typeof key !== 'string' || !ValidKeyPattern.test(key)) {
+    return { fixes: [], correct: -1 }
+  }
+  const files = listFixFiles()
   const fixes: string[] = []
   let correct: number = -1
   for (const file of files) {
@@ -35,6 +49,10 @@ export const readFixes = (key: string) => {
         correct--
       }
     }
+  }
+
+  if (fixes.length === 0) {
+    return { fixes, correct }
   }
 
   CodeFixes[key] = {
