@@ -21,6 +21,7 @@ export function imageCaptchas () {
         return
       }
 
+      await ImageCaptchaModel.destroy({ where: { UserId: user.data.id } })
       const imageCaptchaInstance = ImageCaptchaModel.build({
         image: captcha.data,
         answer: captcha.text,
@@ -58,7 +59,11 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
       return
     }
-    await ImageCaptchaModel.destroy({ where: { UserId } })
+    const consumed = await ImageCaptchaModel.destroy({ where: { id: captcha.id } })
+    if (consumed !== 1) {
+      res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
+      return
+    }
     next()
   } catch (error) {
     res.status(401).send(res.__('Something went wrong while submitting CAPTCHA. Please try again.'))

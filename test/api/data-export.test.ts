@@ -104,6 +104,26 @@ void describe('/rest/user/data-export', () => {
     assert.ok(secondRes.text.includes('Wrong answer to CAPTCHA. Please try again.'))
   })
 
+  void it('Requesting a new CAPTCHA replaces the previous one of that user', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const staleAnswer = await requestCaptcha(authHeader)
+    await requestCaptcha(authHeader)
+
+    const latest = await ImageCaptchaModel.findOne({ order: [['id', 'DESC']] })
+    assert.ok(latest)
+    const captchas = await ImageCaptchaModel.findAll({ where: { UserId: latest.UserId } })
+    assert.equal(captchas.length, 1)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer: staleAnswer, format: 1 })
+
+    assert.equal(res.status, 401)
+  })
+
   void it('Export data including orders with use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

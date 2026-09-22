@@ -29,7 +29,7 @@
           </div>
           <mat-form-field class="captcha-input-field" appearance="outline" color="tertiary">
             <mat-label translate>ENTER_CAPTCHA</mat-label>
-            <input #captchaInput [formControl]="captchaControl" type="text" matInput
+            <input #captchaInput id="captchaControl" [formControl]="captchaControl" type="text" matInput
               placeholder="{{ 'TYPE_THESE_LETTERS' | translate: {length: '5'} }}" maxlength="5"
               aria-label="Input for the CAPTCHA">
               <mat-hint align="end">{{captchaInput.value?.length || 0}}/5</mat-hint>

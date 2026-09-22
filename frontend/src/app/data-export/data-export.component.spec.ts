@@ -97,6 +97,19 @@ describe('DataExportComponent', () => {
         expect(sanitezedCaptcha).toBe('<svg>captcha</svg>')
     })
 
+    it('should request a captcha on initialization', () => {
+        imageCaptchaService.getCaptcha.mockClear()
+        component.ngOnInit()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
+    it('should request a new captcha if exporting data fails', () => {
+        dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Error' }))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.save()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
     it('should show the confirmation and fetch user data and reset data export form on requesting data export', () => {
         dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
         vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
