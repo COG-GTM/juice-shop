@@ -11,13 +11,14 @@ export function serveKeyFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
+    // jwt.pub is served from the runtime key pair so the Forged Signed JWT challenge stays solvable
+    if (file === 'jwt.pub') {
+      res.type('text/plain').end(security.publicKey)
+      return
+    }
+
     if (!file.includes('/')) {
-      // jwt.pub is served from the runtime key pair so the Forged Signed JWT challenge stays solvable
-      if (file === 'jwt.pub') {
-        res.type('text/plain').end(security.publicKey)
-      } else {
-        res.sendFile(path.resolve('encryptionkeys/', file))
-      }
+      res.sendFile(path.resolve('encryptionkeys/', file))
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
