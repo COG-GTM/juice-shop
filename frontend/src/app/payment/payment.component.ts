@@ -43,6 +43,13 @@ import { MatCardModule } from '@angular/material/card'
 
 library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, faStickyNote, faHandHoldingUsd, faCoffee, faTimes, faStripe, faPalette)
 
+const CAMPAIGN_UTC_OFFSET_IN_MS = 60 * 60 * 1000 // campaigns are valid on their day at GMT+0100
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+export function startOfCampaignDay (time: number) {
+  return Math.floor((time + CAMPAIGN_UTC_OFFSET_IN_MS) / MS_PER_DAY) * MS_PER_DAY - CAMPAIGN_UTC_OFFSET_IN_MS
+}
+
 @Component({
   selector: 'app-payment',
   templateUrl: './payment.component.html',
@@ -151,11 +158,7 @@ export class PaymentComponent implements OnInit {
 
   applyCoupon () {
     this.campaignCoupon = this.couponControl.value
-    this.clientDate = new Date()
-
-    const offsetTimeZone = (this.clientDate.getTimezoneOffset() + 60) * 60 * 1000
-    this.clientDate.setHours(0, 0, 0, 0)
-    this.clientDate = this.clientDate.getTime() - offsetTimeZone
+    this.clientDate = startOfCampaignDay(Date.now())
 
     sessionStorage.setItem('couponDetails', `${this.campaignCoupon}-${this.clientDate}`)
     const campaign = this.campaigns[this.couponControl.value]
