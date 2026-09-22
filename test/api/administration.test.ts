@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as utils from '../../lib/utils'
+import { exposedConfigPaths } from '../../routes/appConfiguration'
 
 let app: Express
 
@@ -51,5 +52,16 @@ void describe('/rest/admin/application-configuration', () => {
     assert.equal(res.body.config.memories, undefined)
     assert.equal(res.body.config.challenges.csafHashValue, undefined)
     assert.equal(res.body.config.server.basePath, undefined)
+
+    const leafPaths = (value: unknown, prefix = ''): string[] => {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return [prefix]
+      }
+      return Object.entries(value).flatMap(([key, child]) => leafPaths(child, prefix !== '' ? `${prefix}.${key}` : key))
+    }
+
+    for (const path of leafPaths(res.body.config)) {
+      assert.ok(exposedConfigPaths.includes(path), `unexpected configuration property ${path}`)
+    }
   })
 })
