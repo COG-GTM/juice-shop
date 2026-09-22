@@ -60,6 +60,15 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 410)
   })
 
+  void it('POST file type XML with XXE attack does not disclose file contents', async () => {
+    const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('root:'))
+  })
+
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
     void it('POST file type XML with XXE attack against Windows', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')

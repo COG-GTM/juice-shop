@@ -72,6 +72,36 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+const SENSITIVE_FILE_ENTITY = /<!ENTITY\s+(\S+)\s+(?:SYSTEM|PUBLIC)[^>]*["'](?:file:\/\/)?\/?(?:etc\/passwd|[a-z]:[\\/]windows[\\/]system\.ini)["']/i
+const UNBOUNDED_DEVICE_ENTITY = /<!ENTITY\s+(\S+)\s+(?:SYSTEM|PUBLIC)[^>]*["'](?:file:\/\/)?\/?dev\/(?:random|urandom|zero)["']/i
+const INTERNAL_ENTITY = /<!ENTITY\s+(\S+)\s+"([^"]*)"/g
+const MAX_ENTITY_EXPANSION = 1000000
+
+function referenceCount (xml: string, entity: string) {
+  return xml.split('&' + entity + ';').length - 1
+}
+
+function exfiltratesSensitiveFile (xml: string) {
+  const declaration = SENSITIVE_FILE_ENTITY.exec(xml)
+  return declaration !== null && referenceCount(xml, declaration[1]) > 0
+}
+
+function bombsParserWithEntityExpansion (xml: string) {
+  const device = UNBOUNDED_DEVICE_ENTITY.exec(xml)
+  if (device !== null && referenceCount(xml, device[1]) > 0) {
+    return true
+  }
+  INTERNAL_ENTITY.lastIndex = 0
+  let entity = INTERNAL_ENTITY.exec(xml)
+  while (entity !== null) {
+    if (entity[2].length * referenceCount(xml, entity[1]) > MAX_ENTITY_EXPANSION) {
+      return true
+    }
+    entity = INTERNAL_ENTITY.exec(xml)
+  }
+  return false
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -80,11 +110,18 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, dtdload: false, dtdvalid: false, nonet: true })', sandbox, { timeout: 2000 })
+        if (bombsParserWithEntityExpansion(data)) {
+          if (challengeUtils.notSolved(challenges.xxeDosChallenge)) {
+            challengeUtils.solve(challenges.xxeDosChallenge)
+          }
+          res.status(503)
+          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
+        } else {
+          challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return exfiltratesSensitiveFile(data) })
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
+        }
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
