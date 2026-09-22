@@ -453,6 +453,19 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Users: Only these columns may be assigned by the client during self-registration */
+  const registrationAttributes = ['username', 'email', 'password']
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body != null) {
+      for (const attribute of Object.keys(UserModel.getAttributes())) {
+        if (!registrationAttributes.includes(attribute)) {
+          delete req.body[attribute]
+        }
+      }
+    }
+    next()
+  })
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
