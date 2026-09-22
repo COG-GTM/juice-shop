@@ -24,6 +24,22 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const UPLOAD_DIR = path.resolve('uploads/complaints')
+const MAX_ZIP_ENTRIES = 100
+const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
+function resolveUploadTarget (fileName: string) {
+  if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const target = path.resolve(UPLOAD_DIR, fileName)
+  const relative = path.relative(UPLOAD_DIR, target)
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null
+  }
+  return target
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,16 +51,20 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let uncompressedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const target = resolveUploadTarget(fileName)
+                entryCount++
+                uncompressedBytes += Number(entry.vars?.uncompressedSize ?? 0)
+                if (target === null || entry.type === 'Directory' || entryCount > MAX_ZIP_ENTRIES || uncompressedBytes > MAX_UNCOMPRESSED_BYTES) {
                   entry.autodrain()
+                } else {
+                  entry.pipe(fs.createWriteStream(target).on('error', function (err) { next(err) }))
                 }
               }).on('error', function (err: unknown) { next(err) })
           })
