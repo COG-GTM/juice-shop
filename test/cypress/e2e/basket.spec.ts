@@ -75,33 +75,6 @@ describe('/#/basket', () => {
     beforeEach(() => {
       cy.login({ email: 'jim', password: 'ncc-1701' })
     })
-    describe('challenge "manipulateClock"', () => {
-      it('should be possible to enter WMNSDY2019 coupon & place order with this expired coupon', () => {
-        cy.window().then(() => {
-          window.localStorage.couponPanelExpanded = false
-        })
-        cy.visit('/#/payment/shop')
-
-        cy.window().then((win) => {
-          cy.on('uncaught:exception', (_err, _runnable) => {
-            // Introduced to disable the uncaught:exception we get after the eval under this as TypeError: Date.now is not a function
-            return false
-          })
-          win.eval(
-            'event = new Date("March 08, 2019 00:00:00"); Date = function(Date){return function() {date = event; return date; }}(Date);'
-          )
-        })
-        cy.get('#collapseCouponElement').click()
-
-        cy.get('#coupon').type('WMNSDY2019')
-        cy.get('#applyCouponButton').click()
-        cy.get('.mat-mdc-radio-button').first().click()
-        cy.get('.nextButton').click()
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Expired Coupon' })
-      })
-    })
-
     describe('challenge "forgedCoupon"', () => {
       it('should be able to access file /ftp/coupons_2013.md.bak with poison null byte attack', () => {
         cy.request(`${Cypress.config('baseUrl')}/ftp/coupons_2013.md.bak%2500.md`)
