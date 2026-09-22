@@ -453,11 +453,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
-  /* Users: Privilege-governing attributes must not be assignable during self-registration */
+  /* Users: Only these columns may be assigned by the client during self-registration */
+  const registrationAttributes = ['username', 'email', 'password']
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
-    delete req.body.role
-    delete req.body.deluxeToken
-    delete req.body.isActive
+    if (req.body != null) {
+      for (const attribute of Object.keys(UserModel.getAttributes())) {
+        if (!registrationAttributes.includes(attribute)) {
+          delete req.body[attribute]
+        }
+      }
+    }
     next()
   })
 

@@ -179,6 +179,23 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.isActive, true)
   })
 
+  void it('POST new user ignores server-managed attributes', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst7@horstma.nn',
+        password: 'hooooorst',
+        totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH',
+        lastLoginIp: '1.2.3.4',
+        profileImage: '/assets/public/images/uploads/defaultAdmin.png'
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.lastLoginIp, '0.0.0.0')
+    assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+  })
+
   void it('POST new user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
