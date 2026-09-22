@@ -51,11 +51,46 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
-export const decode = (token: string) => { return jws.decode(token)?.payload }
+const JWT_ALGORITHM = 'RS256'
+
+const hasAllowedAlgorithm = (token: string) => {
+  try {
+    return jws.decode(token)?.header?.alg === JWT_ALGORITHM
+  } catch {
+    return false
+  }
+}
+
+const rejectUnsupportedAlgorithm = (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (token && !hasAllowedAlgorithm(token)) {
+    res.status(401).json({ status: 'error', message: 'Unsupported token algorithm' })
+    return
+  }
+  next()
+}
+
+export const isAuthorized = () => {
+  const requireJwt = expressJwt({ secret: publicKey, algorithms: [JWT_ALGORITHM] } as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    rejectUnsupportedAlgorithm(req, res, () => requireJwt(req, res, next))
+  }
+}
+export const denyAll = () => (req: Request, res: Response) => {
+  res.status(401).json({ status: 'error', message: 'Access denied' })
+}
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
+export const verify = (token: string) => {
+  if (!token || !hasAllowedAlgorithm(token)) {
+    return false
+  }
+  try {
+    return (jws.verify as unknown as ((token: string, secret: string) => boolean))(token, publicKey)
+  } catch {
+    return false
+  }
+}
+export const decode = (token: string) => verify(token) ? jws.decode(token)?.payload : undefined
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -187,8 +222,8 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+  if (token && hasAllowedAlgorithm(token)) {
+    jwt.verify(token, publicKey, { algorithms: [JWT_ALGORITHM] }, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
