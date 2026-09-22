@@ -9,7 +9,11 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import crypto from 'node:crypto'
+import jws from 'jws'
 const expect = chai.expect
+
+const foreignPrivateKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -201,6 +205,27 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs tokens with RS256 that are accepted by verify', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      expect(jws.decode(token)?.header.alg).to.equal('RS256')
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects tokens signed with any other private key', () => {
+      const token = jws.sign({ header: { alg: 'RS256' }, payload: { data: { email: 'admin@juice-sh.op' } }, secret: foreignPrivateKey })
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is not derived from the JWT signing key', () => {
+      const token = security.deluxeToken('admin@juice-sh.op')
+      const forged = crypto.createHmac('sha256', security.publicKey).update('admin@juice-sh.op' + security.roles.deluxe).digest('hex')
+      expect(token).to.not.equal(forged)
     })
   })
 })

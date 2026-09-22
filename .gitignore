@@ -67,3 +67,7 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# Locally generated JWT key pair
+encryptionkeys/jwt.key
+encryptionkeys/jwt.pub
