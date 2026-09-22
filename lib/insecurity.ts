@@ -19,6 +19,7 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
+// JWT signing key: PEM from JWT_PRIVATE_KEY, a file via JWT_PRIVATE_KEY_FILE, or an ephemeral pair per process
 const loadPrivateKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
@@ -34,6 +35,7 @@ const loadPrivateKey = (): string => {
 }
 
 const privateKey = loadPrivateKey()
+// Derive the public key from the loaded private key so signing and verification always match
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString()
 
 interface ResponseWithUser {
@@ -162,6 +164,7 @@ export const roles = {
   admin: 'admin'
 }
 
+// Separate HMAC secret for deluxe tokens; never reuse the JWT signing key
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 export const deluxeToken = (email: string) => {
