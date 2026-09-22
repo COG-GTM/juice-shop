@@ -49,14 +49,33 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Lorem Ipsum',
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Lorem Ipsum')
+    assert.equal(created.author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT single product review creation needs an authenticated user', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
         author: 'Anonymous'
       })
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 401)
   })
 })
 
