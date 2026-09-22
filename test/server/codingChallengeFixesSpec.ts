@@ -36,4 +36,16 @@ describe('codingChallengeFixes', () => {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
     }
   })
+
+  it('should return no fixes for an unknown key', () => {
+    expect(readFixes('doesNotExistChallenge').fixes).to.have.lengthOf(0)
+  })
+
+  it('should return no fixes for a key with unexpected characters', () => {
+    expect(readFixes('../../../etc/passwd').fixes).to.have.lengthOf(0)
+  })
+
+  it('should return no fixes for a key inherited from Object.prototype', () => {
+    expect(readFixes('toString').fixes).to.have.lengthOf(0)
+  })
 })
