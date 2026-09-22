@@ -453,6 +453,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Users: Attributes governing privileges must not be assignable during self-registration */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    delete req.body.role
+    delete req.body.deluxeToken
+    delete req.body.isActive
+    next()
+  })
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
