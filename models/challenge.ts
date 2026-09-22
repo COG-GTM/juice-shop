@@ -68,7 +68,6 @@ const CHALLENGE_KEYS = [
   'misplacedSignatureFileChallenge',
   'timingAttackChallenge',
   'easterEggLevelTwoChallenge',
-  'noSqlCommandChallenge',
   'noSqlOrdersChallenge',
   'noSqlReviewsChallenge',
   'redirectCryptoCurrencyChallenge',

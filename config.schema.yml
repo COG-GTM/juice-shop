@@ -438,11 +438,6 @@ ctf:
         type: string
       code:
         type: string
-    noSqlCommandChallenge:
-      name:
-        type: string
-      code:
-        type: string
     noSqlReviewsChallenge:
       name:
         type: string
