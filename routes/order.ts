@@ -187,17 +187,22 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
+    const couponCode = Buffer.from(req.body.couponData, 'base64').toString().split('-')[0]
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
+    if (campaign && isSameDay(campaign.validOn, Date.now())) {
       return campaign.discount
     }
   }
   return 0
+}
+
+function isSameDay (first: number, second: number) {
+  const firstDate = new Date(first)
+  const secondDate = new Date(second)
+  return firstDate.getFullYear() === secondDate.getFullYear() &&
+    firstDate.getMonth() === secondDate.getMonth() &&
+    firstDate.getDate() === secondDate.getDate()
 }
 
 const campaigns = {
