@@ -21,13 +21,20 @@ import logger from './logger'
 import * as z85 from 'z85'
 
 const JWT_ALGORITHM = 'RS256'
-const generatedPrivateKeyFile = 'encryptionkeys/jwt.key'
+const secretsDirectory = '.secrets'
+const generatedPrivateKeyFile = `${secretsDirectory}/jwt.key`
+const generatedDeluxeSecretFile = `${secretsDirectory}/deluxe.secret`
 const publicKeyFile = 'encryptionkeys/jwt.pub'
+
+const writeSecretFile = (file: string, content: string) => {
+  fs.mkdirSync(secretsDirectory, { recursive: true, mode: 0o700 })
+  fs.writeFileSync(file, content, { mode: 0o600 })
+}
 
 const generatePrivateKey = () => {
   const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
-  fs.writeFileSync(generatedPrivateKeyFile, pem, { mode: 0o600 })
+  writeSecretFile(generatedPrivateKeyFile, pem)
   logger.warn(`Neither JWT_PRIVATE_KEY nor JWT_PRIVATE_KEY_FILE is configured. Generated a key pair in ${generatedPrivateKeyFile} for this installation. Provide the key from a secret store in production.`)
   return pem
 }
@@ -54,7 +61,20 @@ if (fs) {
   }
 }
 
-const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
+const resolveDeluxeTokenSecret = () => {
+  if (process.env.DELUXE_TOKEN_SECRET) {
+    return process.env.DELUXE_TOKEN_SECRET
+  }
+  if (fs.existsSync(generatedDeluxeSecretFile)) {
+    return fs.readFileSync(generatedDeluxeSecretFile, 'utf8')
+  }
+  const secret = crypto.randomBytes(32).toString('hex')
+  writeSecretFile(generatedDeluxeSecretFile, secret)
+  logger.warn(`DELUXE_TOKEN_SECRET is not configured. Generated one in ${generatedDeluxeSecretFile} for this installation. Provide a shared secret from a secret store when running multiple instances.`)
+  return secret
+}
+
+const deluxeTokenSecret = fs ? resolveDeluxeTokenSecret() : ''
 
 interface ResponseWithUser {
   status?: string
