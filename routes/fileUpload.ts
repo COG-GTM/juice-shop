@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import config from 'config'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,6 +25,32 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const UPLOAD_DIR = path.resolve('uploads/complaints')
+const MAX_ZIP_ENTRIES = 100
+const MAX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
+
+// The Video XSS challenge is solved by overwriting the promotion subtitles, so this
+// single file is the only destination outside the uploads directory an entry may reach.
+function promotionSubtitlesPath () {
+  const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  return path.resolve('frontend/dist/frontend/assets/public/videos/', path.basename(subtitles))
+}
+
+function resolveUploadTarget (fileName: string) {
+  const target = path.resolve(UPLOAD_DIR, fileName)
+  if (target === promotionSubtitlesPath() && utils.isChallengeEnabled(challenges.videoXssChallenge)) {
+    return target
+  }
+  if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const relative = path.relative(UPLOAD_DIR, target)
+  if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+    return null
+  }
+  return target
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,16 +62,28 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const target = resolveUploadTarget(fileName)
+                entryCount++
+                if (target === null || entry.type === 'Directory' || entryCount > MAX_ZIP_ENTRIES || extractedBytes > MAX_UNCOMPRESSED_BYTES) {
                   entry.autodrain()
+                } else {
+                  const output = fs.createWriteStream(target).on('error', function (err) { next(err) })
+                  entry.on('data', function (chunk: Buffer) {
+                    extractedBytes += chunk.length
+                    if (extractedBytes > MAX_UNCOMPRESSED_BYTES) {
+                      entry.unpipe(output)
+                      output.destroy()
+                      entry.autodrain()
+                    }
+                  })
+                  entry.pipe(output)
                 }
               }).on('error', function (err: unknown) { next(err) })
           })
