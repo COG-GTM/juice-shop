@@ -8,7 +8,6 @@ import packageJson from '../package.json'
 import fs from 'node:fs'
 import logger from './logger'
 import config from 'config'
-import download from 'download'
 import crypto from 'node:crypto'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
@@ -114,12 +113,30 @@ export const extractFilename = (url: string) => {
   return file
 }
 
+const downloadRetries = 2
+
 export const downloadToFile = async (url: string, dest: string) => {
+  let data: Buffer
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) {
+        logger.warn(`Failed to download ${url} (response status ${response.status})`)
+        return
+      }
+      data = Buffer.from(await response.arrayBuffer())
+      break
+    } catch (err) {
+      if (attempt >= downloadRetries) {
+        logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
+        return
+      }
+    }
+  }
   try {
-    const data = await download(url)
     fs.writeFileSync(dest, data)
   } catch (err) {
-    logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
+    logger.warn('Failed to write ' + dest + ' (' + getErrorMessage(err) + ')')
   }
 }
 
