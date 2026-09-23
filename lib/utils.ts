@@ -113,8 +113,9 @@ export const extractFilename = (url: string) => {
   return file
 }
 
-export const downloadToFile = async (url: string, dest: string, retries: number = 2) => {
-  const maxRetries = Number.isFinite(retries) ? Math.max(0, Math.floor(retries)) : 0
+const downloadRetries = 2
+
+export const downloadToFile = async (url: string, dest: string) => {
   let data: Buffer
   for (let attempt = 0; ; attempt++) {
     try {
@@ -126,7 +127,7 @@ export const downloadToFile = async (url: string, dest: string, retries: number 
       data = Buffer.from(await response.arrayBuffer())
       break
     } catch (err) {
-      if (attempt >= maxRetries) {
+      if (attempt >= downloadRetries) {
         logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
         return
       }
