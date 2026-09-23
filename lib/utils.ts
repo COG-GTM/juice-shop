@@ -125,7 +125,7 @@ export const downloadToFile = async (url: string, dest: string, retries: number 
       data = Buffer.from(await response.arrayBuffer())
       break
     } catch (err) {
-      if (attempt === retries) {
+      if (attempt >= retries) {
         logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
         return
       }
