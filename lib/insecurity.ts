@@ -165,6 +165,7 @@ export const isAccounting = () => {
 }
 
 const tokenValidityInMs = 6 * 60 * 60 * 1000
+const clockSkewInMs = 60 * 1000
 
 const verifiedToken = (token: string) => {
   const [header, payload, signature] = (token ?? '').split('.')
@@ -185,7 +186,11 @@ const verifiedToken = (token: string) => {
     if (typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now()) {
       return null
     }
-    if (typeof claims.iat !== 'number' || Date.now() - claims.iat * 1000 > tokenValidityInMs) {
+    if (typeof claims.iat !== 'number') {
+      return null
+    }
+    const age = Date.now() - claims.iat * 1000
+    if (age > tokenValidityInMs || age < -clockSkewInMs) {
       return null
     }
     return claims as { data?: { role?: string } }

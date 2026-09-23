@@ -254,6 +254,17 @@ describe('insecurity', () => {
       expect(statusCode).to.equal(403)
     })
 
+    it('denies request with admin token issued in the future', () => {
+      sinon.useFakeTimers({ now: Date.now() + 60 * 60 * 1000, shouldAdvanceTime: true })
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      sinon.restore()
+
+      security.isAdmin()(requestWith(token), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(false)
+      expect(statusCode).to.equal(403)
+    })
+
     it('denies request with expired admin token', () => {
       const token = security.authorize({ data: { role: security.roles.admin } })
       sinon.useFakeTimers({ now: Date.now() + 7 * 60 * 60 * 1000, shouldAdvanceTime: true })
