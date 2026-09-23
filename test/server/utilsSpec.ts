@@ -80,12 +80,30 @@ describe('utils', () => {
       expect(writeFileSync.called).to.equal(false)
     })
 
-    it('writes no file when the request fails', async () => {
+    it('writes no file when the request keeps failing', async () => {
       fetchStub.rejects(new Error('getaddrinfo ENOTFOUND bla.blubb'))
 
       await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
 
       expect(writeFileSync.called).to.equal(false)
+      expect(fetchStub.callCount).to.equal(3)
+    })
+
+    it('retries the request after a transient network error', async () => {
+      fetchStub.onFirstCall().rejects(new Error('ECONNRESET'))
+      fetchStub.onSecondCall().resolves(new Response(Buffer.from('juice'), { status: 200 }))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(writeFileSync.calledOnce).to.equal(true)
+    })
+
+    it('does not retry a non-OK response', async () => {
+      fetchStub.resolves(new Response('nope', { status: 500 }))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(fetchStub.callCount).to.equal(1)
     })
   })
 
