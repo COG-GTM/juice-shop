@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +202,66 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isAdmin', () => {
+    const requestWith = (token?: string) => ({ headers: token ? { authorization: `Bearer ${token}` } : {} }) as unknown as Request
+
+    let next: sinon.SinonSpy
+    let res: Response
+    let statusCode: number | undefined
+
+    beforeEach(() => {
+      next = sinon.spy()
+      statusCode = undefined
+      res = {
+        status (code: number) { statusCode = code; return this },
+        json () { return this }
+      } as unknown as Response
+    })
+
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    it('passes request of user with admin role on', () => {
+      security.isAdmin()(requestWith(security.authorize({ data: { role: security.roles.admin } })), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(true)
+    })
+
+    it('denies request without token', () => {
+      security.isAdmin()(requestWith(), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(false)
+      expect(statusCode).to.equal(403)
+    })
+
+    it('denies request of user without admin role', () => {
+      security.isAdmin()(requestWith(security.authorize({ data: { role: security.roles.customer } })), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(false)
+      expect(statusCode).to.equal(403)
+    })
+
+    it('denies request with tampered token', () => {
+      const token = `${security.authorize({ data: { role: security.roles.admin } })}tampered`
+
+      security.isAdmin()(requestWith(token), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(false)
+      expect(statusCode).to.equal(403)
+    })
+
+    it('denies request with expired admin token', () => {
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      sinon.useFakeTimers({ now: Date.now() + 7 * 60 * 60 * 1000, shouldAdvanceTime: true })
+
+      security.isAdmin()(requestWith(token), res, next as unknown as NextFunction)
+
+      expect(next.called).to.equal(false)
+      expect(statusCode).to.equal(403)
     })
   })
 })

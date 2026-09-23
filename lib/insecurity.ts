@@ -164,10 +164,39 @@ export const isAccounting = () => {
   }
 }
 
+const tokenValidityInMs = 6 * 60 * 60 * 1000
+
+const verifiedToken = (token: string) => {
+  const [header, payload, signature] = (token ?? '').split('.')
+  if (!header || !payload || !signature) {
+    return null
+  }
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') {
+      return null
+    }
+    const signatureValid = crypto.createVerify('RSA-SHA256')
+      .update(`${header}.${payload}`)
+      .verify(publicKey, Buffer.from(signature, 'base64url'))
+    if (!signatureValid) {
+      return null
+    }
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (typeof claims.exp === 'number' && claims.exp * 1000 <= Date.now()) {
+      return null
+    }
+    if (typeof claims.iat !== 'number' || Date.now() - claims.iat * 1000 > tokenValidityInMs) {
+      return null
+    }
+    return claims as { data?: { role?: string } }
+  } catch {
+    return null
+  }
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.admin) {
+    if (verifiedToken(utils.jwtFrom(req))?.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
