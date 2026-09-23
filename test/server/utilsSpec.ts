@@ -8,6 +8,8 @@ import type { ChallengeModel } from 'models/challenge'
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
+import fs from 'node:fs'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('utils', () => {
@@ -44,6 +46,46 @@ describe('utils', () => {
 
     it('also works for file:// URLs', () => {
       expect(utils.extractFilename('file:///C//Bla/Blubb/test.exe')).to.equal('test.exe')
+    })
+  })
+
+  describe('downloadToFile', () => {
+    let writeFileSync: sinon.SinonStub
+    let fetchStub: sinon.SinonStub
+
+    beforeEach(() => {
+      writeFileSync = sinon.stub(fs, 'writeFileSync')
+      fetchStub = sinon.stub(global, 'fetch')
+    })
+
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    it('writes the response body to the destination file', async () => {
+      fetchStub.resolves(new Response(Buffer.from('juice'), { status: 200 }))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(writeFileSync.calledOnce).to.equal(true)
+      expect(writeFileSync.firstCall.args[0]).to.equal('test.png')
+      expect(writeFileSync.firstCall.args[1].toString()).to.equal('juice')
+    })
+
+    it('writes no file when the response status is not ok', async () => {
+      fetchStub.resolves(new Response('nope', { status: 404 }))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(writeFileSync.called).to.equal(false)
+    })
+
+    it('writes no file when the request fails', async () => {
+      fetchStub.rejects(new Error('getaddrinfo ENOTFOUND bla.blubb'))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(writeFileSync.called).to.equal(false)
     })
   })
 
