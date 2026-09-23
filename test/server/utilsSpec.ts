@@ -98,6 +98,16 @@ describe('utils', () => {
       expect(writeFileSync.calledOnce).to.equal(true)
     })
 
+    it('does not repeat the download when writing the file fails', async () => {
+      fetchStub.resolves(new Response(Buffer.from('juice'), { status: 200 }))
+      writeFileSync.throws(new Error('EACCES'))
+
+      await utils.downloadToFile('http://bla.blubb/test.png', 'test.png')
+
+      expect(fetchStub.callCount).to.equal(1)
+      expect(writeFileSync.callCount).to.equal(1)
+    })
+
     it('does not retry a non-OK response', async () => {
       fetchStub.resolves(new Response('nope', { status: 500 }))
 

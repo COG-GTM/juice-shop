@@ -114,20 +114,27 @@ export const extractFilename = (url: string) => {
 }
 
 export const downloadToFile = async (url: string, dest: string, retries: number = 2) => {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  let data: Buffer
+  for (let attempt = 0; ; attempt++) {
     try {
       const response = await fetch(url)
       if (!response.ok) {
         logger.warn(`Failed to download ${url} (response status ${response.status})`)
         return
       }
-      fs.writeFileSync(dest, Buffer.from(await response.arrayBuffer()))
-      return
+      data = Buffer.from(await response.arrayBuffer())
+      break
     } catch (err) {
       if (attempt === retries) {
         logger.warn('Failed to download ' + url + ' (' + getErrorMessage(err) + ')')
+        return
       }
     }
+  }
+  try {
+    fs.writeFileSync(dest, data)
+  } catch (err) {
+    logger.warn('Failed to write ' + dest + ' (' + getErrorMessage(err) + ')')
   }
 }
 
