@@ -129,6 +129,22 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
+  void it('POST zip file with too many entries', async () => {
+    const file = path.resolve(__dirname, '../files/tooManyEntries.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 413)
+  })
+
+  void it('POST zip file expanding beyond the allowed size', async () => {
+    const file = path.resolve(__dirname, '../files/zipBomb.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 413)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
