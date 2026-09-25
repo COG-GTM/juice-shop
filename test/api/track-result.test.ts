@@ -21,6 +21,8 @@ void describe('/rest/track-order/:id', () => {
     const res = await request(app)
       .get('/rest/track-order/5267-f9cd5882f54c75a3')
     assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, '5267-f9cd5882f54c75a3')
   })
 
   void it('GET no orders when injecting into orderId', async () => {
