@@ -31,25 +31,29 @@ describe('/#/search', () => {
 })
 
 describe('/rest/products/search', () => {
-  describe('challenge "unionSqlInjection"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+  describe('UNION SQL injection', () => {
+    it('query param in product search endpoint should not leak user credentials', () => {
       cy.request(
         "/rest/products/search?q=')) union select id,'2','3',email,password,'6','7','8','9' from users--"
       )
-      cy.expectChallengeSolved({ challenge: 'User Credentials' })
+        .its('body')
+        .then((body) => {
+          expect(JSON.stringify(body.data)).to.not.contain('admin@')
+        })
     })
-  })
 
-  describe('challenge "dbSchema"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+    it('query param in product search endpoint should not leak the database schema', () => {
       cy.request(
         "/rest/products/search?q=')) union select sql,'2','3','4','5','6','7','8','9' from sqlite_master--"
       )
-      cy.expectChallengeSolved({ challenge: 'Database Schema' })
+        .its('body')
+        .then((body) => {
+          expect(JSON.stringify(body.data)).to.not.contain('CREATE TABLE')
+        })
     })
   })
 
-  describe('challenge "dlpPastebinLeakChallenge"', () => {
+  describe('logically deleted products', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
@@ -57,7 +61,7 @@ describe('/rest/products/search', () => {
       })
     })
 
-    it('search query should logically reveal the special product', () => {
+    it('search query should not reveal the logically deleted special product', () => {
       cy.request("/rest/products/search?q='))--")
         .its('body')
         .then((sourceContent) => {
@@ -70,7 +74,7 @@ describe('/rest/products/search', () => {
               }
             })
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            expect(foundProduct).to.be.true
+            expect(foundProduct).to.be.false
           })
         })
     })
