@@ -9,6 +9,11 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import jwt from 'jsonwebtoken'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -193,6 +198,61 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('loadPrivateKey', () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+      publicKeyEncoding: { type: 'spki', format: 'pem' }
+    })
+
+    it('returns the key from JWT_PRIVATE_KEY with escaped newlines expanded', () => {
+      expect(security.loadPrivateKey({ JWT_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n') })).to.equal(privateKey)
+    })
+
+    it('returns the key read from JWT_PRIVATE_KEY_FILE', () => {
+      const keyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-jwt-')), 'jwt.key')
+      fs.writeFileSync(keyFile, privateKey)
+
+      expect(security.loadPrivateKey({ JWT_PRIVATE_KEY_FILE: keyFile })).to.equal(privateKey)
+    })
+
+    it('generates a 2048-bit key when neither environment variable is set', () => {
+      const generated = security.loadPrivateKey({})
+
+      expect(generated).to.match(/^-----BEGIN PRIVATE KEY-----/)
+      expect(crypto.createPrivateKey(generated).asymmetricKeyDetails?.modulusLength).to.equal(2048)
+    })
+  })
+
+  describe('authorize/verify', () => {
+    it('issues RS256 tokens that verify against the derived public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+
+      expect(JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString()).alg).to.equal('RS256')
+      expect(security.verify(token)).to.equal(true)
+      expect(security.publicKey).to.equal(crypto.createPublicKey(security.publicKey).export({ type: 'spki', format: 'pem' }).toString())
+    })
+
+    it('rejects tokens signed with a foreign key', () => {
+      const { privateKey: foreignKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        publicKeyEncoding: { type: 'spki', format: 'pem' }
+      })
+      const token = jwt.sign({ data: { email: 'test@juice-sh.op' } }, foreignKey, { algorithm: 'RS256' })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('does not use the JWT signing key as its HMAC secret', () => {
+      const jwtKeyed = crypto.createHmac('sha256', security.publicKey).update('test@juice-sh.opdeluxe').digest('hex')
+
+      expect(security.deluxeToken('test@juice-sh.op')).to.not.equal(jwtKeyed)
     })
   })
 
