@@ -21,12 +21,12 @@ import * as z85 from 'z85'
 
 const JWT_ALGORITHM = 'RS256'
 
-const loadPrivateKey = () => {
-  if (process.env.JWT_PRIVATE_KEY) {
-    return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
+export const loadPrivateKey = (env: NodeJS.ProcessEnv = process.env) => {
+  if (env.JWT_PRIVATE_KEY) {
+    return env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
-  if (process.env.JWT_PRIVATE_KEY_FILE) {
-    return fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+  if (env.JWT_PRIVATE_KEY_FILE) {
+    return fs.readFileSync(env.JWT_PRIVATE_KEY_FILE, 'utf8')
   }
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
@@ -70,7 +70,7 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const isAuthorized = () => expressJwt(({ secret: publicKey, algorithms: [JWT_ALGORITHM] }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random(), algorithms: [JWT_ALGORITHM] } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
-export const verify = (token: string) => token ? jws.verify(token, JWT_ALGORITHM, publicKey) : false
+export const verify = (token: string) => token ? (jws.verify as unknown as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
