@@ -46,7 +46,7 @@ describe('/rest/products/reviews', () => {
         }).then((response) => {
           expect(response.status).to.equal(200)
           for (const order of response.body.data) {
-            expect(order.email).to.equal('adm*n@ju*c*-sh.*p')
+            expect(order.email).to.equal('admin@juice-sh.op'.replace(/[aeiou]/gi, '*'))
           }
         })
       })

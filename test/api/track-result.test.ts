@@ -44,6 +44,13 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET tracking results with a lowercase bearer scheme', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/5267-f9cd5882f54c75a3')
+      .set({ ...authHeader, Authorization: authHeader.Authorization.replace('Bearer', 'bearer') })
+    assert.equal(res.status, 200)
+  })
+
   void it('GET only own orders when injecting into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')

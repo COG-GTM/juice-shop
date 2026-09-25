@@ -15,18 +15,19 @@ export function trackOrder () {
     // Truncate id to avoid unintentional RCE
     const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
 
-    const loggedInUser = security.authenticatedUsers.get(req.headers?.authorization?.replace('Bearer ', ''))
-    const email = loggedInUser?.data?.email
+    const token = utils.jwtFrom(req)
+    const email = (token && security.verify(token)) ? security.decode(token)?.data?.email : undefined
     if (!email) {
       res.status(401).json({ error: 'Unauthorized' })
       return
     }
-    // Orders are persisted with an obfuscated email address
+    // Orders are persisted with an obfuscated email address and an id prefixed by the hash of the full one
     const obfuscatedEmail = email.replace(/[aeiou]/gi, '*')
+    const orderIdPrefix = security.hash(email).slice(0, 4) + '-'
 
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
-      const ownOrders = order.filter((entry: any) => entry.email === obfuscatedEmail)
+      const ownOrders = order.filter((entry: any) => entry.email === obfuscatedEmail && String(entry.orderId).startsWith(orderIdPrefix))
       const result = utils.queryResultToJson(ownOrders)
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
