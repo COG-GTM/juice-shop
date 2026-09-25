@@ -34,7 +34,11 @@ export const runtimeSecret = (name: string) => {
   }
   const file = process.env[`${name}_FILE`]
   if (file) {
-    return fs.readFileSync(file, 'utf8').trim()
+    const secret = fs.readFileSync(file, 'utf8').trim()
+    if (!secret) {
+      throw new Error(`${name}_FILE points to ${file} which contains no secret`)
+    }
+    return secret
   }
   logger.warn(`No ${name} configured: using an ephemeral secret that changes on every restart`)
   return crypto.randomBytes(32).toString('hex')

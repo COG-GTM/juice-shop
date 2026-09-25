@@ -254,6 +254,12 @@ describe('insecurity', () => {
       expect(security.runtimeSecret(name)).to.equal('from-env')
     })
 
+    it('throws if the file the <name>_FILE variable points to holds no secret', () => {
+      fs.writeFileSync(secretFile, '  \n')
+      process.env[`${name}_FILE`] = secretFile
+      expect(() => security.runtimeSecret(name)).to.throw(`${name}_FILE points to ${secretFile} which contains no secret`)
+    })
+
     it('returns a random secret when nothing is configured', () => {
       expect(security.runtimeSecret(name)).to.match(/^[0-9a-f]{64}$/)
       expect(security.runtimeSecret(name)).to.not.equal(security.runtimeSecret(name))
