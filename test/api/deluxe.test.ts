@@ -212,4 +212,56 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Something went wrong. Please try again!')
   })
+
+  void it('POST upgrade deluxe membership fails without payment mode', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({})
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
+
+  void it('POST upgrade deluxe membership fails for unknown payment mode', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: 'free'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
+
+  void it('POST upgrade deluxe membership fails for customers without wallet', async () => {
+    const { token } = await login(app, {
+      email: `john@${config.get<string>('application.domain')}`,
+      password: 'y&x5Z#f6W532Z4445#Ae2HkwZVyDb7&oCUaDzFU'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: 'wallet'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+  })
 })
