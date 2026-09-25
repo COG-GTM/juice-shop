@@ -30,6 +30,21 @@ Cypress.Commands.add(
 )
 
 Cypress.Commands.add(
+  'expectChallengeUnsolved',
+  (context: { challenge: string }) => {
+    cy.request({
+      method: 'GET',
+      url: '/api/Challenges/?name=' + context.challenge,
+      timeout: 60000
+    }).then((response) => {
+      const challenge: Challenge = response.body.data[0]
+      // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+      expect(challenge.solved).to.be.false
+    })
+  }
+)
+
+Cypress.Commands.add(
   'login',
   (context: { email: string, password: string, totpSecret?: string }) => {
     cy.visit('/#/login')
