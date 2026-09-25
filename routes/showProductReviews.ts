@@ -5,14 +5,26 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
+import * as challengeUtils from '../lib/challengeUtils'
+import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { type Review } from 'data/types'
 import * as db from '../data/mongodb'
 import * as utils from '../lib/utils'
 
+const SLEEP_COMMAND = /^sleep\((\d+)\)$/
+const MAX_SLEEP = 2000
+
 export function showProductReviews () {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const id = Number(req.params.id)
+
+    // Simulates the blocking effect of a NoSQL sleep command without evaluating any user input
+    const sleepCommand = SLEEP_COMMAND.exec(req.params.id)
+    if (sleepCommand && utils.isChallengeEnabled(challenges.noSqlCommandChallenge)) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(Number(sleepCommand[1]), MAX_SLEEP)))
+      challengeUtils.solve(challenges.noSqlCommandChallenge)
+    }
 
     db.reviewsCollection.find({ product: id }).then((reviews: Review[]) => {
       const user = security.authenticatedUsers.from(req)
