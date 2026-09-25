@@ -38,8 +38,9 @@ const generatePrivateKey = () => {
   }).privateKey
 }
 
-/* A process that lost the creation race can see the file before the winner has flushed it, or see
-   it disappear again when the winner rolls back a failed write. */
+/* A reader can see the key file between its creation and the publishing link, so give the winner
+   of the race a moment to finish. A file that never completes is left untouched: it may belong to
+   a process that is still publishing, and this one can run on its own key instead. */
 const readCompleteKey = (keyFile: string) => {
   const blocker = new Int32Array(new SharedArrayBuffer(4))
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -56,37 +57,18 @@ const readCompleteKey = (keyFile: string) => {
     }
     Atomics.wait(blocker, 0, 0, 10)
   }
-  /* Nobody finished publishing this file, e.g. because a process died mid-write. */
-  try {
-    fs.unlinkSync(keyFile)
-  } catch {
-    /* already gone */
-  }
   return undefined
 }
 
-/* Exclusive creation claims the path so no concurrent process can be overwritten, the rename then
-   publishes the complete file in one step so readers never observe partial key material. */
-const claimAndRename = (keyFile: string, tempFile: string) => {
-  fs.closeSync(fs.openSync(keyFile, 'wx', 0o600))
-  fs.renameSync(tempFile, keyFile)
-}
-
-/* Published either by hard-linking a fully written temporary file or, where hard links are
-   unsupported, by exclusive creation - never by overwriting a key another process may already
-   be signing with. An unwritable path leaves each process with its own ephemeral key. */
+/* Hard-linking a fully written temporary file is the only publication step: it is atomic, it
+   never overwrites the key another process may already be signing with, and it never exposes
+   partial key material. Where that is impossible - an unwritable path or a filesystem without
+   hard links - the process keeps its own ephemeral key rather than risk clobbering a key file. */
 const persistPrivateKey = (keyFile: string, key: string) => {
   const tempFile = `${keyFile}.${crypto.randomUUID()}.tmp`
   try {
     fs.writeFileSync(tempFile, key, { encoding: 'utf8', mode: 0o600 })
-    try {
-      fs.linkSync(tempFile, keyFile)
-    } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        return readCompleteKey(keyFile) ?? key
-      }
-      claimAndRename(keyFile, tempFile)
-    }
+    fs.linkSync(tempFile, keyFile)
     return key
   } catch (error: unknown) {
     return ((error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key) ?? key
