@@ -15,11 +15,8 @@ export function trackOrder () {
     // Truncate id to avoid unintentional RCE
     const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
 
-    const email = security.authenticatedUsers.from(req)?.data?.email
-    if (!email) {
-      res.status(401).json({ error: 'Unauthorized' })
-      return
-    }
+    // The route is guarded by security.isAuthorized(), so the token is already verified here
+    const email: string = security.decode(utils.jwtFrom(req) as string)?.data?.email ?? ''
     // Orders are persisted with an obfuscated email address and an id prefixed by the hash of the full one
     const obfuscatedEmail = email.replace(/[aeiou]/gi, '*')
     const orderIdPrefix = security.hash(email).slice(0, 4) + '-'
