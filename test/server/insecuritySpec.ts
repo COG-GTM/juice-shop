@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,51 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const unsignedPart = (algorithm: string) => `${base64url({ alg: algorithm, typ: 'JWT' })}.${base64url({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`
+
+    it('accepts a token signed by the application', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@bla.blubb' } }))).to.equal(true)
+    })
+
+    it('rejects a token signed with the public key as HMAC secret', () => {
+      const forged = unsignedPart('HS256')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(forged).digest('base64url')
+      expect(security.verify(`${forged}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects an unsigned token', () => {
+      expect(security.verify(`${unsignedPart('none')}.`)).to.equal(false)
+    })
+
+    it('rejects a token signed with a foreign RSA key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+        publicKeyEncoding: { type: 'spki', format: 'pem' }
+      })
+      const forged = unsignedPart('RS256')
+      const signature = crypto.sign('sha256', Buffer.from(forged), privateKey).toString('base64url')
+      expect(security.verify(`${forged}.${signature}`)).to.equal(false)
+    })
+
+    it('returns false for a missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('verifyAndDecode', () => {
+    it('returns the payload of a token signed by the application', () => {
+      const token = security.authorize({ data: { email: 'test@bla.blubb' } })
+      expect((security.verifyAndDecode(token) as { data: { email: string } }).data.email).to.equal('test@bla.blubb')
+    })
+
+    it('returns undefined for a missing token', () => {
+      expect(security.verifyAndDecode(undefined)).to.equal(undefined)
     })
   })
 })
