@@ -19,8 +19,95 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+const JWT_ALGORITHM = 'RS256'
+/* Deliberately not in encryptionkeys/, whose files are served anonymously by routes/keyServer.ts. */
+const DEFAULT_PRIVATE_KEY_FILE = '.jwt.key'
+
+const normalizeKeyMaterial = (key: string) => {
+  if (key.includes('-----BEGIN')) {
+    return key.replace(/\\n/g, '\n')
+  }
+  return Buffer.from(key, 'base64').toString('utf8')
+}
+
+const generatePrivateKey = () => {
+  return crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    publicKeyEncoding: { type: 'spki', format: 'pem' }
+  }).privateKey
+}
+
+/* Where hard links are unavailable the winner of the creation race writes the key in place, so a
+   reader can catch the file while it is still short. A file that never completes is left
+   untouched - deleting it could destroy a key another process signs with - and this process falls
+   back to its own key. */
+const readCompleteKey = (keyFile: string) => {
+  const blocker = new Int32Array(new SharedArrayBuffer(4))
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      const key = fs.readFileSync(keyFile, 'utf8')
+      if (key.includes('-----END')) {
+        return key
+      }
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+      return undefined
+    }
+    Atomics.wait(blocker, 0, 0, 10)
+  }
+  return undefined
+}
+
+/* Hard-linking a fully written temporary file publishes the key atomically, so readers never see
+   partial material. Filesystems without hard links fall back to exclusive creation, where a
+   reader can see the file mid-write. Neither ever replaces an existing file, so a key another
+   process is already signing with stays intact. */
+const publishPrivateKey = (keyFile: string, key: string) => {
+  const tempFile = `${keyFile}.${crypto.randomUUID()}.tmp`
+  try {
+    fs.writeFileSync(tempFile, key, { encoding: 'utf8', mode: 0o600 })
+    fs.linkSync(tempFile, keyFile)
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw error
+    }
+    fs.writeFileSync(keyFile, key, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+  } finally {
+    try {
+      fs.unlinkSync(tempFile)
+    } catch {
+      /* nothing to clean up */
+    }
+  }
+}
+
+/* An unwritable key path leaves this process with its own ephemeral key. */
+const persistPrivateKey = (keyFile: string, key: string) => {
+  try {
+    publishPrivateKey(keyFile, key)
+    return key
+  } catch (error: unknown) {
+    return ((error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key) ?? key
+  }
+}
+
+/* The signing key is never committed: it comes from the environment, from a key file or - for
+   local development - from an ephemeral key pair persisted so that all processes of one
+   installation (server, workers, API tests) share it. */
+const resolvePrivateKey = () => {
+  if (process.env.JWT_PRIVATE_KEY) {
+    return normalizeKeyMaterial(process.env.JWT_PRIVATE_KEY)
+  }
+  const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? DEFAULT_PRIVATE_KEY_FILE
+  const existingKey = fs.existsSync(keyFile) ? readCompleteKey(keyFile) : undefined
+  return existingKey ?? persistPrivateKey(keyFile, generatePrivateKey())
+}
+
+const privateKey = resolvePrivateKey()
+export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString()
 
 interface ResponseWithUser {
   status?: string
@@ -51,11 +138,45 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+/* Signature check pinned to RS256, so neither "alg: none" nor an HS256 token forged with the
+   public key as HMAC secret is accepted. */
+const verifySignature = (token: string) => {
+  const [header, payload, signature] = token.split('.')
+  if (!header || !payload || !signature) {
+    return false
+  }
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== JWT_ALGORITHM) {
+      return false
+    }
+    return crypto.verify('sha256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
+
+const isExpired = (token: string) => {
+  const payload = jws.decode(token)?.payload
+  const exp = typeof payload === 'object' ? payload?.exp : undefined
+  return typeof exp === 'number' && exp * 1000 < Date.now()
+}
+
+export const isAuthorized = () => {
+  const authorizeRequest = expressJwt(({ secret: publicKey, algorithms: [JWT_ALGORITHM] }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    if (token && !verify(token)) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    authorizeRequest(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
+export const verify = (token: string) => token ? verifySignature(token) && !isExpired(token) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+export const verifyAndDecode = (token?: string) => (token && verify(token)) ? decode(token) : undefined
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -155,7 +276,7 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const decodedToken = verifyAndDecode(utils.jwtFrom(req))
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -165,12 +286,12 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const decodedToken = verifyAndDecode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const decodedToken = verifyAndDecode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.customer
 }
 
@@ -188,14 +309,11 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+    const decoded = verifyAndDecode(token)
+    if (decoded && authenticatedUsers.get(token) === undefined) {
+      authenticatedUsers.put(token, decoded)
+      res.cookie('token', token)
+    }
   }
   next()
 }

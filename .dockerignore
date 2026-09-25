@@ -16,3 +16,7 @@ Dockerfile
 frontend/node_modules/
 frontend/dist/
 frontend/.angular/
+
+# Runtime JWT signing key
+.jwt.key
+.jwt.key.*.tmp

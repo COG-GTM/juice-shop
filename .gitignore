@@ -1,5 +1,7 @@
 # App
 node_modules/
+.jwt.key
+.jwt.key.*.tmp
 juiceshop.sqlite
 order_*.pdf
 app/
