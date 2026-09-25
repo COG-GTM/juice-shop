@@ -38,9 +38,10 @@ const generatePrivateKey = () => {
   }).privateKey
 }
 
-/* A reader can see the key file between its creation and the publishing link, so give the winner
-   of the race a moment to finish. A file that never completes is left untouched: it may belong to
-   a process that is still publishing, and this one can run on its own key instead. */
+/* Where hard links are unavailable the winner of the creation race writes the key in place, so a
+   reader can catch the file while it is still short. A file that never completes is left
+   untouched - deleting it could destroy a key another process signs with - and this process falls
+   back to its own key. */
 const readCompleteKey = (keyFile: string) => {
   const blocker = new Int32Array(new SharedArrayBuffer(4))
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -60,24 +61,36 @@ const readCompleteKey = (keyFile: string) => {
   return undefined
 }
 
-/* Hard-linking a fully written temporary file is the only publication step: it is atomic, it
-   never overwrites the key another process may already be signing with, and it never exposes
-   partial key material. Where that is impossible - an unwritable path or a filesystem without
-   hard links - the process keeps its own ephemeral key rather than risk clobbering a key file. */
-const persistPrivateKey = (keyFile: string, key: string) => {
+/* Hard-linking a fully written temporary file publishes the key atomically, so readers never see
+   partial material. Filesystems without hard links fall back to exclusive creation, where a
+   reader can see the file mid-write. Neither ever replaces an existing file, so a key another
+   process is already signing with stays intact. */
+const publishPrivateKey = (keyFile: string, key: string) => {
   const tempFile = `${keyFile}.${crypto.randomUUID()}.tmp`
   try {
     fs.writeFileSync(tempFile, key, { encoding: 'utf8', mode: 0o600 })
     fs.linkSync(tempFile, keyFile)
-    return key
   } catch (error: unknown) {
-    return ((error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key) ?? key
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw error
+    }
+    fs.writeFileSync(keyFile, key, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
   } finally {
     try {
       fs.unlinkSync(tempFile)
     } catch {
       /* nothing to clean up */
     }
+  }
+}
+
+/* An unwritable key path leaves this process with its own ephemeral key. */
+const persistPrivateKey = (keyFile: string, key: string) => {
+  try {
+    publishPrivateKey(keyFile, key)
+    return key
+  } catch (error: unknown) {
+    return ((error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key) ?? key
   }
 }
 
