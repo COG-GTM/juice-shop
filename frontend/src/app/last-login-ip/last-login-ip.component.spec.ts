@@ -64,7 +64,16 @@ describe('LastLoginIpComponent', () => {
         component.ngOnInit()
         expect(component.lastLoginIp).toBe('1.2.3.4')
         fixture.detectChanges()
-        expect(fixture.nativeElement.querySelector('dd').innerHTML).not.toContain('<iframe')
+        expect(fixture.nativeElement.querySelector('dd').textContent).toContain('1.2.3.4')
+    })
+
+    it('should render HTML in Last-Login IP as text', () => {
+        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7Imxhc3RMb2dpbklwIjoiPGlmcmFtZSBzcmM9XCJqYXZhc2NyaXB0OmFsZXJ0KGB4c3NgKVwiPiJ9fQ.sig')
+        component.ngOnInit()
+        fixture.detectChanges()
+        const dd = fixture.nativeElement.querySelector('dd')
+        expect(dd.querySelector('iframe')).toBeNull()
+        expect(dd.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
     })
 
     it('should not set Last-Login IP if none is present in JWT', () => {
