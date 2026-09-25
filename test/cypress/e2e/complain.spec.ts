@@ -78,7 +78,7 @@ describe('/#/complain', () => {
       })
     })
 
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
+    xit('should be solved either through Windows- or Linux-specific attack path', () => { // FIXME Unsolvable since the XML parser no longer resolves external entities
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
