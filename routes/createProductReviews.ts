@@ -19,9 +19,14 @@ export function createProductReviews () {
       () => user?.data?.email !== req.body.author
     )
 
+    const product = Number(req.params.id)
+    if (!Number.isInteger(product)) {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
+
     try {
       await reviewsCollection.insert({
-        product: Number(req.params.id),
+        product,
         message: req.body.message,
         author: req.body.author,
         likesCount: 0,
