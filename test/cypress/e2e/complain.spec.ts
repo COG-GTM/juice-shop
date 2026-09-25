@@ -58,13 +58,18 @@ describe('/#/complain', () => {
   })
 
   describe('XXE attacks on the deprecated B2B interface', () => {
-    for (const [os, payload] of [['Windows', 'xxeForWindows.xml'], ['Linux', 'xxeForLinux.xml']]) {
+    for (const [os, payload, disclosureMarker] of [['Windows', 'xxeForWindows.xml', '; for 16-bit app support'], ['Linux', 'xxeForLinux.xml', 'root:']]) {
       it(`should not disclose local files via .xml upload with ${os}-specific XXE attack`, () => {
         cy.task('isDocker').then((isDocker) => {
           if (!isDocker) {
+            cy.intercept('POST', '/file-upload').as('xxeUpload')
             cy.get('#complaintMessage').type(`XXE File Exfiltration ${os}!`)
             cy.get('#file').selectFile(`test/files/${payload}`)
             cy.get('#submitButton').click()
+            cy.wait('@xxeUpload').then(({ response }) => {
+              expect(response?.statusCode).to.equal(410)
+              expect(JSON.stringify(response?.body)).to.not.contain(disclosureMarker)
+            })
             cy.expectChallengeUnsolved({ challenge: 'XXE Data Access' })
           }
         })
@@ -75,9 +80,13 @@ describe('/#/complain', () => {
       it(`should not stall the server via .xml upload with ${attack} attack`, () => {
         cy.task('isDocker').then((isDocker) => {
           if (!isDocker) {
+            cy.intercept('POST', '/file-upload').as('xxeUpload')
             cy.get('#complaintMessage').type(`XXE ${attack}!`)
             cy.get('#file').selectFile(`test/files/${payload}`)
             cy.get('#submitButton').click()
+            cy.wait('@xxeUpload').then(({ response }) => {
+              expect(response?.statusCode).to.be.at.least(410)
+            })
             cy.wait(5000) // Wait for 2.5x timeout of XML parser
             cy.expectChallengeUnsolved({ challenge: 'XXE DoS' })
           }
