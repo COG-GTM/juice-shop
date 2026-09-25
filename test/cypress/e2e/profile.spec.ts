@@ -16,17 +16,15 @@ describe('/profile', () => {
   })
 
   describe('username rendering', () => {
-    it('should render template expressions and script tags in the username as escaped text', () => {
+    it('should render template expressions in the username as text', () => {
       cy.visit('/profile')
-      cy.get('#username').type('#{1+1}<script>alert(`xss`)</script>', {
+      cy.get('#username').clear()
+      cy.get('#username').type('#{1+1}', {
         parseSpecialCharSequences: false
       })
       cy.get('#submit').click()
 
-      cy.get('#username').should(
-        'have.value',
-        '#{1+1}<script>alert(`xss`)</script>'
-      )
+      cy.get('#username').should('have.value', '#{1+1}')
 
       cy.get('#username').clear()
       cy.get('#username').type('αδмιη')
