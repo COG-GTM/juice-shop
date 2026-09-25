@@ -39,6 +39,7 @@ void describe('/rest/products/:id/reviews', () => {
       .get('/rest/products/sleep(1)/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
@@ -61,6 +62,16 @@ void describe('/rest/products/:id/reviews', () => {
     const reviews = await request(app)
       .get('/rest/products/1/reviews')
     assert.ok(reviews.body.data.some((review: { message: string }) => review.message === 'Lorem Ipsum'))
+  })
+
+  void it('PUT single product review cannot be created for non-numeric product id', async () => {
+    const res = await request(app)
+      .put('/rest/products/kaboom/reviews')
+      .send({
+        message: 'Lorem Ipsum',
+        author: 'Anonymous'
+      })
+    assert.equal(res.status, 400)
   })
 })
 
