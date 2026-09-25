@@ -13,18 +13,24 @@ describe('/', () => {
   })
 
   describe('challenge "jwtForged"', () => {
+    const base64url = (value: string) => btoa(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+
     it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
       cy.task('isWindows').then((isWindows) => {
         if (!isWindows) {
-          cy.window().then(() => {
-            localStorage.setItem(
-              'token',
-              'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgzMDM3NzExfQ.gShXDT5TrE5736mpIbfVDEcQbLfteJaQUG7Z0PH8Xc8'
-            )
-          })
-          cy.visit('/#/')
+          cy.request('/encryptionkeys/jwt.pub').then((response) => {
+            const signingInput = `${base64url(JSON.stringify({ typ: 'JWT', alg: 'HS256' }))}.${base64url(JSON.stringify({ data: { email: 'rsa_lord@juice-sh.op' }, iat: 1583037711 }))}`
+            cy.window().then(async (win) => {
+              const encoder = new TextEncoder()
+              const key = await win.crypto.subtle.importKey('raw', encoder.encode(response.body as string), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
+              const signature = await win.crypto.subtle.sign('HMAC', key, encoder.encode(signingInput))
+              const encodedSignature = base64url(String.fromCharCode(...new Uint8Array(signature)))
+              localStorage.setItem('token', `${signingInput}.${encodedSignature}`)
+            })
+            cy.visit('/#/')
 
-          cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
+            cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
+          })
         }
       })
     })

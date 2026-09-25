@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import jws from 'jws'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -108,6 +109,49 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    it('accepts a token issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@bla.blubb' } }))).to.equal(true)
+    })
+
+    it('rejects a token HMAC-signed with the public key', () => {
+      const token = jws.sign({ header: { alg: 'HS256' }, payload: { data: { email: 'test@bla.blubb' } }, secret: security.publicKey })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects an unsigned token', () => {
+      const token = jws.sign({ header: { alg: 'none' }, payload: { data: { email: 'test@bla.blubb' } }, secret: null })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a token with a tampered payload', () => {
+      const [header, , signature] = security.authorize({ data: { email: 'test@bla.blubb' } }).split('.')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op' } })).toString('base64url')
+
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects a missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('verifyAndDecode', () => {
+    it('returns the payload of a token issued by authorize()', () => {
+      const decoded = security.verifyAndDecode(security.authorize({ data: { email: 'test@bla.blubb' } })) as { data: { email: string } }
+
+      expect(decoded.data.email).to.equal('test@bla.blubb')
+    })
+
+    it('returns undefined for a forged token', () => {
+      const token = jws.sign({ header: { alg: 'HS256' }, payload: { data: { email: 'admin@juice-sh.op' } }, secret: security.publicKey })
+
+      expect(security.verifyAndDecode(token)).to.equal(undefined)
     })
   })
 

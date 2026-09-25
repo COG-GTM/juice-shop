@@ -16,3 +16,4 @@ Dockerfile
 frontend/node_modules/
 frontend/dist/
 frontend/.angular/
+.jwt-private.key
