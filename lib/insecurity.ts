@@ -38,34 +38,38 @@ const generatePrivateKey = () => {
   }).privateKey
 }
 
-/* A process that lost the creation race can see the file before the winner has flushed it. */
+/* A process that lost the creation race can see the file before the winner has flushed it, or see
+   it disappear again when the winner rolls back a failed write. */
 const readCompleteKey = (keyFile: string) => {
   const blocker = new Int32Array(new SharedArrayBuffer(4))
   for (let attempt = 0; attempt < 100; attempt++) {
-    const key = fs.readFileSync(keyFile, 'utf8')
-    if (key.includes('-----END')) {
-      return key
+    try {
+      const key = fs.readFileSync(keyFile, 'utf8')
+      if (key.includes('-----END')) {
+        return key
+      }
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error
+      }
+      return undefined
     }
     Atomics.wait(blocker, 0, 0, 10)
   }
-  throw new Error(`Private key file ${keyFile} is incomplete`)
+  /* Nobody finished publishing this file, e.g. because a process died mid-write. */
+  try {
+    fs.unlinkSync(keyFile)
+  } catch {
+    /* already gone */
+  }
+  return undefined
 }
 
-/* A write that dies halfway would otherwise leave a truncated key file behind forever. */
-const writeExclusively = (keyFile: string, key: string) => {
-  const fd = fs.openSync(keyFile, 'wx', 0o600)
-  try {
-    fs.writeFileSync(fd, key, { encoding: 'utf8' })
-  } catch (error) {
-    try {
-      fs.unlinkSync(keyFile)
-    } catch {
-      /* nothing to clean up */
-    }
-    throw error
-  } finally {
-    fs.closeSync(fd)
-  }
+/* Exclusive creation claims the path so no concurrent process can be overwritten, the rename then
+   publishes the complete file in one step so readers never observe partial key material. */
+const claimAndRename = (keyFile: string, tempFile: string) => {
+  fs.closeSync(fs.openSync(keyFile, 'wx', 0o600))
+  fs.renameSync(tempFile, keyFile)
 }
 
 /* Published either by hard-linking a fully written temporary file or, where hard links are
@@ -79,13 +83,13 @@ const persistPrivateKey = (keyFile: string, key: string) => {
       fs.linkSync(tempFile, keyFile)
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-        return readCompleteKey(keyFile)
+        return readCompleteKey(keyFile) ?? key
       }
-      writeExclusively(keyFile, key)
+      claimAndRename(keyFile, tempFile)
     }
     return key
   } catch (error: unknown) {
-    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key
+    return ((error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key) ?? key
   } finally {
     try {
       fs.unlinkSync(tempFile)
@@ -103,10 +107,8 @@ const resolvePrivateKey = () => {
     return normalizeKeyMaterial(process.env.JWT_PRIVATE_KEY)
   }
   const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? DEFAULT_PRIVATE_KEY_FILE
-  if (fs.existsSync(keyFile)) {
-    return readCompleteKey(keyFile)
-  }
-  return persistPrivateKey(keyFile, generatePrivateKey())
+  const existingKey = fs.existsSync(keyFile) ? readCompleteKey(keyFile) : undefined
+  return existingKey ?? persistPrivateKey(keyFile, generatePrivateKey())
 }
 
 const privateKey = resolvePrivateKey()
