@@ -27,12 +27,16 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
 const complaintsDir = path.resolve('uploads/complaints')
 const maxZipEntries = 100
 const maxExtractedBytes = 50 * 1024 * 1024
+const videoSubtitlePath = path.resolve('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')
 
 function resolveComplaintPath (fileName: string) {
+  const target = path.resolve(complaintsDir, fileName)
+  if (target === videoSubtitlePath) { // sole permitted target outside the complaints directory, kept for the "Video XSS" challenge
+    return target
+  }
   if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
     return null
   }
-  const target = path.resolve(complaintsDir, fileName)
   if (!isInside(complaintsDir, target)) {
     return null
   }

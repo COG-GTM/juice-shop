@@ -62,6 +62,11 @@ describe('fileUpload', () => {
       expect(resolveComplaintPath('..complaint.pdf')).to.equal(path.resolve('uploads/complaints/..complaint.pdf'))
     })
 
+    it('should allow only the promotion video subtitles outside the complaints directory', () => {
+      expect(resolveComplaintPath('../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(path.resolve('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt'))
+      expect(resolveComplaintPath('../../frontend/dist/frontend/assets/public/videos/owasp_promo.mp4')).to.equal(null)
+    })
+
     it('should reject entry names below a symlinked sub-directory', () => {
       const link = path.resolve('uploads/complaints/escape-link')
       fs.symlinkSync(path.resolve('ftp'), link, 'dir')
