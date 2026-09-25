@@ -4,6 +4,8 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -37,6 +39,10 @@ export const loadPrivateKey = (env: NodeJS.ProcessEnv = process.env) => {
 
 const privateKey = loadPrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'pem' }).toString()
+
+/* The public key is published so players can attempt the "Forged Signed JWT" challenge with the actually used key */
+export const publicKeyFile = path.join(os.tmpdir(), `juice-shop-jwt-${process.pid}.pub`)
+fs.writeFileSync(publicKeyFile, publicKey)
 
 interface ResponseWithUser {
   status?: string

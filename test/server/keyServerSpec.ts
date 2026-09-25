@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -18,8 +19,7 @@ describe('keyServer', () => {
 
   beforeEach(() => {
     req = { params: { } }
-    res = { sendFile: sinon.spy(), status: sinon.spy(), send: sinon.spy() }
-    res.type = sinon.stub().returns(res)
+    res = { sendFile: sinon.spy(), status: sinon.spy() }
     next = sinon.spy()
   })
 
@@ -36,8 +36,8 @@ describe('keyServer', () => {
 
     serveKeyFiles()(req, res, next)
 
-    expect(res.send).to.have.been.calledWith(security.publicKey)
-    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.sendFile).to.have.been.calledWith(security.publicKeyFile)
+    expect(fs.readFileSync(security.publicKeyFile, 'utf8')).to.equal(security.publicKey)
   })
 
   it('should raise error for slashes in filename', () => {

@@ -13,7 +13,7 @@ export function serveKeyFiles () {
 
     if (!file.includes('/')) {
       if (file === 'jwt.pub') {
-        res.type('text/plain').send(security.publicKey)
+        res.sendFile(security.publicKeyFile)
       } else {
         res.sendFile(path.resolve('encryptionkeys/', file))
       }
