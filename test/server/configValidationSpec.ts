@@ -15,7 +15,8 @@ import validateConfig, {
   checkUniqueSpecialOnMemories,
   checkSpecialMemoriesHaveNoUserAssociated,
   checkNecessaryExtraKeysOnSpecialProducts,
-  checkForIllogicalCombos
+  checkForIllogicalCombos,
+  checkAccountingIpAllowlist
 } from '../../lib/startup/validateConfig'
 import type { Memory, Product } from 'lib/config.types'
 
@@ -484,6 +485,20 @@ describe('configValidation', () => {
     }
 
     expect(checkYamlSchema(config)).to.equal(false)
+  })
+
+  describe('checkAccountingIpAllowlist', () => {
+    it('should accept an empty allowlist', () => {
+      expect(checkAccountingIpAllowlist([])).to.equal(true)
+    })
+
+    it('should accept valid IP addresses and CIDR ranges', () => {
+      expect(checkAccountingIpAllowlist(['192.168.0.1', '10.0.0.0/8', '2001:db8::/32'])).to.equal(true)
+    })
+
+    it('should fail on a malformed entry', () => {
+      expect(checkAccountingIpAllowlist(['123.456.789'])).to.equal(false)
+    })
   })
 
   describe('checkForIllogicalCombos', () => {

@@ -31,6 +31,8 @@ application:
     type: string
   customMetricsPrefix:
     type: string
+  accountingIpAllowlist:
+    - type: string
   chatBot:
     name:
       type: string

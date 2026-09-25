@@ -15,6 +15,7 @@ application:
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop
   customMetricsPrefix: juiceshop
+  accountingIpAllowlist: [] # IPs/CIDR ranges allowed to use the accounting API on top of the accounting role, e.g. ['10.0.0.0/8']
   chatBot:
     name: 'Juicy the Smart Assistant'
     avatar: 'JuicyChatBot.png'
