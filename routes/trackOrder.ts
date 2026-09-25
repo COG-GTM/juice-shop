@@ -8,15 +8,27 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { type Request, type Response } from 'express'
 import * as db from '../data/mongodb'
 import { challenges } from '../data/datacache'
+import * as security from '../lib/insecurity'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
     // Truncate id to avoid unintentional RCE
     const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
 
+    // security.isAuthorized() has already verified the token's signature at this point
+    const email: string | undefined = security.decode(utils.jwtFrom(req) as string)?.data?.email
+    if (!email) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    // Orders are persisted with an obfuscated email address and an id prefixed by the hash of the full one
+    const obfuscatedEmail = email.replace(/[aeiou]/gi, '*')
+    const orderIdPrefix = security.hash(email).slice(0, 4) + '-'
+
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
-      const result = utils.queryResultToJson(order)
+      const ownOrders = order.filter((entry: any) => entry.email === obfuscatedEmail && String(entry.orderId).startsWith(orderIdPrefix))
+      const result = utils.queryResultToJson(ownOrders)
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
         result.data[0] = { orderId: id }

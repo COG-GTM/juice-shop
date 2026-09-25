@@ -27,23 +27,28 @@ describe('/rest/products/reviews', () => {
     })
   })
 
-  describe('challenge "NoSQL Exfiltration"', () => {
-    it('should be possible to inject and get all the orders', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            await fetch(
-              `${Cypress.config('baseUrl')}/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
-          })
-          cy.expectChallengeSolved({ challenge: 'NoSQL Exfiltration' })
-        }
+  describe('order tracking', () => {
+    it('should not be possible to retrieve orders without authentication', () => {
+      cy.request({
+        url: '/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27',
+        failOnStatusCode: false
+      }).then((response) => {
+        expect(response.status).to.equal(401)
+      })
+    })
+
+    it('should only return orders of the authenticated user', () => {
+      cy.login({ email: 'admin', password: 'admin123' })
+      cy.getCookie('token').then((token) => {
+        cy.request({
+          url: '/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27',
+          headers: { Authorization: `Bearer ${token?.value}` }
+        }).then((response) => {
+          expect(response.status).to.equal(200)
+          for (const order of response.body.data) {
+            expect(order.email).to.equal('admin@juice-sh.op'.replace(/[aeiou]/gi, '*'))
+          }
+        })
       })
     })
   })
