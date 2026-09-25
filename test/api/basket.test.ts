@@ -125,9 +125,39 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order for a basket of another user fails', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
+  })
+
+  void it('POST paying with the wallet of another user is not possible', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const victimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const victimBalanceBefore = await request(app).get('/rest/wallet/balance').set(victimHeader)
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ UserId: 1, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 200)
+
+    const victimBalanceAfter = await request(app).get('/rest/wallet/balance').set(victimHeader)
+    assert.equal(victimBalanceAfter.body.data, victimBalanceBefore.body.data)
+    const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
+    assert.ok(balanceAfter.body.data < balanceBefore.body.data)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -143,7 +173,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
