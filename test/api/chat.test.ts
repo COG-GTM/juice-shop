@@ -276,7 +276,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const toolResult = await requestOrder(forgedToken, '5267-f9cd5c0e7e7a1ee5')
 
-    assert.ok(toolResult?.includes('Customer not authenticated'))
+    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
   })
 
   void it('POST returns an own order via getOrderById for a signed-in customer', { timeout: 30000 }, async () => {
@@ -288,8 +288,8 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const toolResult = await requestOrder(token, orderId)
 
-    assert.ok(toolResult?.includes(orderId))
-    assert.ok(!toolResult?.includes('error'))
+    assert.ok(toolResult?.includes(orderId), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
+    assert.ok(!toolResult?.includes('error'), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
   })
 
   void it('POST rejects an order whose id does not match the customer email hash', { timeout: 30000 }, async () => {
@@ -306,7 +306,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const toolResult = await requestOrder(token, orderId)
 
-    assert.ok(toolResult?.includes('Order does not belong to the current customer'))
+    assert.ok(toolResult?.includes('Order does not belong to the current customer'), `unexpected tool result: ${String(toolResult)}`)
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
