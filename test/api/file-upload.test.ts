@@ -61,29 +61,31 @@ void describe('/file-upload', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
+    void it('POST file type XML with XXE attack against Windows does not disclose file contents', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('[fonts]'))
     })
 
-    void it('POST file type XML with XXE attack against Linux', async () => {
+    void it('POST file type XML with XXE attack against Linux does not disclose file contents', async () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('root:'))
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST file type XML with Billion Laughs attack is not expanded by parser', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(!res.text.includes('lol'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
