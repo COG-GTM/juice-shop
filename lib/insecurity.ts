@@ -20,7 +20,8 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 const JWT_ALGORITHM = 'RS256'
-const DEFAULT_PRIVATE_KEY_FILE = 'encryptionkeys/jwt.key'
+/* Deliberately not in encryptionkeys/, whose files are served anonymously by routes/keyServer.ts. */
+const DEFAULT_PRIVATE_KEY_FILE = '.jwt.key'
 
 const normalizeKeyMaterial = (key: string) => {
   if (key.includes('-----BEGIN')) {
@@ -37,6 +38,25 @@ const generatePrivateKey = () => {
   }).privateKey
 }
 
+/* Published through a fully written temporary file, so a process losing the race never reads a
+   partially written key. */
+const persistPrivateKey = (keyFile: string, key: string) => {
+  const tempFile = `${keyFile}.${process.pid}.tmp`
+  try {
+    fs.writeFileSync(tempFile, key, { encoding: 'utf8', mode: 0o600 })
+    fs.linkSync(tempFile, keyFile)
+    return key
+  } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? fs.readFileSync(keyFile, 'utf8') : key
+  } finally {
+    try {
+      fs.unlinkSync(tempFile)
+    } catch {
+      /* nothing to clean up */
+    }
+  }
+}
+
 /* The signing key is never committed: it comes from the environment, from a key file or - for
    local development - from an ephemeral key pair persisted so that all processes of one
    installation (server, workers, API tests) share it. */
@@ -48,15 +68,7 @@ const resolvePrivateKey = () => {
   if (fs.existsSync(keyFile)) {
     return fs.readFileSync(keyFile, 'utf8')
   }
-  const generated = generatePrivateKey()
-  try {
-    fs.writeFileSync(keyFile, generated, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
-  } catch (error: unknown) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      return fs.readFileSync(keyFile, 'utf8')
-    }
-  }
-  return generated
+  return persistPrivateKey(keyFile, generatePrivateKey())
 }
 
 const privateKey = resolvePrivateKey()
