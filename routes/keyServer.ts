@@ -13,7 +13,7 @@ export function serveKeyFiles () {
 
     if (!file.includes('/')) {
       if (file === 'jwt.pub') {
-        res.type('text/plain').send(security.publicKey)
+        res.type('text/plain').end(security.publicKey) // res.send() is incompatible with the res.end patch of the serve-index middleware
       } else {
         res.sendFile(path.resolve('encryptionkeys/', file))
       }
