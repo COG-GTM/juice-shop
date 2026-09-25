@@ -16,40 +16,39 @@ describe('/profile', () => {
   })
 
   describe('username rendering', () => {
-    it('should render script tags in the username as text instead of executing them', () => {
+    const setUsername = (username: string) => {
       cy.visit('/profile')
-      cy.get('#url').type(
-        "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
-      )
-      cy.get('#submitUrl').click()
-      cy.get('#username').type('<script>alert(`xss`)</script>', {
-        parseSpecialCharSequences: false
-      })
+      cy.get('#username').clear()
+      cy.get('#username').invoke('val', username)
+      cy.get('#submit').click()
+    }
+
+    it('should render script tags in the username as text instead of executing them', () => {
+      const payload = '<script>alert(`xss`)</script>'
 
       cy.on('window:alert', () => {
         throw new Error('Username must not be executed as script')
       })
 
-      cy.get('#submit').click()
-
-      cy.get('#username').should(
-        'have.value',
-        '<script>alert(`xss`)</script>'
+      cy.visit('/profile')
+      cy.get('#url').type(
+        "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
       )
+      cy.get('#submitUrl').click()
+      setUsername(payload)
+
+      cy.get('#card').should('contain.text', payload)
+      cy.get('#card').find('script').should('not.exist')
     })
 
     it('should render Pug interpolation in the username as text instead of evaluating it', () => {
-      cy.visit('/profile')
-      cy.get('#username').type(
-        "#{global.process.mainModule.require('child_process').execSync('id')}",
-        { parseSpecialCharSequences: false }
-      )
-      cy.get('#submit').click()
-
-      cy.get('#username').should(
-        'have.value',
+      const payload =
         "#{global.process.mainModule.require('child_process').execSync('id')}"
-      )
+
+      setUsername(payload)
+
+      cy.get('#card').should('contain.text', payload)
+      cy.get('#card').should('not.contain.text', 'uid=')
     })
   })
 
