@@ -26,6 +26,14 @@ const publicKeyOf = (privateKey: string) => crypto.createPublicKey(privateKey).e
 describe('jwt signing key', () => {
   let directory: string
   let keyFile: string
+  const configuredEnvironment = { key: process.env.JWT_PRIVATE_KEY, keyFile: process.env.JWT_PRIVATE_KEY_FILE }
+
+  const restoreEnvironment = () => {
+    process.env.JWT_PRIVATE_KEY = configuredEnvironment.key
+    process.env.JWT_PRIVATE_KEY_FILE = configuredEnvironment.keyFile
+    if (configuredEnvironment.key === undefined) delete process.env.JWT_PRIVATE_KEY
+    if (configuredEnvironment.keyFile === undefined) delete process.env.JWT_PRIVATE_KEY_FILE
+  }
 
   const loadSecurity = (): Security => {
     delete require.cache[require.resolve('../../lib/insecurity')]
@@ -41,8 +49,7 @@ describe('jwt signing key', () => {
 
   afterEach(() => {
     sinon.restore()
-    delete process.env.JWT_PRIVATE_KEY
-    delete process.env.JWT_PRIVATE_KEY_FILE
+    restoreEnvironment()
     fs.rmSync(directory, { recursive: true, force: true })
     loadSecurity()
   })
@@ -90,6 +97,16 @@ describe('jwt signing key', () => {
 
     expect(fs.readFileSync(keyFile, 'utf8')).to.contain('-----BEGIN PRIVATE KEY-----')
     expect(withoutHardLinks()).to.equal(publicKey)
+  })
+
+  it('adopts the key of the process that won a concurrent first startup', () => {
+    const key = generateKey()
+    sinon.stub(fs, 'linkSync').callsFake(() => {
+      fs.writeFileSync(keyFile, key)
+      throw Object.assign(new Error('EPERM'), { code: 'EPERM' })
+    })
+
+    expect(loadSecurity().publicKey).to.equal(publicKeyOf(key))
   })
 
   it('falls back to an ephemeral key when the key file cannot be written', () => {
