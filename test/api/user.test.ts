@@ -312,18 +312,28 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.email, 'string')
   })
 
-  void it('GET who-am-i with fields parameter can be tricked into returning password', async () => {
+  void it('GET who-am-i with fields parameter ignores sensitive fields', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
     })
     const res = await request(app)
-      .get('/rest/user/whoami?fields=id,email,password')
+      .get('/rest/user/whoami?fields=id,email,password,totpSecret,role')
       .set({ Cookie: `token=${token}` })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.user.id, 'number')
-    assert.equal(typeof res.body.user.email, 'string')
-    assert.equal(typeof res.body.user.password, 'string')
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+  })
+
+  void it('GET who-am-i with only sensitive fields requested returns the default fields', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .get('/rest/user/whoami?fields=password')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id', 'lastLoginIp', 'profileImage'])
   })
 })
