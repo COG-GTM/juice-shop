@@ -11,12 +11,13 @@ export function serveKeyFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
+    if (file === 'jwt.pub') { // the JWT key pair is created at runtime, so the published key cannot be a static file
+      res.type('text/plain').end(security.publicKey) // res.send() is incompatible with the res.end patch of the serve-index middleware
+      return
+    }
+
     if (!file.includes('/')) {
-      if (file === 'jwt.pub') {
-        res.type('text/plain').end(security.publicKey) // res.send() is incompatible with the res.end patch of the serve-index middleware
-      } else {
-        res.sendFile(path.resolve('encryptionkeys/', file))
-      }
+      res.sendFile(path.resolve('encryptionkeys/', file))
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
