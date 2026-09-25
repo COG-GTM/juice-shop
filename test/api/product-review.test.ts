@@ -57,6 +57,10 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.ok(reviews.body.data.some((review: { message: string }) => review.message === 'Lorem Ipsum'))
   })
 })
 
