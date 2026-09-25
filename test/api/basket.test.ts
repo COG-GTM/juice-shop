@@ -136,22 +136,28 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
   })
 
-  void it('POST paying with a wallet of another user is not possible', async () => {
+  void it('POST paying with the wallet of another user is not possible', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const victimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const victimBalanceBefore = await request(app).get('/rest/wallet/balance').set(victimHeader)
     const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
 
-    const { token } = await login(app, {
-      email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-    })
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
     const res = await request(app)
       .post('/rest/basket/2/checkout')
-      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
-      .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Basket with id=2 does not exist.'))
+      .set(authHeader)
+      .send({ UserId: 1, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 200)
 
+    const victimBalanceAfter = await request(app).get('/rest/wallet/balance').set(victimHeader)
+    assert.equal(victimBalanceAfter.body.data, victimBalanceBefore.body.data)
     const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
-    assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+    assert.ok(balanceAfter.body.data < balanceBefore.body.data)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
