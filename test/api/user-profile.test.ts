@@ -67,4 +67,20 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('>#{1+1}</p>'))
     assert.ok(res.text.includes('value="#{1+1}"'))
   })
+
+  void it('GET user profile renders HTML markup in username as escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '<script>alert(1)</script>')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('&lt;/script&gt;'))
+    assert.ok(!res.text.includes('lert(1)</script>'))
+  })
 })
