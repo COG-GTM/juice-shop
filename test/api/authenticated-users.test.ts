@@ -13,7 +13,8 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`, 'content-type': 'application/json' }
+const customerAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -46,5 +47,20 @@ void describe('/rest/user/authentication-details', () => {
     const jim = res.body.data.find((user: any) => user.email.startsWith('jim@'))
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
+  })
+
+  void it('GET is forbidden for authenticated non-admin users', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(customerAuthHeader)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET is forbidden without an authorization header', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+
+    assert.equal(res.status, 401)
   })
 })
