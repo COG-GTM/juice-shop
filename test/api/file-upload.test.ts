@@ -102,7 +102,7 @@ void describe('/file-upload', () => {
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
-      assert.ok(res.status >= 410)
+      assert.equal(res.status, 410)
     })
 
     void it('POST file type XML with dev/random attack', async () => {
@@ -110,7 +110,7 @@ void describe('/file-upload', () => {
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
-      assert.ok(res.status >= 410)
+      assert.equal(res.status, 410)
     })
   }
 

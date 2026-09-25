@@ -85,7 +85,7 @@ describe('/#/complain', () => {
             cy.get('#file').selectFile(`test/files/${payload}`)
             cy.get('#submitButton').click()
             cy.wait('@xxeUpload').then(({ response }) => {
-              expect(response?.statusCode).to.be.at.least(410)
+              expect(response?.statusCode).to.equal(410)
             })
             cy.wait(5000) // Wait for 2.5x timeout of XML parser
             cy.expectChallengeUnsolved({ challenge: 'XXE DoS' })
