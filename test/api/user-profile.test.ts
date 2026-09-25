@@ -51,4 +51,20 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template expressions in username as escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{1+1}<script>alert(`xss`)</script>')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{1+1}&lt;script&gt;alert(`xss`)&lt;/script&gt;'))
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+  })
 })
