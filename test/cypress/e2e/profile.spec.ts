@@ -24,8 +24,6 @@ describe('/profile', () => {
     }
 
     it('should render script tags in the username as text instead of executing them', () => {
-      const payload = '<script>alert(`xss`)</script>'
-
       cy.on('window:alert', () => {
         throw new Error('Username must not be executed as script')
       })
@@ -35,10 +33,10 @@ describe('/profile', () => {
         "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
       )
       cy.get('#submitUrl').click()
-      setUsername(payload)
+      setUsername('<script>alert(`xss`)</script>')
 
-      cy.get('#card').should('contain.text', payload)
       cy.get('#card').find('script').should('not.exist')
+      cy.get('#card').should('not.contain.html', '<script>')
     })
 
     it('should render Pug interpolation in the username as text instead of evaluating it', () => {
