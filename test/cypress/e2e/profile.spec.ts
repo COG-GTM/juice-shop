@@ -33,8 +33,9 @@ describe('/profile', () => {
         "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
       )
       cy.get('#submitUrl').click()
-      setUsername('<script>alert(`xss`)</script>')
+      setUsername('marker<script>alert(`xss`)</script>')
 
+      cy.get('#card').should('contain.text', 'marker')
       cy.get('#card').find('script').should('not.exist')
       cy.get('#card').should('not.contain.html', '<script>')
     })
