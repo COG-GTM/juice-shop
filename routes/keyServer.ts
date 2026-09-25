@@ -13,7 +13,8 @@ export function serveKeyFiles () {
 
     if (!file.includes('/')) {
       if (file === 'jwt.pub') {
-        res.sendFile(security.publicKeyFile)
+        /* Streamed as a string because the serve-index middleware wrapping this route rewrites res.end() arguments */
+        res.type('text/plain').end(security.publicKey)
       } else {
         res.sendFile(path.resolve('encryptionkeys/', file))
       }
