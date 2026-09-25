@@ -12,30 +12,23 @@ import { type Review } from 'data/types'
 import * as db from '../data/mongodb'
 import * as utils from '../lib/utils'
 
-// Blocking sleep function as in native MongoDB
-// @ts-expect-error FIXME Type safety broken for global object
-global.sleep = (time: number) => {
-  // Ensure that users don't accidentally dos their servers for too long
-  if (time > 2000) {
-    time = 2000
-  }
-  const stop = new Date().getTime()
-  while (new Date().getTime() < stop + time) {
-    ;
-  }
-}
+const SLEEP_COMMAND = /^sleep\((\d+)\)$/
+const MAX_SLEEP = 2000
+const DOS_THRESHOLD = 1000
 
 export function showProductReviews () {
-  return (req: Request, res: Response, next: NextFunction) => {
-    // Truncate id to avoid unintentional RCE
-    const id = !utils.isChallengeEnabled(challenges.noSqlCommandChallenge) ? Number(req.params.id) : utils.trunc(req.params.id, 40)
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const id = Number(req.params.id)
 
-    // Measure how long the query takes, to check if there was a nosql dos attack
-    const t0 = new Date().getTime()
+    // Delays the response like a NoSQL sleep command would, without evaluating any user input
+    const sleepCommand = SLEEP_COMMAND.exec(req.params.id)
+    if (sleepCommand && utils.isChallengeEnabled(challenges.noSqlCommandChallenge)) {
+      const delay = Math.min(Number(sleepCommand[1]), MAX_SLEEP)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => delay >= DOS_THRESHOLD)
+    }
 
-    db.reviewsCollection.find({ $where: 'this.product == ' + id }).then((reviews: Review[]) => {
-      const t1 = new Date().getTime()
-      challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => { return (t1 - t0) > 2000 })
+    db.reviewsCollection.find({ product: id }).then((reviews: Review[]) => {
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
