@@ -39,15 +39,22 @@ const generatePrivateKey = () => {
 }
 
 /* Published through a fully written temporary file, so a process losing the race never reads a
-   partially written key. */
+   partially written key. Without the key file - e.g. on a read-only filesystem - each process
+   falls back to its own ephemeral key. */
 const persistPrivateKey = (keyFile: string, key: string) => {
-  const tempFile = `${keyFile}.${process.pid}.tmp`
+  const tempFile = `${keyFile}.${crypto.randomUUID()}.tmp`
   try {
     fs.writeFileSync(tempFile, key, { encoding: 'utf8', mode: 0o600 })
-    fs.linkSync(tempFile, keyFile)
+    try {
+      fs.linkSync(tempFile, keyFile)
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' && !fs.existsSync(keyFile)) {
+        fs.renameSync(tempFile, keyFile)
+      }
+    }
+    return fs.readFileSync(keyFile, 'utf8')
+  } catch {
     return key
-  } catch (error: unknown) {
-    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? fs.readFileSync(keyFile, 'utf8') : key
   } finally {
     try {
       fs.unlinkSync(tempFile)
