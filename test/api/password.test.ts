@@ -39,6 +39,34 @@ void describe('/rest/user/change-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST password change twice in the same session rejects the superseded password', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'twice@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'twice@be.rt', password: 'kunigunde' })
+    const authorization = { 'content-type': 'application/json', Authorization: 'Bearer ' + token }
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set(authorization)
+      .send({ current: 'kunigunde', new: 'foo', repeat: 'foo' })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set(authorization)
+      .send({ current: 'kunigunde', new: 'bar', repeat: 'bar' })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
   void it('POST password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
