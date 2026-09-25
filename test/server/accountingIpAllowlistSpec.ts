@@ -5,6 +5,7 @@
 
 import chai from 'chai'
 import express from 'express'
+import { IpDeniedError } from 'express-ipfilter'
 import request from 'supertest'
 import { accountingIpFilter, isValidIpOrCidr } from '../../lib/accountingIpAllowlist'
 const expect = chai.expect
@@ -13,6 +14,7 @@ const appWithAllowlist = (allowlist: string[]) => {
   const app = express()
   app.set('trust proxy', true)
   app.use('/quantity', ...accountingIpFilter(allowlist), (req: express.Request, res: express.Response) => { res.sendStatus(200) })
+  app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => { res.sendStatus(err instanceof IpDeniedError ? 403 : 500) })
   return app
 }
 
@@ -64,12 +66,12 @@ describe('accountingIpAllowlist', () => {
 
     it('should deny a client whose address is not covered by the allowlist', async () => {
       const res = await request(appWithAllowlist(['10.0.0.0/8'])).get('/quantity')
-      expect(res.status).to.not.equal(200)
+      expect(res.status).to.equal(403)
     })
 
     it('should not let a spoofed X-Forwarded-For header pass the allowlist', async () => {
       const res = await request(appWithAllowlist(['10.0.0.0/8'])).get('/quantity').set('X-Forwarded-For', '10.0.0.1')
-      expect(res.status).to.not.equal(200)
+      expect(res.status).to.equal(403)
     })
   })
 })
