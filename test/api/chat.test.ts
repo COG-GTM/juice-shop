@@ -110,29 +110,27 @@ const adminEmail = 'admin@' + config.get<string>('application.domain')
 
 async function requestOrder (token: string, orderId: string): Promise<string | undefined> {
   let toolResult: string | undefined
-  for (let attempt = 0; attempt < 3 && toolResult === undefined; attempt++) {
-    let callCount = 0
-    onLlmRequest = (_req, body, res) => {
-      callCount++
-      if (callCount === 1) {
-        sendSSE(res, [
-          toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
-          finishChunk('tool_calls')
-        ])
-      } else {
-        const parsed = JSON.parse(body)
-        toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
-        sendSSE(res, [contentChunk('Here you go.'), finishChunk()])
-      }
+  let callCount = 0
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const parsed = JSON.parse(body)
+      toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
+      sendSSE(res, [contentChunk('Here you go.'), finishChunk()])
     }
-
-    const res = await request(app)
-      .post('/rest/chat')
-      .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
-      .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
-
-    assert.equal(res.status, 200)
   }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+    .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+  assert.equal(res.status, 200)
   return toolResult
 }
 
