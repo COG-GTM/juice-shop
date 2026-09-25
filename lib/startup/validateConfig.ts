@@ -11,6 +11,7 @@ import colors from 'colors/safe'
 import validateSchema from 'yaml-schema-validator/src'
 
 import type { AppConfig, Memory as MemoryConfig, Product as ProductConfig } from '../config.types'
+import { accountingIpAllowlist, isValidIpOrCidr } from '../accountingIpAllowlist'
 import logger from '../logger'
 
 const specialProducts = [
@@ -40,6 +41,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   success = checkUniqueSpecialOnMemories(memories) && success
   success = checkSpecialMemoriesHaveNoUserAssociated(memories) && success
   success = checkForIllogicalCombos() && success
+  success = checkAccountingIpAllowlist() && success
   if (success) {
     logger.info(`Configuration ${colors.bold(process.env.NODE_ENV ?? 'default')} validated (${colors.green('SUCCESS')})`)
   } else {
@@ -162,6 +164,15 @@ export const checkUniqueSpecialOnMemories = (memories: MemoryConfig[]) => {
       logger.warn(`Memory ${colors.italic(memory.caption)} is used as ${appliedSpecials.map(({ name }) => `${colors.italic(name)}`).join(' and ')} but can only be used for one challenge (${colors.red('ERROR')})`)
       success = false
     }
+  })
+  return success
+}
+
+export const checkAccountingIpAllowlist = (allowlist = accountingIpAllowlist()) => {
+  let success = true
+  allowlist.filter((entry) => !isValidIpOrCidr(entry)).forEach((entry) => {
+    logger.warn(`Accounting IP allowlist entry ${colors.italic(entry)} is neither a valid IP address nor a CIDR range (${colors.red('ERROR')})`)
+    success = false
   })
   return success
 }

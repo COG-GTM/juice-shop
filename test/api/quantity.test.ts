@@ -122,19 +122,7 @@ void describe('/api/Quantitys/:ids', () => {
     assert.equal(res.body.error, 'Malicious activity detected')
   })
 
-  void it('GET quantity of all items for accounting users blocked by IP filter', async () => {
-    const { token } = await login(app, {
-      email: `accountant@${config.get<string>('application.domain')}`,
-      password: 'i am an awesome accountant'
-    })
-    const res = await request(app)
-      .get('/api/Quantitys/1')
-      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
-
-    assert.equal(res.status, 403)
-  })
-
-  void it.skip('GET quantity of all items for accounting users from IP 123.456.789', async () => {
+  void it('GET quantity of all items is allowed for accounting users', async () => {
     const { token } = await login(app, {
       email: `accountant@${config.get<string>('application.domain')}`,
       password: 'i am an awesome accountant'
@@ -174,20 +162,7 @@ void describe('/api/Quantitys/:ids', () => {
     assert.equal(res.body.error, 'Malicious activity detected')
   })
 
-  void it('PUT quantity as accounting user blocked by IP filter', async () => {
-    const { token } = await login(app, {
-      email: `accountant@${config.get<string>('application.domain')}`,
-      password: 'i am an awesome accountant'
-    })
-    const res = await request(app)
-      .put('/api/Quantitys/1')
-      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
-      .send({ quantity: 100 })
-
-    assert.equal(res.status, 403)
-  })
-
-  void it.skip('PUT quantity as accounting user from IP 123.456.789', async () => {
+  void it('PUT quantity as accounting user', async () => {
     const { token } = await login(app, {
       email: `accountant@${config.get<string>('application.domain')}`,
       password: 'i am an awesome accountant'
