@@ -8,7 +8,7 @@ import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
-import jwt from 'jsonwebtoken'
+import jws from 'jws'
 import { Op } from 'sequelize'
 import { ProductModel } from '../models/product'
 import { UserModel } from '../models/user'
@@ -44,8 +44,10 @@ function getUserId (req: Request): number | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
   try {
-    const verified = jwt.verify(token, security.publicKey, { algorithms: ['RS256'] }) as { data?: { id?: number } }
-    return verified.data?.id
+    if (jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+    const payload = security.decode(token) as { data?: { id?: number }, exp?: number } | undefined
+    if (payload?.exp !== undefined && payload.exp * 1000 < Date.now()) return undefined
+    return payload?.data?.id
   } catch {
     return undefined
   }
