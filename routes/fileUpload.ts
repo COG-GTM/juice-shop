@@ -24,6 +24,22 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+const maxZipEntries = 100
+const maxUncompressedBytes = 50 * 1024 * 1024
+
+function resolveComplaintPath (fileName: string) {
+  if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const target = path.resolve(complaintsDir, fileName)
+  const relative = path.relative(complaintsDir, target)
+  if (relative === '' || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+    return null
+  }
+  return target
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,16 +51,20 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let uncompressedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const target = resolveComplaintPath(fileName)
+                entryCount++
+                uncompressedBytes += Number(entry.vars?.uncompressedSize ?? 0)
+                if (target === null || entry.type === 'Directory' || entryCount > maxZipEntries || uncompressedBytes > maxUncompressedBytes) {
                   entry.autodrain()
+                } else {
+                  entry.pipe(fs.createWriteStream(target).on('error', function (err) { next(err) }))
                 }
               }).on('error', function (err: unknown) { next(err) })
           })
@@ -139,6 +159,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
