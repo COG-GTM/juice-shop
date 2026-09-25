@@ -43,4 +43,12 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should render a malicious feedback comment as text', () => {
+        component.feedback = '<img src="x" onerror="alert(1)">'
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
+        expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
+    })
 })
