@@ -4,8 +4,17 @@
  */
 
 import chai from 'chai'
+import express from 'express'
+import request from 'supertest'
 import { accountingIpFilter, isValidIpOrCidr } from '../../lib/accountingIpAllowlist'
 const expect = chai.expect
+
+const appWithAllowlist = (allowlist: string[]) => {
+  const app = express()
+  app.set('trust proxy', true)
+  app.use('/quantity', ...accountingIpFilter(allowlist), (req: express.Request, res: express.Response) => { res.sendStatus(200) })
+  return app
+}
 
 describe('accountingIpAllowlist', () => {
   describe('isValidIpOrCidr', () => {
@@ -39,6 +48,28 @@ describe('accountingIpAllowlist', () => {
 
     it('should throw on a malformed allowlist entry', () => {
       expect(() => accountingIpFilter(['123.456.789'])).to.throw('123.456.789')
+    })
+  })
+
+  describe('request filtering', () => {
+    it('should pass requests through when no allowlist is configured', async () => {
+      const res = await request(appWithAllowlist([])).get('/quantity')
+      expect(res.status).to.equal(200)
+    })
+
+    it('should allow a client whose address is covered by the allowlist', async () => {
+      const res = await request(appWithAllowlist(['127.0.0.0/8', '::1'])).get('/quantity')
+      expect(res.status).to.equal(200)
+    })
+
+    it('should deny a client whose address is not covered by the allowlist', async () => {
+      const res = await request(appWithAllowlist(['10.0.0.0/8'])).get('/quantity')
+      expect(res.status).to.not.equal(200)
+    })
+
+    it('should not let a spoofed X-Forwarded-For header pass the allowlist', async () => {
+      const res = await request(appWithAllowlist(['10.0.0.0/8'])).get('/quantity').set('X-Forwarded-For', '10.0.0.1')
+      expect(res.status).to.not.equal(200)
     })
   })
 })

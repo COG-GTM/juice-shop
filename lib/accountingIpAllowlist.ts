@@ -18,6 +18,9 @@ export const isValidIpOrCidr = (entry: string) => {
   return Number(prefix) <= (version === 4 ? 32 : 128)
 }
 
+// req.ip would honor X-Forwarded-For because of the global trust proxy setting, which a client could spoof
+const clientIp = (req: { socket: { remoteAddress?: string } }) => (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+
 export const accountingIpAllowlist = (): string[] => {
   const configured = config.has('application.accountingIpAllowlist') ? config.get<string[] | null>('application.accountingIpAllowlist') : null
   return Array.isArray(configured) ? configured : []
@@ -28,5 +31,5 @@ export const accountingIpFilter = (allowlist = accountingIpAllowlist()): Array<R
   if (invalidEntries.length > 0) {
     throw new Error(`Invalid IP address or CIDR range in application.accountingIpAllowlist: ${invalidEntries.join(', ')}`)
   }
-  return allowlist.length > 0 ? [IpFilter(allowlist, { mode: 'allow' })] : []
+  return allowlist.length > 0 ? [IpFilter(allowlist, { mode: 'allow', detectIp: clientIp })] : []
 }
