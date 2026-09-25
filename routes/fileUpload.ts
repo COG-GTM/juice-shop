@@ -5,6 +5,7 @@
 
 import os from 'node:os'
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
@@ -31,17 +32,13 @@ const videoSubtitlePath = path.resolve('frontend/dist/frontend/assets/public/vid
 
 function resolveComplaintPath (fileName: string) {
   const target = path.resolve(complaintsDir, fileName)
-  if (target === videoSubtitlePath) { // sole permitted target outside the complaints directory, kept for the "Video XSS" challenge
-    return target
-  }
-  if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
-    return null
-  }
-  if (!isInside(complaintsDir, target)) {
+  const promoSubtitles = target === videoSubtitlePath // sole permitted target outside the complaints directory, kept for the "Video XSS" challenge
+  if (!promoSubtitles && (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..') || !isInside(complaintsDir, target))) {
     return null
   }
   try {
-    if (!isInside(realPath(complaintsDir), realPath(existingAncestor(target)))) { // a symlinked sub-directory would otherwise redirect the write
+    const ancestor = existingAncestor(target)
+    if (promoSubtitles ? realPath(ancestor) !== ancestor : !isInside(realPath(complaintsDir), realPath(ancestor))) { // a symlinked directory would otherwise redirect the write
       return null
     }
     if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
@@ -99,13 +96,26 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                     entry.autodrain()
                     return
                   }
-                  const writeStream = fs.createWriteStream(target).on('error', function (err) { next(err) })
+                  const tempTarget = `${target}.${crypto.randomBytes(8).toString('hex')}.part` // the destination is only replaced once the entry fits within the limit
+                  let aborted = false
+                  const writeStream = fs.createWriteStream(tempTarget).on('error', function (err) { next(err) })
+                  writeStream.on('close', function () {
+                    if (aborted) {
+                      return
+                    }
+                    fs.rename(tempTarget, target, function (err) {
+                      if (err != null) {
+                        fs.rm(tempTarget, { force: true }, function () {})
+                      }
+                    })
+                  })
                   entry.on('data', function (chunk: Buffer) {
                     extractedBytes += chunk.length
                     if (extractedBytes > maxExtractedBytes) {
+                      aborted = true
                       entry.unpipe(writeStream)
                       writeStream.destroy()
-                      fs.rm(target, { force: true }, function () {})
+                      fs.rm(tempTarget, { force: true }, function () {})
                       entry.autodrain()
                     }
                   })
