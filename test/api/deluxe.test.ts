@@ -111,6 +111,8 @@ void describe('/rest/deluxe-membership', () => {
     })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+
     const res = await request(app)
       .post('/rest/deluxe-membership')
       .set(authHeader)
@@ -120,6 +122,11 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    const balanceAfter = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: 'Bearer ' + res.body.data.token, 'content-type': 'application/json' })
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data - 49)
   })
 
   void it('POST upgrade deluxe membership fails for customers with insufficient wallet balance', async () => {

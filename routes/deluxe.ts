@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { literal, Op } from 'sequelize'
 
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
@@ -28,14 +29,9 @@ export function upgradeToDeluxe () {
       }
 
       if (req.body.paymentMode === 'wallet') {
-        const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-        if ((wallet == null) || wallet.balance < deluxeMembershipCost) {
-          res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
-          return
-        }
         const [debitedWallets] = await WalletModel.update(
-          { balance: wallet.balance - deluxeMembershipCost },
-          { where: { id: wallet.id, balance: wallet.balance } }
+          { balance: literal(`balance - ${deluxeMembershipCost}`) },
+          { where: { UserId: req.body.UserId, balance: { [Op.gte]: deluxeMembershipCost } } }
         )
         if (debitedWallets === 0) {
           res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
