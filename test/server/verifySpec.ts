@@ -17,7 +17,7 @@ import { isWindows } from '../../lib/utils'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
-const forgeWithPublicKey = (data: Record<string, string>) => jwt.sign({ data, iat: 1508639612 }, security.publicKey, { algorithm: 'HS256' })
+const forgeWithPublicKey = (data: Record<string, string>) => jwt.sign({ data, iat: 1508639612, exp: 9999999999 }, security.publicKey, { algorithm: 'HS256' })
 
 chai.use(sinonChai)
 

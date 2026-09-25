@@ -51,6 +51,23 @@ const readCompleteKey = (keyFile: string) => {
   throw new Error(`Private key file ${keyFile} is incomplete`)
 }
 
+/* A write that dies halfway would otherwise leave a truncated key file behind forever. */
+const writeExclusively = (keyFile: string, key: string) => {
+  const fd = fs.openSync(keyFile, 'wx', 0o600)
+  try {
+    fs.writeFileSync(fd, key, { encoding: 'utf8' })
+  } catch (error) {
+    try {
+      fs.unlinkSync(keyFile)
+    } catch {
+      /* nothing to clean up */
+    }
+    throw error
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
 /* Published either by hard-linking a fully written temporary file or, where hard links are
    unsupported, by exclusive creation - never by overwriting a key another process may already
    be signing with. An unwritable path leaves each process with its own ephemeral key. */
@@ -64,7 +81,7 @@ const persistPrivateKey = (keyFile: string, key: string) => {
       if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
         return readCompleteKey(keyFile)
       }
-      fs.writeFileSync(keyFile, key, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+      writeExclusively(keyFile, key)
     }
     return key
   } catch (error: unknown) {
