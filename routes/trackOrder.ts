@@ -15,8 +15,7 @@ export function trackOrder () {
     // Truncate id to avoid unintentional RCE
     const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
 
-    const token = utils.jwtFrom(req)
-    const email = (token && security.verify(token)) ? security.decode(token)?.data?.email : undefined
+    const email = security.authenticatedUsers.from(req)?.data?.email
     if (!email) {
       res.status(401).json({ error: 'Unauthorized' })
       return
