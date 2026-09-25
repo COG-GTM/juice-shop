@@ -36,10 +36,14 @@ function resolveComplaintPath (fileName: string) {
   if (!isInside(complaintsDir, target)) {
     return null
   }
-  if (!isInside(realPath(complaintsDir), realPath(existingAncestor(target)))) { // a symlinked sub-directory would otherwise redirect the write
-    return null
-  }
-  if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+  try {
+    if (!isInside(realPath(complaintsDir), realPath(existingAncestor(target)))) { // a symlinked sub-directory would otherwise redirect the write
+      return null
+    }
+    if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+      return null
+    }
+  } catch {
     return null
   }
   return target
@@ -85,13 +89,19 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 if (target === null || entry.type === 'Directory' || entryCount > maxZipEntries || extractedBytes > maxExtractedBytes) {
                   entry.autodrain()
                 } else {
-                  fs.mkdirSync(path.dirname(target), { recursive: true })
+                  try {
+                    fs.mkdirSync(path.dirname(target), { recursive: true })
+                  } catch {
+                    entry.autodrain()
+                    return
+                  }
                   const writeStream = fs.createWriteStream(target).on('error', function (err) { next(err) })
                   entry.on('data', function (chunk: Buffer) {
                     extractedBytes += chunk.length
                     if (extractedBytes > maxExtractedBytes) {
                       entry.unpipe(writeStream)
                       writeStream.destroy()
+                      fs.rm(target, { force: true }, function () {})
                       entry.autodrain()
                     }
                   })
