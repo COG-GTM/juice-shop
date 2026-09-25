@@ -27,7 +27,7 @@ const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgT
 // variable <name>_FILE points to (as mounted by most secret managers). Falls
 // back to a secret generated for this process, so no key material has to be
 // committed for the application to start.
-const runtimeSecret = (name: string) => {
+export const runtimeSecret = (name: string) => {
   const value = process.env[name]
   if (value) {
     return value

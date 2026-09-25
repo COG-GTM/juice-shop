@@ -3,6 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -213,6 +217,46 @@ describe('insecurity', () => {
       expect(security.deluxeToken('admin@juice-sh.op')).to.match(/^[0-9a-f]{64}$/)
       expect(security.deluxeToken('admin@juice-sh.op')).to.equal(security.deluxeToken('admin@juice-sh.op'))
       expect(security.deluxeToken('admin@juice-sh.op')).to.not.equal(security.deluxeToken('jim@juice-sh.op'))
+    })
+  })
+
+  describe('runtimeSecret', () => {
+    const name = 'TEST_RUNTIME_SECRET'
+    let secretFile: string
+
+    beforeEach(() => {
+      secretFile = path.join(os.tmpdir(), `${name}-${crypto.randomUUID()}`)
+    })
+
+    afterEach(() => {
+      delete process.env[name]
+      delete process.env[`${name}_FILE`]
+      if (fs.existsSync(secretFile)) {
+        fs.unlinkSync(secretFile)
+      }
+    })
+
+    it('returns the value of the environment variable', () => {
+      process.env[name] = 's3cr3t'
+      expect(security.runtimeSecret(name)).to.equal('s3cr3t')
+    })
+
+    it('returns the trimmed content of the file the <name>_FILE variable points to', () => {
+      fs.writeFileSync(secretFile, 's3cr3t\n')
+      process.env[`${name}_FILE`] = secretFile
+      expect(security.runtimeSecret(name)).to.equal('s3cr3t')
+    })
+
+    it('prefers the environment variable over the file', () => {
+      fs.writeFileSync(secretFile, 'from-file')
+      process.env[name] = 'from-env'
+      process.env[`${name}_FILE`] = secretFile
+      expect(security.runtimeSecret(name)).to.equal('from-env')
+    })
+
+    it('returns a random secret when nothing is configured', () => {
+      expect(security.runtimeSecret(name)).to.match(/^[0-9a-f]{64}$/)
+      expect(security.runtimeSecret(name)).to.not.equal(security.runtimeSecret(name))
     })
   })
 })
