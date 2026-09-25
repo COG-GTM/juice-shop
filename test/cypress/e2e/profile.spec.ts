@@ -25,11 +25,12 @@ describe('/profile', () => {
       cy.get('#username').type('<script>alert(`xss`)</script>', {
         parseSpecialCharSequences: false
       })
-      cy.get('#submit').click()
 
       cy.on('window:alert', () => {
         throw new Error('Username must not be executed as script')
       })
+
+      cy.get('#submit').click()
 
       cy.get('#username').should(
         'have.value',
