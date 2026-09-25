@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
@@ -122,11 +123,36 @@ void describe('/file-upload', () => {
   })
 
   void it('POST zip file with directory traversal payload', async () => {
+    const legalMd = path.resolve('ftp/legal.md')
+    const contentBefore = fs.readFileSync(legalMd, 'utf8')
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    for (let i = 0; i < 30; i++) { // extraction happens asynchronously after the response
+      await new Promise(resolve => setTimeout(resolve, 100))
+      assert.equal(fs.readFileSync(legalMd, 'utf8'), contentBefore)
+    }
+  })
+
+  void it('POST zip file extracts its entries into the complaints directory', async () => {
+    const complaintsDir = path.resolve('uploads/complaints')
+    const extracted = path.join(complaintsDir, 'complaint.txt')
+    const extractedNested = path.join(complaintsDir, 'nested/complaint.txt')
+    fs.rmSync(extracted, { force: true })
+    fs.rmSync(extractedNested, { force: true })
+    const file = path.resolve(__dirname, '../files/validComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    for (let i = 0; i < 30 && !(fs.existsSync(extracted) && fs.existsSync(extractedNested)); i++) { // extraction happens asynchronously after the response
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.equal(fs.readFileSync(extracted, 'utf8'), 'valid complaint\n')
+    assert.equal(fs.readFileSync(extractedNested, 'utf8'), 'nested complaint\n')
+    assert.deepEqual(fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part')), [])
   })
 
   void it('POST zip file with password protection', async () => {

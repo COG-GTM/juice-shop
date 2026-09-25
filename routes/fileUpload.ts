@@ -5,6 +5,7 @@
 
 import os from 'node:os'
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
@@ -24,6 +25,48 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+const maxZipEntries = 100
+const maxExtractedBytes = 50 * 1024 * 1024
+const videoSubtitlePath = path.resolve('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')
+
+function resolveComplaintPath (fileName: string) {
+  const target = path.resolve(complaintsDir, fileName)
+  const promoSubtitles = target === videoSubtitlePath // sole permitted target outside the complaints directory, kept for the "Video XSS" challenge
+  if (!promoSubtitles && (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..') || !isInside(complaintsDir, target))) {
+    return null
+  }
+  try {
+    const ancestor = existingAncestor(target)
+    if (promoSubtitles ? realPath(ancestor) !== ancestor : !isInside(realPath(complaintsDir), realPath(ancestor))) { // a symlinked directory would otherwise redirect the write
+      return null
+    }
+    if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+      return null
+    }
+  } catch {
+    return null
+  }
+  return target
+}
+
+function isInside (baseDir: string, target: string) {
+  const relative = path.relative(baseDir, target)
+  return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)
+}
+
+function existingAncestor (target: string) {
+  let dir = path.dirname(target)
+  while (!fs.existsSync(dir) && path.dirname(dir) !== dir) {
+    dir = path.dirname(dir)
+  }
+  return dir
+}
+
+function realPath (dir: string) {
+  return fs.existsSync(dir) ? fs.realpathSync(dir) : dir
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,16 +78,56 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const target = resolveComplaintPath(fileName)
+                entryCount++
+                if (target === null || entry.type === 'Directory' || entryCount > maxZipEntries || extractedBytes > maxExtractedBytes) {
                   entry.autodrain()
+                } else {
+                  try {
+                    fs.mkdirSync(path.dirname(target), { recursive: true })
+                  } catch {
+                    entry.autodrain()
+                    return
+                  }
+                  const tempTarget = path.join(path.dirname(target), `.${crypto.randomBytes(8).toString('hex')}.part`) // the destination is only replaced once the entry is fully written within the limit
+                  let discarded = false
+                  const writeStream = fs.createWriteStream(tempTarget)
+                  writeStream.on('error', function (err) {
+                    discarded = true
+                    next(err)
+                  })
+                  writeStream.on('finish', function () {
+                    if (discarded) {
+                      return
+                    }
+                    fs.rename(tempTarget, target, function (err) {
+                      if (err != null) {
+                        fs.rm(tempTarget, { force: true }, function () {})
+                      }
+                    })
+                  })
+                  writeStream.on('close', function () {
+                    if (discarded) {
+                      fs.rm(tempTarget, { force: true }, function () {})
+                    }
+                  })
+                  entry.on('data', function (chunk: Buffer) {
+                    extractedBytes += chunk.length
+                    if (extractedBytes > maxExtractedBytes) {
+                      discarded = true
+                      entry.unpipe(writeStream)
+                      writeStream.destroy()
+                      entry.autodrain()
+                    }
+                  })
+                  entry.pipe(writeStream)
                 }
               }).on('error', function (err: unknown) { next(err) })
           })
@@ -139,6 +222,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
