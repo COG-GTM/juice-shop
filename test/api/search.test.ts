@@ -8,7 +8,6 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
-import * as security from '../../lib/insecurity'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import { createTestApp } from './helpers/setup'
 
@@ -67,8 +66,7 @@ void describe('/rest/products/search', () => {
       .get("/rest/products/search?q=')) union select id,'2','3',email,password,'6','7','8','9' from users--")
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(!JSON.stringify(res.body.data).includes(`admin@${config.get<string>('application.domain')}`))
-    assert.ok(!JSON.stringify(res.body.data).includes(security.hash('admin123')))
+    assert.equal(res.body.data.length, 0)
   })
 
   void it('GET product search cannot leak the database schema via UNION SELECT', async () => {
@@ -76,7 +74,7 @@ void describe('/rest/products/search', () => {
       .get("/rest/products/search?q=')) union select sql,'2','3','4','5','6','7','8','9' from sqlite_master--")
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(!JSON.stringify(res.body.data).includes('CREATE TABLE'))
+    assert.equal(res.body.data.length, 0)
   })
 
   void it('GET product search cannot select logically deleted christmas special by default', async () => {

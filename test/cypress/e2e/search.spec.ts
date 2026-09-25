@@ -38,7 +38,7 @@ describe('/rest/products/search', () => {
       )
         .its('body')
         .then((body) => {
-          expect(JSON.stringify(body.data)).to.not.contain('admin@')
+          expect(body.data).to.have.length(0)
         })
     })
 
@@ -48,7 +48,7 @@ describe('/rest/products/search', () => {
       )
         .its('body')
         .then((body) => {
-          expect(JSON.stringify(body.data)).to.not.contain('CREATE TABLE')
+          expect(body.data).to.have.length(0)
         })
     })
   })
