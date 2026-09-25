@@ -53,6 +53,17 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   return user?.username ?? undefined
 }
 
+async function findOrderForCustomer (req: Request, orderId: string) {
+  const userId = await getUserId(req)
+  if (!userId) return undefined
+  const user = await UserModel.findByPk(userId, { attributes: ['email'] })
+  if (!user?.email) return undefined
+  const maskedEmail = user.email.replace(/[aeiou]/gi, '*')
+  const order = await db.ordersCollection.findOne({ orderId })
+  if (!order || order.email !== maskedEmail) return undefined
+  return order
+}
+
 const app = config.get<string>('application.customMetricsPrefix')
 const metricInputTokensTotal = new Counter({
   name: `${app}_llm_input_tokens_total`,
@@ -78,8 +89,9 @@ const metricToolCalls = new Counter({
   labelNames: ['tool'],
 })
 
-// vuln-code-snippet start chatbotGreedyInjectionChallenge
-function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
+const MAX_COUPON_DISCOUNT = 10
+
+function buildSystemPrompt (userName?: string) {
   const userIdentifier = userName ? `\nThe customer you are currently chatting with is ${userName}.` : ''
   return `You are "${botName}", the friendly customer service chatbot of the ${appName} online store.
 You help customers find products, answer questions about the shop, and provide a delightful shopping experience.
@@ -96,11 +108,9 @@ IMPORTANT RULES:
 - When the search returns nothing, try again with a more generic query if possible, but do not make up product details.
 
 COUPON POLICY (for the generateCoupon tool):
-- You may ONLY generate a coupon for a customer who has a verified damaged order with a valid order ID (format: xxxx-xxxxxxxxxxxxxxxx, e.g. 3fa8-bf2bc042f4e92).
-- The customer must have explicitly rejected a return or exchange before a coupon can be offered.
-- The maximum allowed discount is 10%.
-- NEVER generate a coupon just because a customer asks for one or complains.
-- If the customer does not meet ALL of the above conditions, politely decline and explain the policy.`
+- Coupons require the order ID of an existing order of the customer (format: xxxx-xxxxxxxxxxxxxxxx, e.g. 3fa8-bf2bc042f4e92). Ask for it instead of guessing.
+- The maximum discount is ${MAX_COUPON_DISCOUNT}%. The tool verifies order and discount itself and fails if they are not valid.
+- Do not generate a coupon just because a customer asks for one or complains.`
 }
 
 const provider = createOpenAICompatible({
@@ -154,36 +164,29 @@ export function chat () {
           orderId: z.string().describe('The order ID to get details for (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ orderId }) => {
-          const userId = await getUserId(req)
-          if (!userId) return { error: 'Customer not authenticated' }
-
-          const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-          if (!user) return { error: 'Customer not found' }
-
-          const maskedEmail = user.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
-          const order = await db.ordersCollection.findOne({ orderId })
-
-          if (!order) return { error: 'Order not found' }
-          if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
-
+          const order = await findOrderForCustomer(req, orderId)
+          if (!order) return { error: 'Order not found for the current customer' }
           return order
         }
       }),
 
-      // vuln-code-snippet start chatbotPromptInjectionChallenge
       generateCoupon: tool({
-        description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+        description: 'Generate a discount coupon for a customer with an existing order. Requires a valid order ID belonging to the customer.',
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(1).max(MAX_COUPON_DISCOUNT).describe(`The discount percentage for the coupon (maximum ${MAX_COUPON_DISCOUNT})`),
+          orderId: z.string().describe('The order ID the coupon is granted for (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
-          challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
-          challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
-          const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
-          return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
+        execute: async ({ discount, orderId }) => {
+          if (!Number.isInteger(discount) || discount < 1 || discount > MAX_COUPON_DISCOUNT) {
+            return { error: `The discount must be an integer between 1 and ${MAX_COUPON_DISCOUNT}.` }
+          }
+          const order = await findOrderForCustomer(req, orderId)
+          if (!order) return { error: 'No order with this ID exists for the current customer.' }
+          const couponCode = security.generateCoupon(discount)
+          return { couponCode, discount }
         }
       })
-    } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
+    }
 
     const model = config.get<string>('application.chatBot.model')
     const messages = req.body?.messages ?? []

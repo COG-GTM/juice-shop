@@ -175,6 +175,26 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(toolNames.includes('getOrderById'))
   })
 
+  void it('POST sends generateCoupon tool definition with capped discount and required order ID', { timeout: 15000 }, async () => {
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('Here are our conditions for coupons.'), finishChunk()])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Can I get a coupon?' }] })
+
+    assert.equal(res.status, 200)
+    const couponTool = parsedBody.tools.find((t: { function: { name: string } }) => t.function.name === 'generateCoupon')
+    assert.ok(couponTool)
+    const parameters = couponTool.function.parameters
+    assert.deepEqual([...parameters.required].sort(), ['discount', 'orderId'])
+    assert.equal(parameters.properties.discount.maximum, 10)
+  })
+
   void it('POST handles searchProducts tool call and returns follow-up response', { timeout: 15000 }, async () => {
     let callCount = 0
     onLlmRequest = (_req, body, res) => {
