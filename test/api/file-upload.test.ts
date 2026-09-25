@@ -60,6 +60,17 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 410)
   })
 
+  for (const [payload, disclosureMarker] of [['xxeForLinux', 'root:'], ['xxeForWindows', '; for 16-bit app support']]) {
+    void it(`POST file type XML with external entity does not disclose local file contents (${payload})`, async () => {
+      const file = path.resolve(__dirname, `../files/${payload}.xml`)
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 410)
+      assert.ok(!res.text.includes(disclosureMarker))
+    })
+  }
+
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
     void it('POST file type XML with XXE attack against Windows', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
@@ -91,7 +102,7 @@ void describe('/file-upload', () => {
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
-      assert.ok(res.status >= 410)
+      assert.equal(res.status, 410)
     })
 
     void it('POST file type XML with dev/random attack', async () => {
@@ -99,7 +110,7 @@ void describe('/file-upload', () => {
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
-      assert.ok(res.status >= 410)
+      assert.equal(res.status, 410)
     })
   }
 
