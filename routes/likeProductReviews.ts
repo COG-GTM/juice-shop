@@ -5,56 +5,61 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
 
-const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
+interface LikeOutcome {
+  status: number
+  body: unknown
+}
+
+const pendingLikes = new Map<string, Promise<unknown>>()
+
+// Serializes the like-once check and the write per review to avoid a TOCTOU race
+const serializePerReview = async (id: string, task: () => Promise<LikeOutcome>): Promise<LikeOutcome> => {
+  const current = (pendingLikes.get(id) ?? Promise.resolve()).then(task)
+  const settled = current.catch(() => undefined)
+  pendingLikes.set(id, settled)
+  try {
+    return await current
+  } finally {
+    if (pendingLikes.get(id) === settled) {
+      pendingLikes.delete(id)
+    }
+  }
+}
 
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const id = req.body.id
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
     const user = security.authenticatedUsers.from(req)
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: id })
-      if (!review) {
-        return res.status(404).json({ error: 'Not found' })
-      }
+      const { status, body } = await serializePerReview(id, async () => {
+        const review: Review = await db.reviewsCollection.findOne({ _id: id })
+        if (!review) {
+          return { status: 404, body: { error: 'Not found' } }
+        }
 
-      const likedBy = review.likedBy
-      if (likedBy.includes(user.data.email)) {
-        return res.status(403).json({ error: 'Not allowed' })
-      }
-
-      await db.reviewsCollection.update(
-        { _id: id },
-        { $inc: { likesCount: 1 } }
-      )
-
-      // Artificial wait for timing attack challenge
-      await sleep(150)
-      try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
-        const updatedLikedBy = updatedReview.likedBy
-        updatedLikedBy.push(user.data.email)
-
-        const count = updatedLikedBy.filter(email => email === user.data.email).length
-        challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
+        const likedBy = review.likedBy
+        if (likedBy.includes(user.data.email)) {
+          return { status: 403, body: { error: 'Not allowed' } }
+        }
 
         const result = await db.reviewsCollection.update(
           { _id: id },
-          { $set: { likedBy: updatedLikedBy } }
+          { $inc: { likesCount: 1 }, $set: { likedBy: [...likedBy, user.data.email] } }
         )
-        res.json(result)
-      } catch (err) {
-        res.status(500).json(err)
-      }
+        return { status: 200, body: result }
+      })
+      res.status(status).json(body)
     } catch (err) {
       res.status(400).json({ error: 'Wrong Params' })
     }

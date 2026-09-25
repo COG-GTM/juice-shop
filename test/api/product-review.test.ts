@@ -109,6 +109,36 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 404)
   })
 
+  void it('POST product review cannot be liked via operator injection', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: { $ne: -1 }
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST single product review can only be liked once', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const otherReviewId = reviews.body.data[1]._id
+    const [first, second] = await Promise.all([1, 2].map(async () =>
+      await request(app)
+        .post('/rest/products/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ id: otherReviewId })
+    ))
+    assert.deepEqual([first.status, second.status].sort((a, b) => a - b), [200, 403])
+  })
+
   void it('POST single product review can be liked', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
