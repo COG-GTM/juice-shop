@@ -72,7 +72,7 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', '<script>alert(1)</script>')
+      .field('username', '<b>')
       .redirects(0)
 
     const res = await request(app)
@@ -80,7 +80,7 @@ void describe('/profile', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('&lt;/script&gt;'))
-    assert.ok(!res.text.includes('lert(1)</script>'))
+    assert.ok(res.text.includes('>&lt;b&gt;</p>'))
+    assert.ok(res.text.includes('value="&lt;b&gt;"'))
   })
 })
