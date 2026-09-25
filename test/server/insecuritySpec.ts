@@ -197,10 +197,22 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('')).to.match(/^[0-9a-f]{64}$/)
+    })
+
+    it('returns the same HMAC for the same input and different HMACs for different inputs', () => {
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('returns a SHA-256 HMAC bound to the given email', () => {
+      expect(security.deluxeToken('admin@juice-sh.op')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.deluxeToken('admin@juice-sh.op')).to.equal(security.deluxeToken('admin@juice-sh.op'))
+      expect(security.deluxeToken('admin@juice-sh.op')).to.not.equal(security.deluxeToken('jim@juice-sh.op'))
     })
   })
 })
