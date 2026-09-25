@@ -14,16 +14,18 @@ import * as utils from '../lib/utils'
 
 const SLEEP_COMMAND = /^sleep\((\d+)\)$/
 const MAX_SLEEP = 2000
+const DOS_THRESHOLD = 1000
 
 export function showProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const id = Number(req.params.id)
 
-    // Simulates the blocking effect of a NoSQL sleep command without evaluating any user input
+    // Delays the response like a NoSQL sleep command would, without evaluating any user input
     const sleepCommand = SLEEP_COMMAND.exec(req.params.id)
     if (sleepCommand && utils.isChallengeEnabled(challenges.noSqlCommandChallenge)) {
-      await new Promise((resolve) => setTimeout(resolve, Math.min(Number(sleepCommand[1]), MAX_SLEEP)))
-      challengeUtils.solve(challenges.noSqlCommandChallenge)
+      const delay = Math.min(Number(sleepCommand[1]), MAX_SLEEP)
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => delay >= DOS_THRESHOLD)
     }
 
     db.reviewsCollection.find({ product: id }).then((reviews: Review[]) => {
