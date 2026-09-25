@@ -48,7 +48,7 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is returned by GET', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
@@ -57,6 +57,11 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const getRes = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(getRes.status, 200)
+    assert.ok(getRes.body.data.some((review: { message: string, author: string }) => review.message === 'Lorem Ipsum' && review.author === 'Anonymous'))
   })
 })
 
