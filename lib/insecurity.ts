@@ -187,7 +187,8 @@ export const appendUserId = () => {
 
 export const bindUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = authenticatedUsers.from(req)
+    const token = utils.jwtFrom(req) || (verify(req.cookies?.token) ? req.cookies.token : undefined)
+    const user = authenticatedUsers.get(token)
     if (req.body) {
       req.body.UserId = user?.data?.id ?? null
     }

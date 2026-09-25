@@ -163,6 +163,33 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
+  void it('POST feedback is associated with current user authenticated by cookie only', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .set('Cookie', ['token=' + token])
+      .send({
+        comment: 'Cookies are not just for baskets!',
+        rating: 5,
+        UserId: 3,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.UserId, 4)
+  })
+
   void it('POST feedback can be created without actually supplying comment', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
