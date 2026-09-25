@@ -130,8 +130,10 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    assert.equal(fs.readFileSync(legalMd, 'utf8'), contentBefore)
+    for (let i = 0; i < 30; i++) { // extraction happens asynchronously after the response
+      await new Promise(resolve => setTimeout(resolve, 100))
+      assert.equal(fs.readFileSync(legalMd, 'utf8'), contentBefore)
+    }
   })
 
   void it('POST zip file with password protection', async () => {

@@ -6,6 +6,7 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
+import fs from 'node:fs'
 import path from 'node:path'
 import { checkUploadSize, checkFileType, resolveComplaintPath } from '../../routes/fileUpload'
 
@@ -59,6 +60,16 @@ describe('fileUpload', () => {
       expect(resolveComplaintPath('complaint.pdf')).to.equal(path.resolve('uploads/complaints/complaint.pdf'))
       expect(resolveComplaintPath('nested/complaint.pdf')).to.equal(path.resolve('uploads/complaints/nested/complaint.pdf'))
       expect(resolveComplaintPath('..complaint.pdf')).to.equal(path.resolve('uploads/complaints/..complaint.pdf'))
+    })
+
+    it('should reject entry names below a symlinked sub-directory', () => {
+      const link = path.resolve('uploads/complaints/escape-link')
+      fs.symlinkSync(path.resolve('ftp'), link, 'dir')
+      try {
+        expect(resolveComplaintPath('escape-link/legal.md')).to.equal(null)
+      } finally {
+        fs.unlinkSync(link)
+      }
     })
   })
 

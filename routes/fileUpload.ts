@@ -26,18 +26,40 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
 
 const complaintsDir = path.resolve('uploads/complaints')
 const maxZipEntries = 100
-const maxUncompressedBytes = 50 * 1024 * 1024
+const maxExtractedBytes = 50 * 1024 * 1024
 
 function resolveComplaintPath (fileName: string) {
   if (path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
     return null
   }
   const target = path.resolve(complaintsDir, fileName)
-  const relative = path.relative(complaintsDir, target)
-  if (relative === '' || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) {
+  if (!isInside(complaintsDir, target)) {
+    return null
+  }
+  if (!isInside(realPath(complaintsDir), realPath(existingAncestor(target)))) { // a symlinked sub-directory would otherwise redirect the write
+    return null
+  }
+  if (fs.lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
     return null
   }
   return target
+}
+
+function isInside (baseDir: string, target: string) {
+  const relative = path.relative(baseDir, target)
+  return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative)
+}
+
+function existingAncestor (target: string) {
+  let dir = path.dirname(target)
+  while (!fs.existsSync(dir) && path.dirname(dir) !== dir) {
+    dir = path.dirname(dir)
+  }
+  return dir
+}
+
+function realPath (dir: string) {
+  return fs.existsSync(dir) ? fs.realpathSync(dir) : dir
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -52,7 +74,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           if (err != null) { next(err) }
           fs.close(fd, function () {
             let entryCount = 0
-            let uncompressedBytes = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
@@ -60,11 +82,20 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const target = resolveComplaintPath(fileName)
                 entryCount++
-                uncompressedBytes += Number(entry.vars?.uncompressedSize ?? 0)
-                if (target === null || entry.type === 'Directory' || entryCount > maxZipEntries || uncompressedBytes > maxUncompressedBytes) {
+                if (target === null || entry.type === 'Directory' || entryCount > maxZipEntries || extractedBytes > maxExtractedBytes) {
                   entry.autodrain()
                 } else {
-                  entry.pipe(fs.createWriteStream(target).on('error', function (err) { next(err) }))
+                  fs.mkdirSync(path.dirname(target), { recursive: true })
+                  const writeStream = fs.createWriteStream(target).on('error', function (err) { next(err) })
+                  entry.on('data', function (chunk: Buffer) {
+                    extractedBytes += chunk.length
+                    if (extractedBytes > maxExtractedBytes) {
+                      entry.unpipe(writeStream)
+                      writeStream.destroy()
+                      entry.autodrain()
+                    }
+                  })
+                  entry.pipe(writeStream)
                 }
               }).on('error', function (err: unknown) { next(err) })
           })
