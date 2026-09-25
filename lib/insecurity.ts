@@ -23,22 +23,46 @@ const jwtAlgorithm = 'RS256'
 
 const generatedKeyFile = '.jwt-private.key' // outside any statically served directory
 
+const readKeyFile = (keyFile: string) => {
+  try {
+    return fs.readFileSync(keyFile, 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+/* Publishes a freshly generated key atomically so that concurrently starting processes agree on one key. */
+const persistPrivateKey = (keyFile: string, privateKey: string) => {
+  const tempFile = `${keyFile}.${process.pid}.tmp`
+  try {
+    fs.writeFileSync(tempFile, privateKey, { mode: 0o600 })
+    try {
+      fs.linkSync(tempFile, keyFile)
+      return privateKey
+    } finally {
+      fs.unlinkSync(tempFile)
+    }
+  } catch {
+    return readKeyFile(keyFile) ?? privateKey
+  }
+}
+
 const loadPrivateKey = () => {
   const inlineKey = process.env.JWT_PRIVATE_KEY
   if (inlineKey) {
     return inlineKey.includes('-----BEGIN') ? inlineKey.replace(/\\n/g, '\n') : Buffer.from(inlineKey, 'base64').toString('utf8')
   }
   const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? generatedKeyFile
-  if (fs.existsSync(keyFile)) {
-    return fs.readFileSync(keyFile, 'utf8')
+  const existingKey = readKeyFile(keyFile)
+  if (existingKey) {
+    return existingKey
   }
   const { privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
     privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
     publicKeyEncoding: { type: 'spki', format: 'pem' }
   })
-  fs.writeFileSync(keyFile, privateKey, { mode: 0o600 })
-  return privateKey
+  return persistPrivateKey(keyFile, privateKey)
 }
 
 const privateKey = loadPrivateKey()
