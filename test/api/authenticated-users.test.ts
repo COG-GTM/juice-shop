@@ -7,18 +7,23 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import * as security from '../../lib/insecurity'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`, 'content-type': 'application/json' }
-const customerAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })}`, 'content-type': 'application/json' }
+let authHeader: Record<string, string>
+let customerAuthHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const domain = config.get<string>('application.domain')
+  const admin = await login(app, { email: `admin@${domain}`, password: 'admin123' })
+  const customer = await login(app, { email: `bender@${domain}`, password: 'OhG0dPlease1nsertLiquor!' })
+  authHeader = { Authorization: `Bearer ${admin.token}`, 'content-type': 'application/json' }
+  customerAuthHeader = { Authorization: `Bearer ${customer.token}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
