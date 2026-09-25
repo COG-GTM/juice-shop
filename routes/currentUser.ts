@@ -8,6 +8,10 @@ import { type Request, type Response } from 'express'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
+const selectableFields = ['id', 'email', 'lastLoginIp', 'profileImage'] as const
+
+type SelectableField = typeof selectableFields[number]
+
 export function retrieveLoggedInUser () {
   return (req: Request, res: Response) => {
     let user
@@ -17,28 +21,15 @@ export function retrieveLoggedInUser () {
       if (security.verify(req.cookies.token)) {
         user = security.authenticatedUsers.get(req.cookies.token)
 
-        // Parse the fields parameter into an array, splitting by comma.
-        // If not provided, both these variables will be undefined.
         const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : []
+        const requestedFields = fieldsParam
+          ? fieldsParam.split(',').map(field => field.trim()).filter((field): field is SelectableField => (selectableFields as readonly string[]).includes(field))
+          : []
+        const returnedFields: readonly SelectableField[] = requestedFields.length > 0 ? requestedFields : selectableFields
 
-        let baseUser: any = {}
-
-        if (requestedFields.length > 0) {
-          // When fields are specified, return only those fields
-          for (const field of requestedFields) {
-            if (user?.data[field as keyof typeof user.data] !== undefined) {
-              baseUser[field] = user?.data[field as keyof typeof user.data]
-            }
-          }
-        } else {
-          // If no fields parameter, return standard fields (not password field)
-          baseUser = {
-            id: user?.data?.id,
-            email: user?.data?.email,
-            lastLoginIp: user?.data?.lastLoginIp,
-            profileImage: user?.data?.profileImage
-          }
+        const baseUser: Partial<Record<SelectableField, unknown>> = {}
+        for (const field of returnedFields) {
+          baseUser[field] = user?.data?.[field]
         }
 
         response = { user: baseUser }
