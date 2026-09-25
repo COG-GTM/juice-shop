@@ -38,9 +38,22 @@ const generatePrivateKey = () => {
   }).privateKey
 }
 
-/* Published through a fully written temporary file, so a process losing the race never reads a
-   partially written key. Without the key file - e.g. on a read-only filesystem - each process
-   falls back to its own ephemeral key. */
+/* A process that lost the creation race can see the file before the winner has flushed it. */
+const readCompleteKey = (keyFile: string) => {
+  const blocker = new Int32Array(new SharedArrayBuffer(4))
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const key = fs.readFileSync(keyFile, 'utf8')
+    if (key.includes('-----END')) {
+      return key
+    }
+    Atomics.wait(blocker, 0, 0, 10)
+  }
+  throw new Error(`Private key file ${keyFile} is incomplete`)
+}
+
+/* Published either by hard-linking a fully written temporary file or, where hard links are
+   unsupported, by exclusive creation - never by overwriting a key another process may already
+   be signing with. An unwritable path leaves each process with its own ephemeral key. */
 const persistPrivateKey = (keyFile: string, key: string) => {
   const tempFile = `${keyFile}.${crypto.randomUUID()}.tmp`
   try {
@@ -48,13 +61,14 @@ const persistPrivateKey = (keyFile: string, key: string) => {
     try {
       fs.linkSync(tempFile, keyFile)
     } catch (error: unknown) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST' && !fs.existsSync(keyFile)) {
-        fs.renameSync(tempFile, keyFile)
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        return readCompleteKey(keyFile)
       }
+      fs.writeFileSync(keyFile, key, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
     }
-    return fs.readFileSync(keyFile, 'utf8')
-  } catch {
     return key
+  } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code === 'EEXIST' ? readCompleteKey(keyFile) : key
   } finally {
     try {
       fs.unlinkSync(tempFile)
@@ -73,7 +87,7 @@ const resolvePrivateKey = () => {
   }
   const keyFile = process.env.JWT_PRIVATE_KEY_FILE ?? DEFAULT_PRIVATE_KEY_FILE
   if (fs.existsSync(keyFile)) {
-    return fs.readFileSync(keyFile, 'utf8')
+    return readCompleteKey(keyFile)
   }
   return persistPrivateKey(keyFile, generatePrivateKey())
 }
