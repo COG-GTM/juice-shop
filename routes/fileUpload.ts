@@ -96,11 +96,15 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                     entry.autodrain()
                     return
                   }
-                  const tempTarget = `${target}.${crypto.randomBytes(8).toString('hex')}.part` // the destination is only replaced once the entry fits within the limit
-                  let aborted = false
-                  const writeStream = fs.createWriteStream(tempTarget).on('error', function (err) { next(err) })
-                  writeStream.on('close', function () {
-                    if (aborted) {
+                  const tempTarget = path.join(path.dirname(target), `.${crypto.randomBytes(8).toString('hex')}.part`) // the destination is only replaced once the entry is fully written within the limit
+                  let discarded = false
+                  const writeStream = fs.createWriteStream(tempTarget)
+                  writeStream.on('error', function (err) {
+                    discarded = true
+                    next(err)
+                  })
+                  writeStream.on('finish', function () {
+                    if (discarded) {
                       return
                     }
                     fs.rename(tempTarget, target, function (err) {
@@ -109,13 +113,17 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                       }
                     })
                   })
+                  writeStream.on('close', function () {
+                    if (discarded) {
+                      fs.rm(tempTarget, { force: true }, function () {})
+                    }
+                  })
                   entry.on('data', function (chunk: Buffer) {
                     extractedBytes += chunk.length
                     if (extractedBytes > maxExtractedBytes) {
-                      aborted = true
+                      discarded = true
                       entry.unpipe(writeStream)
                       writeStream.destroy()
-                      fs.rm(tempTarget, { force: true }, function () {})
                       entry.autodrain()
                     }
                   })
