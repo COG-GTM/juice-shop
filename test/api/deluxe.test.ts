@@ -112,6 +112,7 @@ void describe('/rest/deluxe-membership', () => {
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+    assert.equal(balanceBefore.status, 200)
 
     const res = await request(app)
       .post('/rest/deluxe-membership')
@@ -126,6 +127,7 @@ void describe('/rest/deluxe-membership', () => {
     const balanceAfter = await request(app)
       .get('/rest/wallet/balance')
       .set({ Authorization: 'Bearer ' + res.body.data.token, 'content-type': 'application/json' })
+    assert.equal(balanceAfter.status, 200)
     assert.equal(balanceAfter.body.data, balanceBefore.body.data - 49)
   })
 
