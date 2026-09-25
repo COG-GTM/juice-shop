@@ -51,4 +51,38 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template expressions in username as text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{1+1}' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('>#{1+1}</p>'))
+    assert.ok(res.text.includes('value="#{1+1}"'))
+  })
+
+  void it('GET user profile renders HTML markup in username as escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '<b>' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('>&lt;b&gt;</p>'))
+    assert.ok(res.text.includes('value="&lt;b&gt;"'))
+  })
 })
