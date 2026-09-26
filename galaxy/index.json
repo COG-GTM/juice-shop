@@ -1,0 +1,2195 @@
+{
+  "repo": "COG-GTM/juice-shop",
+  "generated_at": "2026-09-26T20:33:01Z",
+  "nodes": [
+    {
+      "id": "http-server-bootstrap",
+      "name": "Express Server Bootstrap",
+      "group": "HTTP Edge & Routing",
+      "description": "Creates the Express application, wires the HTTP server and Socket.io, and orchestrates startup ordering from config validation through data seeding to listening on the configured port.",
+      "files": [
+        {
+          "path": "server.ts",
+          "lines": [
+            1,
+            180
+          ]
+        },
+        {
+          "path": "app.ts"
+        }
+      ]
+    },
+    {
+      "id": "http-middleware-stack",
+      "name": "Global Middleware Stack",
+      "group": "HTTP Edge & Routing",
+      "description": "Cross-cutting Express middleware: compression, CORS, Helmet headers, feature policy, robots/security.txt, body and multipart parsing, rate limiting and IP filtering.",
+      "files": [
+        {
+          "path": "server.ts",
+          "lines": [
+            179,
+            240
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rest-api-autogen",
+      "name": "Auto-generated Finale REST Resources",
+      "group": "HTTP Edge & Routing",
+      "description": "Generates CRUD endpoints for every Sequelize model via finale-rest, including attribute exclusion, on-the-fly i18n of products/challenges/hints and the wallet-on-registration hook.",
+      "files": [
+        {
+          "path": "server.ts",
+          "lines": [
+            476,
+            594
+          ]
+        }
+      ]
+    },
+    {
+      "id": "custom-rest-api-registration",
+      "name": "Custom REST Route Registration",
+      "group": "HTTP Edge & Routing",
+      "description": "The central route map: binds every hand-written /rest, /api, /b2b and file endpoint to its handler together with the auth middleware that guards it.",
+      "files": [
+        {
+          "path": "server.ts",
+          "lines": [
+            595,
+            680
+          ]
+        },
+        {
+          "path": "swagger.yml"
+        }
+      ]
+    },
+    {
+      "id": "http-error-handling",
+      "name": "Error Handling & Stack Trace Exposure",
+      "group": "HTTP Edge & Routing",
+      "description": "Terminal error middleware combining the challenge error-handling verifier with the verbose errorhandler package that leaks stack traces.",
+      "files": [
+        {
+          "path": "server.ts",
+          "lines": [
+            676,
+            700
+          ]
+        }
+      ]
+    },
+    {
+      "id": "angular-client-delivery",
+      "name": "Angular Client Delivery",
+      "group": "HTTP Edge & Routing",
+      "description": "Catch-all handler serving the built Angular SPA index for unmatched routes, after static asset middleware has had its chance.",
+      "files": [
+        {
+          "path": "routes/angular.ts"
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            286,
+            296
+          ]
+        }
+      ]
+    },
+    {
+      "id": "open-redirect",
+      "name": "Redirect Endpoint",
+      "group": "HTTP Edge & Routing",
+      "description": "The /redirect endpoint that forwards users to a target URL based on an allow-list check on the query string.",
+      "files": [
+        {
+          "path": "routes/redirect.ts"
+        }
+      ]
+    },
+    {
+      "id": "app-metadata-api",
+      "name": "Application Metadata & i18n API",
+      "group": "HTTP Edge & Routing",
+      "description": "Exposes the running version, the sanitised runtime configuration, the available translation bundles and the country mapping consumed by the frontend at bootstrap.",
+      "files": [
+        {
+          "path": "routes/appVersion.ts"
+        },
+        {
+          "path": "routes/appConfiguration.ts"
+        },
+        {
+          "path": "routes/languages.ts"
+        },
+        {
+          "path": "routes/countryMapping.ts"
+        }
+      ]
+    },
+    {
+      "id": "websocket-events",
+      "name": "WebSocket Events & Notifications",
+      "group": "HTTP Edge & Routing",
+      "description": "Socket.io listeners relaying challenge notifications and hacking-instructor progress, together with the repeat-notification endpoint and client toasts.",
+      "files": [
+        {
+          "path": "lib/startup/registerWebsocketEvents.ts"
+        },
+        {
+          "path": "routes/repeatNotification.ts"
+        },
+        {
+          "path": "frontend/src/app/challenge-solved-notification/challenge-solved-notification.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "auth-jwt",
+      "name": "JWT Authentication & Session",
+      "group": "Identity & Access",
+      "description": "Issues, signs and verifies the JWT bearer tokens used for all authenticated calls, and tracks the in-memory map of authenticated users.",
+      "files": [
+        {
+          "path": "lib/insecurity.ts",
+          "lines": [
+            1,
+            140
+          ]
+        },
+        {
+          "path": "routes/authenticatedUsers.ts"
+        }
+      ]
+    },
+    {
+      "id": "login-flow",
+      "name": "Login & Credential Check",
+      "group": "Identity & Access",
+      "description": "Authenticates a user against the SQL user table and mints a session token; the query is assembled by string concatenation, which is the SQL injection entry point.",
+      "files": [
+        {
+          "path": "routes/login.ts"
+        }
+      ]
+    },
+    {
+      "id": "current-user",
+      "name": "Current User & Login IP",
+      "group": "Identity & Access",
+      "description": "Resolves the caller identity from the bearer token for /rest/user/whoami and records the client IP of the last successful login.",
+      "files": [
+        {
+          "path": "routes/currentUser.ts"
+        },
+        {
+          "path": "routes/saveLoginIp.ts"
+        },
+        {
+          "path": "frontend/src/app/last-login-ip/last-login-ip.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "password-reset",
+      "name": "Password Reset & Security Questions",
+      "group": "Identity & Access",
+      "description": "Resets a password after checking the answer to a user-chosen security question, with no rate-limited lockout on the answer itself.",
+      "files": [
+        {
+          "path": "routes/resetPassword.ts"
+        },
+        {
+          "path": "routes/securityQuestion.ts"
+        },
+        {
+          "path": "models/securityAnswer.ts"
+        },
+        {
+          "path": "models/securityQuestion.ts"
+        }
+      ]
+    },
+    {
+      "id": "change-password",
+      "name": "Change Password",
+      "group": "Identity & Access",
+      "description": "Changes the password of the authenticated user from query parameters, without requiring the current password.",
+      "files": [
+        {
+          "path": "routes/changePassword.ts"
+        }
+      ]
+    },
+    {
+      "id": "two-factor-auth",
+      "name": "Two-Factor Authentication",
+      "group": "Identity & Access",
+      "description": "TOTP enrolment, verification and disabling flow including the temporary token exchanged between the password and TOTP steps.",
+      "files": [
+        {
+          "path": "routes/2fa.ts"
+        }
+      ]
+    },
+    {
+      "id": "authorization-guards",
+      "name": "Authorization Guards & Roles",
+      "group": "Identity & Access",
+      "description": "The isAuthorized/denyAll/isAccounting/appendUserId middleware factories that decide who may reach each route, plus their per-endpoint wiring.",
+      "files": [
+        {
+          "path": "lib/insecurity.ts",
+          "lines": [
+            140,
+            260
+          ]
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            355,
+            476
+          ]
+        }
+      ]
+    },
+    {
+      "id": "captcha-defenses",
+      "name": "CAPTCHA Challenges",
+      "group": "Identity & Access",
+      "description": "Arithmetic and image CAPTCHAs guarding feedback submission and data export, with their answers stored server-side per request id.",
+      "files": [
+        {
+          "path": "routes/captcha.ts"
+        },
+        {
+          "path": "routes/imageCaptcha.ts"
+        },
+        {
+          "path": "models/captcha.ts"
+        },
+        {
+          "path": "models/imageCaptcha.ts"
+        }
+      ]
+    },
+    {
+      "id": "deluxe-membership",
+      "name": "Deluxe Membership & Premium Content",
+      "group": "Identity & Access",
+      "description": "Upgrades a customer to the deluxe role, reports membership status and serves the paywalled premium reward asset.",
+      "files": [
+        {
+          "path": "routes/deluxe.ts"
+        },
+        {
+          "path": "routes/premiumReward.ts"
+        }
+      ]
+    },
+    {
+      "id": "product-search",
+      "name": "Product Search",
+      "group": "Catalog & Search",
+      "description": "Full-text product search endpoint whose criteria are interpolated into a raw SQL query, making it both the union-SQLi and the reflected-XSS surface.",
+      "files": [
+        {
+          "path": "routes/search.ts"
+        }
+      ]
+    },
+    {
+      "id": "product-model",
+      "name": "Product Catalogue Model",
+      "group": "Catalog & Search",
+      "description": "Sequelize model for products, including price, deluxe price and the HTML description rendered verbatim in the frontend.",
+      "files": [
+        {
+          "path": "models/product.ts"
+        }
+      ]
+    },
+    {
+      "id": "product-reviews-read",
+      "name": "Product Review Retrieval",
+      "group": "Catalog & Search",
+      "description": "Reads product reviews out of the NoSQL review collection for a given product id, without normalising the id parameter.",
+      "files": [
+        {
+          "path": "routes/showProductReviews.ts"
+        }
+      ]
+    },
+    {
+      "id": "product-reviews-write",
+      "name": "Product Review Writes & Likes",
+      "group": "Catalog & Search",
+      "description": "Creates, updates and likes reviews in the document store; the update path accepts a selector object straight from the request body.",
+      "files": [
+        {
+          "path": "routes/createProductReviews.ts"
+        },
+        {
+          "path": "routes/updateProductReviews.ts"
+        },
+        {
+          "path": "routes/likeProductReviews.ts"
+        }
+      ]
+    },
+    {
+      "id": "basket-retrieval",
+      "name": "Basket Retrieval",
+      "group": "Basket & Checkout",
+      "description": "Loads a basket with its products for a basket id taken from the path, which is not checked against the session owner.",
+      "files": [
+        {
+          "path": "routes/basket.ts"
+        },
+        {
+          "path": "models/basket.ts"
+        }
+      ]
+    },
+    {
+      "id": "basket-items",
+      "name": "Basket Item Management",
+      "group": "Basket & Checkout",
+      "description": "Adds, updates and quantity-checks basket items, enforcing deluxe-only quantity limits before delegating to the generated REST resource.",
+      "files": [
+        {
+          "path": "routes/basketItems.ts"
+        },
+        {
+          "path": "models/basketitem.ts"
+        }
+      ]
+    },
+    {
+      "id": "coupon-engine",
+      "name": "Coupon Redemption",
+      "group": "Basket & Checkout",
+      "description": "Validates and applies a base85-encoded discount coupon to a basket, including the campaign coupon codes.",
+      "files": [
+        {
+          "path": "routes/coupon.ts"
+        }
+      ]
+    },
+    {
+      "id": "checkout-order-placement",
+      "name": "Checkout & Order Placement",
+      "group": "Basket & Checkout",
+      "description": "Turns a basket into an order: computes totals and discounts, debits the wallet or card, renders the PDF confirmation and empties the basket.",
+      "files": [
+        {
+          "path": "routes/order.ts"
+        }
+      ]
+    },
+    {
+      "id": "inventory-quantity",
+      "name": "Stock Quantity Management",
+      "group": "Basket & Checkout",
+      "description": "Per-product stock records maintained by the accounting role and consulted during basket updates.",
+      "files": [
+        {
+          "path": "models/quantity.ts"
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            428,
+            432
+          ]
+        }
+      ]
+    },
+    {
+      "id": "order-tracking",
+      "name": "Order Tracking",
+      "group": "Orders & Fulfilment",
+      "description": "Looks up an order by tracking id in the document store; the id flows into the query selector unescaped.",
+      "files": [
+        {
+          "path": "routes/trackOrder.ts"
+        }
+      ]
+    },
+    {
+      "id": "order-history",
+      "name": "Order History & Delivery Status",
+      "group": "Orders & Fulfilment",
+      "description": "Lists a customer's past orders, exposes the all-orders view to accounting and toggles per-order delivery status.",
+      "files": [
+        {
+          "path": "routes/orderHistory.ts"
+        }
+      ]
+    },
+    {
+      "id": "delivery-methods",
+      "name": "Delivery Methods",
+      "group": "Orders & Fulfilment",
+      "description": "Delivery options with their price and deluxe price, seeded from static YAML and offered during checkout.",
+      "files": [
+        {
+          "path": "routes/delivery.ts"
+        },
+        {
+          "path": "models/delivery.ts"
+        },
+        {
+          "path": "data/static/deliveries.yml"
+        }
+      ]
+    },
+    {
+      "id": "b2b-order-intake",
+      "name": "B2B Order Intake",
+      "group": "Orders & Fulfilment",
+      "description": "Accepts XML/JSON B2B order payloads on /b2b/v2/orders and evaluates the order line inside a sandboxed expression.",
+      "files": [
+        {
+          "path": "routes/b2bOrder.ts"
+        }
+      ]
+    },
+    {
+      "id": "addresses",
+      "name": "Delivery Addresses",
+      "group": "Orders & Fulfilment",
+      "description": "CRUD for customer delivery addresses used at checkout, with ownership derived from the appended user id.",
+      "files": [
+        {
+          "path": "routes/address.ts"
+        },
+        {
+          "path": "models/address.ts"
+        }
+      ]
+    },
+    {
+      "id": "payment-cards",
+      "name": "Stored Payment Cards",
+      "group": "Payments & Wallet",
+      "description": "Stores and lists saved credit cards per user and resolves a card by id during checkout.",
+      "files": [
+        {
+          "path": "routes/payment.ts"
+        },
+        {
+          "path": "models/card.ts"
+        }
+      ]
+    },
+    {
+      "id": "wallet-balance",
+      "name": "Digital Wallet",
+      "group": "Payments & Wallet",
+      "description": "Reads and tops up the in-app wallet balance that can settle an order instead of a card.",
+      "files": [
+        {
+          "path": "routes/wallet.ts"
+        },
+        {
+          "path": "models/wallet.ts"
+        }
+      ]
+    },
+    {
+      "id": "web3-wallet",
+      "name": "Web3 Wallet, Keys & NFT Minting",
+      "group": "Payments & Wallet",
+      "description": "Listens for exploit contract addresses, verifies submitted deployment keys, and watches NFT mint events plus soulbound token ownership.",
+      "files": [
+        {
+          "path": "routes/web3Wallet.ts"
+        },
+        {
+          "path": "routes/checkKeys.ts"
+        },
+        {
+          "path": "routes/nftMint.ts"
+        },
+        {
+          "path": "data/static/contractABIs.ts"
+        }
+      ]
+    },
+    {
+      "id": "user-profile-page",
+      "name": "User Profile Page Rendering",
+      "group": "User Profile & Data",
+      "description": "Renders the server-side profile template with the user's username, which is interpolated into the template engine input.",
+      "files": [
+        {
+          "path": "routes/userProfile.ts"
+        },
+        {
+          "path": "views/userProfile.pug"
+        }
+      ]
+    },
+    {
+      "id": "user-profile-update",
+      "name": "User Profile Update",
+      "group": "User Profile & Data",
+      "description": "Persists username and profile changes posted from the profile page and re-issues the session cookie.",
+      "files": [
+        {
+          "path": "routes/updateUserProfile.ts"
+        }
+      ]
+    },
+    {
+      "id": "user-model",
+      "name": "User Account Model",
+      "group": "User Profile & Data",
+      "description": "Sequelize user model with password hashing hooks, role, deluxe flag, TOTP secret and soft-deletion.",
+      "files": [
+        {
+          "path": "models/user.ts"
+        }
+      ]
+    },
+    {
+      "id": "data-export",
+      "name": "GDPR Data Export",
+      "group": "User Profile & Data",
+      "description": "Assembles a JSON export of the caller's orders, reviews, memories and profile after an image CAPTCHA check.",
+      "files": [
+        {
+          "path": "routes/dataExport.ts"
+        }
+      ]
+    },
+    {
+      "id": "data-erasure",
+      "name": "Data Erasure & Privacy Requests",
+      "group": "User Profile & Data",
+      "description": "Handles the account deletion / privacy request form, including the layout parameter that selects the rendered template.",
+      "files": [
+        {
+          "path": "routes/dataErasure.ts"
+        },
+        {
+          "path": "models/privacyRequests.ts"
+        }
+      ]
+    },
+    {
+      "id": "memories-photo-wall",
+      "name": "Memories Photo Wall",
+      "group": "User Profile & Data",
+      "description": "Uploads and lists user photo memories with captions, backed by the disk upload storage.",
+      "files": [
+        {
+          "path": "routes/memory.ts"
+        },
+        {
+          "path": "models/memory.ts"
+        }
+      ]
+    },
+    {
+      "id": "recycling-requests",
+      "name": "Recycling Requests",
+      "group": "User Profile & Data",
+      "description": "Pomace recycling pickup requests with address and date, plus the accounting-only listing and blocking rules.",
+      "files": [
+        {
+          "path": "routes/recycles.ts"
+        },
+        {
+          "path": "models/recycle.ts"
+        }
+      ]
+    },
+    {
+      "id": "file-upload-pipeline",
+      "name": "File Upload Pipeline",
+      "group": "Files & Uploads",
+      "description": "The chained upload middleware: presence check, size and type checks, then zip, XML and YAML processing of the uploaded buffer.",
+      "files": [
+        {
+          "path": "routes/fileUpload.ts"
+        }
+      ]
+    },
+    {
+      "id": "profile-image-upload",
+      "name": "Profile Image Upload",
+      "group": "Files & Uploads",
+      "description": "Accepts a profile picture either as a multipart file or as a remote URL fetched server-side and written to the uploads folder.",
+      "files": [
+        {
+          "path": "routes/profileImageFileUpload.ts"
+        },
+        {
+          "path": "routes/profileImageUrlUpload.ts"
+        }
+      ]
+    },
+    {
+      "id": "public-file-servers",
+      "name": "Public & Quarantine File Servers",
+      "group": "Files & Uploads",
+      "description": "Serves files out of the simulated FTP directory and its quarantine subfolder based on a path parameter.",
+      "files": [
+        {
+          "path": "routes/fileServer.ts"
+        },
+        {
+          "path": "routes/quarantineServer.ts"
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            265,
+            276
+          ]
+        },
+        {
+          "path": "lib/startup/cleanupFtpFolder.ts"
+        },
+        {
+          "path": "lib/startup/restoreOverwrittenFilesWithOriginals.ts"
+        }
+      ]
+    },
+    {
+      "id": "key-and-log-servers",
+      "name": "Encryption Key & Log File Servers",
+      "group": "Files & Uploads",
+      "description": "Directory listing and file download for the encryption key folder and the rotated access logs.",
+      "files": [
+        {
+          "path": "routes/keyServer.ts"
+        },
+        {
+          "path": "routes/logfileServer.ts"
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            276,
+            286
+          ]
+        }
+      ]
+    },
+    {
+      "id": "video-media",
+      "name": "Promotion Video Handler",
+      "group": "Files & Uploads",
+      "description": "Streams the promotional video with byte-range support and injects the configurable subtitle track.",
+      "files": [
+        {
+          "path": "routes/videoHandler.ts"
+        }
+      ]
+    },
+    {
+      "id": "customer-feedback",
+      "name": "Customer Feedback & Complaints",
+      "group": "Feedback, Reviews & Chat",
+      "description": "Feedback entries with rating and comment plus complaint submissions with attachments, both exposed through the generated REST resources.",
+      "files": [
+        {
+          "path": "models/feedback.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/feedback.service.ts"
+        },
+        {
+          "path": "models/complaint.ts"
+        },
+        {
+          "path": "frontend/src/app/complaint/complaint.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "chatbot",
+      "name": "Support Chatbot",
+      "group": "Feedback, Reviews & Chat",
+      "description": "The JuicyBot conversational endpoint: trains the intent model, keeps per-user conversation state and evaluates bot responses.",
+      "files": [
+        {
+          "path": "routes/chat.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/chat.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "sequelize-core",
+      "name": "Sequelize Instance & Model Registry",
+      "group": "Persistence (SQL)",
+      "description": "Creates the SQLite Sequelize instance, initialises every model and wires their associations; every SQL-backed route goes through here.",
+      "files": [
+        {
+          "path": "models/index.ts"
+        },
+        {
+          "path": "models/relations.ts"
+        }
+      ]
+    },
+    {
+      "id": "data-seeding",
+      "name": "Database Seeding",
+      "group": "Persistence (SQL)",
+      "description": "Populates products, users, challenges, wallets, baskets and deliveries from the static YAML/JSON fixtures on every boot.",
+      "files": [
+        {
+          "path": "data/datacreator.ts"
+        },
+        {
+          "path": "data/static/challenges.yml"
+        },
+        {
+          "path": "data/datacache.ts"
+        }
+      ]
+    },
+    {
+      "id": "marsdb-store",
+      "name": "MarsDB Document Store",
+      "group": "Persistence (NoSQL)",
+      "description": "The embedded MongoDB-like store holding product reviews and order tracking documents, queried with raw selector objects.",
+      "files": [
+        {
+          "path": "data/mongodb.ts"
+        }
+      ]
+    },
+    {
+      "id": "security-crypto-lib",
+      "name": "Crypto & Sanitisation Helpers",
+      "group": "Security Middleware & Crypto",
+      "description": "Hashing, HMAC, coupon encoding, URL allow-listing and HTML sanitisation helpers shared by nearly every route.",
+      "files": [
+        {
+          "path": "lib/insecurity.ts"
+        }
+      ]
+    },
+    {
+      "id": "anti-cheat",
+      "name": "Anti-Cheat Scoring",
+      "group": "Security Middleware & Crypto",
+      "description": "Measures time-to-solve and pre-solve interactions to estimate whether a challenge was solved authentically.",
+      "files": [
+        {
+          "path": "lib/antiCheat.ts"
+        },
+        {
+          "path": "lib/accuracy.ts"
+        }
+      ]
+    },
+    {
+      "id": "challenge-verification",
+      "name": "Challenge Verification Middleware",
+      "group": "Security Middleware & Crypto",
+      "description": "Middleware that inspects requests and responses to detect exploited vulnerabilities and mark the corresponding challenge solved.",
+      "files": [
+        {
+          "path": "routes/verify.ts"
+        }
+      ]
+    },
+    {
+      "id": "metrics-observability",
+      "name": "Prometheus Metrics",
+      "group": "Security Middleware & Crypto",
+      "description": "Request, file-upload and challenge gauges exported on the unauthenticated /metrics endpoint and visualised in Grafana.",
+      "files": [
+        {
+          "path": "routes/metrics.ts"
+        },
+        {
+          "path": "monitoring/grafana-dashboard.json"
+        }
+      ]
+    },
+    {
+      "id": "logging",
+      "name": "Application Logging",
+      "group": "Security Middleware & Crypto",
+      "description": "Winston logger plus the rotated combined access log stream written under logs/.",
+      "files": [
+        {
+          "path": "lib/logger.ts"
+        },
+        {
+          "path": "server.ts",
+          "lines": [
+            330,
+            341
+          ]
+        }
+      ]
+    },
+    {
+      "id": "challenge-engine",
+      "name": "Challenge Model & Solve Logic",
+      "group": "Challenge/Gamification Engine",
+      "description": "Core gamification: challenge records, dependencies, solve/notify helpers and CTF flag generation.",
+      "files": [
+        {
+          "path": "lib/challengeUtils.ts"
+        },
+        {
+          "path": "models/challenge.ts"
+        },
+        {
+          "path": "models/challengeDependency.ts"
+        },
+        {
+          "path": "models/hint.ts"
+        },
+        {
+          "path": "config/tutorial.yml"
+        }
+      ]
+    },
+    {
+      "id": "coding-challenges",
+      "name": "Coding Challenges (Find It / Fix It)",
+      "group": "Challenge/Gamification Engine",
+      "description": "Extracts vulnerable snippets from source files, serves the fix options and grades submitted verdicts.",
+      "files": [
+        {
+          "path": "lib/codingChallenges.ts"
+        },
+        {
+          "path": "routes/vulnCodeSnippet.ts"
+        },
+        {
+          "path": "routes/vulnCodeFixes.ts"
+        }
+      ]
+    },
+    {
+      "id": "progress-continue-code",
+      "name": "Progress & Continue Codes",
+      "group": "Challenge/Gamification Engine",
+      "description": "Encodes solved-challenge progress into hashid continue codes and restores progress from them.",
+      "files": [
+        {
+          "path": "routes/continueCode.ts"
+        },
+        {
+          "path": "routes/restoreProgress.ts"
+        }
+      ]
+    },
+    {
+      "id": "easter-eggs",
+      "name": "Easter Eggs & Hidden Pages",
+      "group": "Challenge/Gamification Engine",
+      "description": "The layered easter-egg endpoints and the hidden privacy policy proof page, plus their startup customisation.",
+      "files": [
+        {
+          "path": "routes/easterEgg.ts"
+        },
+        {
+          "path": "lib/startup/customizeEasterEgg.ts"
+        },
+        {
+          "path": "routes/privacyPolicyProof.ts"
+        }
+      ]
+    },
+    {
+      "id": "webhook-notifier",
+      "name": "CTF Webhook Notifier",
+      "group": "Challenge/Gamification Engine",
+      "description": "Posts solved-challenge events to an external webhook when running in CTF mode.",
+      "files": [
+        {
+          "path": "lib/webhook.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-app-shell",
+      "name": "Angular App Shell & Routing",
+      "group": "Frontend (Angular)",
+      "description": "Root component, route table and admin guard that define the SPA navigation surface.",
+      "files": [
+        {
+          "path": "frontend/src/app/app.component.ts"
+        },
+        {
+          "path": "frontend/src/app/app.routing.ts"
+        },
+        {
+          "path": "frontend/src/app/app.guard.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-http-services",
+      "name": "Frontend HTTP Service Layer",
+      "group": "Frontend (Angular)",
+      "description": "Angular services and the request interceptor that attach the bearer token and call the REST API.",
+      "files": [
+        {
+          "path": "frontend/src/app/Services/request.interceptor.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/user.service.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/product.service.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/basket.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-search-result",
+      "name": "Search Result View",
+      "group": "Frontend (Angular)",
+      "description": "Renders search hits and echoes the raw search term into the page title, which is where the reflected XSS lands.",
+      "files": [
+        {
+          "path": "frontend/src/app/search-result/search-result.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-product-details",
+      "name": "Product Details & Review Editing",
+      "group": "Frontend (Angular)",
+      "description": "Product dialog rendering the HTML description and the review editing form.",
+      "files": [
+        {
+          "path": "frontend/src/app/product-details/product-details.component.ts"
+        },
+        {
+          "path": "frontend/src/app/product-review-edit/product-review-edit.component.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/product-review.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-login-register",
+      "name": "Login & Registration UI",
+      "group": "Frontend (Angular)",
+      "description": "Login form with remember-me handling, OAuth entry point and the registration form including security question selection.",
+      "files": [
+        {
+          "path": "frontend/src/app/login/login.component.ts"
+        },
+        {
+          "path": "frontend/src/app/register/register.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-administration",
+      "name": "Administration UI",
+      "group": "Frontend (Angular)",
+      "description": "Admin-only user and feedback overview reached through the guarded /administration route.",
+      "files": [
+        {
+          "path": "frontend/src/app/administration/administration.component.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/administration.service.ts"
+        },
+        {
+          "path": "frontend/src/app/user-details/user-details.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-track-result",
+      "name": "Order Tracking UI",
+      "group": "Frontend (Angular)",
+      "description": "Displays the result of an order tracking lookup including the delivery status timeline.",
+      "files": [
+        {
+          "path": "frontend/src/app/track-result/track-result.component.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/track-order.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-basket-checkout",
+      "name": "Basket & Checkout UI",
+      "group": "Frontend (Angular)",
+      "description": "Basket view, delivery/payment selection and order summary screens of the purchase funnel.",
+      "files": [
+        {
+          "path": "frontend/src/app/basket/basket.component.ts"
+        },
+        {
+          "path": "frontend/src/app/payment/payment.component.ts"
+        },
+        {
+          "path": "frontend/src/app/order-summary/order-summary.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-chatbot",
+      "name": "Chatbot UI",
+      "group": "Frontend (Angular)",
+      "description": "The JuicyBot chat widget with its conversation storage and input handling.",
+      "files": [
+        {
+          "path": "frontend/src/app/chatbot/chatbot.component.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/conversation-storage.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-score-board",
+      "name": "Score Board UI",
+      "group": "Frontend (Angular)",
+      "description": "Challenge score board with filtering, sorting and progress cards driven by the challenge service.",
+      "files": [
+        {
+          "path": "frontend/src/app/score-board/score-board.component.ts"
+        },
+        {
+          "path": "frontend/src/app/Services/challenge.service.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-web3",
+      "name": "Web3 & NFT UI",
+      "group": "Frontend (Angular)",
+      "description": "Wallet, sandbox and NFT unlock components that talk to the blockchain challenge endpoints.",
+      "files": [
+        {
+          "path": "frontend/src/app/wallet-web3/wallet-web3.component.ts"
+        },
+        {
+          "path": "frontend/src/app/web3-sandbox/web3-sandbox.component.ts"
+        },
+        {
+          "path": "frontend/src/app/nft-unlock/nft-unlock.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "fe-privacy-security",
+      "name": "Privacy & Security Settings UI",
+      "group": "Frontend (Angular)",
+      "description": "Data export, two-factor setup and last-login-IP screens grouped under the privacy & security section.",
+      "files": [
+        {
+          "path": "frontend/src/app/data-export/data-export.component.ts"
+        },
+        {
+          "path": "frontend/src/app/two-factor-auth/two-factor-auth.component.ts"
+        },
+        {
+          "path": "frontend/src/app/privacy-security/privacy-security.component.ts"
+        }
+      ]
+    },
+    {
+      "id": "config-loading",
+      "name": "Configuration Loading & Validation",
+      "group": "Infrastructure & Config",
+      "description": "YAML configuration profiles, their typed schema and the startup validator that rejects inconsistent customisations.",
+      "files": [
+        {
+          "path": "config/default.yml"
+        },
+        {
+          "path": "config/ctf.yml"
+        },
+        {
+          "path": "config.schema.yml"
+        },
+        {
+          "path": "lib/config.types.ts"
+        },
+        {
+          "path": "lib/startup/validateConfig.ts"
+        },
+        {
+          "path": "lib/startup/customizeApplication.ts"
+        }
+      ]
+    },
+    {
+      "id": "startup-preconditions",
+      "name": "Startup Preconditions & Dependency Checks",
+      "group": "Infrastructure & Config",
+      "description": "Verifies port availability, writable folders, Node version and installed dependency versions before the app boots.",
+      "files": [
+        {
+          "path": "lib/startup/validatePreconditions.ts"
+        },
+        {
+          "path": "lib/startup/validateDependencies.ts"
+        },
+        {
+          "path": "lib/startup/validateDependenciesBasic.ts"
+        }
+      ]
+    },
+    {
+      "id": "shared-utils",
+      "name": "Shared Utilities",
+      "group": "Infrastructure & Config",
+      "description": "Cross-cutting helpers for async route wrapping, config access, environment detection and string handling used everywhere.",
+      "files": [
+        {
+          "path": "lib/utils.ts"
+        },
+        {
+          "path": "lib/is-docker.ts"
+        },
+        {
+          "path": "lib/is-heroku.ts"
+        },
+        {
+          "path": "lib/is-windows.ts"
+        }
+      ]
+    },
+    {
+      "id": "container-packaging",
+      "name": "Container & VM Packaging",
+      "group": "Infrastructure & Config",
+      "description": "Multi-stage Docker build producing the distroless runtime image, the compose file used for test runs and the Vagrant provisioning path.",
+      "files": [
+        {
+          "path": "Dockerfile"
+        },
+        {
+          "path": "docker-compose.test.yml"
+        },
+        {
+          "path": "vagrant/Vagrantfile"
+        },
+        {
+          "path": "vagrant/bootstrap.sh"
+        },
+        {
+          "path": "vagrant/default.conf"
+        }
+      ]
+    },
+    {
+      "id": "build-tooling",
+      "name": "Build & Task Tooling",
+      "group": "Infrastructure & Config",
+      "description": "npm scripts, Grunt packaging tasks and the TypeScript compiler configuration that produce the distributable.",
+      "files": [
+        {
+          "path": "package.json"
+        },
+        {
+          "path": "Gruntfile.js"
+        },
+        {
+          "path": "tsconfig.json"
+        }
+      ]
+    }
+  ],
+  "relations": [
+    {
+      "from": "addresses",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "angular-client-delivery",
+      "to": "fe-app-shell",
+      "type": "depends-on"
+    },
+    {
+      "from": "anti-cheat",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "anti-cheat",
+      "to": "logging",
+      "type": "imports"
+    },
+    {
+      "from": "auth-jwt",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "authorization-guards",
+      "to": "auth-jwt",
+      "type": "calls"
+    },
+    {
+      "from": "b2b-order-intake",
+      "to": "checkout-order-placement",
+      "type": "depends-on"
+    },
+    {
+      "from": "basket-items",
+      "to": "basket-retrieval",
+      "type": "depends-on"
+    },
+    {
+      "from": "basket-items",
+      "to": "inventory-quantity",
+      "type": "calls"
+    },
+    {
+      "from": "basket-items",
+      "to": "product-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "build-tooling",
+      "to": "fe-app-shell",
+      "type": "depends-on"
+    },
+    {
+      "from": "captcha-defenses",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "challenge-engine",
+      "to": "anti-cheat",
+      "type": "calls"
+    },
+    {
+      "from": "challenge-engine",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "challenge-engine",
+      "to": "data-seeding",
+      "type": "imports"
+    },
+    {
+      "from": "challenge-engine",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "challenge-engine",
+      "to": "webhook-notifier",
+      "type": "calls"
+    },
+    {
+      "from": "challenge-verification",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "challenge-verification",
+      "to": "key-and-log-servers",
+      "type": "depends-on"
+    },
+    {
+      "from": "challenge-verification",
+      "to": "login-flow",
+      "type": "depends-on"
+    },
+    {
+      "from": "challenge-verification",
+      "to": "product-search",
+      "type": "depends-on"
+    },
+    {
+      "from": "challenge-verification",
+      "to": "user-profile-update",
+      "type": "depends-on"
+    },
+    {
+      "from": "change-password",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "change-password",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "chatbot",
+      "to": "marsdb-store",
+      "type": "persists-through"
+    },
+    {
+      "from": "chatbot",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "addresses",
+      "type": "depends-on"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "basket-items",
+      "type": "depends-on"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "basket-retrieval",
+      "type": "calls"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "coupon-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "delivery-methods",
+      "type": "depends-on"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "order-history",
+      "type": "persists-through"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "order-tracking",
+      "type": "persists-through"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "payment-cards",
+      "type": "calls"
+    },
+    {
+      "from": "checkout-order-placement",
+      "to": "wallet-balance",
+      "type": "calls"
+    },
+    {
+      "from": "coding-challenges",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "coding-challenges",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "config-loading",
+      "to": "shared-utils",
+      "type": "depends-on"
+    },
+    {
+      "from": "container-packaging",
+      "to": "build-tooling",
+      "type": "depends-on"
+    },
+    {
+      "from": "container-packaging",
+      "to": "http-server-bootstrap",
+      "type": "depends-on"
+    },
+    {
+      "from": "current-user",
+      "to": "auth-jwt",
+      "type": "calls"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "addresses",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "angular-client-delivery",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "app-metadata-api",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "authorization-guards",
+      "type": "calls"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "b2b-order-intake",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "b2b-order-intake",
+      "type": "depends-on"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "basket-items",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "basket-retrieval",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "captcha-defenses",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "change-password",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "chatbot",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "checkout-order-placement",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "coding-challenges",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "coupon-engine",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "current-user",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "data-erasure",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "data-export",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "delivery-methods",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "deluxe-membership",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "easter-eggs",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "file-upload-pipeline",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "key-and-log-servers",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "login-flow",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "memories-photo-wall",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "open-redirect",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "order-history",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "order-tracking",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "password-reset",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "payment-cards",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "product-reviews-read",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "product-reviews-write",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "product-search",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "profile-image-upload",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "progress-continue-code",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "public-file-servers",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "recycling-requests",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "two-factor-auth",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "user-profile-page",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "user-profile-update",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "video-media",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "wallet-balance",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "web3-wallet",
+      "type": "routes-to"
+    },
+    {
+      "from": "custom-rest-api-registration",
+      "to": "websocket-events",
+      "type": "routes-to"
+    },
+    {
+      "from": "customer-feedback",
+      "to": "captcha-defenses",
+      "type": "depends-on"
+    },
+    {
+      "from": "customer-feedback",
+      "to": "challenge-verification",
+      "type": "depends-on"
+    },
+    {
+      "from": "customer-feedback",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "data-erasure",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "data-export",
+      "to": "captcha-defenses",
+      "type": "calls"
+    },
+    {
+      "from": "data-export",
+      "to": "memories-photo-wall",
+      "type": "depends-on"
+    },
+    {
+      "from": "data-export",
+      "to": "product-reviews-read",
+      "type": "depends-on"
+    },
+    {
+      "from": "data-seeding",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "data-seeding",
+      "to": "delivery-methods",
+      "type": "depends-on"
+    },
+    {
+      "from": "data-seeding",
+      "to": "marsdb-store",
+      "type": "persists-through"
+    },
+    {
+      "from": "data-seeding",
+      "to": "product-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "data-seeding",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "data-seeding",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "deluxe-membership",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "deluxe-membership",
+      "to": "wallet-balance",
+      "type": "depends-on"
+    },
+    {
+      "from": "easter-eggs",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "fe-administration",
+      "to": "customer-feedback",
+      "type": "calls"
+    },
+    {
+      "from": "fe-administration",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "app-metadata-api",
+      "type": "calls"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-administration",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-basket-checkout",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-chatbot",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-login-register",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-privacy-security",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-product-details",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-score-board",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-search-result",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-track-result",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "fe-web3",
+      "type": "routes-to"
+    },
+    {
+      "from": "fe-app-shell",
+      "to": "websocket-events",
+      "type": "depends-on"
+    },
+    {
+      "from": "fe-basket-checkout",
+      "to": "basket-items",
+      "type": "calls"
+    },
+    {
+      "from": "fe-basket-checkout",
+      "to": "checkout-order-placement",
+      "type": "calls"
+    },
+    {
+      "from": "fe-basket-checkout",
+      "to": "payment-cards",
+      "type": "calls"
+    },
+    {
+      "from": "fe-chatbot",
+      "to": "chatbot",
+      "type": "calls"
+    },
+    {
+      "from": "fe-http-services",
+      "to": "auth-jwt",
+      "type": "depends-on"
+    },
+    {
+      "from": "fe-login-register",
+      "to": "login-flow",
+      "type": "calls"
+    },
+    {
+      "from": "fe-login-register",
+      "to": "two-factor-auth",
+      "type": "calls"
+    },
+    {
+      "from": "fe-privacy-security",
+      "to": "current-user",
+      "type": "calls"
+    },
+    {
+      "from": "fe-privacy-security",
+      "to": "data-export",
+      "type": "calls"
+    },
+    {
+      "from": "fe-product-details",
+      "to": "product-reviews-read",
+      "type": "calls"
+    },
+    {
+      "from": "fe-product-details",
+      "to": "product-reviews-write",
+      "type": "calls"
+    },
+    {
+      "from": "fe-score-board",
+      "to": "challenge-engine",
+      "type": "calls"
+    },
+    {
+      "from": "fe-score-board",
+      "to": "coding-challenges",
+      "type": "calls"
+    },
+    {
+      "from": "fe-search-result",
+      "to": "product-search",
+      "type": "calls"
+    },
+    {
+      "from": "fe-track-result",
+      "to": "order-tracking",
+      "type": "calls"
+    },
+    {
+      "from": "fe-web3",
+      "to": "web3-wallet",
+      "type": "calls"
+    },
+    {
+      "from": "file-upload-pipeline",
+      "to": "metrics-observability",
+      "type": "calls"
+    },
+    {
+      "from": "file-upload-pipeline",
+      "to": "public-file-servers",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-error-handling",
+      "to": "challenge-verification",
+      "type": "calls"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "anti-cheat",
+      "type": "calls"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "challenge-verification",
+      "type": "calls"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "file-upload-pipeline",
+      "type": "routes-to"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "inventory-quantity",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "memories-photo-wall",
+      "type": "routes-to"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "metrics-observability",
+      "type": "calls"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "password-reset",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-middleware-stack",
+      "to": "profile-image-upload",
+      "type": "routes-to"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "config-loading",
+      "type": "calls"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "custom-rest-api-registration",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "data-seeding",
+      "type": "calls"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "http-error-handling",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "http-middleware-stack",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "logging",
+      "type": "imports"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "public-file-servers",
+      "type": "calls"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "rest-api-autogen",
+      "type": "depends-on"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "sequelize-core",
+      "type": "imports"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "shared-utils",
+      "type": "imports"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "startup-preconditions",
+      "type": "calls"
+    },
+    {
+      "from": "http-server-bootstrap",
+      "to": "websocket-events",
+      "type": "calls"
+    },
+    {
+      "from": "key-and-log-servers",
+      "to": "logging",
+      "type": "depends-on"
+    },
+    {
+      "from": "logging",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "login-flow",
+      "to": "auth-jwt",
+      "type": "calls"
+    },
+    {
+      "from": "login-flow",
+      "to": "current-user",
+      "type": "calls"
+    },
+    {
+      "from": "login-flow",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "login-flow",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "login-flow",
+      "to": "two-factor-auth",
+      "type": "depends-on"
+    },
+    {
+      "from": "login-flow",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "memories-photo-wall",
+      "to": "public-file-servers",
+      "type": "depends-on"
+    },
+    {
+      "from": "metrics-observability",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "metrics-observability",
+      "to": "sequelize-core",
+      "type": "persists-through"
+    },
+    {
+      "from": "order-history",
+      "to": "order-tracking",
+      "type": "depends-on"
+    },
+    {
+      "from": "order-tracking",
+      "to": "marsdb-store",
+      "type": "persists-through"
+    },
+    {
+      "from": "password-reset",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "password-reset",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "payment-cards",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "product-reviews-read",
+      "to": "marsdb-store",
+      "type": "persists-through"
+    },
+    {
+      "from": "product-reviews-read",
+      "to": "product-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "product-reviews-write",
+      "to": "marsdb-store",
+      "type": "persists-through"
+    },
+    {
+      "from": "product-reviews-write",
+      "to": "product-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "product-reviews-write",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "product-search",
+      "to": "product-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "profile-image-upload",
+      "to": "metrics-observability",
+      "type": "calls"
+    },
+    {
+      "from": "profile-image-upload",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "progress-continue-code",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "progress-continue-code",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "rest-api-autogen",
+      "to": "authorization-guards",
+      "type": "depends-on"
+    },
+    {
+      "from": "sequelize-core",
+      "to": "product-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "sequelize-core",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "startup-preconditions",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "two-factor-auth",
+      "to": "security-crypto-lib",
+      "type": "imports"
+    },
+    {
+      "from": "two-factor-auth",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "user-profile-page",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "user-profile-update",
+      "to": "user-model",
+      "type": "persists-through"
+    },
+    {
+      "from": "user-profile-update",
+      "to": "user-profile-page",
+      "type": "depends-on"
+    },
+    {
+      "from": "video-media",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "wallet-balance",
+      "to": "user-model",
+      "type": "depends-on"
+    },
+    {
+      "from": "web3-wallet",
+      "to": "chatbot",
+      "type": "depends-on"
+    },
+    {
+      "from": "webhook-notifier",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    },
+    {
+      "from": "webhook-notifier",
+      "to": "config-loading",
+      "type": "depends-on"
+    },
+    {
+      "from": "websocket-events",
+      "to": "challenge-engine",
+      "type": "depends-on"
+    }
+  ]
+}
