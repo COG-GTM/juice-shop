@@ -406,7 +406,7 @@
     "status": "open",
     "category": "path-traversal",
     "title": "Zip-slip arbitrary file write from uploaded archive",
-    "description": "When a . zip is uploaded, each entry's attacker-controlled path is concatenated into uploads/complaints/<entry.",
+    "description": "When a .zip is uploaded, each entry's attacker-controlled path is concatenated into uploads/complaints/<entry.path> with only an includes(path.resolve('.')) guard. A crafted entry name with ../ escapes the intended directory (zip-slip).",
     "attack_path": "POST /file-upload (zip) --> extractZipBuffer --> entry.path=../../ftp/legal.md --> createWriteStream('uploads/complaints/' + entry.path) --escapes dir--> arbitrary file overwrite",
     "recommendation": "Resolve each entry against the base dir and verify it starts with path.resolve('uploads/complaints') + path.sep; reject '..'; cap entry count and compression ratio.",
     "files": [
@@ -472,7 +472,7 @@
     "status": "dismissed",
     "category": "open-redirect",
     "title": "Open redirect via substring allowlist check",
-    "description": "The redirect handler forwards the browser to the to query parameter after isRedirectAllowed(), which uses url. includes(allowedUrl) (a substring match).",
+    "description": "The redirect handler forwards the browser to the to query parameter after isRedirectAllowed(), which uses url.includes(allowedUrl) (a substring match). An attacker satisfies it by embedding an allowlisted URL inside a malicious URL, producing an open redirect.",
     "attack_path": "GET /redirect?to=https://evil.com/?x=<allowlisted-url> --> isRedirectAllowed uses includes() --> res.redirect(evil) --> victim redirected",
     "recommendation": "Validate the target with an exact match against the allowlist (or compare the parsed full origin/href).",
     "files": [
@@ -499,7 +499,7 @@
     "status": "open",
     "category": "path-traversal",
     "title": "Poison-null-byte bypass of extension allowlist discloses sensitive ftp files",
-    "description": "The public file server allows . md/.",
+    "description": "The public file server allows .md/.pdf filenames, then cutOffPoisonNullByte() truncates the name at the null byte. An attacker satisfies the allowlist with a null-byte .md suffix while actually requesting a non-allowlisted file inside ftp/, disclosing backup/secret files.",
     "attack_path": "GET /ftp/package.json.bak[nullbyte].md --> endsWith('.md') passes --> cutOffPoisonNullByte -> package.json.bak --> sendFile --> file disclosed",
     "recommendation": "Normalize the filename (strip null bytes) before the extension check, and reject any name that is not exactly an allowlisted file.",
     "files": [
@@ -526,7 +526,7 @@
     "status": "open",
     "category": "cross-tenant-id",
     "title": "Missing ownership checks on checkout allow wallet/basket IDOR",
-    "description": "The checkout handler operates on an arbitrary basket id from the URL and performs wallet debit/credit against req. body.",
+    "description": "The checkout handler operates on an arbitrary basket id from the URL and performs wallet debit/credit against req.body.UserId without verifying either belongs to the authenticated user. An authenticated attacker can check out another user's basket or debit/credit an arbitrary wallet.",
     "attack_path": "POST /rest/basket/:id/checkout {UserId} --> BasketModel.findOne({id}) (no owner check) + WalletModel.decrement/increment({UserId}) --> pay from / credit to arbitrary wallet",
     "recommendation": "Derive UserId server-side, verify basket ownership, and never trust req.body.UserId for wallet operations.",
     "files": [
@@ -575,7 +575,7 @@
     "status": "open",
     "category": "mongodb-where-nosql-injection",
     "title": "NoSQL injection and missing ownership check allow tampering with any/all reviews",
-    "description": "The handler passes req. body.",
+    "description": "The handler passes req.body.id directly as the _id filter to a Mongo update with multi:true and never checks ownership. An authenticated attacker can supply a NoSQL operator object to overwrite every review, or edit reviews authored by others.",
     "attack_path": "PATCH /rest/products/reviews {id, message} --> update({_id: id}, {$set:{message}}, {multi:true}) --id operator object--> mass overwrite / cross-author edit",
     "recommendation": "Coerce id to a string and reject objects, drop multi:true, and verify the review author equals the authenticated user before updating.",
     "files": [
@@ -597,7 +597,7 @@
     "status": "open",
     "category": "mongodb-where-nosql-injection",
     "title": "NoSQL operator injection and like race via review id",
-    "description": "The handler passes req. body.",
+    "description": "The handler passes req.body.id into findOne({_id: id}) and the subsequent update. An operator object matches unintended documents; a deliberate 150ms delay between the like-once check and the write also enables a race for multiple likes (TOCTOU).",
     "attack_path": "POST /rest/products/reviews {id} --> findOne({_id: id={$gt}}) --> like/increment; concurrent requests race the like-once check",
     "recommendation": "Coerce id to a string and reject objects; perform the like-once check and increment atomically.",
     "files": [
@@ -643,7 +643,7 @@
     "status": "open",
     "category": "mongodb-where-nosql-injection",
     "title": "NoSQL ($where) injection in product reviews listing",
-    "description": "The handler concatenates the id route param into a MongoDB $where JavaScript predicate. When noSqlCommandChallenge is active, id is truncated instead of Number-coerced, enabling server-side JS injection and DoS (a blocking global.",
+    "description": "The handler concatenates the id route param into a MongoDB $where JavaScript predicate. When noSqlCommandChallenge is active, id is truncated instead of Number-coerced, enabling server-side JS injection and DoS (a blocking global.sleep is defined here).",
     "attack_path": "GET /rest/products/:id/reviews --> id=trunc(id,40) --concatenated--> reviewsCollection.find({$where}) --JS eval--> injected predicate / sleep DoS",
     "recommendation": "Always coerce id with Number() (or reject non-numeric input) and query with a normal equality filter instead of $where.",
     "files": [
@@ -687,7 +687,7 @@
     "status": "open",
     "category": "sql-injection",
     "title": "SQL injection in login enables auth bypass and full DB read",
-    "description": "The login handler interpolates the attacker-supplied email into a raw sequelize. query string.",
+    "description": "The login handler interpolates the attacker-supplied email into a raw sequelize.query string. An unauthenticated attacker can inject SQL to bypass authentication (log in as any user, including admin) and read arbitrary data from the database.",
     "attack_path": "POST /rest/user/login {email} --interpolated--> sequelize.query --executes--> auth bypass / data exfiltration",
     "recommendation": "Use parameterized queries via Sequelize replacements/bind or the model finder API (UserModel.findOne({ where: { email } })).",
     "files": [
@@ -709,7 +709,7 @@
     "status": "open",
     "category": "sql-injection",
     "title": "SQL injection in product search (UNION-based data exfiltration)",
-    "description": "The product-search handler interpolates the unsanitized query parameter q into a raw sequelize. query SQL string.",
+    "description": "The product-search handler interpolates the unsanitized query parameter q into a raw sequelize.query SQL string. An unauthenticated attacker can use UNION-based injection to read every table (including Users email/password hashes) or the schema.",
     "attack_path": "GET /rest/products/search?q=<payload> --interpolated--> sequelize.query --executes--> arbitrary data read",
     "recommendation": "Use parameterized queries with bound replacements, or the Sequelize model API with Op.like.",
     "files": [
@@ -1258,8 +1258,8 @@
     "status": "open",
     "category": "rce",
     "title": "Server-side evaluation of user input (notevil/vm) enables DoS and risks sandbox-escape RCE",
-    "description": "b2bOrder takes body. orderLinesData and evaluates it with notevil's safeEval inside a node:vm context.",
-    "attack_path": "POST /b2b/v2/orders {orderLinesData:'while(true){}'} --safeEval in vm--> event-loop blocked 2s per request --repeat--> service DoS The evaluated string is fully attacker-controlled. A tight loop consumes CPU up to the timeout on each request; parallel requests degrade availability. A notevil/vm escape would upgrade this to arbitrary code execution.",
+    "description": "b2bOrder takes body.orderLinesData and evaluates it with notevil's safeEval inside a node:vm context.",
+    "attack_path": "POST /b2b/v2/orders {orderLinesData:'while(true){}'} --safeEval in vm--> event-loop blocked 2s per request --repeat--> service DoS",
     "recommendation": "Do not evaluate user input. Parse orderLinesData with a real parser (JSON/schema validation). If dynamic evaluation is unavoidable, run it in an isolated process with strict CPU/memory limits, not node:vm.",
     "files": [
       {
@@ -1281,7 +1281,7 @@
     "category": "other-info-disclosure",
     "title": "User enumeration: full user list exposed to any authenticated user",
     "description": "retrieveUserList returns every user's record (email, role, masked password/totp, last login) to any authenticated caller. There is no admin restriction, so a low-privilege customer can enumerate all users and their emails/roles.",
-    "attack_path": "GET /api/Users (any logged-in user) --UserModel.findAll()--> all users' emails/roles returned --> enumeration Passwords/totp are masked, but emails, roles and account metadata for all users are disclosed to non-admins.",
+    "attack_path": "GET /api/Users (any logged-in user) --UserModel.findAll()--> all users' emails/roles returned --> enumeration",
     "recommendation": "Restrict /api/Users listing to admins, or return only the caller's own record; avoid exposing other users' emails/roles.",
     "files": [
       {
@@ -1302,8 +1302,8 @@
     "status": "open",
     "category": "path-traversal",
     "title": "Local file read / template injection via attacker-controlled render layout",
-    "description": "The POST handler passes req. body.",
-    "attack_path": "POST /dataerasure {layout:'/etc/passwd'} --path.resolve(layout)--> filePath --substring denylist passes--> res.render(...,{...req.body})--> file contents rendered/returned Only forbidden substrings are blocked; arbitrary other absolute paths / relative traversal are allowed. The resolved layout is used as a template, and its first 100 chars are returned, disclosing file contents.",
+    "description": "The POST handler passes req.body.layout to path.resolve and spreads the entire request body into res.render locals.",
+    "attack_path": "POST /dataerasure {layout:'/etc/passwd'} --path.resolve(layout)--> filePath --substring denylist passes--> res.render(...,{...req.body})--> file contents rendered/returned",
     "recommendation": "Do not let user input select template/layout paths. Use a fixed template, validate any file reference against an allowlist of known template names, and never spread untrusted req.body into render locals.",
     "files": [
       {
@@ -1325,7 +1325,7 @@
     "category": "insecure-crypto",
     "title": "Passwords hashed with unsalted MD5",
     "description": "User passwords are hashed with a single unsalted MD5 (hash()), used for stored password comparison across login, 2FA setup/disable and change-password. MD5 is fast and broken; unsalted hashes are trivially reversed via rainbow tables if the user table leaks.",
-    "attack_path": "DB/user table leak --contains--> unsalted MD5(password) --rainbow table / GPU cracking--> plaintext passwords hash is used to store and compare passwords (changePassword, 2fa.setup/disable). Any SQL/NoSQL injection or backup exposure that reveals the hashes leads directly to mass credential recovery because there is no salt and MD5 offers no work factor.",
+    "attack_path": "DB/user table leak --contains--> unsalted MD5(password) --rainbow table / GPU cracking--> plaintext passwords",
     "recommendation": "Use a memory-hard password hash (bcrypt/scrypt/argon2) with a per-user salt and appropriate cost factor.",
     "files": [
       {
@@ -1349,8 +1349,8 @@
     "status": "open",
     "category": "secrets-exposure",
     "title": "Hardcoded HMAC secret",
-    "description": "hmac() uses a hardcoded secret string, and deluxeToken() derives its HMAC from the hardcoded RSA private key. Because the secret is in source, any HMAC/token derived from it (e.",
-    "attack_path": "hardcoded HMAC secret in source --known to attacker--> recompute HMAC(email+role) --forge--> deluxe/other tokens The secret material is committed, so integrity guarantees of any value it protects are void.",
+    "description": "hmac() uses a hardcoded secret string, and deluxeToken() derives its HMAC from the hardcoded RSA private key. Because the secret is in source, any HMAC/token derived from it (e.g.",
+    "attack_path": "hardcoded HMAC secret in source --known to attacker--> recompute HMAC(email+role) --forge--> deluxe/other tokens",
     "recommendation": "Move HMAC secrets to runtime configuration/secret storage and rotate them; do not derive tokens from committed key material.",
     "files": [
       {
@@ -1371,8 +1371,8 @@
     "status": "open",
     "category": "llm-chatbot-prompt-injection",
     "title": "LLM prompt injection: privileged generateCoupon tool and confidential prompt reachable via chat",
-    "description": "The chat handler passes user-controlled req. body.",
-    "attack_path": "POST /rest/chat messages=[injection] --streamText(tools)--> model calls generateCoupon(discount=99) --security.generateCoupon--> valid oversized coupon returned The generateCoupon execute (lines 181-186) accepts whatever discount the model produces and returns a real, redeemable coupon; nothing server-side enforces the 10% cap. The confidential 15% policy is embedded in the prompt and can be extracted via injection.",
+    "description": "The chat handler passes user-controlled req.body.messages directly to streamText with a generateCoupon tool whose only limits (max 10% discount, eligibility rules, and a CONFIDENTIAL 15% clause) are expressed in the system prompt text.",
+    "attack_path": "POST /rest/chat messages=[injection] --streamText(tools)--> model calls generateCoupon(discount=99) --security.generateCoupon--> valid oversized coupon returned",
     "recommendation": "Enforce coupon eligibility and the maximum discount in server code (clamp/validate discount before generateCoupon), do not put confidential business rules in the model prompt, and gate privileged tools behind verified server-side authorization checks.",
     "files": [
       {
@@ -1398,8 +1398,8 @@
     "status": "open",
     "category": "other-info-disclosure",
     "title": "Arbitrary field selection leaks password hash and other sensitive fields",
-    "description": "retrieveLoggedInUser lets the client pick which user fields are returned via ? fields=.",
-    "attack_path": "GET /rest/user/whoami?fields=password --loop copies user.data['password']--> response includes password hash --> disclosure The field allowlist is absent; any key present on user.data is echoed back, defeating the intent of the default field set.",
+    "description": "retrieveLoggedInUser lets the client pick which user fields are returned via ?fields=. It copies any requested field from user.data, including password, so a client can request the password hash (and other sensitive fields) that the default response deliberately omits.",
+    "attack_path": "GET /rest/user/whoami?fields=password --loop copies user.data['password']--> response includes password hash --> disclosure",
     "recommendation": "Restrict selectable fields to an explicit allowlist that excludes password, totpSecret, and other sensitive attributes.",
     "files": [
       {
@@ -1421,7 +1421,7 @@
     "category": "xxe-xml-parsing",
     "title": "XXE: external entity resolution and DTD loading enabled on uploaded XML",
     "description": "parseXmlString parses attacker-supplied XML with XML_PARSE_NOENT | XML_PARSE_DTDLOAD and registers filesystem input providers, so external entities such as file:///etc/passwd resolve.",
-    "attack_path": "POST /file-upload (complaint.xml) --handleXmlUpload--> parseXmlString(data) --NOENT|DTDLOAD + FS providers--> file:///etc/passwd read --returned in error message--> disclosure routes/fileUpload.ts:handleXmlUpload reads the uploaded buffer and passes it to parseXmlString; the parsed result (including resolved entity content) is echoed back in the error message (utils.trunc(xmlString, 400)). Nested-entity bombs are only bounded by the 2s vm timeout, not by size/depth limits.",
+    "attack_path": "POST /file-upload (complaint.xml) --handleXmlUpload--> parseXmlString(data) --NOENT|DTDLOAD + FS providers--> file:///etc/passwd read --returned in error message--> disclosure",
     "recommendation": "Disable entity substitution and DTD/external-entity loading (do not set NOENT/DTDLOAD), do not register FS input providers for user input, and enforce input size/entity-expansion limits. If XXE demo is required, isolate it behind explicit opt-in and never on an unauthenticated path.",
     "files": [
       {
@@ -1447,8 +1447,8 @@
     "status": "open",
     "category": "open-redirect",
     "title": "Open redirect via substring allowlist (url.includes)",
-    "description": "isRedirectAllowed decides whether a redirect target is safe using url. includes(allowedUrl) \u2014 a substring test.",
-    "attack_path": "GET /redirect?to=https://evil.com/?x=https://github.com/juice-shop/juice-shop --isRedirectAllowed(url.includes)--> true --res.redirect(toUrl)--> victim sent to evil.com The allowlist entries are meant to be exact destinations, but url.includes(allowedUrl) returns true whenever an allowlisted URL appears as a substring (e.g. as a query parameter) of the attacker URL. routes/redirect.ts then calls res.redirect(toUrl) with the raw attacker value.",
+    "description": "isRedirectAllowed decides whether a redirect target is safe using url.includes(allowedUrl) \u2014 a substring test. An attacker embeds an allowlisted string anywhere in a malicious URL to pass the check, so /redirect?to= becomes an open redirect usable for phishing/credential theft.",
+    "attack_path": "GET /redirect?to=https://evil.com/?x=https://github.com/juice-shop/juice-shop --isRedirectAllowed(url.includes)--> true --res.redirect(toUrl)--> victim sent to evil.com",
     "recommendation": "Use exact-match comparison against the allowlist (Set.has after URL normalization) or compare the parsed URL origin/host against an allowed-host set, rather than substring inclusion.",
     "files": [
       {
@@ -1475,7 +1475,7 @@
     "category": "secrets-exposure",
     "title": "Hardcoded RSA private key (TLS/JWT) committed in Terraform",
     "description": "A full RSA private key is embedded as a string literal in the Terraform aws_iam_server_certificate resource.",
-    "attack_path": "repo / terraform state --contains--> private_key literal --attacker reads--> impersonate TLS endpoint / forge JWTs The key is stored in plaintext in networking.tf (and will also land in Terraform state). Anyone able to read the repository or state file obtains the private key.",
+    "attack_path": "repo / terraform state --contains--> private_key literal --attacker reads--> impersonate TLS endpoint / forge JWTs",
     "recommendation": "Never store private keys in source/IaC. Reference the key from a secret manager (AWS Secrets Manager / SSM SecureString / Terraform sensitive variable sourced from a vault), rotate the exposed key, and add secret scanning to CI.",
     "files": [
       {
@@ -1497,7 +1497,7 @@
     "category": "cross-tenant-id",
     "title": "IDOR: basket retrievable by id without ownership check",
     "description": "retrieveBasket (GET /rest/basket/:id) loads a basket purely by the :id path parameter and returns it, with no verification that the basket belongs to the authenticated user. Any logged-in user can read any other user's basket contents by iterating ids.",
-    "attack_path": "GET /rest/basket/<otherUserBasketId> --findOne({where:{id}})--> returns victim basket --> cross-user data exposure The route is behind isAuthorized, but the handler never compares the basket owner to the caller (the ownership comparison is only used to *solve a challenge*, not to deny access).",
+    "attack_path": "GET /rest/basket/<otherUserBasketId> --findOne({where:{id}})--> returns victim basket --> cross-user data exposure",
     "recommendation": "Verify the basket's owner (UserId) equals the authenticated user's id before returning it; return 403/404 otherwise.",
     "files": [
       {
@@ -1518,8 +1518,8 @@
     "status": "open",
     "category": "missing-auth",
     "title": "Unauthenticated review creation with attacker-controlled author (identity spoofing)",
-    "description": "PUT /rest/products/:id/reviews is registered without any auth middleware and stores author directly from req. body.",
-    "attack_path": "PUT /rest/products/1/reviews {author:'admin@juice-sh.op', message:'...'} --no auth guard--> reviewsCollection.insert(author from body) --> forged review persisted The route (server.ts:652) has no isAuthorized, and the handler inserts author: req.body.author verbatim, so identity is fully attacker-controlled.",
+    "description": "PUT /rest/products/:id/reviews is registered without any auth middleware and stores author directly from req.body. An unauthenticated attacker can create product reviews attributed to any user's email, spoofing identities and injecting stored content.",
+    "attack_path": "PUT /rest/products/1/reviews {author:'admin@juice-sh.op', message:'...'} --no auth guard--> reviewsCollection.insert(author from body) --> forged review persisted",
     "recommendation": "Require authentication and set the review author from the verified session identity, never from the request body.",
     "files": [
       {
@@ -1545,8 +1545,8 @@
     "status": "open",
     "category": "auth-bypass",
     "title": "Password change does not require current password (+ CSRF-prone GET)",
-    "description": "The change-password handler only checks the current password when one is supplied (if (currentPassword && . )).",
-    "attack_path": "GET /rest/user/change-password?new=x&repeat=x (no current) --currentPassword falsy, check skipped--> user.update({password}) --> password changed without old password Because the current-password check is conditional on currentPassword being truthy, an attacker who obtains a valid session token (or lands a CSRF via the GET form) resets the account password without the old credential.",
+    "description": "The change-password handler only checks the current password when one is supplied (if (currentPassword && ...)). Omitting the current parameter skips verification entirely, so a session token holder can set a new password without knowing the old one.",
+    "attack_path": "GET /rest/user/change-password?new=x&repeat=x (no current) --currentPassword falsy, check skipped--> user.update({password}) --> password changed without old password",
     "recommendation": "Always require and verify the current password (or a re-authentication) for password changes; use POST/PUT with CSRF protection instead of GET.",
     "files": [
       {
@@ -1567,8 +1567,8 @@
     "status": "open",
     "category": "cross-tenant-id",
     "title": "BOLA via parameter pollution: ownership checked on first BasketId, item inserted with last",
-    "description": "addBasketItem parses the raw body for all BasketId values, validates ownership against basketIds[0], but then builds the inserted item from basketIds[basketIds. length - 1].",
-    "attack_path": "POST /api/BasketItems body with BasketId=own & BasketId=victim --check uses basketIds[0]=own (passes)--> insert uses basketIds[last]=victim --> item added to victim basket The validated value and the used value differ, so the authorization check does not constrain the value actually persisted (classic HTTP parameter pollution / BOLA).",
+    "description": "addBasketItem parses the raw body for all BasketId values, validates ownership against basketIds[0], but then builds the inserted item from basketIds[basketIds.length - 1].",
+    "attack_path": "POST /api/BasketItems body with BasketId=own & BasketId=victim --check uses basketIds[0]=own (passes)--> insert uses basketIds[last]=victim --> item added to victim basket",
     "recommendation": "Reject requests containing multiple BasketId values, and validate/authorize the exact single BasketId that will be persisted (ideally derive it from the authenticated user's basket rather than the request body).",
     "files": [
       {
@@ -1589,8 +1589,8 @@
     "status": "open",
     "category": "auth-bypass",
     "title": "Broken authorization in getOrderById: user identity taken from unverified JWT",
-    "description": "The chatbot getOrderById tool authorizes access to an order by comparing the order's masked email to the current customer's masked email, but the customer id comes from getUserId, which uses security. decode (an unverified JWT decode).",
-    "attack_path": "POST /rest/chat with crafted token (data.id=VICTIM) --getUserId(decode, no verify)--> userId=VICTIM --findByPk--> victim email --mask--> compare to order.email --matches--> victim order returned getUserId (lines 42-47) calls security.decode(token) which returns the payload without signature verification. getOrderById then loads the user by that id, masks their email, and returns any order whose stored (masked) email matches \u2014 so controlling data.id yields another user's orders. /rest/chat has no isAuthorized guard, and updateAuthenticatedUsers does not reject invalid tokens.",
+    "description": "The chatbot getOrderById tool authorizes access to an order by comparing the order's masked email to the current customer's masked email, but the customer id comes from getUserId, which uses security.decode (an unverified JWT decode).",
+    "attack_path": "POST /rest/chat with crafted token (data.id=VICTIM) --getUserId(decode, no verify)--> userId=VICTIM --findByPk--> victim email --mask--> compare to order.email --matches--> victim order returned",
     "recommendation": "Derive the user identity from a verified token (security.verify before decode, or the authenticatedUsers map keyed to a verified session), require isAuthorized on /rest/chat, and authorize orders by an ownership foreign key rather than a lossy masked-email match.",
     "files": [
       {
@@ -1617,7 +1617,7 @@
     "category": "jwt-handling",
     "title": "Hardcoded RSA private key enables JWT forgery / full authentication bypass",
     "description": "The RSA private key used to sign all authentication JWTs is hardcoded in source. Anyone reading the repository can sign a valid RS256 token with arbitrary data (any user id, email, role), yielding complete authentication bypass and privilege escalation to admin.",
-    "attack_path": "public source (privateKey const) --forge--> jwt.sign({data:{role:'admin',...}}, privateKey, RS256) --send as token--> isAuthorized()/authenticatedUsers --grants--> admin session The private key on line 21 is the exact counterpart of encryptionkeys/jwt.pub used by isAuthorized/verify. An attacker copies the key, signs any payload, and every server-side check (isAccounting, isDeluxe, isCustomer, express-jwt) accepts it. verify (line 55) calls jws.verify(token, publicKey) without an algorithm argument, and decode (line 56) returns the payload with no signature check, so downstream authz that uses decode alone trusts attacker-supplied claims.",
+    "attack_path": "public source (privateKey const) --forge--> jwt.sign({data:{role:'admin',...}}, privateKey, RS256) --send as token--> isAuthorized()/authenticatedUsers --grants--> admin session",
     "recommendation": "Load the private key from a secret store / environment at runtime, never commit it. Rotate the key. Pin the accepted algorithm (RS256) in every verify path and reject alg:none/HS256. Never authorize based on decode() output without verify().",
     "files": [
       {
@@ -1643,8 +1643,8 @@
     "status": "open",
     "category": "xss",
     "title": "Reflected DOM XSS: search query bound to [innerHTML] via bypassSecurityTrustHtml",
-    "description": "The q search query parameter is taken directly from the URL, wrapped with DomSanitizer. bypassSecurityTrustHtml, and bound to [innerHTML] in the template.",
-    "attack_path": "GET /#/search?q=<img src=x onerror=alert(document.cookie)> --route.snapshot.queryParams.q--> filterTable() --bypassSecurityTrustHtml(queryParam)--> searchValue --[innerHTML]=\"searchValue\"--> DOM --> JS execution In filterTable() the raw q query param is read and passed straight into bypassSecurityTrustHtml, producing a SafeHtml that the template renders through [innerHTML]=\"searchValue\" on #searchValue. No escaping or allowlist is applied, so any markup in q is injected verbatim into the page and event handlers fire.",
+    "description": "The q search query parameter is taken directly from the URL, wrapped with DomSanitizer.bypassSecurityTrustHtml, and bound to [innerHTML] in the template.",
+    "attack_path": "GET /#/search?q=<img src=x onerror=alert(document.cookie)> --route.snapshot.queryParams.q--> filterTable() --bypassSecurityTrustHtml(queryParam)--> searchValue --[innerHTML]=\"searchValue\"--> DOM --> JS execution",
     "recommendation": "Do not call bypassSecurityTrustHtml on user input. Bind the search term with {{ }} interpolation or [textContent], letting Angular escape it; if HTML rendering is truly required, sanitize with DomSanitizer.sanitize(SecurityContext.HTML, value) instead of bypassing.",
     "files": [
       {
@@ -1671,7 +1671,7 @@
     "category": "xss",
     "title": "Stored XSS in admin panel: user email and feedback comment rendered via bypassSecurityTrustHtml",
     "description": "The administration panel wraps each user's email and each feedback comment with bypassSecurityTrustHtml and binds them to [innerHTML]. Both fields are populated from low-privilege user input (registration email, submitted feedback).",
-    "attack_path": "attacker registers with markup in email / posts feedback --stored--> userService.find()/feedbackService.find() --bypassSecurityTrustHtml(email|comment)--> [innerHTML] in admin table--> JS runs in admin browser In findAllUsers() the email is embedded in a <span> marked trusted; in findAllFeedbacks() the comment is marked trusted. Both are rendered through [innerHTML] in the admin-only table, so a stored payload fires with the administrator's privileges.",
+    "attack_path": "attacker registers with markup in email / posts feedback --stored--> userService.find()/feedbackService.find() --bypassSecurityTrustHtml(email|comment)--> [innerHTML] in admin table--> JS runs in admin browser",
     "recommendation": "Render email and comment as text (interpolation) rather than trusted HTML; if formatting is needed, sanitize with DomSanitizer.sanitize(SecurityContext.HTML, ...). Validate/escape email at registration and enforce robust server-side comment sanitization.",
     "files": [
       {
@@ -1698,7 +1698,7 @@
     "category": "xss",
     "title": "Stored XSS: feedback comment concatenated into HTML and marked trusted",
     "description": "User-submitted feedback comments are concatenated into an HTML string and passed to bypassSecurityTrustHtml, then rendered via [innerHTML] in the About page slideshow.",
-    "attack_path": "attacker POSTs feedback comment --stored (weak sanitizeHtml)--> feedbackService.find() --<figcaption>...${comment}...--> bypassSecurityTrustHtml --gallery arg--> [innerHTML]=\"item?.args\" --> JS execution for all About-page visitors In populateSlideshowFromFeedbacks() the comment is inlined into a template string and the whole string is marked as trusted HTML, disabling Angular sanitization. The About page is publicly reachable, so the payload runs for all viewers.",
+    "attack_path": "attacker POSTs feedback comment --stored (weak sanitizeHtml)--> feedbackService.find() --<figcaption>...${comment}...--> bypassSecurityTrustHtml --gallery arg--> [innerHTML]=\"item?.args\" --> JS execution for all About-page visitors",
     "recommendation": "Do not build HTML by string concatenation with user data and do not bypass sanitization. Render the comment as text (interpolation) or sanitize via DomSanitizer.sanitize(SecurityContext.HTML, ...). Fix/enforce robust server-side sanitization of feedback comments.",
     "files": [
       {
@@ -1725,7 +1725,7 @@
     "category": "xss",
     "title": "Persisted XSS: product description rendered via bypassSecurityTrustHtml",
     "description": "trustProductDescription() wraps every product's description with bypassSecurityTrustHtml, and product descriptions are rendered as HTML in the search results.",
-    "attack_path": "attacker sets product.description (SQLi / product API) --server returns products--> trustProductDescription() --bypassSecurityTrustHtml(description)--> product.description --[innerHTML] in product card--> JS execution for all viewers Product data comes from the REST product endpoint. The component disables Angular sanitization for each description, so stored HTML/script in a description is rendered as-is to all visitors.",
+    "attack_path": "attacker sets product.description (SQLi / product API) --server returns products--> trustProductDescription() --bypassSecurityTrustHtml(description)--> product.description --[innerHTML] in product card--> JS execution for all viewers",
     "recommendation": "Avoid bypassing sanitization on server-provided product descriptions. Render descriptions with interpolation or run them through DomSanitizer.sanitize(SecurityContext.HTML, ...); treat any field originating from the database as untrusted.",
     "files": [
       {
@@ -1747,7 +1747,7 @@
     "category": "xss",
     "title": "XSS via last-login IP (True-Client-IP header) rendered with bypassSecurityTrustHtml",
     "description": "The component decodes lastLoginIp from the JWT and renders it via bypassSecurityTrustHtml into [innerHTML], disabling Angular sanitization. The value originates from the attacker-supplied True-Client-IP request header at login.",
-    "attack_path": "login request with True-Client-IP: <iframe src=javascript:...> --saveLoginIp (unsanitized on challenge path)--> user.lastLoginIp --JWT--> bypassSecurityTrustHtml(<small>${lastLoginIp}</small>) --[innerHTML]--> JS execution in that user's session The frontend unconditionally trusts the value; the server only stores it unsanitized when httpHeaderXssChallenge is enabled (otherwise sanitizeSecure runs). The rendered IP is displayed to the same user, so it is primarily self-XSS.",
+    "attack_path": "login request with True-Client-IP: <iframe src=javascript:...> --saveLoginIp (unsanitized on challenge path)--> user.lastLoginIp --JWT--> bypassSecurityTrustHtml(<small>${lastLoginIp}</small>) --[innerHTML]--> JS execution in that user's session",
     "recommendation": "Render lastLoginIp as text (interpolation) instead of trusted HTML, and always sanitize the True-Client-IP header server-side regardless of challenge flags.",
     "files": [
       {
@@ -1775,8 +1775,8 @@
     "status": "dismissed",
     "category": "rate-limit-bypass",
     "title": "Rate limiting on password reset bypassable via spoofed X-Forwarded-For",
-    "description": "The application enables trust proxy unconditionally and keys the /rest/user/reset-password rate limiter on the X-Forwarded-For header (falling back to req. ip, which is itself derived from X-Forwarded-For once trust proxy is on).",
-    "attack_path": "attacker --sets unique X-Forwarded-For per request--> app.enable('trust proxy') + keyGenerator uses X-Forwarded-For/req.ip --distinct key each request--> reset-password rate limiter never trips --> unlimited security-answer guessing Because app.enable('trust proxy') makes Express derive req.ip from the client-supplied X-Forwarded-For, and the keyGenerator explicitly returns that header, the attacker fully controls the bucket key. Rotating it per request keeps every counter at 1, so the max: 100 window is never reached and password-reset answer guessing can proceed without throttling.",
+    "description": "The application enables trust proxy unconditionally and keys the /rest/user/reset-password rate limiter on the X-Forwarded-For header (falling back to req.ip, which is itself derived from X-Forwarded-For once trust proxy is on).",
+    "attack_path": "attacker --sets unique X-Forwarded-For per request--> app.enable('trust proxy') + keyGenerator uses X-Forwarded-For/req.ip --distinct key each request--> reset-password rate limiter never trips --> unlimited security-answer guessing",
     "recommendation": "Do not derive the rate-limit key from client-supplied headers. Configure trust proxy to the specific number/CIDR of trusted proxies (or disable it when there is none) and let express-rate-limit use the framework-resolved req.ip; remove the custom keyGenerator that reads X-Forwarded-For.",
     "files": [
       {
@@ -1797,8 +1797,8 @@
     "status": "open",
     "category": "auth-bypass",
     "title": "Missing authorization on /rest/track-order/:id enables order data IDOR",
-    "description": "The /rest/track-order/:id route is registered with no authentication or ownership middleware, unlike most other /rest/* and /api/* routes that are wrapped with security. isAuthorized().",
-    "attack_path": "unauthenticated attacker --GET /rest/track-order/<guessed or enumerated id>--> trackOrder() (no guard) --> returns another user's order details The central routing table adds security.isAuthorized() (and sometimes appendUserId()) in front of sensitive handlers, but the track-order line has neither, so the handler runs for anyone and scopes results only by the :id path parameter rather than by the caller's identity.",
+    "description": "The /rest/track-order/:id route is registered with no authentication or ownership middleware, unlike most other /rest/* and /api/* routes that are wrapped with security.isAuthorized().",
+    "attack_path": "unauthenticated attacker --GET /rest/track-order/<guessed or enumerated id>--> trackOrder() (no guard) --> returns another user's order details",
     "recommendation": "Require authentication for order tracking and verify the order belongs to the authenticated user (compare the order's UserId to the caller's id) before returning data. Use an unguessable identifier as defense in depth.",
     "files": [
       {
@@ -1824,8 +1824,8 @@
     "status": "open",
     "category": "rce",
     "title": "Server-side eval / Pug SSTI on user-controlled username leads to RCE",
-    "description": "getUserProfile builds the profile page by reading views/userProfile. pug, substituting the current user's username into it, and then pug.",
-    "attack_path": "POST /profile (username = \"#{require('child_process').execSync('id')}\") --stored on user record--> GET /profile --username matches /#{(.*)}/--> code = eval(code) --and--> template.replace(_username_, username) --> pug.compile(template) --> RCE The username is stored unvalidated via updateUserProfile (user.update({ username: req.body.username })). On the next GET /profile, getUserProfile reads it back, and because username.match(/#{(.*)}/) succeeds, code is the raw brace contents and eval(code) executes it server-side. Even without eval, the raw username is spliced into the Pug template string and compiled, so #{...} expressions evaluate in the Pug runtime \u2014 either sink yields code execution.",
+    "description": "getUserProfile builds the profile page by reading views/userProfile.pug, substituting the current user's username into it, and then pug.compile()-ing the result.",
+    "attack_path": "POST /profile (username = \"#{require('child_process').execSync('id')}\") --stored on user record--> GET /profile --username matches /#{(.*)}/--> code = eval(code) --and--> template.replace(_username_, username) --> pug.compile(template) --> RCE",
     "recommendation": "Never pass user-controlled data to eval() or into a template string that is later compiled. Render the username as a data value passed to a precompiled template (pug.compileFile with locals) so it cannot be interpreted as template source, and HTML-escape it. Remove the eval(code) branch entirely.",
     "files": [
       {
@@ -1856,8 +1856,8 @@
     "status": "dismissed",
     "category": "other-broken-access-control",
     "title": "Invalid IP allowlist on /api/Quantitys/:id (broken access control config)",
-    "description": "The write endpoint /api/Quantitys/:id is protected by IpFilter(['123. 456.",
-    "attack_path": "admin/accounting write path --relies on IpFilter(['123.456.789'])--> allowlist entry is not a valid IP --> filter provides no meaningful restriction The intended second layer (source-IP restriction) does not function as written because the configured address is invalid, leaving only the role check. Any hardening intended by the IP filter is illusory.",
+    "description": "The write endpoint /api/Quantitys/:id is protected by IpFilter(['123.456.789'], { mode: 'allow' }). 123.456.789 is not a valid IPv4 address, so the allowlist is meaningless: it neither reliably restricts to an intended operator IP nor documents a real control.",
+    "attack_path": "admin/accounting write path --relies on IpFilter(['123.456.789'])--> allowlist entry is not a valid IP --> filter provides no meaningful restriction",
     "recommendation": "Remove the bogus IP filter or replace it with a validated list of real trusted IP/CIDR ranges. Do not rely on client source IP as an authorization control for multi-tenant HTTP APIs.",
     "files": [
       {
@@ -1878,8 +1878,8 @@
     "status": "open",
     "category": "cors-wildcard",
     "title": "Wildcard CORS enabled for all origins",
-    "description": "The application enables CORS for every origin (app. options('*', cors()) and app.",
-    "attack_path": "victim visits attacker page --page issues fetch() to Juice Shop API--> ACAO:* allows JS to read response --leads to--> cross-origin read of non-credentialed API data The permissive wildcard removes the same-origin protection browsers would otherwise enforce on reading API responses. Because credentials are not sent automatically (token lives in an Authorization header, not a cookie), an attacker page cannot ride the victim's session, limiting this to disclosure of data that requires no authentication.",
+    "description": "The application enables CORS for every origin (app.options('*', cors()) and app.use(cors()) with default options), producing Access-Control-Allow-Origin: * on API responses. Any website can therefore read responses from the Juice Shop API cross-origin.",
+    "attack_path": "victim visits attacker page --page issues fetch() to Juice Shop API--> ACAO:* allows JS to read response --leads to--> cross-origin read of non-credentialed API data",
     "recommendation": "Restrict CORS to an explicit allowlist of trusted origins and only enable credentials where genuinely required; avoid the blanket cors() wildcard.",
     "files": [
       {
@@ -1900,8 +1900,8 @@
     "status": "dismissed",
     "category": "rate-limit-bypass",
     "title": "Rate limiter on password reset keyed on client-controlled X-Forwarded-For / proxied IP",
-    "description": "The rate limiter protecting /rest/user/reset-password derives its throttling key from an attacker-controlled value. app.",
-    "attack_path": "attacker HTTP request --sets/rotates X-Forwarded-For header--> trust proxy derives req.ip + keyGenerator uses XFF --produces unique key per request--> express-rate-limit never trips --leads to--> unlimited brute force of reset-password security answer --> account takeover Because trust proxy is enabled application-wide, Express trusts the X-Forwarded-For header to compute req.ip. The reset-password limiter's keyGenerator explicitly returns the header (or ip, which is also XFF-derived). Since the attacker fully controls that header when talking directly to the app (no enforcing proxy strips/overwrites it), every request can present a new key, so the counter never accumulates and the limit is meaningless.",
+    "description": "The rate limiter protecting /rest/user/reset-password derives its throttling key from an attacker-controlled value. app.enable('trust proxy') is set globally, and the limiter's keyGenerator returns headers['X-Forwarded-For'] ??",
+    "attack_path": "attacker HTTP request --sets/rotates X-Forwarded-For header--> trust proxy derives req.ip + keyGenerator uses XFF --produces unique key per request--> express-rate-limit never trips --leads to--> unlimited brute force of reset-password security answer --> account takeover",
     "recommendation": "Do not key the limiter on a client-supplied header. Configure trust proxy to the specific known proxy hop count / addresses, and use the default IP-based key generator (or a per-account key such as the target email) so the limit cannot be reset by header rotation.",
     "files": [
       {
@@ -1922,8 +1922,8 @@
     "status": "open",
     "category": "cross-tenant-id",
     "title": "Missing user-binding on POST /api/Feedbacks allows forged feedback authorship (UserId spoofing)",
-    "description": "POST /api/Feedbacks is intentionally left unauthenticated and, unlike the basket/card/address routes, is NOT wrapped with security. appendUserId().",
-    "attack_path": "unauthenticated POST /api/Feedbacks {comment, rating, UserId: <victim id>} --no appendUserId to overwrite UserId--> finale create inserts row with attacker-chosen UserId --leads to--> feedback persisted as authored by an arbitrary user Routes that must scope a record to the caller (basket, cards, addresses, memories) call security.appendUserId(), which overwrites req.body.UserId with the authenticated user's id. The Feedbacks POST route has no such guard, and the finale-generated create endpoint persists whatever attributes the body contains. Because Feedback.UserId is a plain settable column with no server-side binding, the attacker fully controls the recorded author.",
+    "description": "POST /api/Feedbacks is intentionally left unauthenticated and, unlike the basket/card/address routes, is NOT wrapped with security.appendUserId(). Feedback creation is handled by the finale auto-generated CRUD resource, and the Feedback model exposes a freely-settable UserId integer attribute.",
+    "attack_path": "unauthenticated POST /api/Feedbacks {comment, rating, UserId: <victim id>} --no appendUserId to overwrite UserId--> finale create inserts row with attacker-chosen UserId --leads to--> feedback persisted as authored by an arbitrary user",
     "recommendation": "Bind feedback to the authenticated user server-side (e.g. require auth and apply appendUserId()), or strip/ignore any client-supplied UserId in a finale create.write.before hook so the association is derived from the session rather than the request body.",
     "files": [
       {
@@ -1949,8 +1949,8 @@
     "status": "dismissed",
     "category": "other-misconfiguration",
     "title": "Invalid/bogus IP allowlist on /api/Quantitys/:id",
-    "description": "/api/Quantitys/:id is guarded by security. isAccounting() followed by IpFilter(['123.",
-    "attack_path": "request to /api/Quantitys/:id --isAccounting JWT role check--> IpFilter allow-list with invalid IP --never matches--> request denied (fail closed) The route is still gated by the accounting-role JWT check, and the malformed allowlist denies rather than permits, so there is no direct bypass. This is flagged as a configuration defect / defense-in-depth smell rather than an exploitable hole.",
+    "description": "/api/Quantitys/:id is guarded by security.isAccounting() followed by IpFilter(['123.456.789'], { mode: 'allow' }). 123.456.789 is not a valid IPv4 address, so the allowlist entry can never match a real client.",
+    "attack_path": "request to /api/Quantitys/:id --isAccounting JWT role check--> IpFilter allow-list with invalid IP --never matches--> request denied (fail closed)",
     "recommendation": "Replace the placeholder with the real intended CIDR/IP allowlist, or remove the IpFilter if IP restriction is not actually required; add a test asserting the intended allow/deny behavior.",
     "files": [
       {
@@ -1972,7 +1972,7 @@
     "category": "secrets-exposure",
     "title": "Hardcoded cookie-parser signing secret ('kekse')",
     "description": "cookieParser('kekse') configures a hardcoded signing secret committed in source. Anyone with source access (Juice Shop is public) knows the secret and could forge validly-signed cookies.",
-    "attack_path": "attacker reads hardcoded secret 'kekse' from public source --> can compute valid cookie signatures --leads to--> forgery of any future signed cookie the app trusts The risk is latent rather than active: the signing secret is public, so any signed-cookie trust boundary added later would be immediately forgeable. No current code path consumes signed cookies, so there is no live exploit.",
+    "attack_path": "attacker reads hardcoded secret 'kekse' from public source --> can compute valid cookie signatures --leads to--> forgery of any future signed cookie the app trusts",
     "recommendation": "Load the cookie-parser secret from configuration/environment with sufficient entropy, and rotate it; never commit signing secrets to source.",
     "files": [
       {
@@ -1993,8 +1993,8 @@
     "status": "open",
     "category": "secrets-exposure",
     "title": "Hardcoded RSA private key in Terraform (reused as JWT signing key)",
-    "description": "The TLS server certificate's RSA private key is hardcoded directly in the Terraform source (aws_iam_server_certificate. juice_shop_tls.",
-    "attack_path": "attacker reads repo / IaC --obtains hardcoded RSA private key--> signs arbitrary RS256 JWT (role=admin) --token validates against publicKey in isAuthorized()--> full authentication bypass / admin impersonation \\--use key as TLS cert private key--> MITM / decrypt HTTPS traffic to the ALB The key on line 171 is byte-identical to the privateKey constant in lib/insecurity.ts (line 21), which authorize() uses to mint RS256 tokens. Since token verification (isAuthorized, verify) trusts any signature made with this key, possession of the leaked private key lets an attacker craft tokens with data.role = 'admin' that pass all server-side authorization middleware in server.ts. Separately, the same key backs the ALB HTTPS listener, so its exposure also compromises transport confidentiality.",
+    "description": "The TLS server certificate's RSA private key is hardcoded directly in the Terraform source (aws_iam_server_certificate.juice_shop_tls.private_key). Anyone with read access to the repository obtains the private key used for the ALB's HTTPS listener, enabling impersonation/decryption of TLS traffic.",
+    "attack_path": "attacker reads repo / IaC --obtains hardcoded RSA private key--> signs arbitrary RS256 JWT (role=admin) --token validates against publicKey in isAuthorized()--> full authentication bypass / admin impersonation",
     "recommendation": "Remove the private key from source control and rotate it immediately (it is already compromised by being committed). Store the certificate/key in AWS ACM or a secrets manager and reference it by ARN/variable in Terraform. Rotate the JWT signing keypair separately and use a strong (>=2048-bit) key. Pin the JWT verification algorithm to RS256 and never share the TLS key with the JWT signing key.",
     "files": [
       {
@@ -2030,8 +2030,8 @@
     "status": "open",
     "category": "other-broken-access-control",
     "title": "Ineffective/broken IP allowlist on /api/Quantitys/:id",
-    "description": "The route /api/Quantitys/:id is guarded by isAccounting() followed by IpFilter(['123. 456.",
-    "attack_path": "request to /api/Quantitys/:id --passes isAccounting()--> IpFilter allowlist with invalid IP --allowlist entry never matches a real client--> control is broken (no meaningful IP restriction, or blanket deny) The security impact is limited because isAccounting() still requires an accounting-role JWT, so this is not a direct authorization bypass \u2014 it is a broken supplementary control. It is flagged per reviewer guidance that a bogus allowlist like IpFilter(['123.456.789']) is worth surfacing.",
+    "description": "The route /api/Quantitys/:id is guarded by isAccounting() followed by IpFilter(['123.456.789'], { mode: 'allow' }). 123.456.789 is not a valid IPv4/IPv6 address, so the intended IP restriction is meaningless: it can never match a real client address.",
+    "attack_path": "request to /api/Quantitys/:id --passes isAccounting()--> IpFilter allowlist with invalid IP --allowlist entry never matches a real client--> control is broken (no meaningful IP restriction, or blanket deny)",
     "recommendation": "Replace the invalid placeholder with the real, valid CIDR ranges that should be permitted, or remove the IpFilter entirely if network-level restriction is not actually intended. Validate allowlist entries at startup so malformed IPs fail loudly rather than silently disabling the control.",
     "files": [
       {
@@ -2052,8 +2052,8 @@
     "status": "dismissed",
     "category": "cors-wildcard",
     "title": "Permissive CORS policy allows all origins",
-    "description": "CORS is enabled globally with app. use(cors()) and app.",
-    "attack_path": "malicious site JS --fetch to Juice Shop API--> server responds with Access-Control-Allow-Origin: * --browser allows cross-origin read--> attacker site reads any non-credentialed API response Because credentials are not allowed, the browser will not attach cookies to these cross-origin requests, and Bearer tokens are not automatically sent, so an attacker cannot trivially read a victim's authenticated data through this alone. It still broadens the attack surface (e.g. combined with any endpoint that reflects data based on unauthenticated input).",
+    "description": "CORS is enabled globally with app.use(cors()) and app.options('*', cors()) using default options, which sets Access-Control-Allow-Origin: * for all API responses. Any web origin can therefore read responses from the API in a victim's browser.",
+    "attack_path": "malicious site JS --fetch to Juice Shop API--> server responds with Access-Control-Allow-Origin: * --browser allows cross-origin read--> attacker site reads any non-credentialed API response",
     "recommendation": "Restrict CORS to an explicit allowlist of trusted origins and only enable credentials when required. Avoid the wildcard configuration for an application that serves user-specific data.",
     "files": [
       {
@@ -2075,7 +2075,7 @@
     "category": "rate-limit-bypass",
     "title": "Rate limiter on password reset bypassable via spoofed X-Forwarded-For header",
     "description": "The rate limiter guarding /rest/user/reset-password derives its throttling key from the client-supplied X-Forwarded-For header. An unauthenticated attacker can rotate this header value on every request to receive a fresh rate-limit bucket each time, completely defeating the throttle.",
-    "attack_path": "attacker HTTP request --sets arbitrary X-Forwarded-For--> keyGenerator returns spoofed value --each value = new bucket--> rate limit never trips --unlimited attempts--> brute-force security answer on /rest/user/reset-password --leads to--> password reset / account takeover Line 361 enables trust proxy, and the keyGenerator on line 365 returns headers['X-Forwarded-For'] ?? ip. Because the header is fully attacker-controlled and there is no trusted proxy stripping/normalizing it, each distinct forged value maps to a distinct limiter key, so the max: 100 window is never reached. The reset-password handler then checks only the user's security answer, which is typically low-entropy and now brute-forceable at will.",
+    "attack_path": "attacker HTTP request --sets arbitrary X-Forwarded-For--> keyGenerator returns spoofed value --each value = new bucket--> rate limit never trips --unlimited attempts--> brute-force security answer on /rest/user/reset-password --leads to--> password reset / account takeover",
     "recommendation": "Do not derive the rate-limit key from a client-controlled header. Use the framework's validated client IP (e.g. express-rate-limit default keyGenerator with a correctly-configured trust proxy hop count that matches the real proxy topology), or key on the target account email. If X-Forwarded-For must be honored, configure trust proxy to the exact number of trusted proxies so only the proxy-appended IP is used.",
     "files": [
       {
