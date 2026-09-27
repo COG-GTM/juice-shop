@@ -32,12 +32,12 @@ function loadJwtKeyPair () {
   return { privateKey, publicKey }
 }
 
-// Best-effort only, so the key shows up in the /encryptionkeys directory listing.
-// It is always served from memory by the key server route.
 function publishPublicKey (publicKey: string) {
   try {
     fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-  } catch { /* read-only deployments keep serving the key from memory */ }
+  } catch (error) {
+    console.warn(`Could not write encryptionkeys/jwt.pub (${utils.getErrorMessage(error)}). The public key is still served from memory at /encryptionkeys/jwt.pub but is missing from the directory listing.`)
+  }
 }
 
 function generatePrivateKey () {
