@@ -226,6 +226,17 @@ describe('insecurity', () => {
       const signature = crypto.createSign('RSA-SHA256').update(`${header}.${payload}`).sign(privateKey, 'base64url')
       expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
     })
+
+    it('rejects correctly signed tokens whose header alg is not RS256', () => {
+      const verifySignature = sinon.stub(crypto, 'verify').returns(true)
+      try {
+        expect(security.verify(`${encode({ alg: 'RS256', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(true)
+        expect(security.verify(`${encode({ alg: 'HS256', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(false)
+        expect(security.verify(`${encode({ alg: 'none', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(false)
+      } finally {
+        verifySignature.restore()
+      }
+    })
   })
 
   describe('isAuthorized', () => {
