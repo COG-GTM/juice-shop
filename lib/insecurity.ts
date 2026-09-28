@@ -46,6 +46,7 @@ const PASSWORD_HASH_ALGORITHM = 'scrypt'
 const PASSWORD_SALT_BYTES = 16
 const PASSWORD_KEY_BYTES = 64
 const SCRYPT_DEFAULTS = { N: 16384, r: 8, p: 5 }
+const SCRYPT_LIMITS = { N: 65536, r: 8, p: 16 }
 
 interface ParsedPasswordHash {
   N: number
@@ -61,29 +62,45 @@ const parsePasswordHash = (storedHash?: string | null): ParsedPasswordHash | und
   const [N, r, p] = parts.slice(1, 4).map(Number)
   const salt = Buffer.from(parts[4], 'base64url')
   const key = Buffer.from(parts[5], 'base64url')
-  const validCost = Number.isInteger(N) && N > 1 && N <= 2 ** 20 && (N & (N - 1)) === 0
-  const validBlock = Number.isInteger(r) && r > 0 && r <= 32 && Number.isInteger(p) && p > 0 && p <= 16
+  const validCost = Number.isInteger(N) && N > 1 && N <= SCRYPT_LIMITS.N && (N & (N - 1)) === 0
+  const validBlock = Number.isInteger(r) && r > 0 && r <= SCRYPT_LIMITS.r && Number.isInteger(p) && p > 0 && p <= SCRYPT_LIMITS.p
   if (!validCost || !validBlock || salt.length !== PASSWORD_SALT_BYTES || key.length !== PASSWORD_KEY_BYTES) return undefined
   return { N, r, p, salt, key }
 }
 
-const deriveKey = (password: string, salt: Buffer, N: number, r: number, p: number) =>
-  crypto.scryptSync(password, salt, PASSWORD_KEY_BYTES, { N, r, p, maxmem: 256 * N * r })
+const scryptOptions = (N: number, r: number, p: number) => ({ N, r, p, maxmem: 256 * N * r })
+
+const deriveKey = async (password: string, salt: Buffer, N: number, r: number, p: number) =>
+  await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p), (err, key) => { err ? reject(err) : resolve(key) })
+  })
+
+const formatPasswordHash = (N: number, r: number, p: number, salt: Buffer, key: Buffer) =>
+  [PASSWORD_HASH_ALGORITHM, N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$')
 
 /**
- * Salted scrypt password hash in the format `scrypt$N$r$p$salt$key`.
- * When a valid stored hash is given, its salt and cost parameters are reused so the result can be compared against it.
+ * Salted scrypt password hash in the format `scrypt$N$r$p$salt$key` using a fresh random salt.
  */
-export const hashPassword = (password: string, storedHash?: string | null) => {
-  const { N, r, p, salt } = parsePasswordHash(storedHash) ?? { ...SCRYPT_DEFAULTS, salt: crypto.randomBytes(PASSWORD_SALT_BYTES) }
-  const key = deriveKey(String(password), salt, N, r, p)
-  return [PASSWORD_HASH_ALGORITHM, N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$')
+export const hashPassword = (password: string) => {
+  const { N, r, p } = SCRYPT_DEFAULTS
+  const salt = crypto.randomBytes(PASSWORD_SALT_BYTES)
+  const key = crypto.scryptSync(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p))
+  return formatPasswordHash(N, r, p, salt, key)
 }
 
-export const verifyPassword = (password: string, storedHash?: string | null) => {
+/**
+ * Hashes a password with the salt and cost parameters of a valid stored hash (or a fresh salt otherwise),
+ * so the result can be compared against the stored hash.
+ */
+export const rehashPassword = async (password: string, storedHash?: string | null) => {
+  const { N, r, p, salt } = parsePasswordHash(storedHash) ?? { ...SCRYPT_DEFAULTS, salt: crypto.randomBytes(PASSWORD_SALT_BYTES) }
+  return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
+}
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
   const parsed = parsePasswordHash(storedHash)
   if (!parsed) return false
-  const key = deriveKey(String(password), parsed.salt, parsed.N, parsed.r, parsed.p)
+  const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
   return crypto.timingSafeEqual(key, parsed.key)
 }
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')

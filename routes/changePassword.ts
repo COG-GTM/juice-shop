@@ -36,7 +36,7 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && !security.verifyPassword(currentPassword, loggedInUser.data.password)) {
+    if (currentPassword && !await security.verifyPassword(currentPassword, loggedInUser.data.password)) {
       res.status(401).send(res.__('Current password is not correct.'))
       return
     }
@@ -49,10 +49,8 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && security.verifyPassword('slurmCl4ssic', user.password)
-      )
+      const isSlurmClassic = user.id === 3 && !currentPassword && await security.verifyPassword('slurmCl4ssic', user.password)
+      challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => isSlurmClassic)
       res.json({ user })
     } catch (error) {
       next(error)

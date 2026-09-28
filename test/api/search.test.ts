@@ -95,14 +95,14 @@ void describe('/rest/products/search', () => {
     assert.ok(res.headers['content-type']?.includes('application/json'))
 
     const adminMatch = res.body.data.find((item: any) =>
-      item.id === 1 && item.price === `admin@${config.get<string>('application.domain')}` && security.verifyPassword('admin123', item.deluxePrice)
+      item.id === 1 && item.price === `admin@${config.get<string>('application.domain')}`
     )
-    assert.ok(adminMatch, 'Expected admin user in UNION SELECT results')
+    assert.ok(adminMatch && await security.verifyPassword('admin123', adminMatch.deluxePrice), 'Expected admin user in UNION SELECT results')
 
     const jimMatch = res.body.data.find((item: any) =>
-      item.id === 2 && item.price === `jim@${config.get<string>('application.domain')}` && security.verifyPassword('ncc-1701', item.deluxePrice)
+      item.id === 2 && item.price === `jim@${config.get<string>('application.domain')}`
     )
-    assert.ok(jimMatch, 'Expected jim user in UNION SELECT results')
+    assert.ok(jimMatch && await security.verifyPassword('ncc-1701', jimMatch.deluxePrice), 'Expected jim user in UNION SELECT results')
 
     const benderMatch = res.body.data.find((item: any) =>
       item.id === 3 && item.price === `bender@${config.get<string>('application.domain')}`
@@ -110,19 +110,19 @@ void describe('/rest/products/search', () => {
     assert.ok(benderMatch, 'Expected bender user in UNION SELECT results')
 
     const bjoernMatch = res.body.data.find((item: any) =>
-      item.id === 4 && item.price === 'bjoern.kimminich@gmail.com' && security.verifyPassword('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=', item.deluxePrice)
+      item.id === 4 && item.price === 'bjoern.kimminich@gmail.com'
     )
-    assert.ok(bjoernMatch, 'Expected bjoern user in UNION SELECT results')
+    assert.ok(bjoernMatch && await security.verifyPassword('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=', bjoernMatch.deluxePrice), 'Expected bjoern user in UNION SELECT results')
 
     const cisoMatch = res.body.data.find((item: any) =>
-      item.id === 5 && item.price === `ciso@${config.get<string>('application.domain')}` && security.verifyPassword('mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb', item.deluxePrice)
+      item.id === 5 && item.price === `ciso@${config.get<string>('application.domain')}`
     )
-    assert.ok(cisoMatch, 'Expected ciso user in UNION SELECT results')
+    assert.ok(cisoMatch && await security.verifyPassword('mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb', cisoMatch.deluxePrice), 'Expected ciso user in UNION SELECT results')
 
     const supportMatch = res.body.data.find((item: any) =>
-      item.id === 6 && item.price === `support@${config.get<string>('application.domain')}` && security.verifyPassword('J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P', item.deluxePrice)
+      item.id === 6 && item.price === `support@${config.get<string>('application.domain')}`
     )
-    assert.ok(supportMatch, 'Expected support user in UNION SELECT results')
+    assert.ok(supportMatch && await security.verifyPassword('J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P', supportMatch.deluxePrice), 'Expected support user in UNION SELECT results')
   })
 
   void it('GET product search can create UNION SELECT with sqlite_master table and required column', async () => {

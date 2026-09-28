@@ -13,7 +13,8 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     UserModel.findOne({ where: { email: req.body.email || '' }, attributes: ['password'] })
-      .then((storedUser) => models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hashPassword(req.body.password || '', storedUser?.password)}' AND deletedAt IS NULL`, { model: models.User, plain: false }))
+      .then((storedUser) => security.rehashPassword(req.body.password || '', storedUser?.password))
+      .then((passwordHash) => models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${passwordHash}' AND deletedAt IS NULL`, { model: models.User, plain: false }))
       .then((authenticatedUser) => {
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {

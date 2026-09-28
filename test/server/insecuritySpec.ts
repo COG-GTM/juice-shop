@@ -204,32 +204,40 @@ describe('insecurity', () => {
     it('uses a random salt for each hash', () => {
       expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
     })
+  })
 
-    it('reproduces a stored hash when given the same password and stored hash', () => {
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
       const storedHash = security.hashPassword('admin123')
-      expect(security.hashPassword('admin123', storedHash)).to.equal(storedHash)
-      expect(security.hashPassword('admin124', storedHash)).to.not.equal(storedHash)
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
     })
 
-    it('falls back to a fresh salt for malformed stored hashes', () => {
-      expect(security.hashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$/)
-      expect(security.hashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = security.hashPassword('admin123').split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
     })
   })
 
   describe('verifyPassword', () => {
-    it('accepts the correct password', () => {
-      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
     })
 
-    it('rejects an incorrect password', () => {
-      expect(security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
     })
 
-    it('rejects unsalted MD5 and missing hashes', () => {
-      expect(security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
-      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
-      expect(security.verifyPassword('', '')).to.equal(false)
+    it('rejects unsalted MD5 and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
     })
   })
 
