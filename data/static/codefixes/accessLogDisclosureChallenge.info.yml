@@ -9,6 +9,5 @@ fixes:
     explanation: 'Removing only the directory listing will still allow attackers to download individual log files if they can come up with a valid file name.'
 hints:
   - "Can you identify one or more routes which have something to do with log files?"
-  - "Did you spot the directory listing clearly linked to log files?"
   - "Did you notice that there is a seperate route for retrieving individual log files?"
-  - "Make sure to select both lines responsible for the log file data leakage."
+  - "Make sure to select the line responsible for the log file data leakage."

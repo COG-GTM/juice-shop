@@ -4,12 +4,11 @@
   app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
   app.use('/.well-known', express.static('.well-known'))
 
-  /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
+  /* /encryptionkeys public key download */
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
-  /* /logs directory browsing */
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' }))
+  /* /logs file download for administrators */
+  app.use('/support/logs', security.isAuthorized(), security.isAdmin())
   app.use('/support/logs/:file', serveLogFiles())
 
   /* Swagger documentation for B2B v2 endpoints */

@@ -9,5 +9,5 @@ fixes:
     explanation: "Switching off the icons is a cosmetic change on the directory listing but still allows the files to be browsed and accessed."
 hints:
   - "Can you identify one or more routes which have something to do with file serving?"
-  - "Did you notice that there are seperate routes the directory listing and retrieving individual files?"
-  - "Make sure to select both lines responsible for the data leakage."
+  - "Did you notice that there is a seperate route for retrieving individual files?"
+  - "Make sure to select the line responsible for the data leakage."
