@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -67,6 +68,10 @@ export function quantityCheckBeforeBasketItemUpdate () {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
+      if (item != null && !(await isBasketOwnedBy(item.BasketId, user?.data?.id))) {
+        res.status(403).json({ error: 'Malicious activity detected' })
+        return
+      }
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
         if (item == null) {
@@ -80,6 +85,14 @@ export function quantityCheckBeforeBasketItemUpdate () {
       next(error)
     }
   }
+}
+
+async function isBasketOwnedBy (basketId: number | null | undefined, userId: number | undefined) {
+  if (basketId == null || userId == null) {
+    return false
+  }
+  const basket = await BasketModel.findOne({ where: { id: basketId } })
+  return basket != null && basket.UserId === userId
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
