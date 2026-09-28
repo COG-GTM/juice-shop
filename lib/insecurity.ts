@@ -34,18 +34,10 @@ const loadJwtPrivateKey = () => {
 }
 
 const jwtPrivateKey = loadJwtPrivateKey()
+const jwtPublicKey = crypto.createPublicKey(jwtPrivateKey)
 const privateKey = jwtPrivateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
-export const publicKey = crypto.createPublicKey(jwtPrivateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
+export const publicKey = jwtPublicKey.export({ type: 'pkcs1', format: 'pem' }).toString()
 export const challengePublicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-
-const hasExpectedAlgorithm = (token: string) => {
-  try {
-    const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString())
-    return header?.alg === JWT_ALGORITHM
-  } catch {
-    return false
-  }
-}
 
 interface ResponseWithUser {
   status?: string
@@ -80,7 +72,7 @@ export const isAuthorized = () => {
   const jwtMiddleware = expressJwt(({ secret: publicKey }) as any)
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    if (token && !hasExpectedAlgorithm(token)) {
+    if (token && !verify(token)) {
       res.status(401).json({ status: 'error', message: 'Invalid token' })
       return
     }
@@ -90,8 +82,9 @@ export const isAuthorized = () => {
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
 export const verify = (token: string) => {
+  const [header, payload, signature] = String(token ?? '').split('.')
   try {
-    return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) && hasExpectedAlgorithm(token)
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), jwtPublicKey, Buffer.from(signature ?? '', 'base64url'))
   } catch {
     return false
   }
@@ -230,7 +223,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null && hasExpectedAlgorithm(token)) {
+      if (err === null && verify(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
