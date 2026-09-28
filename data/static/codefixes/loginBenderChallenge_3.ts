@@ -12,8 +12,9 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,
-      { replacements: { mail: req.body.email }, model: models.User, plain: true })
+    UserModel.findOne({ where: { email: req.body.email || '' }, attributes: ['password'] })
+      .then((storedUser) => models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND password = '${security.hashPassword(req.body.password || '', storedUser?.password)}' AND deletedAt IS NULL`,
+        { replacements: { mail: req.body.email }, model: models.User, plain: true }))
       .then((authenticatedUser) => {
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
