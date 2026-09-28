@@ -84,7 +84,8 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => {
   const [header, payload, signature] = String(token ?? '').split('.')
   try {
-    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), jwtPublicKey, Buffer.from(signature ?? '', 'base64url'))
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString())
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), jwtPublicKey, Buffer.from(signature ?? '', 'base64url')) && alg === JWT_ALGORITHM
   } catch {
     return false
   }
