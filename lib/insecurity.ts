@@ -19,8 +19,25 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+const JWT_ALGORITHM = 'RS256'
+
+const loadJwtPrivateKey = () => {
+  const configuredKey = process.env.JWT_PRIVATE_KEY
+  if (!configuredKey) {
+    return crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+  }
+  const keyObject = crypto.createPrivateKey(configuredKey.replace(/\\n/g, '\n'))
+  if (keyObject.asymmetricKeyType !== 'rsa') {
+    throw new Error('JWT_PRIVATE_KEY must be an RSA private key')
+  }
+  return keyObject
+}
+
+const jwtPrivateKey = loadJwtPrivateKey()
+const jwtPublicKey = crypto.createPublicKey(jwtPrivateKey)
+const privateKey = jwtPrivateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+export const publicKey = jwtPublicKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+export const challengePublicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
 
 interface ResponseWithUser {
   status?: string
@@ -51,10 +68,28 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const isAuthorized = () => {
+  const jwtMiddleware = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    if (token && !verify(token)) {
+      res.status(401).json({ status: 'error', message: 'Invalid token' })
+      return
+    }
+    jwtMiddleware(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
+export const verify = (token: string) => {
+  const [header, payload, signature] = String(token ?? '').split('.')
+  try {
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString())
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), jwtPublicKey, Buffer.from(signature ?? '', 'base64url')) && alg === JWT_ALGORITHM
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -189,7 +224,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && verify(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)

@@ -6,9 +6,11 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -193,6 +195,61 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('verify', () => {
+    const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const payload = encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+
+    it('accepts tokens issued by authorize', () => {
+      expect(security.verify(security.authorize({ data: { email: 'jim@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects empty tokens', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(`${encode({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public key', () => {
+      const header = encode({ alg: 'HS256', typ: 'JWT' })
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects RS256 tokens signed with a different key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const header = encode({ alg: 'RS256', typ: 'JWT' })
+      const signature = crypto.createSign('RSA-SHA256').update(`${header}.${payload}`).sign(privateKey, 'base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects correctly signed tokens whose header alg is not RS256', () => {
+      const verifySignature = sinon.stub(crypto, 'verify').returns(true)
+      try {
+        expect(security.verify(`${encode({ alg: 'RS256', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(true)
+        expect(security.verify(`${encode({ alg: 'HS256', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(false)
+        expect(security.verify(`${encode({ alg: 'none', typ: 'JWT' })}.${payload}.c2ln`)).to.equal(false)
+      } finally {
+        verifySignature.restore()
+      }
+    })
+  })
+
+  describe('isAuthorized', () => {
+    it('rejects tokens not using RS256 with 401', () => {
+      const token = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ data: { role: 'admin' } })).toString('base64url')}.`
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+
+      security.isAuthorized()(req, res as unknown as Response, next)
+
+      expect(res.status.calledWith(401)).to.equal(true)
+      expect(next.called).to.equal(false)
     })
   })
 
