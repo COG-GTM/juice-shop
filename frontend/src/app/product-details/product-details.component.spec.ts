@@ -92,6 +92,15 @@ describe('ProductDetailsComponent', () => {
         expect(component).toBeTruthy()
     })
 
+    it('should sanitize HTML in product descriptions', () => {
+        component.data.productData = { description: '<iframe src="javascript:alert(`xss`)"></iframe><script>alert("xss")</script><b>Safe</b>' } as Product
+        fixture.detectChanges()
+        const description: HTMLElement = fixture.debugElement.query(By.css('h1 + div')).nativeElement
+        expect(description.querySelector('iframe')).toBeNull()
+        expect(description.querySelector('script')).toBeNull()
+        expect(description.querySelector('b')?.textContent).toBe('Safe')
+    })
+
     it('should post anonymous review if no user email is returned', () => {
         component.data = { productData: { id: 42 } as Product }
         userService.whoAmI.mockReturnValue(of({}))
