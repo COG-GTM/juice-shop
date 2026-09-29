@@ -24,7 +24,7 @@
           <ng-container matColumnDef="email">
             <mat-header-cell *matHeaderCellDef translate></mat-header-cell>
             <mat-cell *matCellDef="let user" class="cell-middle">
-              <span [class]="user.hasActiveSession ? 'confirmation' : 'error'">{{ user.email }}</span>
+              <span [class]="doesUserHaveAnActiveSession(user) ? 'confirmation' : 'error'">{{ user.email }}</span>
             </mat-cell>
           </ng-container>
 
@@ -113,7 +113,7 @@
   <ng-container matColumnDef="email">
     <mat-header-cell *matHeaderCellDef translate></mat-header-cell>
     <mat-cell *matCellDef="let user" class="cell-middle">
-      <span [class]="user.hasActiveSession ? 'confirmation' : 'error'">{{ user.email }}</span>
+      <span [class]="doesUserHaveAnActiveSession(user) ? 'confirmation' : 'error'">{{ user.email }}</span>
     </mat-cell>
   </ng-container>
 

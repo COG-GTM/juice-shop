@@ -45,7 +45,8 @@ describe('FeedbackDetailsComponent', () => {
     })
 
     it('should keep formatting but strip scripts from the feedback comment', () => {
-        component.feedback = 'Nice<br><em>Support Team</em><img src=x onerror=alert(1)><iframe src="javascript:alert(1)"></iframe>'
+        component.dialogData.feedback = 'Nice<br><em>Support Team</em><img src=x onerror=alert(1)><iframe src="javascript:alert(1)"></iframe>'
+        component.ngOnInit()
         fixture.detectChanges()
         const cite: HTMLElement = fixture.nativeElement.querySelector('cite')
         expect(cite.querySelector('em')?.textContent).toBe('Support Team')
