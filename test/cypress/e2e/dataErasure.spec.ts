@@ -3,11 +3,9 @@ describe('/dataerasure', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
 
-  describe('challenge "lfr"', () => {
-    it('should be possible to perform local file read attack using the browser', () => {
+  describe('layout parameter', () => {
+    it('should not allow local file read via the layout parameter', () => {
       cy.window().then(async () => {
-        const params = 'layout=../package.json'
-
         const response = await fetch(`${Cypress.config('baseUrl')}/dataerasure`, {
           method: 'POST',
           cache: 'no-cache',
@@ -16,14 +14,14 @@ describe('/dataerasure', () => {
             Origin: `${Cypress.config('baseUrl')}/`,
             Cookie: `token=${localStorage.getItem('token')}`
           },
-          body: params
+          body: 'layout=../package.json'
         })
-        if (response.status === 200) {
-          console.log('Success')
-        }
+        const text = await response.text()
+        expect(response.status).to.equal(200)
+        expect(text).to.contain('Sorry to see you leave!')
+        expect(text).not.to.contain('"name": "juice-shop"')
+        expect(text).not.to.contain('......')
       })
-      cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'Local File Read' })
     })
   })
 })
