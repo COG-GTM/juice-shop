@@ -43,4 +43,14 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should keep formatting but strip scripts from the feedback comment', () => {
+        component.feedback = 'Nice<br><em>Support Team</em><img src=x onerror=alert(1)><iframe src="javascript:alert(1)"></iframe>'
+        fixture.detectChanges()
+        const cite: HTMLElement = fixture.nativeElement.querySelector('cite')
+        expect(cite.querySelector('em')?.textContent).toBe('Support Team')
+        expect(cite.querySelector('br')).not.toBeNull()
+        expect(cite.querySelector('img')?.getAttribute('onerror')).toBeNull()
+        expect(cite.querySelector('iframe')).toBeNull()
+    })
 })
