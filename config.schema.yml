@@ -5,6 +5,8 @@ server:
     type: string
   baseUrl:
     type: string
+  trustProxyHops:
+    type: number
 application:
   domain:
     type: string
