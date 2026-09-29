@@ -18,7 +18,7 @@ export function updateProductReviews () {
       res.status(401).send()
       return
     }
-    if (typeof req.body.id !== 'string' || typeof req.body.message !== 'string') {
+    if (typeof req.body?.id !== 'string' || typeof req.body?.message !== 'string') {
       res.status(400).send()
       return
     }
