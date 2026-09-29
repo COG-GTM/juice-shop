@@ -17,6 +17,8 @@ describe('/dataerasure', () => {
           body: 'layout=../package.json'
         })
         const text = await response.text()
+        expect(response.status).to.equal(200)
+        expect(text).to.contain('Sorry to see you leave!')
         expect(text).not.to.contain('"name": "juice-shop"')
         expect(text).not.to.contain('......')
       })
