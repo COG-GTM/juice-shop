@@ -162,11 +162,12 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render product descriptions as trusted HTML', () => {
+    it('should not bypass sanitization for product descriptions', () => {
         productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        expect(component.tableData[0].description).toBe('<script>alert("XSS")</script>')
     })
 
     it('should hold no products when product search API call fails', () => {
@@ -215,9 +216,13 @@ describe('SearchResultComponent', () => {
         expect(component.dataSource.filter).toEqual('product search')
     })
 
-    it('should pass the search query as trusted HTML', () => {
-        activatedRoute.setQueryParameter('<script>scripttag</script>')
+    it('should render the search query as plain text', () => {
+        activatedRoute.setQueryParameter('<iframe src="javascript:alert(`xss`)">')
         component.filterTable()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
+        fixture.detectChanges()
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        const searchValue: HTMLElement = fixture.nativeElement.querySelector('#searchValue')
+        expect(searchValue.textContent).toBe('<iframe src="javascript:alert(`xss`)">')
+        expect(searchValue.querySelector('iframe')).toBeNull()
     })
 })
