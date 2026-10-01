@@ -23,9 +23,13 @@ describe('/#/privacy-security/data-export', () => {
     it('should be possible to steal admin user data by causing email clash during export', () => {
       cy.login({ email: 'admun', password: 'admun123' })
 
+      cy.intercept('GET', '/rest/image-captcha/').as('imageCaptcha')
       cy.visit('/#/privacy-security/data-export')
-      cy.get('#formatControl').contains('JSON').click()
-      cy.get('#submitButton').click()
+      cy.wait('@imageCaptcha').then(({ response }) => {
+        cy.get('#formatControl').contains('JSON').click()
+        cy.get('input[aria-label="Input for the CAPTCHA"]').type(response?.body.answer)
+        cy.get('#submitButton').click()
+      })
       cy.expectChallengeSolved({ challenge: 'GDPR Data Theft' })
     })
   })
