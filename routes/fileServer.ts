@@ -15,7 +15,7 @@ export function servePublicFiles () {
 
     if (isPublicFile(file)) {
       const resolvedPath = path.resolve(publicFtpDirectory, file)
-      if (path.dirname(resolvedPath) === publicFtpDirectory) {
+      if (resolvedPath.startsWith(publicFtpDirectory + path.sep) && path.dirname(resolvedPath) === publicFtpDirectory) {
         res.sendFile(resolvedPath)
         return
       }
