@@ -60,48 +60,62 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 410)
   })
 
-  if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
-      const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-    })
+  void it('POST file type XML with XXE attack against Windows', async () => {
+    const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('for 16-bit app support'))
+    assert.ok(!res.text.includes('[fonts]'))
+    assert.ok(res.text.includes('DTDs are not allowed'))
+  })
 
-    void it('POST file type XML with XXE attack against Linux', async () => {
-      const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-    })
+  void it('POST file type XML with XXE attack against Linux', async () => {
+    const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('root:x:0:0'))
+    assert.ok(res.text.includes('DTDs are not allowed'))
+  })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
-      const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
-    })
+  void it('POST file type XML with Billion Laughs attack is rejected', async () => {
+    const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(res.text.includes('DTDs are not allowed'))
+  })
 
-    void it('POST file type XML with Quadratic Blowup attack', async () => {
-      const file = path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.ok(res.status >= 410)
-    })
+  void it('POST file type XML with Quadratic Blowup attack', async () => {
+    const file = path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(res.text.includes('DTDs are not allowed'))
+  })
 
-    void it('POST file type XML with dev/random attack', async () => {
-      const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.ok(res.status >= 410)
-    })
-  }
+  void it('POST file type XML with dev/random attack', async () => {
+    const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(res.text.includes('DTDs are not allowed'))
+  })
+
+  void it('POST file type XML does not reflect parsed content', async () => {
+    const file = path.resolve(__dirname, '../files/deprecatedTypeForServer.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('B. Kimminich'))
+  })
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
     void it('POST file type YAML with Billion Laughs-style attack', async () => {
