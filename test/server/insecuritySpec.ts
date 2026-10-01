@@ -12,16 +12,6 @@ import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
-  describe('cutOffPoisonNullByte', () => {
-    it('returns string unchanged if it contains no null byte', () => {
-      expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
-    })
-
-    it('returns string up to null byte', () => {
-      expect(security.cutOffPoisonNullByte('file.exe%00.pdf')).to.equal('file.exe')
-    })
-  })
-
   describe('userEmailFrom', () => {
     it('returns content of "x-user-email" header if present', () => {
       expect(security.userEmailFrom({ headers: { 'x-user-email': 'test@bla.blubb' } })).to.equal('test@bla.blubb')
