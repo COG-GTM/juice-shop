@@ -103,6 +103,25 @@ void describe('/rest/user/data-export', () => {
     assert.ok(secondRes.text.includes('Wrong answer to CAPTCHA. Please try again.'))
   })
 
+  void it('Export data with one CAPTCHA answer in concurrent requests succeeds only once', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const captchaRes = await request(app)
+      .get('/rest/image-captcha')
+      .set(authHeader)
+
+    assert.equal(captchaRes.status, 200)
+
+    const responses = await Promise.all(Array.from({ length: 5 }, async () => await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer: captchaRes.body.answer, format: 1 })))
+
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    assert.equal(responses.filter(res => res.status === 401).length, 4)
+  })
+
   void it('Export data including orders with use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
