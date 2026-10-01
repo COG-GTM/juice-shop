@@ -77,14 +77,20 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
+      // Reject any XML containing a DTD or entity declarations outright, as they enable XXE file disclosure, SSRF and entity-expansion DoS attacks
+      if (/<!DOCTYPE|<!ENTITY/i.test(data)) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: DTDs are not allowed (' + file.originalname + ')'))
+        return
+      }
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        // Defense in depth: disable entity substitution, network access and DTD processing in the parser as well
+        vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, nonet: true, dtdload: false, dtdattr: false, dtdvalid: false })', sandbox, { timeout: 2000 })
+        // Do not reflect parsed content back to the client; respond with a generic message instead
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
@@ -95,7 +101,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {
