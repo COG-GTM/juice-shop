@@ -80,7 +80,9 @@ describe('profileImageFetch', () => {
 
   describe('fetchProfileImage against a local server', () => {
     let server: http.Server
+    let ipv6Server: http.Server
     let port: number
+    let ipv6Port: number
     let options: ProfileImageFetchOptions
     const resolved: string[] = []
     let endlessClosed = () => {}
@@ -118,6 +120,9 @@ describe('profileImageFetch', () => {
       })
       await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
       port = (server.address() as AddressInfo).port
+      ipv6Server = http.createServer((_req, res) => res.writeHead(200, { 'Content-Type': 'image/gif' }).end('gif-bytes'))
+      await new Promise<void>(resolve => ipv6Server.listen(0, '::1', resolve))
+      ipv6Port = (ipv6Server.address() as AddressInfo).port
       options = {
         allowedPorts: [String(port)],
         resolve: async (hostname) => {
@@ -130,6 +135,7 @@ describe('profileImageFetch', () => {
 
     after(() => {
       server.close()
+      ipv6Server.close()
     })
 
     it('connects to the validated address and streams the image', async () => {
@@ -137,6 +143,12 @@ describe('profileImageFetch', () => {
       expect(image.extension).to.equal('png')
       expect((await readAll(image.body)).toString()).to.equal('png-bytes')
       expect(resolved).to.include('images.test')
+    })
+
+    it('connects to validated IPv6 literal addresses', async () => {
+      const image = await fetchProfileImage(`http://[::1]:${ipv6Port}/cat.gif`, { allowedPorts: [String(ipv6Port)], isAllowedAddress: (address) => address === '::1' })
+      expect(image.extension).to.equal('gif')
+      expect((await readAll(image.body)).toString()).to.equal('gif-bytes')
     })
 
     it('follows redirects that stay on allowed addresses', async () => {
