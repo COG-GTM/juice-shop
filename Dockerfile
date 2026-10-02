@@ -9,8 +9,8 @@ RUN rm -rf frontend/.angular
 RUN rm -rf frontend/src/assets
 RUN mkdir logs
 RUN chown -R 65532 logs
-RUN chgrp -R 0 ftp/ frontend/dist/ logs/ data/ i18n/
-RUN chmod -R g=u ftp/ frontend/dist/ logs/ data/ i18n/
+RUN chgrp -R 0 ftp/ frontend/dist/ logs/ data/ i18n/ encryptionkeys/
+RUN chmod -R g=u ftp/ frontend/dist/ logs/ data/ i18n/ encryptionkeys/
 RUN rm ftp/legal.md || true
 RUN rm i18n/*.json || true
 

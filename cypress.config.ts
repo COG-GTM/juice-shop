@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jws from 'jws'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -19,6 +20,9 @@ export default defineConfig({
     supportFile: 'test/cypress/support/e2e.ts',
     setupNodeEvents (on: any) {
       on('task', {
+        ForgeHs256Jwt ({ payload, secret }: { payload: object, secret: string }) {
+          return jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret })
+        },
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
         },
