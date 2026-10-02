@@ -28,28 +28,41 @@ describe('b2bOrder', () => {
     challenges.rceChallenge = { solved: false, save } as unknown as Challenge
   })
 
-  xit('infinite loop payload does not succeed but solves "rceChallenge"', () => { // FIXME Started failing on Linux regularly
+  it('infinite loop payload is rejected without being evaluated', () => {
     req.body.orderLinesData = '(function dos() { while(true); })()'
 
     b2bOrder()(req, res, next)
 
-    expect(challenges.rceChallenge.solved).to.equal(true)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    expect(res.json).to.have.callCount(0)
+    expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
-  // FIXME Disabled as test started failing on Linux regularly
-  xit('timeout after 2 seconds solves "rceOccupyChallenge"', () => {
-    req.body.orderLinesData = '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
+  it('sandbox breakout payload is rejected without being evaluated', () => {
+    req.body.orderLinesData = 'this.constructor.constructor("return process")().exit()'
 
     b2bOrder()(req, res, next)
 
-    expect(challenges.rceOccupyChallenge.solved).to.equal(true)
-  }/*, 3000 */)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('non-string order lines data is rejected', () => {
+    req.body.orderLinesData = { productId: 12 }
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
 
   it('deserializing JSON as documented in Swagger should not solve "rceChallenge"', () => {
     req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
 
     b2bOrder()(req, res, next)
 
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
@@ -65,6 +78,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
+    expect(res.status).to.have.been.calledWith(400)
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 })
