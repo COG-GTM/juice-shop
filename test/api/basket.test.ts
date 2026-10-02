@@ -125,7 +125,7 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -136,6 +136,12 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
+  void it('POST placing an order for a basket of another user fails', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
+  })
+
   void it('POST placing an order for a basket with a negative total cost is possible', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
@@ -143,7 +149,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -159,6 +165,24 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order with wallet payment ignores UserId from request body', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const jimBalanceBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
+    const uvoginBalanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+
+    const res = await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 200)
+
+    const jimBalanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
+    const uvoginBalanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.equal(jimBalanceAfter, jimBalanceBefore)
+    assert.ok(Math.abs(uvoginBalanceAfter - (uvoginBalanceBefore - (5 * 8.99 + 2 * 4.99) + 5)) < 0.001)
   })
 })
 
