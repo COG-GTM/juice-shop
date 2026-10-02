@@ -731,7 +731,7 @@ export async function start (readyCallback?: () => void) {
   await preconditionsReady
   await datacreator()
   datacreatorEnd()
-  security.publishPublicKey()
+  security.publishPublicKey() // vuln-code-snippet hide-line
   const port = process.env.PORT ?? config.get('server.port')
   process.env.BASE_PATH = process.env.BASE_PATH ?? config.get('server.basePath')
 
