@@ -16,6 +16,8 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
 
+const MAX_XML_UPLOAD_SIZE = 100000
+
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
     next()
@@ -76,15 +78,28 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
+      if (file.buffer.length > MAX_XML_UPLOAD_SIZE) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML file too large (' + file.originalname + ')'))
+        return
+      }
       const data = file.buffer.toString()
+      if (/<!(DOCTYPE|ENTITY)/i.test(data)) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: DTDs are not allowed (' + file.originalname + ')'))
+        return
+      }
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, nonet: true, dtdload: false, dtdattr: false, dtdvalid: false })', sandbox, { timeout: 2000 })
+        if (xmlDoc.getDtd() != null) {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: DTDs are not allowed (' + file.originalname + ')'))
+          return
+        }
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
@@ -95,7 +110,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: invalid XML (' + file.originalname + ')'))
         }
       }
     } else {
