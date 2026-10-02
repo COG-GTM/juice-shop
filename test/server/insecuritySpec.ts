@@ -9,6 +9,8 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +203,35 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const forge = (alg: string, sign: (input: string) => string) => {
+      const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+    }
+
+    it('accepts RS256 tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned "none" tokens', () => {
+      expect(security.verify(forge('none', () => ''))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(forge('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with an arbitrary secret', () => {
+      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, 'this_surly_isnt_the_right_key'))).to.equal(false)
+    })
+
+    it('rejects empty and malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt')).to.equal(false)
     })
   })
 })
