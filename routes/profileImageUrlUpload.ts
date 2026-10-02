@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -22,7 +23,14 @@ export function profileImageUrlUpload () {
       if (loggedInUser) {
         try {
           const { extension: ext, body } = await fetchProfileImage(url, { allowedHosts: allowedHostsFromEnv() })
-          await pipeline(body, fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' }))
+          const destination = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`
+          const tempFile = `${destination}.${crypto.randomUUID()}.tmp`
+          try {
+            await pipeline(body, fs.createWriteStream(tempFile, { flags: 'wx' }))
+            await fs.promises.rename(tempFile, destination)
+          } finally {
+            await fs.promises.rm(tempFile, { force: true })
+          }
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {

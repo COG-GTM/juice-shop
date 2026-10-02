@@ -83,6 +83,7 @@ describe('profileImageFetch', () => {
     let port: number
     let options: ProfileImageFetchOptions
     const resolved: string[] = []
+    let endlessClosed = () => {}
 
     before(async () => {
       server = http.createServer((req, res) => {
@@ -99,6 +100,14 @@ describe('profileImageFetch', () => {
         } else if (req.url === '/huge.png') {
           const body = Buffer.alloc(6 * 1024 * 1024)
           res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': body.length }).end(body)
+        } else if (req.url === '/endless.png') {
+          res.writeHead(200, { 'Content-Type': 'image/png', 'Transfer-Encoding': 'chunked' })
+          const chunk = Buffer.alloc(64 * 1024)
+          const timer = setInterval(() => res.write(chunk), 1)
+          res.on('close', () => {
+            clearInterval(timer)
+            endlessClosed()
+          })
         } else if (req.url === '/huge-chunked.png') {
           res.writeHead(200, { 'Content-Type': 'image/png', 'Transfer-Encoding': 'chunked' })
           for (let i = 0; i < 6; i++) res.write(Buffer.alloc(1024 * 1024))
@@ -155,6 +164,25 @@ describe('profileImageFetch', () => {
       } catch (error) {
         expect((error as Error).message).to.equal('image is too large')
       }
+    })
+
+    it('closes the source connection when the size limit is exceeded', async () => {
+      const closed = new Promise<void>(resolve => { endlessClosed = resolve })
+      const image = await fetchProfileImage(`http://images.test:${port}/endless.png`, options)
+      try {
+        await readAll(image.body)
+        expect.fail('expected the size limit to abort the stream')
+      } catch (error) {
+        expect((error as Error).message).to.equal('image is too large')
+      }
+      await closed
+    })
+
+    it('applies the total timeout to hostname resolution', async () => {
+      const started = Date.now()
+      const message = await rejectionOf(`http://images.test:${port}/cat.png`, { ...options, timeoutMs: 50, resolve: async () => await new Promise(() => {}) })
+      expect(message).to.match(/timeout/i)
+      expect(Date.now() - started).to.be.below(2000)
     })
   })
 })

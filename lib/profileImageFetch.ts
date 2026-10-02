@@ -7,7 +7,7 @@ import dns, { type LookupAddress } from 'node:dns'
 import http, { type IncomingMessage } from 'node:http'
 import https from 'node:https'
 import net, { type LookupFunction } from 'node:net'
-import { Transform, type Readable } from 'node:stream'
+import { pipeline, Transform, type Readable } from 'node:stream'
 
 const MAX_REDIRECTS = 3
 const MAX_BYTES = 5 * 1024 * 1024
@@ -48,6 +48,7 @@ export interface ProfileImageFetchOptions {
   allowedPorts?: string[]
   resolve?: (hostname: string) => Promise<LookupAddress[]>
   isAllowedAddress?: (address: string) => boolean
+  timeoutMs?: number
 }
 
 export function isPublicAddress (address: string) {
@@ -78,7 +79,21 @@ function parseUrl (rawUrl: string, base?: URL) {
   return url
 }
 
-async function resolveAllowedAddress (url: URL, options: ProfileImageFetchOptions) {
+async function withDeadline<T> (promise: Promise<T>, signal: AbortSignal) {
+  signal.throwIfAborted()
+  let onAbort = () => {}
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => { reject(signal.reason) }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
+  try {
+    return await Promise.race([promise, aborted])
+  } finally {
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
+async function resolveAllowedAddress (url: URL, options: ProfileImageFetchOptions, signal: AbortSignal) {
   const hostname = url.hostname.replace(/^\[(.*)\]$/, '$1').toLowerCase()
   const allowedHosts = options.allowedHosts ?? []
   if (allowedHosts.length > 0 && !allowedHosts.includes(hostname)) throw new ProfileImageUrlError('host is not allowed')
@@ -86,7 +101,7 @@ async function resolveAllowedAddress (url: URL, options: ProfileImageFetchOption
 
   const isAllowedAddress = options.isAllowedAddress ?? isPublicAddress
   const family = net.isIP(hostname)
-  const addresses = family !== 0 ? [{ address: hostname, family }] : await (options.resolve ?? defaultResolve)(hostname)
+  const addresses = family !== 0 ? [{ address: hostname, family }] : await withDeadline((options.resolve ?? defaultResolve)(hostname), signal)
   if (addresses.length === 0 || !addresses.every(({ address }) => isAllowedAddress(address))) {
     throw new ProfileImageUrlError('url resolves to a non-public address')
   }
@@ -127,10 +142,10 @@ function sizeLimit (maxBytes: number) {
 }
 
 export async function fetchProfileImage (rawUrl: string, options: ProfileImageFetchOptions = {}): Promise<ProfileImage> {
-  const signal = AbortSignal.timeout(TOTAL_TIMEOUT_MS)
+  const signal = AbortSignal.timeout(options.timeoutMs ?? TOTAL_TIMEOUT_MS)
   let url = parseUrl(rawUrl)
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const address = await resolveAllowedAddress(url, options)
+    const address = await resolveAllowedAddress(url, options, signal)
     const response = await get(url, address, signal)
     const status = response.statusCode ?? 0
 
@@ -153,9 +168,7 @@ export async function fetchProfileImage (rawUrl: string, options: ProfileImageFe
       response.destroy()
       throw new ProfileImageUrlError('image is too large')
     }
-    const limited = sizeLimit(MAX_BYTES)
-    response.on('error', error => limited.destroy(error))
-    return { extension, body: response.pipe(limited) }
+    return { extension, body: pipeline(response, sizeLimit(MAX_BYTES), () => {}) }
   }
   throw new ProfileImageUrlError('too many redirects')
 }
