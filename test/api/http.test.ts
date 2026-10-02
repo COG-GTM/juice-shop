@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+const trustedOrigin = (process.env.CORS_ALLOWED_ORIGINS ?? new URL(config.get<string>('server.baseUrl')).origin).split(',')[0].trim()
 
 before(async () => {
   const result = await createTestApp()
@@ -19,9 +20,9 @@ before(async () => {
 
 void describe('HTTP', () => {
   void it('response must echo an allowed origin in the CORS header', async () => {
-    const res = await request(app).get('/').set('Origin', 'http://localhost:4200')
+    const res = await request(app).get('/').set('Origin', trustedOrigin)
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], 'http://localhost:4200')
+    assert.equal(res.headers['access-control-allow-origin'], trustedOrigin)
   })
 
   void it('response must not contain CORS header for an untrusted origin', async () => {
