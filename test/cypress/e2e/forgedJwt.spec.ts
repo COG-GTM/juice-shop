@@ -18,7 +18,9 @@ describe('/', () => {
         if (!isWindows) {
           cy.request('/encryptionkeys/jwt.pub').then((response) => {
             cy.task<string>('ForgeHs256Jwt', { payload: { data: { email: 'rsa_lord@juice-sh.op' }, iat: 1583037711 }, secret: response.body }).then((token) => {
-              localStorage.setItem('token', token)
+              cy.window().then((win) => {
+                win.localStorage.setItem('token', token)
+              })
             })
           })
           cy.visit('/#/')
