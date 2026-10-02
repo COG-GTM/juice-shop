@@ -56,6 +56,7 @@ import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
+import writeJwtPublicKey from './lib/startup/writeJwtPublicKey'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
 import validatePreconditions, { preconditionsReady } from './lib/startup/validatePreconditions'
@@ -165,6 +166,7 @@ app.set('view engine', 'hbs')
 
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
+void collectDurationPromise('writeJwtPublicKey', writeJwtPublicKey)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
