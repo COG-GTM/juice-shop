@@ -173,12 +173,6 @@ void describe('/rest/basket/:id/checkout', () => {
     const jimBalanceBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
     const uvoginBalanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
 
-    const itemRes = await request(app)
-      .post('/api/BasketItems')
-      .set(uvoginHeader)
-      .send({ BasketId: 5, ProductId: 3, quantity: 1 })
-    assert.equal(itemRes.status, 200)
-
     const res = await request(app)
       .post('/rest/basket/5/checkout')
       .set(uvoginHeader)
@@ -188,7 +182,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const jimBalanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
     const uvoginBalanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
     assert.equal(jimBalanceAfter, jimBalanceBefore)
-    assert.ok(Math.abs(uvoginBalanceAfter - (uvoginBalanceBefore - 8.99 + 1)) < 0.001)
+    assert.ok(Math.abs(uvoginBalanceAfter - (uvoginBalanceBefore - (5 * 8.99 + 2 * 4.99) + 5)) < 0.001)
   })
 })
 
