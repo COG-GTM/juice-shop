@@ -118,7 +118,11 @@ function pinnedLookup ({ address, family }: LookupAddress): LookupFunction {
 async function get (url: URL, address: LookupAddress, signal: AbortSignal) {
   return await new Promise<IncomingMessage>((resolve, reject) => {
     const transport = url.protocol === 'https:' ? https : http
-    const request = transport.get(url, {
+    const request = transport.get({
+      protocol: url.protocol,
+      hostname: url.hostname.replace(/^\[(.*)\]$/, '$1'),
+      port: url.port,
+      path: `${url.pathname}${url.search}`,
       agent: false,
       headers: { accept: Object.keys(IMAGE_EXTENSIONS).join(', ') },
       lookup: pinnedLookup(address),
