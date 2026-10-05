@@ -25,7 +25,7 @@ export default defineConfig({
         },
         GenerateContinueCode (ids: number[]) {
           const salt = process.env.CONTINUE_CODE_SALT
-          if (salt == null) {
+          if (salt == null || salt.trim() === '') {
             return null
           }
           return new Hashids(salt, 60, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890').encode(ids)

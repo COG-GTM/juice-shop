@@ -146,13 +146,27 @@ interface ContinueCodeSalts {
   findIt: string
   fixIt: string
 }
+const CONTINUE_CODE_SALTS_FILE = 'data/continue-code-salts.json'
 let cachedContinueCodeSalts: ContinueCodeSalts | undefined
 export function continueCodeSalts (): ContinueCodeSalts {
   if (cachedContinueCodeSalts == null) {
+    let persisted: Partial<ContinueCodeSalts> | undefined
+    try {
+      persisted = JSON.parse(fs.readFileSync(CONTINUE_CODE_SALTS_FILE, 'utf8'))
+    } catch {
+      persisted = undefined
+    }
+    const pick = (envValue: string | undefined, saved: string | undefined) =>
+      (envValue != null && envValue.trim() !== '') ? envValue : (saved ?? crypto.randomBytes(16).toString('hex'))
     cachedContinueCodeSalts = {
-      default: process.env.CONTINUE_CODE_SALT ?? crypto.randomBytes(16).toString('hex'),
-      findIt: process.env.CONTINUE_CODE_FIND_IT_SALT ?? crypto.randomBytes(16).toString('hex'),
-      fixIt: process.env.CONTINUE_CODE_FIX_IT_SALT ?? crypto.randomBytes(16).toString('hex')
+      default: pick(process.env.CONTINUE_CODE_SALT, persisted?.default),
+      findIt: pick(process.env.CONTINUE_CODE_FIND_IT_SALT, persisted?.findIt),
+      fixIt: pick(process.env.CONTINUE_CODE_FIX_IT_SALT, persisted?.fixIt)
+    }
+    try {
+      fs.writeFileSync(CONTINUE_CODE_SALTS_FILE, JSON.stringify(cachedContinueCodeSalts, null, 2))
+    } catch {
+      // best effort: salts stay in memory only for this boot
     }
   }
   return cachedContinueCodeSalts
