@@ -141,6 +141,23 @@ export const isRedirectAllowed = (url: string) => {
 }
 // vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
 
+interface ContinueCodeSalts {
+  default: string
+  findIt: string
+  fixIt: string
+}
+let cachedContinueCodeSalts: ContinueCodeSalts | undefined
+export function continueCodeSalts (): ContinueCodeSalts {
+  if (cachedContinueCodeSalts == null) {
+    cachedContinueCodeSalts = {
+      default: process.env.CONTINUE_CODE_SALT ?? crypto.randomBytes(16).toString('hex'),
+      findIt: process.env.CONTINUE_CODE_FIND_IT_SALT ?? crypto.randomBytes(16).toString('hex'),
+      fixIt: process.env.CONTINUE_CODE_FIX_IT_SALT ?? crypto.randomBytes(16).toString('hex')
+    }
+  }
+  return cachedContinueCodeSalts
+}
+
 export const roles = {
   customer: 'customer',
   deluxe: 'deluxe',
