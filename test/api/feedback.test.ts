@@ -69,7 +69,7 @@ void describe('/api/Feedbacks', () => {
     })
   }
 
-  void it('POST feedback in another users name as anonymous user', async () => {
+  void it('POST feedback ignores a supplied UserId for anonymous users', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -87,10 +87,10 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, null)
   })
 
-  void it('POST feedback in a non-existing users name as anonymous user fails with constraint error', async () => {
+  void it('POST feedback with a rating outside 1-5 is rejected', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -102,13 +102,30 @@ void describe('/api/Feedbacks', () => {
       .send({
         comment: 'Pickle Rick says your express-jwt 0.1.3 has Eurogium Edule and Hueteroneel in it!',
         rating: 0,
-        UserId: 4711,
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(res.body.errors.includes('SQLITE_CONSTRAINT: FOREIGN KEY constraint failed'))
+    assert.match(res.body.error, /integer between 1 and 5/)
+  })
+
+  void it('POST feedback with a rating above 5 is rejected', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Way too good to be true!',
+        rating: 999,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 400)
+    assert.match(res.body.error, /integer between 1 and 5/)
   })
 
   void it('POST feedback is associated with current user', async () => {
@@ -116,6 +133,7 @@ void describe('/api/Feedbacks', () => {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
     })
+    const callerId = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()).data.id
 
     const captchaRes = await request(app)
       .get('/rest/captcha')
@@ -128,20 +146,20 @@ void describe('/api/Feedbacks', () => {
       .send({
         comment: 'Stupid JWT secret and being typosquatted by epilogue-js and ngy-cookie!',
         rating: 5,
-        UserId: 4,
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 4)
+    assert.equal(res.body.data.UserId, callerId)
   })
 
-  void it('POST feedback is associated with any passed user ID', async () => {
+  void it('POST feedback ignores a forged UserId and is attributed to the authenticated user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
     })
+    const callerId = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()).data.id
 
     const captchaRes = await request(app)
       .get('/rest/captcha')
@@ -154,13 +172,14 @@ void describe('/api/Feedbacks', () => {
       .send({
         comment: 'Bender\'s choice award!',
         rating: 5,
-        UserId: 3,
+        UserId: 999,
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, callerId)
+    assert.notEqual(res.body.data.UserId, 999)
   })
 
   void it('POST feedback can be created without actually supplying comment', async () => {

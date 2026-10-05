@@ -403,6 +403,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
   /* Captcha Bypass challenge verification */
   app.post('/api/Feedbacks', verify.captchaBypassChallenge())
+  /* Feedback integrity: rating must be an integer 1-5 and UserId is bound to the caller */
+  app.post('/api/Feedbacks', (req: Request, res: Response, next: NextFunction) => {
+    const rating = req.body?.rating
+    if (rating != null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) {
+      res.status(400).json({ status: 'error', error: 'Rating must be an integer between 1 and 5.' })
+      return
+    }
+    const user = security.authenticatedUsers.from(req)
+    if (user?.data?.id != null) {
+      req.body.UserId = user.data.id
+    } else if (req.body != null) {
+      delete req.body.UserId
+    }
+    next()
+  })
   /* User registration challenge verifications before finale takes over */
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body.email !== undefined && req.body.password !== undefined && req.body.passwordRepeat !== undefined) {

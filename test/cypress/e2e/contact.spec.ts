@@ -131,7 +131,7 @@ describe('/#/contact', () => {
   })
 
   describe('challenge "zeroStars"', () => {
-    it('should be possible to post feedback with zero stars by double-clicking rating widget', () => {
+    it('should not be possible to post feedback with zero stars via the API', () => {
       cy.visit('/')
       cy.window().then(async () => {
         const response = await fetch(
@@ -171,12 +171,9 @@ describe('/#/contact', () => {
               })
             }
           )
-          if (response.status === 201) {
-            console.log('Success')
-          }
+          expect(response.status).to.equal(400)
         }
       })
-      cy.expectChallengeSolved({ challenge: 'Zero Stars' })
     })
   })
 
