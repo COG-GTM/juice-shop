@@ -8,11 +8,14 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
 let jimUserId: number
+let jimComplaintId: number
+let otherComplaintId: number
 
 before(async () => {
   const result = await createTestApp()
@@ -27,6 +30,19 @@ before(async () => {
     'content-type': 'application/json'
   }
   jimUserId = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()).data.id
+
+  await register(app, {
+    email: 'complaint-tester@example.com',
+    password: 'complaint-test'
+  })
+  const { token: otherToken } = await login(app, {
+    email: 'complaint-tester@example.com',
+    password: 'complaint-test'
+  })
+  otherAuthHeader = {
+    Authorization: 'Bearer ' + otherToken,
+    'content-type': 'application/json'
+  }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -43,6 +59,7 @@ void describe('/api/Complaints', () => {
     assert.equal(res.body.data.UserId, jimUserId)
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
+    jimComplaintId = res.body.data.id
   })
 
   void it('POST new complaint with forged UserId is attributed to the caller', async () => {
@@ -57,6 +74,17 @@ void describe('/api/Complaints', () => {
     assert.equal(res.body.data.UserId, jimUserId)
   })
 
+  void it('POST new complaint as a different user', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(otherAuthHeader)
+      .send({
+        message: 'Another user\'s complaint'
+      })
+    assert.equal(res.status, 201)
+    otherComplaintId = res.body.data.id
+  })
+
   void it('GET all complaints is forbidden via public API', async () => {
     const res = await request(app)
       .get('/api/Complaints')
@@ -69,6 +97,8 @@ void describe('/api/Complaints', () => {
       .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(Array.isArray(res.body.data))
+    assert.ok(res.body.data.some((complaint: { id: number }) => complaint.id === jimComplaintId))
+    assert.ok(!res.body.data.some((complaint: { id: number }) => complaint.id === otherComplaintId))
     for (const complaint of res.body.data) {
       assert.equal(complaint.UserId, jimUserId)
     }
