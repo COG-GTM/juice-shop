@@ -13,7 +13,7 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    it('should be possible to provide feedback as another user', () => {
+    it('should attribute feedback to the submitting user when a different user ID is supplied', () => {
       cy.get('#userId').then(function ($element) {
         $element[0].removeAttribute('hidden')
         $element[0].removeAttribute('class')
@@ -26,19 +26,10 @@ describe('/#/contact', () => {
 
       cy.visit('/#/administration')
 
-      cy.get(
-        '.customer-table > .mat-mdc-table > :nth-child(8) > .cdk-column-user'
-      ).then(($val) => {
-        if ($val.text() !== ' 2') {
-          cy.get(
-            '.customer-table > .mat-mdc-table > :nth-child(9) > .cdk-column-user'
-          ).should('contain.text', '2')
-        } else {
-          expect($val.text()).contain('2')
-        }
-      })
-
-      cy.expectChallengeSolved({ challenge: 'Forged Feedback' })
+      cy.get('.customer-table')
+        .contains('.cdk-column-comment', 'Picard stinks!')
+        .siblings('.cdk-column-user')
+        .should('contain.text', '1')
     })
   })
 
@@ -131,7 +122,7 @@ describe('/#/contact', () => {
   })
 
   describe('challenge "zeroStars"', () => {
-    it('should be possible to post feedback with zero stars by double-clicking rating widget', () => {
+    it('should not be possible to post feedback with zero stars via the API', () => {
       cy.visit('/')
       cy.window().then(async () => {
         const response = await fetch(
@@ -171,12 +162,9 @@ describe('/#/contact', () => {
               })
             }
           )
-          if (response.status === 201) {
-            console.log('Success')
-          }
+          expect(response.status).to.equal(400)
         }
       })
-      cy.expectChallengeSolved({ challenge: 'Zero Stars' })
     })
   })
 
