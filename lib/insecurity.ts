@@ -156,17 +156,25 @@ export function continueCodeSalts (): ContinueCodeSalts {
     } catch {
       persisted = undefined
     }
-    const pick = (envValue: string | undefined, saved: string | undefined) =>
-      (envValue != null && envValue.trim() !== '') ? envValue : (saved ?? crypto.randomBytes(16).toString('hex'))
-    cachedContinueCodeSalts = {
-      default: pick(process.env.CONTINUE_CODE_SALT, persisted?.default),
-      findIt: pick(process.env.CONTINUE_CODE_FIND_IT_SALT, persisted?.findIt),
-      fixIt: pick(process.env.CONTINUE_CODE_FIX_IT_SALT, persisted?.fixIt)
+    const generated: Partial<ContinueCodeSalts> = {}
+    const pick = (envValue: string | undefined, saved: string | undefined, key: keyof ContinueCodeSalts) => {
+      if (envValue != null && envValue.trim() !== '') return envValue
+      if (saved != null) return saved
+      const value = crypto.randomBytes(16).toString('hex')
+      generated[key] = value
+      return value
     }
-    try {
-      fs.writeFileSync(CONTINUE_CODE_SALTS_FILE, JSON.stringify(cachedContinueCodeSalts, null, 2))
-    } catch {
-      // best effort: salts stay in memory only for this boot
+    cachedContinueCodeSalts = {
+      default: pick(process.env.CONTINUE_CODE_SALT, persisted?.default, 'default'),
+      findIt: pick(process.env.CONTINUE_CODE_FIND_IT_SALT, persisted?.findIt, 'findIt'),
+      fixIt: pick(process.env.CONTINUE_CODE_FIX_IT_SALT, persisted?.fixIt, 'fixIt')
+    }
+    if (Object.keys(generated).length > 0) {
+      try {
+        fs.writeFileSync(CONTINUE_CODE_SALTS_FILE, JSON.stringify({ ...persisted, ...generated }, null, 2))
+      } catch {
+        // best effort: salts stay in memory only for this boot
+      }
     }
   }
   return cachedContinueCodeSalts
