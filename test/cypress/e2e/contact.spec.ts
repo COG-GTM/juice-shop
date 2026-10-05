@@ -26,17 +26,10 @@ describe('/#/contact', () => {
 
       cy.visit('/#/administration')
 
-      cy.get(
-        '.customer-table > .mat-mdc-table > :nth-child(8) > .cdk-column-user'
-      ).then(($val) => {
-        if ($val.text() !== ' 1') {
-          cy.get(
-            '.customer-table > .mat-mdc-table > :nth-child(9) > .cdk-column-user'
-          ).should('contain.text', '1')
-        } else {
-          expect($val.text()).contain('1')
-        }
-      })
+      cy.get('.customer-table')
+        .contains('td.cdk-column-comment', 'Picard stinks!')
+        .siblings('.cdk-column-user')
+        .should('contain.text', '1')
     })
   })
 
