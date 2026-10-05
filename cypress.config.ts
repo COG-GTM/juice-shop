@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import Hashids from 'hashids/cjs'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -21,6 +22,13 @@ export default defineConfig({
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
+        },
+        GenerateContinueCode (ids: number[]) {
+          const salt = process.env.CONTINUE_CODE_SALT
+          if (salt == null || salt.trim() === '') {
+            return null
+          }
+          return new Hashids(salt, 60, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890').encode(ids)
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {

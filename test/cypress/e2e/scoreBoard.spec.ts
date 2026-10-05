@@ -8,21 +8,27 @@ describe('/#/score-board', () => {
   })
 
   describe('challenge "continueCode"', () => {
-    it('should be possible to solve the non-existent challenge #99', () => {
-      cy.window().then(async () => {
-        await fetch(
-          `${Cypress.config('baseUrl')}/rest/continue-code/apply/69OxrZ8aJEgxONZyWoz1Dw4BvXmRGkM6Ae9M7k2rK63YpqQLPjnlb5V5LvDj`,
-          {
-            method: 'PUT',
-            cache: 'no-cache',
-            headers: {
-              'Content-type': 'text/plain'
+    it('should be possible to solve the non-existent challenge #99', function () {
+      cy.task('GenerateContinueCode', [999]).then((code) => {
+        if (code == null) {
+          // Continue-code salts are randomized per boot unless CONTINUE_CODE_SALT is set; without a shared salt the test cannot mint a matching code.
+          this.skip()
+        }
+        cy.window().then(async () => {
+          await fetch(
+            `${Cypress.config('baseUrl')}/rest/continue-code/apply/${code}`,
+            {
+              method: 'PUT',
+              cache: 'no-cache',
+              headers: {
+                'Content-type': 'text/plain'
+              }
             }
-          }
-        )
+          )
+        })
+        cy.visit('/#/score-board')
+        cy.expectChallengeSolved({ challenge: 'Imaginary Challenge' })
       })
-      cy.visit('/#/score-board')
-      cy.expectChallengeSolved({ challenge: 'Imaginary Challenge' })
     })
   })
 })

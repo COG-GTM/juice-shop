@@ -13,6 +13,8 @@ import { continueCode } from '../../routes/continueCode'
 const expect = chai.expect
 chai.use(sinonChai)
 
+process.env.CONTINUE_CODE_SALT = 'this is my salt'
+
 describe('continueCode', () => {
   let req: any
   let res: any
