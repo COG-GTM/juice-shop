@@ -8,14 +8,25 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let authHeader: { Authorization: string, 'content-type': string }
+let jimUserId: number
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const { token } = await login(app, {
+    email: 'jim@juice-sh.op',
+    password: 'ncc-1701'
+  })
+  authHeader = {
+    Authorization: 'Bearer ' + token,
+    'content-type': 'application/json'
+  }
+  jimUserId = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString()).data.id
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -29,8 +40,21 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.data.id, 'number')
+    assert.equal(res.body.data.UserId, jimUserId)
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
+  })
+
+  void it('POST new complaint with forged UserId is attributed to the caller', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(authHeader)
+      .send({
+        message: 'Forged complaint in the name of the admin',
+        UserId: 1
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, jimUserId)
   })
 
   void it('GET all complaints is forbidden via public API', async () => {
@@ -39,11 +63,15 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints only returns complaints of the calling user', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
   })
 })
 

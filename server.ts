@@ -378,7 +378,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
   app.get('/api/Complaints', security.isAuthorized())
-  app.post('/api/Complaints', security.isAuthorized())
+  app.post('/api/Complaints', security.isAuthorized(), security.appendUserId())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
@@ -515,6 +515,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // restrict complaint listings to the calling user (admins see all)
+    if (name === 'Complaint') {
+      resource.list.fetch.before((req: Request, res: Response, context: { criteria: Record<string, any>, continue: any }) => {
+        const user = security.authenticatedUsers.from(req)
+        if (user?.data?.role !== security.roles.admin) {
+          context.criteria = { ...context.criteria, UserId: user?.data?.id ?? -1 }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
