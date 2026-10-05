@@ -27,7 +27,7 @@ describe('/#/contact', () => {
       cy.visit('/#/administration')
 
       cy.get('.customer-table')
-        .contains('td.cdk-column-comment', 'Picard stinks!')
+        .contains('.cdk-column-comment', 'Picard stinks!')
         .siblings('.cdk-column-user')
         .should('contain.text', '1')
     })
