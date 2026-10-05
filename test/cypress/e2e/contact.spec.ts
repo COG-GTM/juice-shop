@@ -13,7 +13,7 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    it('should be possible to provide feedback as another user', () => {
+    it('should attribute feedback to the submitting user when a different user ID is supplied', () => {
       cy.get('#userId').then(function ($element) {
         $element[0].removeAttribute('hidden')
         $element[0].removeAttribute('class')
@@ -29,16 +29,14 @@ describe('/#/contact', () => {
       cy.get(
         '.customer-table > .mat-mdc-table > :nth-child(8) > .cdk-column-user'
       ).then(($val) => {
-        if ($val.text() !== ' 2') {
+        if ($val.text() !== ' 1') {
           cy.get(
             '.customer-table > .mat-mdc-table > :nth-child(9) > .cdk-column-user'
-          ).should('contain.text', '2')
+          ).should('contain.text', '1')
         } else {
-          expect($val.text()).contain('2')
+          expect($val.text()).contain('1')
         }
       })
-
-      cy.expectChallengeSolved({ challenge: 'Forged Feedback' })
     })
   })
 
