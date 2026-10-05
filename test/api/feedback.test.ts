@@ -29,6 +29,15 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/api/Feedbacks', () => {
+  void it('GET /rest/captcha does not leak the answer', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    assert.ok(!('answer' in captchaRes.body))
+    assert.equal(typeof captchaRes.body.captchaId, 'number')
+    assert.equal(typeof captchaRes.body.captcha, 'string')
+  })
+
   void it('GET all feedback', async () => {
     const res = await request(app)
       .get('/api/Feedbacks')
