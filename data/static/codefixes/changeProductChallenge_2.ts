@@ -26,9 +26,9 @@
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
-  app.post('/api/Recycles', security.isAuthorized())
+  app.post('/api/Recycles', security.isAuthorized(), security.appendUserId(), utils.asyncHandler(recycles.checkRecycleAddressOwnership()))
   /* Challenge evaluation before finale takes over */
-  app.get('/api/Recycles/:id', recycles.getRecycleItem())
+  app.get('/api/Recycles/:id', security.isAuthorized(), recycles.getRecycleItem())
   app.put('/api/Recycles/:id', security.denyAll())
   app.delete('/api/Recycles/:id', security.denyAll())
   /* SecurityQuestions: Only GET list of questions allowed. */

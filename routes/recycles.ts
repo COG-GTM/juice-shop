@@ -7,13 +7,18 @@ import { type NextFunction, type Request, type Response } from 'express'
 import { RecycleModel } from '../models/recycle'
 import { AddressModel } from '../models/address'
 
+import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
 export const getRecycleItem = () => (req: Request, res: Response) => {
+  const user = security.authenticatedUsers.from(req)
+  if (user?.data?.id == null) {
+    return res.status(401).json({ status: 'error', error: 'Authentication required.' })
+  }
   RecycleModel.findAll({
     where: {
       id: JSON.parse(req.params.id),
-      UserId: req.body.UserId
+      UserId: user.data.id
     }
   }).then((Recycle) => {
     return res.send(utils.queryResultToJson(Recycle))

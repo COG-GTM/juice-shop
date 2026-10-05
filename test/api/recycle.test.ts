@@ -12,7 +12,9 @@ import { login, register } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let bearerHeader: { Authorization: string }
 let otherAuthHeader: { Authorization: string, 'content-type': string }
+let otherBearerHeader: { Authorization: string }
 let otherUserId: number
 let addressId: number
 let recycleId: number
@@ -29,6 +31,9 @@ before(async () => {
     Authorization: 'Bearer ' + token,
     'content-type': 'application/json'
   }
+  bearerHeader = {
+    Authorization: 'Bearer ' + token
+  }
 
   const registerRes = await register(app, {
     email: 'recycle-tester@example.com',
@@ -42,6 +47,9 @@ before(async () => {
   otherAuthHeader = {
     Authorization: 'Bearer ' + otherToken,
     'content-type': 'application/json'
+  }
+  otherBearerHeader = {
+    Authorization: 'Bearer ' + otherToken
   }
 
   const addressRes = await request(app)
@@ -135,11 +143,12 @@ void describe('/api/Recycles', () => {
   void it('Will GET existing recycle owned by the caller', async () => {
     const res = await request(app)
       .get(`/api/Recycles/${recycleId}`)
-      .set(authHeader)
+      .set(bearerHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     const items = res.body.data
     assert.ok(Array.isArray(items))
+    assert.equal(items[0].id, recycleId)
     for (const item of items) {
       assert.equal(typeof item.id, 'number')
       assert.equal(typeof item.UserId, 'number')
@@ -155,7 +164,7 @@ void describe('/api/Recycles', () => {
   void it('GET recycle owned by another user returns nothing', async () => {
     const res = await request(app)
       .get(`/api/Recycles/${recycleId}`)
-      .set(otherAuthHeader)
+      .set(otherBearerHeader)
     assert.equal(res.status, 200)
     assert.ok(Array.isArray(res.body.data))
     assert.equal(res.body.data.length, 0)
