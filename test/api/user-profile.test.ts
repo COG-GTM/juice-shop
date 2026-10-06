@@ -91,6 +91,19 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('POST update username is rejected for same hostname on a different port', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:8080')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST update username from same origin sets SameSite=Strict token cookie', async () => {
     const res = await request(app)
       .post('/profile')

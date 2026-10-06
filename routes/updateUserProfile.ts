@@ -16,8 +16,10 @@ function isCrossSiteRequest (req: Request) {
   if (source === undefined) {
     return false
   }
+  const forwardedHost = req.app.enabled('trust proxy') ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined
   try {
-    return new URL(source).hostname !== req.hostname
+    const sourceUrl = new URL(source)
+    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${forwardedHost ?? req.headers.host}`).host
   } catch {
     return true
   }
