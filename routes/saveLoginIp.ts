@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { isIP } from 'node:net'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -21,10 +22,8 @@ export function saveLoginIp () {
       }
       if (utils.isChallengeEnabled(challenges.httpHeaderXssChallenge)) {
         challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return lastLoginIp === '<iframe src="javascript:alert(`xss`)">' })
-      } else {
-        lastLoginIp = security.sanitizeSecure(lastLoginIp ?? '')
       }
-      if (lastLoginIp === undefined) {
+      if (lastLoginIp === undefined || isIP(lastLoginIp) === 0) {
         lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
       }
       try {
