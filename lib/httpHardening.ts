@@ -17,7 +17,7 @@ const toOrigin = (value: string) => {
 }
 
 export const allowedCorsOrigins = (baseUrl: string, configured: string | undefined = process.env.CORS_ALLOWED_ORIGINS) => {
-  const candidates = configured ?? `${baseUrl},http://localhost:4200`
+  const candidates = configured ?? `${baseUrl},http://localhost:4200,http://127.0.0.1:4200`
   return candidates.split(',')
     .map(toOrigin)
     .filter((origin): origin is string => origin !== undefined && origin !== 'null')

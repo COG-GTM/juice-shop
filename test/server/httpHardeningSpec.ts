@@ -71,7 +71,7 @@ describe('httpHardening', () => {
 
   describe('CORS', () => {
     it('defaults to the base URL origin and the Angular dev server', () => {
-      expect(allowedCorsOrigins('http://localhost:3000/', undefined)).to.deep.equal(['http://localhost:3000', 'http://localhost:4200'])
+      expect(allowedCorsOrigins('http://localhost:3000/', undefined)).to.deep.equal(['http://localhost:3000', 'http://localhost:4200', 'http://127.0.0.1:4200'])
     })
 
     it('reads origins from CORS_ALLOWED_ORIGINS and drops wildcards and invalid entries', () => {
