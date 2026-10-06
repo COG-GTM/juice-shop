@@ -144,7 +144,7 @@ void describe('/rest/user/login', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: 'Ayhdk25xDVRISFCRqa9cd3Da'
       })
 
     assert.equal(res.status, 200)
@@ -242,7 +242,7 @@ void describe('/rest/saveLoginIp', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: 'Ayhdk25xDVRISFCRqa9cd3Da'
       })
 
     assert.equal(loginRes.status, 200)
@@ -264,7 +264,7 @@ void describe('/rest/saveLoginIp', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: 'Ayhdk25xDVRISFCRqa9cd3Da'
       })
 
     assert.equal(loginRes.status, 200)
