@@ -219,6 +219,18 @@ export const getErrorMessage = (error: unknown) => {
   return String(error)
 }
 
+export const redactQueryString = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) {
+    return url
+  }
+  const redactedQuery = url.substring(queryStart + 1).split('&').map((param) => {
+    const separator = param.indexOf('=')
+    return separator === -1 ? '[REDACTED]' : param.substring(0, separator) + '=[REDACTED]'
+  }).join('&')
+  return url.substring(0, queryStart + 1) + redactedQuery
+}
+
 export const matchesSystemIniFile = (text: string) => {
   const match = text.match(/; for 16-bit app support/gi)
   return match !== null && match.length >= 1
