@@ -232,14 +232,17 @@ void describe('Hidden URL', () => {
   })
 
   void it('access log does not contain credentials passed in query strings', async () => {
+    const marker = `redaction-test-${Date.now()}`
     await request(app)
       .get('/rest/user/change-password?current=leakedCurrent123&new=leakedNew456&repeat=leakedNew456')
+      .set('User-Agent', marker)
     await request(app)
       .get('/rest/products/search?q=referrerProbe')
+      .set('User-Agent', marker)
       .set('Referer', 'http://localhost:3000/rest/user/change-password?current=leakedRefCurrent789&new=leakedRefNew012')
     const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
-    let log = ''
-    for (let attempt = 0; attempt < 20 && !(log.includes('/rest/user/change-password?') && log.includes('/rest/products/search?q=[REDACTED]')); attempt++) {
+    let entries: string[] = []
+    for (let attempt = 0; attempt < 20 && entries.length < 2; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       const res = await request(app)
         .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
@@ -250,13 +253,14 @@ void describe('Hidden URL', () => {
           response.on('data', (chunk: Buffer) => { data += chunk.toString() })
           response.on('end', () => { callback(null, data) })
         })
-      log = res.body
+      entries = String(res.body).split('\n').filter((line) => line.includes(marker))
     }
-    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
-    assert.ok(!log.includes('leakedCurrent123'))
-    assert.ok(!log.includes('leakedNew456'))
-    assert.ok(log.includes('"http://localhost:3000/rest/user/change-password?current=[REDACTED]&new=[REDACTED]"'))
-    assert.ok(!log.includes('leakedRefCurrent789'))
-    assert.ok(!log.includes('leakedRefNew012'))
+    assert.equal(entries.length, 2)
+    assert.ok(entries[0].includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    assert.ok(entries[1].includes('/rest/products/search?q=[REDACTED]'))
+    assert.ok(entries[1].includes('"http://localhost:3000/rest/user/change-password?current=[REDACTED]&new=[REDACTED]"'))
+    for (const leaked of ['leakedCurrent123', 'leakedNew456', 'leakedRefCurrent789', 'leakedRefNew012', 'referrerProbe']) {
+      assert.ok(!entries.join('\n').includes(leaked))
+    }
   })
 })
