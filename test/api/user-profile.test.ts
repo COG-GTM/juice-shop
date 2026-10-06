@@ -57,7 +57,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', "#{'ssti' + '-' + 'evaluated'}")
+      .type('form')
+      .send({ username: "#{'ssti' + '-' + 'evaluated'}" })
       .redirects(0)
 
     const res = await request(app)
@@ -66,7 +67,7 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 200)
     assert.ok(!res.text.includes('ssti-evaluated'))
-    assert.ok(res.text.includes('#{&#39;ssti&#39; + &#39;-&#39; + &#39;evaluated&#39;}'))
+    assert.ok(res.text.includes("#{'ssti' + '-' + 'evaluated'}"))
     assert.notEqual(app.locals.abused_ssti_bug, true)
   })
 
@@ -74,7 +75,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'x #[strong pug-injected]')
+      .type('form')
+      .send({ username: 'x #[strong pug-injected]' })
       .redirects(0)
 
     const res = await request(app)
