@@ -29,6 +29,24 @@ describe('utils', () => {
     })
   })
 
+  describe('trustedProxyHops', () => {
+    it('does not trust any proxy by default', () => {
+      expect(utils.trustedProxyHops(undefined)).to.equal(false)
+    })
+
+    it('returns the configured number of proxy hops', () => {
+      expect(utils.trustedProxyHops('2')).to.equal(2)
+    })
+
+    it('does not trust any proxy for invalid hop counts', () => {
+      expect(utils.trustedProxyHops('')).to.equal(false)
+      expect(utils.trustedProxyHops('0')).to.equal(false)
+      expect(utils.trustedProxyHops('-1')).to.equal(false)
+      expect(utils.trustedProxyHops('1.5')).to.equal(false)
+      expect(utils.trustedProxyHops('true')).to.equal(false)
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')

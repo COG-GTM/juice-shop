@@ -339,13 +339,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
-  app.enable('trust proxy')
+  app.set('trust proxy', utils.trustedProxyHops())
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    keyGenerator ({ ip }: { ip: any }) { return ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
+  app.use('/rest/user/reset-password', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 10,
+    keyGenerator ({ body, ip }: { body: any, ip: any }) { return typeof body?.email === 'string' ? `email:${body.email.trim().toLowerCase()}` : `ip:${ip}` }
+  }))
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
