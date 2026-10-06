@@ -78,4 +78,19 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('a#{7*191}'))
     assert.ok(!res.text.includes('1337'))
   })
+
+  void it('GET user profile HTML-escapes markup stored in the username', async () => {
+    const jim = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(jim)
+    jim.setDataValue('username', '<img src=x onerror=alert(1)>')
+    await jim.save()
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('&lt;img src=x onerror=alert(1)&gt;'))
+    assert.ok(!res.text.includes('<img src=x onerror=alert(1)>'))
+  })
 })
