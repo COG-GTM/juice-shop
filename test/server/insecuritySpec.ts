@@ -10,6 +10,9 @@ import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
@@ -224,6 +227,22 @@ describe('insecurity', () => {
       const second = security.loadJwtPrivateKey({})
       expect(first.asymmetricKeyType).to.equal('rsa')
       expect(first.export({ type: 'pkcs1', format: 'pem' })).to.not.equal(second.export({ type: 'pkcs1', format: 'pem' }))
+    })
+
+    it('does not embed a private key in the source code', () => {
+      const embedsPrivateKey = /-----BEGIN (RSA )?PRIVATE KEY-----/.test(fs.readFileSync('lib/insecurity.ts', 'utf8'))
+      expect(embedsPrivateKey, 'lib/insecurity.ts embeds a PEM private key').to.equal(false)
+    })
+
+    it('loads the key from JWT_PRIVATE_KEY_FILE', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const file = path.join(os.tmpdir(), `jwt-${crypto.randomUUID()}.key`)
+      fs.writeFileSync(file, pem)
+      try {
+        expect(security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: file }).export({ type: 'pkcs1', format: 'pem' })).to.equal(pem)
+      } finally {
+        fs.unlinkSync(file)
+      }
     })
 
     it('loads the key from JWT_PRIVATE_KEY with escaped newlines', () => {
