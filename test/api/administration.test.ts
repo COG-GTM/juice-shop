@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import config from 'config'
 import * as utils from '../../lib/utils'
 
 let app: Express
@@ -37,5 +38,25 @@ void describe('/rest/admin/application-configuration', () => {
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.config, 'object')
     assert.ok(res.body.config !== null)
+    assert.equal(res.body.config.application.name, config.get<string>('application.name'))
+    assert.equal(res.body.config.application.domain, config.get<string>('application.domain'))
+  })
+
+  void it('GET application configuration exposes only allowlisted settings', async () => {
+    const res = await request(app)
+      .get('/rest/admin/application-configuration')
+
+    assert.equal(res.status, 200)
+    const body = res.body.config
+    assert.equal(body.application.chatBot.llmApiUrl, undefined)
+    assert.equal(body.application.chatBot.model, undefined)
+    assert.equal(body.application.customMetricsPrefix, undefined)
+    assert.equal(body.server.basePath, undefined)
+    assert.equal(body.server.baseUrl, undefined)
+    assert.equal(body.challenges.csafHashValue, undefined)
+    assert.equal(body.challenges.xssBonusPayload, undefined)
+    assert.equal(body.challenges.metricsIgnoredUserAgents, undefined)
+    assert.equal(body.products, undefined)
+    assert.equal(body.memories, undefined)
   })
 })
