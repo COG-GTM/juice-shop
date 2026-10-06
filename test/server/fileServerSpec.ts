@@ -53,6 +53,16 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  it('should raise error for incident-support.kdbx requested via poison null byte', () => {
+    req.params.file = 'incident-support.kdbx%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
   it('should raise error for slashes in filename', () => {
     req.params.file = '../../../../nice.try'
 

@@ -83,6 +83,12 @@ void describe('/ftp', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('GET the KeePass database in /ftp via poison null byte will return a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/incident-support.kdbx%2500.md')
+    assert.equal(res.status, 403)
+  })
+
   void it('GET the easter egg file by using Poison Null Byte attack with .pdf suffix', async () => {
     const res = await request(app)
       .get('/ftp/eastere.gg%2500.pdf')
