@@ -165,6 +165,9 @@ void describe('/rest/basket/:id/checkout', () => {
     const orderTotal = 5 * 8.99 + 2 * 4.99
     const bonusPoints = 5
     assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+    const stockOf = async (ProductId: number) => (await request(app).get('/api/Quantitys').set(uvoginHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+    const stockBefore = { 3: await stockOf(3), 4: await stockOf(4) }
 
     const responses = await Promise.all([1, 2].map(async () => await request(app)
       .post('/rest/basket/5/checkout')
@@ -176,6 +179,8 @@ void describe('/rest/basket/:id/checkout', () => {
     const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
     assert.ok(balanceAfter >= 0)
     assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+    assert.equal(await stockOf(3), stockBefore[3] - 5)
+    assert.equal(await stockOf(4), stockBefore[4] - 2)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
