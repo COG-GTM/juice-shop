@@ -9,8 +9,12 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -98,6 +102,39 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL does not fetch internal resources into the public uploads folder', async () => {
+    const secret = `internal-secret-${Date.now()}`
+    let internalRequests = 0
+    const internalService = http.createServer((_req, res) => {
+      internalRequests++
+      res.writeHead(200, { 'content-type': 'image/jpeg' })
+      res.end(secret)
+    })
+    await new Promise<void>(resolve => internalService.listen(0, '127.0.0.1', resolve))
+    const internalUrl = `http://127.0.0.1:${(internalService.address() as AddressInfo).port}/latest/meta-data/iam/security-credentials/role`
+
+    try {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+      const userId = security.decode(token).data.id
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', internalUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      assert.equal(internalRequests, 0)
+      const upload = `frontend/dist/frontend/assets/public/images/uploads/${userId}.jpg`
+      assert.ok(!fs.existsSync(upload) || !fs.readFileSync(upload, 'utf8').includes(secret))
+    } finally {
+      internalService.close()
+    }
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
