@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { AddressModel } from '../../models/address'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -168,6 +169,36 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ zipCode: 'NX 10111111' })
     assert.equal(res.status, 400)
+  })
+
+  void it('PUT update address of another user is forbidden and leaves it untouched', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const victimRes = await request(app).post('/api/Addresss').set(benderHeader).send({
+      fullName: 'Bender',
+      mobileNum: '9800000001',
+      zipCode: 'NNY 42',
+      streetAddress: 'Robot Arms Apts 42',
+      city: 'New New York',
+      state: 'NY',
+      country: 'USA'
+    })
+    assert.equal(victimRes.status, 201)
+    const victimId = victimRes.body.data.id
+
+    const res = await request(app)
+      .put('/api/Addresss/' + victimId)
+      .set(authHeader)
+      .send({ fullName: 'Hijacked by Jim' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const victim = await AddressModel.findByPk(victimId)
+    assert.equal(victim?.fullName, 'Bender')
+    assert.equal(victim?.UserId, victimRes.body.data.UserId)
   })
 
   void it('DELETE address by id', async () => {

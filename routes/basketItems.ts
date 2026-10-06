@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -97,5 +98,24 @@ async function quantityCheck (req: Request, res: Response, next: NextFunction, i
     }
   } else {
     res.status(400).json({ error: res.__('You can order only up to {{quantity}} items of this product.', { quantity: product.limitPerUser.toString() }) })
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId === undefined) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' })
+    }
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (item == null) {
+      next()
+      return
+    }
+    const basket = item.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId, UserId: userId } }) : null
+    if (basket == null) {
+      return res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
+    }
+    next()
   }
 }
