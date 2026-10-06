@@ -78,6 +78,22 @@ const metricToolCalls = new Counter({
   labelNames: ['tool'],
 })
 
+const maxCouponDiscount = 10
+const ordersWithIssuedCoupon = new Set<string>()
+
+async function claimCouponForOrder (req: Request, orderId: string): Promise<string | undefined> {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  if (!userId) return 'Customer not authenticated'
+  const user = await UserModel.findByPk(userId, { attributes: ['email'] })
+  const maskedEmail = user?.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
+  const order = await db.ordersCollection.findOne({ orderId })
+  if (!order || !maskedEmail || order.email !== maskedEmail) return 'No order with this ID found for the current customer'
+  if (!order.delivered) return 'Coupons can only be issued for delivered orders'
+  if (ordersWithIssuedCoupon.has(orderId)) return 'A coupon has already been issued for this order'
+  ordersWithIssuedCoupon.add(orderId)
+  return undefined
+}
+
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
 function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
   const userIdentifier = userName ? `\nThe customer you are currently chatting with is ${userName}.` : ''
@@ -174,9 +190,12 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(1).max(maxCouponDiscount).describe('The discount percentage for the coupon (maximum 10)'), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          orderId: z.string().describe('The ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
+        execute: async ({ discount, orderId }) => {
+          const ineligibility = await claimCouponForOrder(req, orderId)
+          if (ineligibility) return { error: ineligibility }
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
