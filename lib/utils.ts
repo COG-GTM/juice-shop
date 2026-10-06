@@ -214,6 +214,11 @@ export const toSimpleIpAddress = (ipv6: string) => {
   }
 }
 
+export const trustedProxyHops = (hops = process.env.TRUSTED_PROXY_HOPS) => {
+  const count = Number(hops)
+  return hops !== undefined && Number.isInteger(count) && count > 0 ? count : false
+}
+
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
