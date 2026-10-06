@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as security from '../../lib/insecurity'
 
@@ -100,13 +101,13 @@ void describe('/api/Products/:id', () => {
       .send({
         description: '<iframe src="javascript:alert(`xss`)">'
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
 
     const product = await request(app).get('/api/Products/' + tamperingProductId)
     assert.ok(!product.body.data.description.includes('<iframe'))
   })
 
-  void it('PUT update existing product is forbidden via API even when authenticated', async () => {
+  void it('PUT update existing product is forbidden via API for non-accounting users', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
@@ -114,7 +115,24 @@ void describe('/api/Products/:id', () => {
       .send({
         price: 0.01
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product price is allowed for accounting users', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+      .send({
+        price: 3.99,
+        description: '<iframe src="javascript:alert(`xss`)">'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.price, 3.99)
+    assert.ok(!res.body.data.description.includes('<iframe'))
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
