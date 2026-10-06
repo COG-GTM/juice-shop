@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -35,6 +36,14 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const basketItems = (basket.Products ?? []).filter(({ BasketItem }) => BasketItem != null)
+          if (basketItems.some(({ BasketItem }) => !Number.isInteger(BasketItem.quantity) || BasketItem.quantity <= 0)) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => {
+              return basketItems.reduce((sum, { BasketItem, price }) => sum + price * BasketItem.quantity, 0) < 0
+            })
+            next(new Error('Basket item quantities must be positive.'))
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -139,12 +148,18 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            next(new Error('Order total must not be negative.'))
+            return
+          }
+
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
+              const [debitedWallets] = await WalletModel.update(
+                { balance: literal(`balance - ${WalletModel.sequelize!.escape(totalPrice)}`) },
+                { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
+              )
+              if (debitedWallets !== 1) {
                 next(new Error('Insufficient wallet balance.'))
                 return
               }
