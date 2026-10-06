@@ -43,8 +43,12 @@ const loadSigningKeys = () => {
 const signingKeys = loadSigningKeys()
 const privateKey = signingKeys.privateKey
 export const publicKey = signingKeys.publicKey
+const publicKeyFile = 'encryptionkeys/jwt.pub'
 try {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  // never clobber a private key that an operator pointed JWT_PRIVATE_KEY_FILE at
+  if (!fs.existsSync(publicKeyFile) || !fs.readFileSync(publicKeyFile, 'utf8').includes('PRIVATE KEY')) {
+    fs.writeFileSync(publicKeyFile, publicKey)
+  }
 } catch {
   // read-only deployments simply do not publish the public key file
 }

@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -213,8 +214,29 @@ describe('insecurity', () => {
     // RS256 token signed with the private key that used to be hardcoded in lib/insecurity.ts
     const tokenSignedWithFormerlyHardcodedKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
 
-    it('rejects tokens minted with the formerly hardcoded private key', () => {
-      expect(security.verify(tokenSignedWithFormerlyHardcodedKey)).to.equal(false)
+    const generateRsaKeyPair = () => crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    })
+
+    // loads lib/insecurity.ts in a fresh process so its key configuration is independent of the test runner's env
+    const loadInsecurityWith = (env: Record<string, string>, cwd = os.tmpdir()) => {
+      const baseEnv = { ...process.env }
+      for (const name of ['JWT_PRIVATE_KEY', 'JWT_PRIVATE_KEY_FILE', 'DELUXE_TOKEN_SECRET']) delete baseEnv[name]
+      const insecurityModule = path.resolve('lib/insecurity.ts')
+      const tsxLoader = pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href
+      const output = execFileSync(process.execPath, ['--import', tsxLoader, '-e',
+        `const s = require(${JSON.stringify(insecurityModule)}); console.log(JSON.stringify({ publicKey: s.publicKey, deluxeToken: s.deluxeToken('test@juice-sh.op'), acceptsFormerKeyToken: s.verify(${JSON.stringify(tokenSignedWithFormerlyHardcodedKey)}), acceptsOwnToken: s.verify(s.authorize({ data: { email: 'test@juice-sh.op' } })) }))`
+      ], { cwd, env: { ...baseEnv, ...env } }).toString()
+      return JSON.parse(output.trim().split('\n').pop() as string)
+    }
+
+    it('rejects tokens minted with the formerly hardcoded private key when no key is configured', () => {
+      const result = loadInsecurityWith({})
+
+      expect(result.acceptsFormerKeyToken).to.equal(false)
+      expect(result.acceptsOwnToken).to.equal(true)
     })
 
     it('accepts tokens issued by authorize() with the active signing key', () => {
@@ -222,23 +244,26 @@ describe('insecurity', () => {
     })
 
     it('loads the signing key from JWT_PRIVATE_KEY and the deluxe secret from DELUXE_TOKEN_SECRET', () => {
-      const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
-        modulusLength: 2048,
-        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
-        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
-      })
-      const insecurityModule = path.resolve('lib/insecurity.ts')
-      const tsxLoader = pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href
-      const output = execFileSync(process.execPath, ['--import', tsxLoader, '-e',
-        `const s = require(${JSON.stringify(insecurityModule)}); console.log(JSON.stringify({ publicKey: s.publicKey, deluxeToken: s.deluxeToken('test@juice-sh.op') }))`
-      ], {
-        cwd: os.tmpdir(),
-        env: { ...process.env, JWT_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n'), DELUXE_TOKEN_SECRET: 'test-deluxe-secret' }
-      }).toString()
-      const result = JSON.parse(output.trim().split('\n').pop() as string)
+      const { privateKey, publicKey } = generateRsaKeyPair()
+      const result = loadInsecurityWith({ JWT_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n'), DELUXE_TOKEN_SECRET: 'test-deluxe-secret' })
 
       expect(result.publicKey).to.equal(publicKey)
+      expect(result.acceptsFormerKeyToken).to.equal(false)
+      expect(result.acceptsOwnToken).to.equal(true)
       expect(result.deluxeToken).to.equal(crypto.createHmac('sha256', 'test-deluxe-secret').update('test@juice-sh.opdeluxe').digest('hex'))
+    })
+
+    it('does not overwrite a private key file configured via JWT_PRIVATE_KEY_FILE at the public key path', () => {
+      const { privateKey, publicKey } = generateRsaKeyPair()
+      const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-keys-'))
+      fs.mkdirSync(path.join(workDir, 'encryptionkeys'))
+      fs.writeFileSync(path.join(workDir, 'encryptionkeys/jwt.pub'), privateKey)
+
+      const result = loadInsecurityWith({ JWT_PRIVATE_KEY_FILE: 'encryptionkeys/jwt.pub' }, workDir)
+
+      expect(result.publicKey).to.equal(publicKey)
+      expect(fs.readFileSync(path.join(workDir, 'encryptionkeys/jwt.pub'), 'utf8')).to.equal(privateKey)
+      fs.rmSync(workDir, { recursive: true, force: true })
     })
   })
 })
