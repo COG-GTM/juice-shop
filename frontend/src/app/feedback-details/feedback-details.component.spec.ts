@@ -44,11 +44,12 @@ describe('FeedbackDetailsComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render a malicious feedback comment as text', () => {
-        component.feedback = '<img src="x" onerror="alert(1)">'
+    it('should strip script from a malicious feedback comment but keep harmless formatting', () => {
+        component.feedback = 'This is <b>the</b> store<iframe src="javascript:alert(`xss`)"></iframe><img src="x" onerror="alert(1)">'
         fixture.detectChanges()
 
-        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
-        expect(fixture.nativeElement.querySelector('cite').textContent).toContain('<img src="x" onerror="alert(1)">')
+        expect(fixture.nativeElement.querySelector('cite iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite [onerror]')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite b').textContent).toBe('the')
     })
 })

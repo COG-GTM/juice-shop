@@ -148,13 +148,14 @@ describe('AdministrationComponent', () => {
         expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
     })
 
-    it('should render a malicious feedback comment as text', () => {
-        feedbackService.find.mockReturnValue(of([{ comment: '<img src="x" onerror="alert(1)">', rating: 1 }]))
+    it('should strip script from a malicious feedback comment but keep harmless formatting', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: 'This is <b>the</b> store<iframe src="javascript:alert(`xss`)"></iframe><img src="x" onerror="alert(1)">', rating: 1 }]))
         component.findAllFeedbacks()
         fixture.detectChanges()
 
-        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
-        expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('[onerror]')).toBeNull()
+        expect(fixture.nativeElement.querySelector('b').textContent).toBe('the')
     })
 
     it('should have three columns in the user table', () => {
