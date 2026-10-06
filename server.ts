@@ -339,6 +339,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     max_logs: '2d'
   })
   morgan.token<Request>('url', (req) => utils.redactQueryString(req.originalUrl ?? req.url))
+  morgan.token<Request>('referrer', (req) => {
+    const referrer = req.headers.referer ?? req.headers.referrer
+    return typeof referrer === 'string' ? utils.redactQueryString(referrer) : undefined
+  })
   app.use(morgan('combined', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge

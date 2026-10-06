@@ -89,4 +89,22 @@ describe('/', () => {
       })
     })
   })
+
+  describe('challenge "accessLogDisclosure"', () => {
+    beforeEach(() => {
+      cy.login({ email: 'admin', password: 'admin123' })
+    })
+
+    it("should be able to access today's access log file as admin", () => {
+      cy.task<Date>('toISO8601').then((date: Date) => {
+        cy.window().then(() => {
+          cy.request({
+            url: `/support/logs/access.log.${date.toString()}`,
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }).its('status').should('equal', 200)
+        })
+      })
+      cy.expectChallengeSolved({ challenge: 'Access Log' })
+    })
+  })
 })

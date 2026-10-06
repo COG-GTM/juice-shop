@@ -234,9 +234,12 @@ void describe('Hidden URL', () => {
   void it('access log does not contain credentials passed in query strings', async () => {
     await request(app)
       .get('/rest/user/change-password?current=leakedCurrent123&new=leakedNew456&repeat=leakedNew456')
+    await request(app)
+      .get('/rest/products/search?q=referrerProbe')
+      .set('Referer', 'http://localhost:3000/rest/user/change-password?current=leakedRefCurrent789&new=leakedRefNew012')
     const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
     let log = ''
-    for (let attempt = 0; attempt < 20 && !log.includes('/rest/user/change-password?'); attempt++) {
+    for (let attempt = 0; attempt < 20 && !(log.includes('/rest/user/change-password?') && log.includes('referrerProbe')); attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       const res = await request(app)
         .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
@@ -252,5 +255,8 @@ void describe('Hidden URL', () => {
     assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
     assert.ok(!log.includes('leakedCurrent123'))
     assert.ok(!log.includes('leakedNew456'))
+    assert.ok(log.includes('"http://localhost:3000/rest/user/change-password?current=[REDACTED]&new=[REDACTED]"'))
+    assert.ok(!log.includes('leakedRefCurrent789'))
+    assert.ok(!log.includes('leakedRefNew012'))
   })
 })
