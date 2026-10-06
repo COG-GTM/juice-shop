@@ -6,12 +6,37 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('verify', () => {
+    const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const payload = base64url({ data: { email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })
+
+    it('accepts a token regularly signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with alg "none"', () => {
+      expect(security.verify(`${base64url({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects an HS256 token HMAC-signed with the public RSA key', () => {
+      const input = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')
+      expect(security.verify(`${input}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.verify('not-a-jwt')).to.equal(false)
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
