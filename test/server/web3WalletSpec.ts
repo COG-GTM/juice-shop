@@ -69,8 +69,9 @@ describe('web3Wallet', () => {
   })
 
   it('matches the on-chain exploiter address case-insensitively and only once', () => {
-    rememberWallet('0x413744d59d31afdc2889aee602636177805bd7b0')
+    rememberWallet('0x413744D59d31AFDC2889aeE602636177805Bd7b0')
 
+    expect(walletsConnected.has('0x413744d59d31afdc2889aee602636177805bd7b0')).to.equal(true)
     expect(consumeWallet('0x413744D59d31AFDC2889aeE602636177805Bd7b0')).to.equal(true)
     expect(consumeWallet('0x413744D59d31AFDC2889aeE602636177805Bd7b0')).to.equal(false)
   })
