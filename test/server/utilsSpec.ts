@@ -216,10 +216,8 @@ describe('utils', () => {
       const res = {
         headersSent: false,
         statusCode,
-        status (code: number) { out.status = code; this.statusCode = code; return this },
-        type (t: string) { out.type = t; return this },
-        send (body: unknown) { out.body = body; return this },
-        json (body: unknown) { out.type = 'json'; out.body = body; return this }
+        setHeader (name: string, value: string) { out.type = value.includes('json') ? 'json' : 'html' },
+        end (body: string) { out.status = this.statusCode; out.body = out.type === 'json' ? JSON.parse(body) : body }
       }
       utils.genericErrorHandler()(err, req, res, () => {})
       return out
@@ -240,6 +238,13 @@ describe('utils', () => {
       expect(out.status).to.equal(403)
       expect(out.body).to.equal('Error: Only .md and &#60;b&#62;.pdf&#60;/b&#62; files are allowed!')
       expect(String(out.body)).to.not.match(/at .*\.(ts|js):\d+/)
+    })
+
+    it('passes the body to res.end as a string so response-rewriting middleware keeps working', () => {
+      let chunk: unknown
+      const res = { headersSent: false, statusCode: 200, setHeader () {}, end (body: unknown) { chunk = body } }
+      utils.genericErrorHandler()(new Error('ENOENT'), { method: 'GET', path: '/ftp/x', accepts: () => 'html' }, res, () => {})
+      expect(chunk).to.be.a('string')
     })
 
     it('honours the status of http-errors style errors', () => {

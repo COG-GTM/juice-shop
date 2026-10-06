@@ -241,12 +241,10 @@ export const genericErrorHandler = () => (err: any, req: any, res: any, next: an
   const statusCode = status >= 400 && status < 600 ? status : (res.statusCode >= 400 ? res.statusCode : 500)
   const message = statusCode < 500 && err?.message ? String(err) : (STATUS_CODES[statusCode] ?? 'Error')
   logger.error(`${req.method} ${req.path} failed with ${statusCode}: ${err instanceof Error ? err.stack : String(err)}`)
-  res.status(statusCode)
-  if (req.accepts(['html', 'json']) === 'json') {
-    res.json({ error: { message } })
-  } else {
-    res.type('html').send(escapeHtml(message))
-  }
+  const json = req.accepts(['html', 'json']) === 'json'
+  res.statusCode = statusCode
+  res.setHeader('Content-Type', json ? 'application/json; charset=utf-8' : 'text/html; charset=utf-8')
+  res.end(json ? JSON.stringify({ error: { message } }) : escapeHtml(message))
 }
 
 /**

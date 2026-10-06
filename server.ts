@@ -787,6 +787,7 @@ export async function createApp (options?: { inMemoryDb?: boolean }) {
   Prometheus.register.clear()
   const testApp = express()
   testApp.set('view engine', 'hbs')
+  testApp.get('/metrics', security.isAdmin(), utils.asyncHandler(metrics.serveMetrics())) // mirrors the module-level /metrics route of the production app
   configureApp(testApp, seq)
   await seq.sync({ force: true })
   await datacreator()
