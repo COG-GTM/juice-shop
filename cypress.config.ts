@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import fs from 'node:fs'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -60,6 +61,12 @@ export default defineConfig({
               return i + 1
             }
           }
+        },
+        async GetNftWalletPrivateKey () {
+          const users = fs.readFileSync('data/static/users.yml', 'utf8')
+          const seedPhrase = /\/juicy-nft : "([a-z ]+)"/.exec(users)?.[1] ?? ''
+          const { HDNodeWallet } = await import('ethers')
+          return HDNodeWallet.fromPhrase(seedPhrase).privateKey
         },
         GenerateAuthenticator (inputString: string) {
           return generateSync({ secret: inputString })
