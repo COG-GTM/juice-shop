@@ -7,21 +7,11 @@ import { type Request, type Response } from 'express'
 import { RecycleModel } from '../models/recycle'
 
 import * as utils from '../lib/utils'
-import * as security from '../lib/insecurity'
 
 export const getRecycleItem = () => (req: Request, res: Response) => {
-  const id = /^[1-9]\d{0,9}$/.test(req.params.id) ? Number(req.params.id) : NaN
-  if (!Number.isSafeInteger(id)) {
-    return res.status(400).send({ error: 'Invalid recycle id.' })
-  }
-  const userId = security.decode(utils.jwtFrom(req))?.data?.id
-  if (!userId) {
-    return res.status(401).send({ error: 'Authentication required.' })
-  }
   RecycleModel.findAll({
     where: {
-      id,
-      UserId: userId
+      id: JSON.parse(req.params.id)
     }
   }).then((Recycle) => {
     return res.send(utils.queryResultToJson(Recycle))
