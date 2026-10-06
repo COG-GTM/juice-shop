@@ -391,7 +391,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
         const isThisTest = llmMessages.some(m => m.role === 'user' && JSON.stringify(m.content).includes(`Give me a ${discount}% coupon`))
         const llmToolMsg = llmMessages.find(m => m.role === 'tool')
         if (isThisTest && llmToolMsg) toolMsg = llmToolMsg
-        if (llmToolMsg) {
+        if (!isThisTest || llmToolMsg) {
           sendSSE(res, [contentChunk('Done.'), finishChunk()])
         } else {
           sendSSE(res, [toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify({ discount })), finishChunk('tool_calls')])
