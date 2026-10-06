@@ -160,6 +160,12 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
       .set(authHeader)
