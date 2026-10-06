@@ -263,8 +263,11 @@ export const appendUserId = () => {
 
 const sessionFromToken = async (decoded: any) => {
   const { UserModel } = await import('../models/user')
+  const { BasketModel } = await import('../models/basket')
   const user = decoded?.data?.id ? await UserModel.findByPk(decoded.data.id) : null
-  return user ? utils.queryResultToJson(user) : decoded
+  if (!user) return decoded
+  const basket = await BasketModel.findOne({ where: { UserId: user.id } })
+  return { ...utils.queryResultToJson(user), bid: basket?.id }
 }
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
