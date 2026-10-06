@@ -133,6 +133,22 @@ void describe('/profile/image/url', () => {
     }
   })
 
+  void it('POST profile image URL with blocked server-side challenge URL does not arm SSRF challenge', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'http://127.0.0.1:3000/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.notEqual(app.locals.abused_ssrf_bug, true)
+  })
+
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
       .post('/profile/image/url')
