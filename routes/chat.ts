@@ -85,9 +85,9 @@ const MAX_CLIENT_MESSAGE_LENGTH = 4000
 interface ClientMessage { role: 'user' | 'assistant', content: string }
 
 export function sanitizeClientMessages (input: unknown): ClientMessage[] | null {
-  if (!Array.isArray(input) || input.length > MAX_CLIENT_MESSAGES) return null
+  if (!Array.isArray(input)) return null
   const messages: ClientMessage[] = []
-  for (const message of input) {
+  for (const message of input.slice(-MAX_CLIENT_MESSAGES)) {
     const { role, content } = message ?? {}
     if (role !== 'user' && role !== 'assistant') return null
     if (typeof content !== 'string' || content.length > MAX_CLIENT_MESSAGE_LENGTH) return null
@@ -207,7 +207,7 @@ export function chat () {
     const model = config.get<string>('application.chatBot.model')
     const messages = sanitizeClientMessages(req.body?.messages ?? [])
     if (messages === null) {
-      res.status(400).json({ error: `Invalid messages: expected at most ${MAX_CLIENT_MESSAGES} user or assistant messages with text content of at most ${MAX_CLIENT_MESSAGE_LENGTH} characters` })
+      res.status(400).json({ error: `Invalid messages: expected user or assistant messages with text content of at most ${MAX_CLIENT_MESSAGE_LENGTH} characters` })
       return
     }
     const userName = await getUserNameFromToken(req)

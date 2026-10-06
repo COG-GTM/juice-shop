@@ -636,7 +636,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Chat API endpoint */
   app.post('/rest/chat',
     security.isAuthorized(),
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 30, validate: false }),
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 30,
+      validate: false,
+      keyGenerator: (req: Request) => String((security.decode(utils.jwtFrom(req) ?? '') as { data?: { id?: number } } | undefined)?.data?.id ?? req.ip)
+    }),
     utils.asyncHandler(chat())
   )
 

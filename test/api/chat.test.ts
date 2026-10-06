@@ -327,6 +327,26 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(notArrayRes.status, 400)
   })
 
+  void it('POST forwards only the most recent 50 messages of a long conversation', { timeout: 15000 }, async () => {
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('Sure!'), finishChunk()])
+    }
+    const history = Array.from({ length: 61 }, (_, i) => ({ role: i % 2 === 0 ? 'user' : 'assistant', content: `message ${i}` }))
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: history })
+
+    assert.equal(res.status, 200)
+    const forwarded = parsedBody.messages.filter((m: { role: string }) => m.role !== 'system')
+    assert.equal(forwarded.length, 50)
+    assert.equal(forwarded[0].content, 'message 11')
+    assert.equal(forwarded[49].content, 'message 60')
+  })
+
   void it('POST forwards only role and text content of user and assistant messages', { timeout: 15000 }, async () => {
     let parsedBody: any
     onLlmRequest = (_req, body, res) => {
