@@ -5,7 +5,7 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "negativeOrder"', () => {
-      it('should be possible to update a basket to a negative quantity via the Rest API', () => {
+      it('should not be possible to update a basket to a negative quantity via the Rest API', () => {
         cy.window().then(async () => {
           const response = await fetch(
             `${Cypress.config('baseUrl')}/api/BasketItems/1`,
@@ -19,9 +19,7 @@ describe('/#/basket', () => {
               body: JSON.stringify({ quantity: -100000 })
             }
           )
-          if (response.status === 200) {
-            console.log('Success')
-          }
+          expect(response.status).to.equal(400)
         })
         cy.visit('/#/order-summary')
 
@@ -29,14 +27,8 @@ describe('/#/basket', () => {
           .first()
           .then(($ele) => {
             const quantity = $ele.text()
-            expect(quantity).to.match(/-100000/)
+            expect(quantity).to.not.match(/-100000/)
           })
-      })
-
-      it('should be possible to place an order with a negative total amount', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Payback Time' })
       })
     })
 
