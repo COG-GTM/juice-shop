@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -46,9 +47,50 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST update username rejects a template-injection payload', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: "a#{global.process.mainModule.require('child_process').execSync('id')}" })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET user profile renders a stored template expression in the username as escaped text', async () => {
+    const jim = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(jim)
+    await jim.update({ username: 'a#{7*191}' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('a#{7*191}'))
+    assert.ok(!res.text.includes('1337'))
+  })
+
+  void it('GET user profile HTML-escapes markup stored in the username', async () => {
+    const jim = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(jim)
+    jim.setDataValue('username', '<img src=x onerror=alert(1)>')
+    await jim.save()
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('&lt;img src=x onerror=alert(1)&gt;'))
+    assert.ok(!res.text.includes('<img src=x onerror=alert(1)>'))
   })
 })
