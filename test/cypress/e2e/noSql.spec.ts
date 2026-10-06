@@ -79,17 +79,19 @@ describe('/rest/products/reviews', () => {
     it('should not be possible to edit a review of another user', () => {
       cy.visit('/')
       cy.window().then(async () => {
-        const reviews = await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`)
-        const reviewId = (await reviews.json()).data[0]._id
+        const getReviews = async () => (await (await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`)).json()).data
+        const foreignReview = (await getReviews()).find((review: { author: string }) => review.author !== 'mc.safesearch@juice-sh.op')
         const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/reviews`, {
           method: 'PATCH',
           headers: {
             'Content-type': 'application/json',
             Authorization: `Bearer ${localStorage.getItem('token')}`
           },
-          body: JSON.stringify({ id: reviewId, message: 'injected' })
+          body: JSON.stringify({ id: foreignReview._id, message: 'injected' })
         })
         expect((await response.json()).modified).to.equal(0)
+        const reviewAfter = (await getReviews()).find((review: { _id: string }) => review._id === foreignReview._id)
+        expect(reviewAfter.message).to.equal(foreignReview.message)
       })
     })
 
