@@ -26,9 +26,9 @@ export function imageCaptchas () {
         answer: captcha.text,
         UserId: user.data.id
       }
-      await ImageCaptchaModel.destroy({ where: { UserId: user.data.id } })
       const imageCaptchaInstance = ImageCaptchaModel.build(imageCaptcha)
       await imageCaptchaInstance.save()
+      await ImageCaptchaModel.destroy({ where: { UserId: user.data.id, id: { [Op.lt]: imageCaptchaInstance.id } } })
       res.json(imageCaptcha)
     } catch (error) {
       res.status(400).send(res.__('Unable to create CAPTCHA. Please try again.'))

@@ -90,6 +90,27 @@ void describe('/rest/user/data-export', () => {
     assert.equal(retry.status, 401)
   })
 
+  void it('Requesting a new CAPTCHA invalidates the previous one', async () => {
+    const { token } = await login(app, { email: 'bender@' + config.get<string>('application.domain'), password: 'OhG0dPlease1nsertLiquor!' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const firstAnswer = await requestCaptcha(authHeader)
+    await requestCaptcha(authHeader)
+
+    const stale = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer: firstAnswer, format: '1' })
+    assert.equal(stale.status, 401)
+
+    await requestCaptcha(authHeader)
+    const latestAnswer = await requestCaptcha(authHeader)
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer: latestAnswer, format: '1' })
+    assert.equal(res.status, 200)
+  })
+
   void it('Export data when CAPTCHA requested need right answer', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
