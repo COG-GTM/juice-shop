@@ -52,6 +52,8 @@ describe('profileImageFetch', () => {
           res.writeHead(200, { 'content-type': 'text/plain' }).end('ami-id')
         } else if (req.url === '/huge') {
           res.writeHead(200, { 'content-type': 'image/png' }).end(Buffer.alloc(MAX_PROFILE_IMAGE_BYTES + 1))
+        } else if (req.url === '/gzip') {
+          res.writeHead(200, { 'content-type': 'image/png', 'content-encoding': 'gzip' }).end(Buffer.from([0x1f, 0x8b, 0x08]))
         } else if (req.url === '/missing') {
           res.writeHead(404, { 'content-type': 'image/png' }).end('nope')
         } else {
@@ -114,6 +116,10 @@ describe('profileImageFetch', () => {
 
     it('should reject non-OK responses', async () => {
       await expectRejection(fetchProfileImage(`${baseUrl}/missing`, allowLoopback), /status 404/)
+    })
+
+    it('should reject content-encoded responses instead of saving undecoded bytes', async () => {
+      await expectRejection(fetchProfileImage(`${baseUrl}/gzip`, allowLoopback), /encoded body/)
     })
 
     it('should reject responses larger than the size cap', async () => {
