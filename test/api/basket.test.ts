@@ -190,6 +190,15 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
+  void it('PUT apply valid coupon containing a percent sign', async () => {
+    const coupon = Array.from({ length: 99 }, (_, i) => security.generateCoupon(i + 1)).find(c => c.includes('%'))
+    assert.ok(coupon)
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(coupon))
+      .set(authHeader)
+    assert.equal(res.status, 200)
+  })
+
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
