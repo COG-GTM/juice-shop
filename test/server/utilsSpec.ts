@@ -7,10 +7,48 @@ import type { ChallengeModel } from 'models/challenge'
 
 import * as utils from '../../lib/utils'
 
+import crypto from 'node:crypto'
+import cookieParser from 'cookie-parser'
 import chai from 'chai'
 const expect = chai.expect
 
 describe('utils', () => {
+  describe('cookieParserSecret', () => {
+    const originalSecret = process.env.COOKIE_PARSER_SECRET
+    const forgeSignedCookie = (value: string, secret: string) =>
+      's:' + value + '.' + crypto.createHmac('sha256', secret).update(value).digest('base64').replace(/=+$/, '')
+
+    afterEach(() => {
+      if (originalSecret === undefined) {
+        delete process.env.COOKIE_PARSER_SECRET
+      } else {
+        process.env.COOKIE_PARSER_SECRET = originalSecret
+      }
+    })
+
+    it('uses COOKIE_PARSER_SECRET when it is set', () => {
+      process.env.COOKIE_PARSER_SECRET = 'operator-supplied-secret'
+      expect(utils.cookieParserSecret()).to.equal('operator-supplied-secret')
+    })
+
+    it('generates a random 256-bit secret when COOKIE_PARSER_SECRET is unset or empty', () => {
+      delete process.env.COOKIE_PARSER_SECRET
+      const first = utils.cookieParserSecret()
+      process.env.COOKIE_PARSER_SECRET = ''
+      const second = utils.cookieParserSecret()
+      expect(first).to.match(/^[0-9a-f]{64}$/)
+      expect(second).to.match(/^[0-9a-f]{64}$/)
+      expect(first).to.not.equal(second)
+    })
+
+    it('rejects cookies signed with the formerly hardcoded secret', () => {
+      delete process.env.COOKIE_PARSER_SECRET
+      const forged = forgeSignedCookie('admin', 'kekse')
+      expect(cookieParser.signedCookie(forged, 'kekse')).to.equal('admin')
+      expect(cookieParser.signedCookie(forged, utils.cookieParserSecret())).to.equal(false)
+    })
+  })
+
   describe('toSimpleIpAddress', () => {
     it('returns ipv6 address unchanged', () => {
       expect(utils.toSimpleIpAddress('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).to.equal('2001:0db8:85a3:0000:0000:8a2e:0370:7334')
