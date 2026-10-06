@@ -89,7 +89,7 @@ async function claimCouponForOrder (req: Request, orderId: string, discount: num
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || !maskedEmail || order.email !== maskedEmail) return 'No order with this ID found for the current customer'
   if (!order.delivered) return 'Coupons can only be issued for delivered orders'
-  if (security.discountFromCoupon(security.generateCoupon(discount)) !== discount) return 'Unsupported discount value'
+  if (!/^[0-9]{2}$/.test(String(discount))) return 'Unsupported discount value'
   if (ordersWithIssuedCoupon.has(orderId)) return 'A coupon has already been issued for this order'
   ordersWithIssuedCoupon.add(orderId)
   return undefined
