@@ -4,7 +4,10 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { CaptchaModel } from '../models/captcha'
+
+const CAPTCHA_TTL_MS = 10 * 60 * 1000
 
 export function captchas () {
   return async (req: Request, res: Response) => {
@@ -26,16 +29,21 @@ export function captchas () {
       captcha: expression,
       answer
     }
+    await CaptchaModel.destroy({ where: { createdAt: { [Op.lt]: new Date(Date.now() - CAPTCHA_TTL_MS) } } })
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
-    res.json(captcha)
+    res.json({ captchaId, captcha: expression })
   }
 }
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
+    const { captchaId, captcha } = req.body
+    /* Destroying the matching unexpired captcha is atomic, so each solved captcha can be used exactly once */
+    const consumed = (typeof captchaId === 'number' || typeof captchaId === 'string') && typeof captcha === 'string'
+      ? await CaptchaModel.destroy({ where: { captchaId, answer: captcha, createdAt: { [Op.gte]: new Date(Date.now() - CAPTCHA_TTL_MS) } } })
+      : 0
+    if (consumed > 0) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
