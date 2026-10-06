@@ -25,7 +25,7 @@ export function servePublicFiles () {
 
   function verify (file: string, res: Response, next: NextFunction) {
     const fileName = security.cutOffPoisonNullByte(file)
-    if (file && isAllowlisted(file)) {
+    if (fileName !== file && isAllowlisted(file)) {
       verifyAttemptedPoisonNullByteExploit(fileName)
     }
 

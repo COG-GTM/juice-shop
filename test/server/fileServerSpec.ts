@@ -157,4 +157,15 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]legal\.md$/))
     expect(challenges.nullByteChallenge.solved).to.equal(true)
   })
+
+  it('should not solve "nullByteChallenge" for a regular download after a backup challenge is solved', () => {
+    challenges.forgottenDevBackupChallenge = { solved: true, save } as unknown as Challenge
+    challenges.nullByteChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'acquisitions.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md$/))
+    expect(challenges.nullByteChallenge.solved).to.equal(false)
+  })
 })
