@@ -8,40 +8,66 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
+let adminAuth: { Authorization: string }
+let jimAuth: { Authorization: string }
+let adminOrderId: string
+
+const obfuscatedAdminEmail = 'admin@juice-sh.op'.replace(/[aeiou]/gi, '*')
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminAuth = { Authorization: 'Bearer ' + admin.token }
+  const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  jimAuth = { Authorization: 'Bearer ' + jim.token }
+
+  const history = await request(app).get('/rest/order-history').set(adminAuth)
+  adminOrderId = history.body.data[0].orderId
 }, { timeout: 60000 })
 
 void describe('/rest/track-order/:id', () => {
-  void it('GET tracking results for the order id', async () => {
+  void it('GET tracking results is not allowed via public API', async () => {
     const res = await request(app)
-      .get('/rest/track-order/5267-f9cd5882f54c75a3')
-    assert.equal(res.status, 200)
+      .get(`/rest/track-order/${adminOrderId}`)
+    assert.equal(res.status, 401)
   })
 
-  void it('GET all orders by injecting into orderId', async () => {
+  void it('GET tracking results for an own order id', async () => {
+    const res = await request(app)
+      .get(`/rest/track-order/${adminOrderId}`)
+      .set(adminAuth)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, adminOrderId)
+    assert.equal(res.body.data[0].email, obfuscatedAdminEmail)
+  })
+
+  void it('GET no tracking results for an order id of another user', async () => {
+    const res = await request(app)
+      .get(`/rest/track-order/${adminOrderId}`)
+      .set(jimAuth)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [{ orderId: adminOrderId }])
+  })
+
+  void it('GET no orders when injecting into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
+      .set(adminAuth)
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(Array.isArray(res.body.data))
-    for (const item of res.body.data) {
-      assert.equal(typeof item.orderId, 'string')
-      assert.equal(typeof item.email, 'string')
-      assert.equal(typeof item.totalPrice, 'number')
-      assert.ok(Array.isArray(item.products))
-      for (const product of item.products) {
-        assert.equal(typeof product.quantity, 'number')
-        assert.equal(typeof product.name, 'string')
-        assert.equal(typeof product.price, 'number')
-        assert.equal(typeof product.total, 'number')
-      }
-      assert.equal(typeof item.eta, 'string')
-      assert.equal(typeof item._id, 'string')
-    }
+    assert.deepEqual(res.body.data, [{ orderId: 'true' }])
+  })
+
+  void it('GET sanitized order id reflected back without markup', async () => {
+    const res = await request(app)
+      .get(`/rest/track-order/${encodeURIComponent('<iframe src="javascript:alert(`xss`)">')}`)
+      .set(adminAuth)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [{ orderId: 'iframesrcjavascriptalertxss' }])
   })
 })
