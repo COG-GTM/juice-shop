@@ -36,4 +36,19 @@ describe('codingChallengeFixes', () => {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
     }
   })
+
+  it('should not treat Object.prototype members as cached fixes', () => {
+    for (const key of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+      const fixes = readFixes(key)
+      expect(fixes.fixes, `Key ${key} resolved to a prototype member`).to.be.an('array').that.has.lengthOf(0)
+      expect(fixes.correct).to.equal(-1)
+    }
+  })
+
+  it('should reject keys that are not plain alphanumeric challenge keys', () => {
+    for (const key of ['../../x', '../codefixes/resetPasswordBenderChallenge', 'resetPasswordBenderChallenge/..', 'a.info', '']) {
+      expect(readFixes(key).fixes, `Key ${key} was not rejected`).to.have.lengthOf(0)
+    }
+    expect(readFixes(['resetPasswordBenderChallenge'] as unknown as string).fixes).to.have.lengthOf(0)
+  })
 })
