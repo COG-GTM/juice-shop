@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -266,19 +267,31 @@ void describe('/rest/user/data-export', () => {
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
 
-  void it('Export data does not include orders of a user with a vowel-colliding email', async () => {
+  void it('Export data of a user with a vowel-colliding email contains only their own orders', async () => {
     const email = 'edmin@' + config.get<string>('application.domain')
     await register(app, { email, password: 'edmin123' })
-    const { token } = await login(app, { email, password: 'edmin123' })
+    const { token, bid } = await login(app, { email, password: 'edmin123' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: bid, ProductId: 1, quantity: 1 })
+      .expect(200)
+    await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(authHeader)
+      .expect(200)
 
     const res = await request(app)
       .post('/rest/user/data-export')
-      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ format: '1' })
 
     assert.equal(res.status, 200)
     const parsedData = JSON.parse(res.body.userData)
     assert.equal(parsedData.email, email)
-    assert.deepEqual(parsedData.orders, [])
+    assert.equal(parsedData.orders.length, 1)
+    assert.ok(parsedData.orders[0].orderId.startsWith(security.hash(email).slice(0, 4) + '-'))
   })
 })
