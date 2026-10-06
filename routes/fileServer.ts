@@ -25,14 +25,15 @@ export function servePublicFiles () {
 
   function verify (file: string, res: Response, next: NextFunction) {
     const fileName = security.cutOffPoisonNullByte(file)
-    if (fileName && (endsWithAllowlistedFileType(fileName) || (fileName === 'incident-support.kdbx'))) {
+    if (file && isAllowlisted(file)) {
+      verifyAttemptedPoisonNullByteExploit(fileName)
+    }
+
+    if (fileName && isAllowlisted(fileName)) {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return fileName.toLowerCase() === 'acquisitions.md' })
 
       res.sendFile(path.resolve('ftp/', fileName))
     } else {
-      if (fileName !== file) {
-        verifyAttemptedPoisonNullByteExploit(fileName)
-      }
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
@@ -48,6 +49,10 @@ export function servePublicFiles () {
       return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
         challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
     })
+  }
+
+  function isAllowlisted (param: string) {
+    return endsWithAllowlistedFileType(param) || param === 'incident-support.kdbx'
   }
 
   function endsWithAllowlistedFileType (param: string) {

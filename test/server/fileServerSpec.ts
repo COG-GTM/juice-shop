@@ -136,4 +136,25 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
   })
+
+  it('should not solve "easterEggLevelOneChallenge" for a Poison Null Byte without an allowlisted suffix', () => {
+    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'eastere.gg%00'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(challenges.easterEggLevelOneChallenge.solved).to.equal(false)
+  })
+
+  it('should solve "nullByteChallenge" for a Poison Null Byte on an allowlisted file once a backup challenge is solved', () => {
+    challenges.forgottenDevBackupChallenge = { solved: true, save } as unknown as Challenge
+    challenges.nullByteChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'legal.md%00.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]legal\.md$/))
+    expect(challenges.nullByteChallenge.solved).to.equal(true)
+  })
 })
