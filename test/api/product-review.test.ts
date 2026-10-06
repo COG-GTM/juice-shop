@@ -123,6 +123,18 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST product review like with operator object as id is rejected', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: { $ne: -1 } })
+    assert.equal(res.status, 400)
+  })
+
   void it('POST concurrent likes of the same review by one user only count once', async () => {
     const { token } = await login(app, {
       email: 'jim@juice-sh.op',
