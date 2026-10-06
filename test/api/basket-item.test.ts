@@ -56,6 +56,23 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST new basket item with duplicate BasketId targeting another basket is rejected', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":1,"BasketId":"2","quantity":1,"BasketId":"1"}')
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Duplicate keys are not allowed')
+  })
+
+  void it('POST new basket item for another user\'s basket is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 1, ProductId: 1, quantity: 1 })
+    assert.equal(res.status, 401)
+  })
+
   void it('POST new basket item with more than available quantity is forbidden', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
