@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,36 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isAdmin', () => {
+    const run = (token: string) => {
+      const req: any = { headers: { authorization: `Bearer ${token}` } }
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAdmin()(req, res, next)
+      return { res, next }
+    }
+
+    it('calls next for a valid token with admin role', () => {
+      const { res, next } = run(security.authorize({ data: { id: 1, role: security.roles.admin } }))
+      expect(next.calledOnce).to.equal(true)
+      expect(res.status.called).to.equal(false)
+    })
+
+    it('responds 403 for a valid token with customer role', () => {
+      const { res, next } = run(security.authorize({ data: { id: 2, role: security.roles.customer } }))
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('responds 403 for an admin role claim with an invalid signature', () => {
+      const [header, , signature] = security.authorize({ data: { id: 2, role: security.roles.customer } }).split('.')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 2, role: security.roles.admin } })).toString('base64url')
+      const { res, next } = run(`${header}.${payload}.${signature}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 })
