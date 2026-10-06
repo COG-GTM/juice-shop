@@ -91,6 +91,25 @@ void describe('/rest/user/data-export', () => {
     assert.equal(second.status, 401)
   })
 
+  void it('Earlier unexpired CAPTCHA stays valid after another one is requested', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const firstCaptchaRes = await request(app)
+      .get('/rest/image-captcha')
+      .set(authHeader)
+    const firstAnswer = await storedCaptchaAnswer(firstCaptchaRes.body.UserId)
+    await request(app)
+      .get('/rest/image-captcha')
+      .set(authHeader)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer: firstAnswer, format: 1 })
+    assert.equal(res.status, 200)
+  })
+
   void it('Export data when CAPTCHA requested need right answer', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

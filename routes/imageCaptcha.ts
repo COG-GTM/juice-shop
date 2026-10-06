@@ -21,6 +21,7 @@ export function imageCaptchas () {
         return
       }
 
+      await ImageCaptchaModel.destroy({ where: { createdAt: { [Op.lte]: new Date(Date.now() - 300000) } } })
       const imageCaptchaInstance = ImageCaptchaModel.build({
         image: captcha.data,
         answer: captcha.text,
@@ -42,18 +43,20 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
       return
     }
-    const captchas = await ImageCaptchaModel.findAll({
-      limit: 1,
+    if (typeof req.body.answer !== 'string') {
+      res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
+      return
+    }
+    const captcha = await ImageCaptchaModel.findOne({
       where: {
         UserId,
+        answer: req.body.answer,
         createdAt: {
           [Op.gt]: new Date(Date.now() - 300000)
         }
-      },
-      order: [['createdAt', 'DESC']]
+      }
     })
-    const captcha = captchas[0]
-    if (!captcha || typeof req.body.answer !== 'string' || req.body.answer !== captcha.answer) {
+    if (!captcha) {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
       return
     }
