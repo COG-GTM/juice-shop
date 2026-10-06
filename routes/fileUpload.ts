@@ -24,6 +24,15 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+function resolveComplaintPath (fileName: unknown) {
+  if (typeof fileName !== 'string' || fileName === '' || path.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const complaintsDir = path.resolve('uploads/complaints')
+  const targetPath = path.resolve(complaintsDir, fileName)
+  return targetPath.startsWith(complaintsDir + path.sep) ? targetPath : null
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -41,8 +50,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetPath = resolveComplaintPath(fileName)
+                if (targetPath !== null) {
+                  entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
@@ -139,6 +149,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,

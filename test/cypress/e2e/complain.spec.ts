@@ -147,19 +147,13 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "videoXssChallenge"', () => {
-    it('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
+    it('should not be possible to overwrite the promo video subtitles via zip file with path traversal', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('Here we go!')
           cy.get('#file').selectFile('test/files/videoExploit.zip')
           cy.get('#submitButton').click()
-          cy.visit('/promotion')
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.visit('/')
-          cy.expectChallengeSolved({ challenge: 'Video XSS' })
+          cy.request('/assets/public/videos/owasp_promo.vtt').its('body').should('not.contain', '<script>alert(`xss`)</script>')
         }
       })
     })
