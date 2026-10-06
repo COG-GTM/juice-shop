@@ -9,6 +9,11 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +206,59 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT signing key', () => {
+    it('signs tokens with a key that verifies against the exported public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('test@juice-sh.op')
+    })
+
+    it('rejects tokens signed with a different RSA key', () => {
+      const otherKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, otherKey, { algorithm: 'RS256' })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('generates a fresh key pair when no key is configured', () => {
+      const first = security.loadJwtPrivateKey({})
+      const second = security.loadJwtPrivateKey({})
+      expect(first.asymmetricKeyType).to.equal('rsa')
+      expect(first.export({ type: 'pkcs1', format: 'pem' })).to.not.equal(second.export({ type: 'pkcs1', format: 'pem' }))
+    })
+
+    it('does not embed a private key in the source code', () => {
+      const embedsPrivateKey = /-----BEGIN (RSA )?PRIVATE KEY-----/.test(fs.readFileSync('lib/insecurity.ts', 'utf8'))
+      expect(embedsPrivateKey, 'lib/insecurity.ts embeds a PEM private key').to.equal(false)
+    })
+
+    it('loads the key from JWT_PRIVATE_KEY_FILE', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-key-'))
+      const file = path.join(dir, 'jwt.key')
+      fs.writeFileSync(file, pem)
+      try {
+        expect(security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: file }).export({ type: 'pkcs1', format: 'pem' })).to.equal(pem)
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('loads the key from JWT_PRIVATE_KEY with escaped newlines', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const loaded = security.loadJwtPrivateKey({ JWT_PRIVATE_KEY: pem.replace(/\n/g, '\\n') })
+      expect(loaded.export({ type: 'pkcs1', format: 'pem' })).to.equal(pem)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is not derived from the JWT signing key', () => {
+      const token = security.deluxeToken('test@juice-sh.op')
+      expect(token).to.match(/^[0-9a-f]{64}$/)
+      expect(token).to.equal(security.deluxeToken('test@juice-sh.op'))
+      expect(token).to.not.equal(crypto.createHmac('sha256', security.publicKey).update('test@juice-sh.op' + security.roles.deluxe).digest('hex'))
     })
   })
 })
