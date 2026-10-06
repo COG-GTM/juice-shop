@@ -71,7 +71,7 @@ export class PaymentComponent implements OnInit {
   public redditUrl = null
   public applicationName = 'OWASP Juice Shop'
   private campaignCoupon: string
-  public couponControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(10), Validators.maxLength(10)])
+  public couponControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(10), Validators.maxLength(20)])
   public clientDate: any
   public paymentId: any = undefined
   public couponPanelExpanded = false

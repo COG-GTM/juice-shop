@@ -10,6 +10,9 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -177,6 +180,23 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/1/coupon/xxxxxxxxxx')
       .set(authHeader)
     assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned coupon forged for the current month is not accepted', async () => {
+    const unsignedCoupon = z85.encode(utils.toMMMYY(new Date()) + '-99')
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply valid coupon containing a percent sign', async () => {
+    const coupon = Array.from({ length: 99 }, (_, i) => security.generateCoupon(i + 1)).find(c => c.includes('%'))
+    assert.ok(coupon)
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(coupon))
+      .set(authHeader)
+    assert.equal(res.status, 200)
   })
 
   void it('PUT apply outdated coupon is not accepted', async () => {
