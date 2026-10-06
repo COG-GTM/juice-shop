@@ -18,10 +18,34 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
+  void it('response must not contain CORS header allowing all origins', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.notEqual(res.headers['access-control-allow-origin'], '*')
+  })
+
+  void it('response must not allow reading from an untrusted origin', async () => {
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', 'https://evil.example')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('preflight from an untrusted origin must not be allowed', async () => {
+    const res = await request(app).options('/api/Users').set('Origin', 'https://evil.example').set('Access-Control-Request-Method', 'POST')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('response must allow reading from the configured application origin', async () => {
+    const origin = config.get<string>('server.baseUrl')
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', origin)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], origin)
+  })
+
+  void it('response must allow reading from the loopback development frontend origin', async () => {
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', 'http://127.0.0.1:4200')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], 'http://127.0.0.1:4200')
   })
 
   void it('response must contain sameorigin frameguard header', async () => {
@@ -51,6 +75,7 @@ void describe('HTTP', () => {
   void it('unexpected path under known sub-path caught by generic error handler', async () => {
     const res = await request(app).get('/rest/x')
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('<title>Error: Unexpected path: /rest/x</title>'))
+    assert.equal(res.text, 'Internal Server Error')
+    assert.ok(!res.text.includes('Unexpected path: /rest/x'))
   })
 })

@@ -203,4 +203,34 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('isAdmin', () => {
+    const run = (headers: Record<string, string>) => {
+      const req = { headers, cookies: {}, query: {} } as unknown as Request
+      let status: number | undefined
+      let nextCalled = false
+      const res = { status: (code: number) => { status = code; return res }, json: () => res } as any
+      security.isAdmin()(req, res, () => { nextCalled = true })
+      return { status, nextCalled }
+    }
+
+    it('allows requests with a valid admin token', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ status: undefined, nextCalled: true })
+    })
+
+    it('rejects anonymous requests with 403', () => {
+      expect(run({})).to.deep.equal({ status: 403, nextCalled: false })
+    })
+
+    it('rejects requests with a valid non-admin token with 403', () => {
+      const token = security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ status: 403, nextCalled: false })
+    })
+
+    it('rejects requests with an unsigned admin token with 403', () => {
+      const unsigned = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ data: { role: 'admin' } })).toString('base64url')}.`
+      expect(run({ authorization: `Bearer ${unsigned}` })).to.deep.equal({ status: 403, nextCalled: false })
+    })
+  })
 })

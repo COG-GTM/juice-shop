@@ -208,4 +208,48 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('genericErrorHandler', () => {
+    const run = (err: unknown, { accept = 'text/html', statusCode = 200 }: { accept?: string, statusCode?: number } = {}) => {
+      const req = { method: 'GET', path: '/rest/x', accepts: (types: string[]) => accept.includes('json') ? 'json' : types[0] } as any
+      const out: { status?: number, type?: string, body?: unknown } = {}
+      const res = {
+        headersSent: false,
+        statusCode,
+        setHeader (name: string, value: string) { out.type = value.includes('json') ? 'json' : 'html' },
+        end (body: string) { out.status = this.statusCode; out.body = out.type === 'json' ? JSON.parse(body) : body }
+      }
+      utils.genericErrorHandler()(err, req, res, () => {})
+      return out
+    }
+
+    it('returns a generic message without stack trace or framework version for server errors', () => {
+      const out = run(new Error('SQLITE_ERROR: near "union": syntax error'))
+      expect(out).to.deep.equal({ status: 500, type: 'html', body: 'Internal Server Error' })
+    })
+
+    it('returns a generic JSON error without stack trace when JSON is requested', () => {
+      const out = run(new Error('Unexpected path: /rest/x'), { accept: 'application/json' })
+      expect(out).to.deep.equal({ status: 500, type: 'json', body: { error: { message: 'Internal Server Error' } } })
+    })
+
+    it('keeps the status code set by the route and only the escaped message for client errors', () => {
+      const out = run(new Error('Only .md and <b>.pdf</b> files are allowed!'), { statusCode: 403 })
+      expect(out.status).to.equal(403)
+      expect(out.body).to.equal('Error: Only .md and &#60;b&#62;.pdf&#60;/b&#62; files are allowed!')
+      expect(String(out.body)).to.not.match(/at .*\.(ts|js):\d+/)
+    })
+
+    it('passes the body to res.end as a string so response-rewriting middleware keeps working', () => {
+      let chunk: unknown
+      const res = { headersSent: false, statusCode: 200, setHeader () {}, end (body: unknown) { chunk = body } }
+      utils.genericErrorHandler()(new Error('ENOENT'), { method: 'GET', path: '/ftp/x', accepts: () => 'html' }, res, () => {})
+      expect(chunk).to.be.a('string')
+    })
+
+    it('honours the status of http-errors style errors', () => {
+      const err = Object.assign(new Error('Bad JSON'), { status: 400 })
+      expect(run(err).status).to.equal(400)
+    })
+  })
 })

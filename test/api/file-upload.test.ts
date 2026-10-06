@@ -144,6 +144,6 @@ void describe('/file-upload', () => {
       .set('Content-Length', '42')
       .attach('file', file)
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Unexpected end of form'))
+    assert.equal(res.text, 'Internal Server Error')
   })
 })
