@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -19,8 +20,44 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+// The JWT signing key is never shipped with the source code. It is read from the
+// JWT_PRIVATE_KEY env var (PEM, escaped \n line breaks allowed) or the file named by
+// JWT_PRIVATE_KEY_FILE; otherwise a fresh RSA key pair is generated in memory at startup.
+// The public key is always derived from the active private key and published as
+// encryptionkeys/jwt.pub so verification and the key server stay in sync with the signer.
+const loadSigningKeys = () => {
+  let privateKeyPem = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n')
+  if (!privateKeyPem && process.env.JWT_PRIVATE_KEY_FILE) {
+    privateKeyPem = fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+  }
+  if (!privateKeyPem) {
+    privateKeyPem = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    }).privateKey
+  }
+  const publicKeyPem = crypto.createPublicKey(privateKeyPem).export({ type: 'pkcs1', format: 'pem' }).toString()
+  return { privateKey: privateKeyPem, publicKey: publicKeyPem }
+}
+
+const signingKeys = loadSigningKeys()
+const privateKey = signingKeys.privateKey
+export const publicKey = signingKeys.publicKey
+try {
+  const publicKeyFile = path.join(fs.realpathSync('encryptionkeys'), 'jwt.pub')
+  // never clobber a private key that an operator pointed JWT_PRIVATE_KEY_FILE at
+  if (!process.env.JWT_PRIVATE_KEY_FILE || fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE) !== publicKeyFile) {
+    // write-then-rename replaces jwt.pub itself instead of following a symlink to another file
+    fs.writeFileSync(`${publicKeyFile}.tmp`, publicKey)
+    fs.renameSync(`${publicKeyFile}.tmp`, publicKeyFile)
+  }
+} catch {
+  // read-only deployments simply do not publish the public key file
+}
+
+// Deluxe membership tokens are HMAC'd with their own secret, never with the JWT signing key.
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 interface ResponseWithUser {
   status?: string
@@ -149,7 +186,7 @@ export const roles = {
 }
 
 export const deluxeToken = (email: string) => {
-  const hmac = crypto.createHmac('sha256', privateKey)
+  const hmac = crypto.createHmac('sha256', deluxeTokenSecret)
   return hmac.update(email + roles.deluxe).digest('hex')
 }
 

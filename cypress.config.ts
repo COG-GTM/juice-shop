@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jwt from 'jsonwebtoken'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -17,7 +18,7 @@ export default defineConfig({
     downloadsFolder: 'test/cypress/downloads',
     fixturesFolder: false,
     supportFile: 'test/cypress/support/e2e.ts',
-    setupNodeEvents (on: any) {
+    setupNodeEvents (on: any, cypressConfig: any) {
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
@@ -73,6 +74,10 @@ export default defineConfig({
         },
         isWindows () {
           return utils.isWindows()
+        },
+        async ForgeJwt (email: string) {
+          const publicKey = await (await fetch(`${cypressConfig.baseUrl}/encryptionkeys/jwt.pub`)).text()
+          return jwt.sign({ data: { email } }, publicKey, { algorithm: 'HS256' })
         }
       })
     }
