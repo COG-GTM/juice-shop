@@ -81,7 +81,7 @@ void describe('/profile', () => {
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .type('form')
-      .send({ username: "x\n- global.process.exit(1)" })
+      .send({ username: 'x\n- global.process.exit(1)' })
       .redirects(0)
 
     assert.equal(res.status, 400)
