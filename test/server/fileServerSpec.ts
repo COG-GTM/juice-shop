@@ -79,43 +79,65 @@ describe('fileServer', () => {
     expect(challenges.directoryListingChallenge.solved).to.equal(true)
   })
 
-  it('should solve "easterEggLevelOneChallenge" when requesting eastere.gg with Poison Null Byte attack', () => {
-    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'eastere.gg%00.md'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]eastere\.gg/))
-    expect(challenges.easterEggLevelOneChallenge.solved).to.equal(true)
-  })
-
-  it('should solve "forgottenDevBackupChallenge" when requesting package.json.bak with Poison Null Byte attack', () => {
-    challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
+  it('should raise error for disallowed file type hidden behind a Poison Null Byte', () => {
     req.params.file = 'package.json.bak%00.md'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]package\.json\.bak/))
-    expect(challenges.forgottenDevBackupChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should solve "forgottenBackupChallenge" when requesting coupons_2013.md.bak with Poison Null Byte attack', () => {
-    challenges.forgottenBackupChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'coupons_2013.md.bak%00.md'
+  it('should raise error for any file name containing a Poison Null Byte', () => {
+    for (const file of ['legal.md%00.pdf', 'coupons_2013.md.bak\0.md', 'eastere.gg%00']) {
+      res.sendFile.resetHistory()
+      req.params.file = file
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile, file).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status, file).to.have.been.calledWith(403)
+    }
+  })
+
+  for (const [challenge, file] of [
+    ['easterEggLevelOneChallenge', 'eastere.gg'],
+    ['forgottenDevBackupChallenge', 'package.json.bak'],
+    ['forgottenBackupChallenge', 'coupons_2013.md.bak'],
+    ['misplacedSignatureFileChallenge', 'suspicious_errors.yml']
+  ] as const) {
+    it(`should solve "${challenge}" but not serve ${file} on a Poison Null Byte attack`, () => {
+      challenges[challenge] = { solved: false, save } as unknown as Challenge
+      req.params.file = `${file}%00.md`
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(challenges[challenge].solved).to.equal(true)
+    })
+  }
+
+  it('should not solve "easterEggLevelOneChallenge" for a Poison Null Byte without an allowlisted suffix', () => {
+    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
+    req.params.file = 'eastere.gg%00'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]coupons_2013\.md\.bak/))
-    expect(challenges.forgottenBackupChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(challenges.easterEggLevelOneChallenge.solved).to.equal(false)
   })
 
-  it('should solve "misplacedSignatureFileChallenge" when requesting suspicious_errors.yml with Poison Null Byte attack', () => {
-    challenges.misplacedSignatureFileChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'suspicious_errors.yml%00.md'
+  it('should solve "nullByteChallenge" but not serve encrypt.pyc on a Poison Null Byte attack', () => {
+    for (const challenge of ['easterEggLevelOneChallenge', 'forgottenDevBackupChallenge', 'forgottenBackupChallenge', 'misplacedSignatureFileChallenge', 'nullByteChallenge'] as const) {
+      challenges[challenge] = { solved: false, save } as unknown as Challenge
+    }
+    req.params.file = 'encrypt.pyc%00.md'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]suspicious_errors\.yml/))
-    expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(challenges.nullByteChallenge.solved).to.equal(true)
   })
 })
