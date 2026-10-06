@@ -416,9 +416,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
-  app.post('/api/Users', verify.registerAdminChallenge())
-  app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
-  app.post('/api/Users', verify.emptyUserRegistration())
   /* Self-registration always creates a customer; the role cannot be chosen by the client */
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body !== null && typeof req.body === 'object') {
@@ -426,6 +423,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  app.post('/api/Users', verify.registerAdminChallenge())
+  app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
+  app.post('/api/Users', verify.emptyUserRegistration())
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
