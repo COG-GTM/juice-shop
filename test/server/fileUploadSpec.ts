@@ -97,7 +97,10 @@ describe('fileUpload', () => {
     const traversalTarget = path.resolve(`ftp/zip-slip-${marker}.md`)
     const legitTarget = path.resolve(`uploads/complaints/zip-slip-${marker}.txt`)
 
+    const originalFileWriteChallenge = challenges.fileWriteChallenge
+
     afterEach(() => {
+      challenges.fileWriteChallenge = originalFileWriteChallenge
       fs.rmSync(traversalTarget, { force: true })
       fs.rmSync(legitTarget, { force: true })
     })
