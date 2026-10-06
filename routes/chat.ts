@@ -78,6 +78,24 @@ const metricToolCalls = new Counter({
   labelNames: ['tool'],
 })
 
+const MAX_COUPON_DISCOUNT = 10
+const MAX_CLIENT_MESSAGES = 50
+const MAX_CLIENT_MESSAGE_LENGTH = 4000
+
+interface ClientMessage { role: 'user' | 'assistant', content: string }
+
+export function sanitizeClientMessages (input: unknown): ClientMessage[] | null {
+  if (!Array.isArray(input)) return null
+  const messages: ClientMessage[] = []
+  for (const message of input.slice(-MAX_CLIENT_MESSAGES)) {
+    const { role, content } = message ?? {}
+    if (role !== 'user' && role !== 'assistant') return null
+    if (typeof content !== 'string' || content.length > MAX_CLIENT_MESSAGE_LENGTH) return null
+    messages.push({ role, content })
+  }
+  return messages
+}
+
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
 function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
   const userIdentifier = userName ? `\nThe customer you are currently chatting with is ${userName}.` : ''
@@ -174,9 +192,10 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(1).max(MAX_COUPON_DISCOUNT).describe(`The discount percentage for the coupon (maximum ${MAX_COUPON_DISCOUNT})`) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         }),
         execute: async ({ discount }) => {
+          if (!Number.isInteger(discount) || discount < 1 || discount > MAX_COUPON_DISCOUNT) return { error: `The discount must be an integer between 1 and ${MAX_COUPON_DISCOUNT}.` }
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
@@ -186,7 +205,11 @@ export function chat () {
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
+    const messages = sanitizeClientMessages(req.body?.messages ?? [])
+    if (messages === null) {
+      res.status(400).json({ error: `Invalid messages: expected user or assistant messages with text content of at most ${MAX_CLIENT_MESSAGE_LENGTH} characters` })
+      return
+    }
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
