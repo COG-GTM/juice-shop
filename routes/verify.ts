@@ -136,7 +136,7 @@ function hasForgedSignature (token: string, algorithm: string) {
 }
 
 function isExpired (payload: { exp?: unknown }) {
-  return typeof payload.exp === 'number' && payload.exp <= Date.now() / 1000
+  return payload.exp !== undefined && (typeof payload.exp !== 'number' || payload.exp <= Date.now() / 1000)
 }
 
 function hasAlgorithm (token: string, algorithm: string) {

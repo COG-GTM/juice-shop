@@ -346,6 +346,14 @@ describe('verify', () => {
 
       expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
+
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token has a malformed expiry', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, exp: 'never' }, '')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
   })
 })
 
