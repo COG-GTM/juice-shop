@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,64 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile does not evaluate JavaScript embedded in the username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', "#{'ssti' + '-' + 'evaluated'}")
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('ssti-evaluated'))
+    assert.ok(res.text.includes('#{&#39;ssti&#39; + &#39;-&#39; + &#39;evaluated&#39;}'))
+    assert.notEqual(app.locals.abused_ssti_bug, true)
+  })
+
+  void it('GET user profile does not compile Pug markup embedded in the username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'x #[strong pug-injected]')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<strong>pug-injected</strong>'))
+    assert.ok(res.text.includes('x #[strong pug-injected]'))
+  })
+
+  void it('GET user profile does not copy profileImage directives into the CSP header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ profileImage: "https://a.png; script-src 'unsafe-inline' 'self'" })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    const csp = res.headers['content-security-policy']
+    assert.ok(!csp.includes("'unsafe-inline'"))
+    assert.equal(csp, "img-src 'self'; script-src 'self' 'unsafe-eval'")
+  })
+
+  void it('GET user profile allows the origin of an external profileImage in the CSP header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ profileImage: 'https://www.gravatar.com/avatar/abc' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self' https://www.gravatar.com; script-src 'self' 'unsafe-eval'")
   })
 })
