@@ -197,10 +197,45 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('is not keyed with the formerly hardcoded "pa4qacea4VK9t9nGv7yZtwmj" secret', () => {
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+      expect(security.hmac('password')).to.not.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
+      expect(security.hmac('')).to.not.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+
+    it('returns a deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('admin124'))
+    })
+  })
+
+  describe('hashSecurityAnswer', () => {
+    it('returns a salted scrypt hash that does not contain the keyed HMAC of the answer', () => {
+      const stored = security.hashSecurityAnswer('Samuel')
+      expect(stored).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$/)
+      expect(stored).to.not.include(security.hmac('Samuel'))
+    })
+
+    it('uses a fresh salt for every hash of the same answer', () => {
+      expect(security.hashSecurityAnswer('Samuel')).to.not.equal(security.hashSecurityAnswer('Samuel'))
+    })
+  })
+
+  describe('verifySecurityAnswer', () => {
+    it('accepts the correct answer', () => {
+      expect(security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
+    })
+
+    it('rejects a wrong answer', () => {
+      expect(security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    })
+
+    it('rejects legacy unsalted HMAC values and malformed hashes', () => {
+      expect(security.verifySecurityAnswer('admin123', '6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')).to.equal(false)
+      expect(security.verifySecurityAnswer('Samuel', security.hmac('Samuel'))).to.equal(false)
+      expect(security.verifySecurityAnswer('Samuel', 'scrypt$zz$zz')).to.equal(false)
+      expect(security.verifySecurityAnswer('Samuel', '')).to.equal(false)
     })
   })
 })

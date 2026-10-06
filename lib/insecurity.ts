@@ -41,7 +41,24 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+// Without SECURITY_ANSWER_HMAC_KEY a per-process key is used; the database is re-seeded on every start.
+const securityAnswerHmacKey = process.env.SECURITY_ANSWER_HMAC_KEY ? process.env.SECURITY_ANSWER_HMAC_KEY : crypto.randomBytes(32).toString('hex')
+export const hmac = (data: string) => crypto.createHmac('sha256', securityAnswerHmacKey).update(data).digest('hex')
+
+const securityAnswerScryptParams = { N: 16384, r: 8, p: 1 }
+export const hashSecurityAnswer = (answer: string) => {
+  const salt = crypto.randomBytes(16)
+  const derived = crypto.scryptSync(hmac(answer), salt, 32, securityAnswerScryptParams)
+  return `scrypt$${salt.toString('hex')}$${derived.toString('hex')}`
+}
+export const verifySecurityAnswer = (answer: string, stored: string) => {
+  const [scheme, salt, expected] = String(stored).split('$')
+  if (scheme !== 'scrypt' || !/^[0-9a-f]{32}$/.test(salt) || !/^[0-9a-f]{64}$/.test(expected)) {
+    return false
+  }
+  const derived = crypto.scryptSync(hmac(answer), Buffer.from(salt, 'hex'), 32, securityAnswerScryptParams)
+  return crypto.timingSafeEqual(derived, Buffer.from(expected, 'hex'))
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
