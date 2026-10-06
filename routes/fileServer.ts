@@ -24,20 +24,22 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
+    const fileName = security.cutOffPoisonNullByte(file)
+    if (fileName !== file && isAllowlisted(file)) {
+      verifyAttemptedPoisonNullByteExploit(fileName)
+    }
 
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
+    if (fileName && isAllowlisted(fileName)) {
+      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return fileName.toLowerCase() === 'acquisitions.md' })
 
-      res.sendFile(path.resolve('ftp/', file))
+      res.sendFile(path.resolve('ftp/', fileName))
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
   }
 
-  function verifySuccessfulPoisonNullByteExploit (file: string) {
+  function verifyAttemptedPoisonNullByteExploit (file: string) {
     challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
     challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
     challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
@@ -47,6 +49,10 @@ export function servePublicFiles () {
       return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
         challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
     })
+  }
+
+  function isAllowlisted (param: string) {
+    return endsWithAllowlistedFileType(param) || param === 'incident-support.kdbx'
   }
 
   function endsWithAllowlistedFileType (param: string) {
