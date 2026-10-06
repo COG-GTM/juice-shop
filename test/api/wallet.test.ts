@@ -73,4 +73,73 @@ void describe('/api/Wallets', () => {
       .send({ balance: 10 })
     assert.equal(res.status, 402)
   })
+
+  void it('PUT charge wallet with amount above the top-up limit is rejected and balance unchanged', async () => {
+    const before = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 1000000, paymentId: 2 })
+    assert.equal(res.status, 400)
+
+    const after = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    assert.equal(after.body.data, before.body.data)
+  })
+
+  void it('PUT charge wallet with negative amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: -100, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet with non-numeric amount is rejected', async () => {
+    for (const balance of ['abc', '', null, { $gt: 0 }, [500], 'Infinity']) {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance, paymentId: 2 })
+      assert.equal(res.status, 400, `balance ${JSON.stringify(balance)}`)
+    }
+  })
+
+  void it('PUT charge wallet with more than two decimal places is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 10.001, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet accepts a cent amount within the limits', async () => {
+    const before = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 10.12, paymentId: 2 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data, 10.12)
+
+    const after = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    assert.equal(after.body.data, before.body.data + 10.12)
+  })
+
+  void it('PUT charge wallet with malformed payment id is rejected', async () => {
+    for (const paymentId of [[2], true, '2abc', 2.5, 0, -2, { $gt: 0 }]) {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId })
+      assert.equal(res.status, 402, `paymentId ${JSON.stringify(paymentId)}`)
+    }
+  })
 })
