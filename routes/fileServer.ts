@@ -24,11 +24,14 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
-
+    if (containsPoisonNullByte(file)) {
+      if (isAllowlisted(file)) {
+        verifyAttemptedPoisonNullByteExploit(security.cutOffPoisonNullByte(file))
+      }
+      res.status(403)
+      next(new Error('Only .md and .pdf files are allowed!'))
+    } else if (file && isAllowlisted(file)) {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
 
       res.sendFile(path.resolve('ftp/', file))
     } else {
@@ -37,7 +40,7 @@ export function servePublicFiles () {
     }
   }
 
-  function verifySuccessfulPoisonNullByteExploit (file: string) {
+  function verifyAttemptedPoisonNullByteExploit (file: string) {
     challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
     challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
     challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
@@ -47,6 +50,14 @@ export function servePublicFiles () {
       return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
         challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
     })
+  }
+
+  function containsPoisonNullByte (param: string) {
+    return param.includes('%00') || param.includes('\0')
+  }
+
+  function isAllowlisted (param: string) {
+    return endsWithAllowlistedFileType(param) || param === 'incident-support.kdbx'
   }
 
   function endsWithAllowlistedFileType (param: string) {
