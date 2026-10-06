@@ -11,12 +11,25 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const MAX_USERNAME_LENGTH = 100
+
+export function isValidUsername (username: unknown): username is string {
+  return typeof username === 'string' &&
+    username.length <= MAX_USERNAME_LENGTH &&
+    /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]*$/u.test(username)
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
+    }
+
+    if (!isValidUsername(req.body.username)) {
+      res.status(400).send('Invalid username')
       return
     }
 

@@ -46,9 +46,55 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  for (const payload of [
+    "#{'ssti'+'-'+'proof'}",
+    "x#{'ssti'+'-'+'proof'}"
+  ]) {
+    void it(`GET user profile renders username ${payload} as text instead of evaluating it`, async () => {
+      const update = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+      assert.equal(update.status, 302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('ssti-proof'))
+      assert.ok(res.text.includes(payload))
+    })
+  }
+
+  void it('POST update username rejects line breaks', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'x\n- global.process.exit(1)' })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update username rejects overlong usernames', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'a'.repeat(101) })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
   })
 })
