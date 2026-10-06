@@ -130,9 +130,9 @@ const toOriginAndPath = (url: unknown) => {
   }
 }
 
-const isSameOriginAndPath = (url: unknown, allowedUrl: string) => {
+const matchesAllowedUrl = (url: unknown, allowedUrl: string) => {
   const target = toOriginAndPath(url)
-  return target !== null && target === toOriginAndPath(allowedUrl)
+  return target !== null && target === toOriginAndPath(allowedUrl) && (url as string).startsWith(allowedUrl)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
@@ -150,7 +150,7 @@ export const redirectAllowlist = new Set([
 export const isRedirectAllowed = (url: string) => {
   let allowed = false
   for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || isSameOriginAndPath(url, allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
+    allowed = allowed || matchesAllowedUrl(url, allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
   }
   return allowed
 }

@@ -86,6 +86,8 @@ describe('redirect', () => {
       'https://github.com/juice-shop/juice-shop.evil.example',
       'https://github.com.evil.example/juice-shop/juice-shop',
       'http://github.com/juice-shop/juice-shop',
+      'https://github.com:443/juice-shop/juice-shop',
+      'https://GITHUB.com/juice-shop/juice-shop',
       '//github.com/juice-shop/juice-shop'
     ]) {
       it(url, () => {
