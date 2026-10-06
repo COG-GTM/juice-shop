@@ -279,7 +279,7 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(res.status, 200)
     assert.notEqual(isIP(res.body.lastLoginIp), 0)
-    assert.ok(!res.body.lastLoginIp.includes('<'))
+    assert.match(res.body.lastLoginIp, /^(127\.\d+\.\d+\.\d+|::1)$/)
   })
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
