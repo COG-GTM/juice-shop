@@ -26,6 +26,10 @@ export const loadJwtPrivateKey = (env: NodeJS.ProcessEnv = process.env): crypto.
     return crypto.createPrivateKey(env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n'))
   }
   if (env.JWT_PRIVATE_KEY_FILE) {
+    const relativeToPublicKeys = path.relative(path.resolve('encryptionkeys'), path.resolve(env.JWT_PRIVATE_KEY_FILE))
+    if (!relativeToPublicKeys.startsWith('..') && !path.isAbsolute(relativeToPublicKeys)) {
+      throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys directory')
+    }
     return crypto.createPrivateKey(fs.readFileSync(env.JWT_PRIVATE_KEY_FILE, 'utf8'))
   }
   return crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
@@ -42,7 +46,7 @@ export const publishPublicKey = (directory = 'encryptionkeys') => {
   }
 }
 
-const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? Buffer.from(crypto.hkdfSync('sha256', jwtPrivateKey.export({ type: 'pkcs8', format: 'der' }), '', 'juice-shop deluxe token', 32)).toString('hex')
 
 interface ResponseWithUser {
   status?: string

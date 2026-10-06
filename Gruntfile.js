@@ -49,6 +49,7 @@ module.exports = function (grunt) {
               'data/*.ts',
               'data/static/**',
               'encryptionkeys/**',
+              '!encryptionkeys/jwt.pub',
               'frontend/dist/frontend/**',
               'frontend/dist/bom/**',
               'frontend/src/**/*.ts',

@@ -243,6 +243,10 @@ describe('insecurity', () => {
       const loaded = security.loadJwtPrivateKey({ JWT_PRIVATE_KEY: pem.replace(/\n/g, '\\n') })
       expect(loaded.export({ type: 'pkcs1', format: 'pem' })).to.equal(pem)
     })
+
+    it('refuses to load a private key file from the publicly served encryptionkeys directory', () => {
+      expect(() => security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: 'encryptionkeys/jwt.key' })).to.throw(/encryptionkeys/)
+    })
   })
 
   describe('deluxeToken', () => {
