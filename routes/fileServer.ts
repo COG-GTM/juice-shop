@@ -24,20 +24,21 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
+    const fileName = security.cutOffPoisonNullByte(file)
+    if (fileName && (endsWithAllowlistedFileType(fileName) || (fileName === 'incident-support.kdbx'))) {
+      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return fileName.toLowerCase() === 'acquisitions.md' })
 
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
-
-      res.sendFile(path.resolve('ftp/', file))
+      res.sendFile(path.resolve('ftp/', fileName))
     } else {
+      if (fileName !== file) {
+        verifyAttemptedPoisonNullByteExploit(fileName)
+      }
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
   }
 
-  function verifySuccessfulPoisonNullByteExploit (file: string) {
+  function verifyAttemptedPoisonNullByteExploit (file: string) {
     challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
     challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
     challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
