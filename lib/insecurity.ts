@@ -26,7 +26,7 @@ export const loadJwtPrivateKey = (env: NodeJS.ProcessEnv = process.env): crypto.
     return crypto.createPrivateKey(env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n'))
   }
   if (env.JWT_PRIVATE_KEY_FILE) {
-    const relativeToPublicKeys = path.relative(path.resolve('encryptionkeys'), path.resolve(env.JWT_PRIVATE_KEY_FILE))
+    const relativeToPublicKeys = path.relative(fs.realpathSync('encryptionkeys'), fs.realpathSync(env.JWT_PRIVATE_KEY_FILE))
     if (!relativeToPublicKeys.startsWith('..') && !path.isAbsolute(relativeToPublicKeys)) {
       throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys directory')
     }

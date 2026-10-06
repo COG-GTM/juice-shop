@@ -11,6 +11,8 @@ import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
@@ -245,7 +247,18 @@ describe('insecurity', () => {
     })
 
     it('refuses to load a private key file from the publicly served encryptionkeys directory', () => {
-      expect(() => security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: 'encryptionkeys/jwt.key' })).to.throw(/encryptionkeys/)
+      expect(() => security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: 'encryptionkeys/premium.key' })).to.throw(/encryptionkeys/)
+    })
+
+    it('refuses a symlinked private key file that resolves into the encryptionkeys directory', () => {
+      const link = path.join(os.tmpdir(), 'juice-shop-jwt-key-link-' + process.pid)
+      fs.rmSync(link, { force: true })
+      fs.symlinkSync(path.resolve('encryptionkeys/premium.key'), link)
+      try {
+        expect(() => security.loadJwtPrivateKey({ JWT_PRIVATE_KEY_FILE: link })).to.throw(/encryptionkeys/)
+      } finally {
+        fs.rmSync(link, { force: true })
+      }
     })
   })
 
