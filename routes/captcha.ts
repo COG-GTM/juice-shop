@@ -29,6 +29,7 @@ export function captchas () {
       captcha: expression,
       answer
     }
+    await CaptchaModel.destroy({ where: { createdAt: { [Op.lt]: new Date(Date.now() - CAPTCHA_TTL_MS) } } })
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
     res.json({ captchaId, captcha: expression })
