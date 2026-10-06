@@ -239,7 +239,7 @@ void describe('Hidden URL', () => {
       .set('Referer', 'http://localhost:3000/rest/user/change-password?current=leakedRefCurrent789&new=leakedRefNew012')
     const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
     let log = ''
-    for (let attempt = 0; attempt < 20 && !(log.includes('/rest/user/change-password?') && log.includes('referrerProbe')); attempt++) {
+    for (let attempt = 0; attempt < 20 && !(log.includes('/rest/user/change-password?') && log.includes('/rest/products/search?q=[REDACTED]')); attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 100))
       const res = await request(app)
         .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
