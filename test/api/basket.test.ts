@@ -165,7 +165,7 @@ void describe('/rest/basket/:id/checkout', () => {
 void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply valid coupon to existing basket', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -174,16 +174,33 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
 
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/xxxxxxxxxx')
+      .put('/rest/basket/2/coupon/xxxxxxxxxx')
       .set(authHeader)
     assert.equal(res.status, 404)
   })
 
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(outdatedCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply valid coupon to basket of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const basket = await request(app)
+      .get('/rest/basket/1')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(basket.status, 200)
+    assert.notEqual(basket.body.data.coupon, validCoupon)
   })
 
   void it('PUT apply valid coupon to non-existing basket throws error', async () => {
