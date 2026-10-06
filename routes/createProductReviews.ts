@@ -6,23 +6,27 @@
 import { type Request, type Response } from 'express'
 
 import { reviewsCollection } from '../data/mongodb'
+import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
-function authenticatedEmail (req: Request): string | undefined {
+async function authenticatedEmail (req: Request): Promise<string | undefined> {
   const user = security.authenticatedUsers.from(req)
   if (user?.data?.email) {
     return user.data.email
   }
   const token = utils.jwtFrom(req)
   if (token && security.verify(token)) {
-    return (security.decode(token) as { data?: { email?: string } } | undefined)?.data?.email
+    const email = (security.decode(token) as { data?: { email?: string } } | undefined)?.data?.email
+    if (email && await UserModel.findOne({ where: { email } })) {
+      return email
+    }
   }
 }
 
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
-    const author = authenticatedEmail(req)
+    const author = await authenticatedEmail(req)
     if (!author) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized' })
     }

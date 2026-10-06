@@ -51,7 +51,7 @@ void describe('/rest/products/:id/reviews', () => {
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
-      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'reviewer@juice-sh.op' } })}` })
+      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op' } })}` })
       .send({
         message: 'Lorem Ipsum'
       })
@@ -92,7 +92,7 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT product review accepts a valid token unknown to the session map', async () => {
-    const token = security.authorize({ data: { id: 1, email: 'jwt.only@juice-sh.op' } } as any)
+    const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } } as any)
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .set({ Authorization: `Bearer ${token}` })
@@ -104,7 +104,21 @@ void describe('/rest/products/:id/reviews', () => {
 
     const reviews = await request(app).get('/rest/products/1/reviews')
     const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Token-only review')
-    assert.equal(created.author, 'jwt.only@juice-sh.op')
+    assert.equal(created.author, 'jim@juice-sh.op')
+  })
+
+  void it('PUT product review is rejected for a signed token of a non-existent account', async () => {
+    const token = security.authorize({ data: { id: 999, email: 'ghost@juice-sh.op' } } as any)
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Ghost account review'
+      })
+    assert.equal(res.status, 401)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    assert.ok(!reviews.body.data.some(({ message }: { message: string }) => message === 'Ghost account review'))
   })
 })
 
