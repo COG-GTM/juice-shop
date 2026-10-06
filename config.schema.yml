@@ -623,11 +623,6 @@ ctf:
         type: string
       code:
         type: string
-    manipulateClockChallenge:
-      name:
-        type: string
-      code:
-        type: string
     privacyPolicyChallenge:
       name:
         type: string

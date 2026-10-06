@@ -40,7 +40,6 @@ const CHALLENGE_KEYS = [
   'emptyUserRegistration',
   'ephemeralAccountantChallenge',
   'errorHandlingChallenge',
-  'manipulateClockChallenge',
   'extraLanguageChallenge',
   'feedbackChallenge',
   'forgedCouponChallenge',
