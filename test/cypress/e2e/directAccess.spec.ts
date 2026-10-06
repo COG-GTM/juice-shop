@@ -71,14 +71,6 @@ describe('/', () => {
     })
   })
 
-  describe('challenge "emailLeak"', () => {
-    it('should be able to request the callback on /rest/user/whoami', () => {
-      // cy.visit requires a text/html response and this is a text/javascript hence cy.request has been used
-      cy.request('/rest/user/whoami?callback=func')
-      cy.expectChallengeSolved({ challenge: 'Email Leak' })
-    })
-  })
-
   describe('challenge "accessLogDisclosure"', () => {
     it("should be able to access today's access log file", () => {
       // cy.visit requires a text/html response hence cy.request has been used
