@@ -153,23 +153,22 @@ export function placeOrder () {
           }
 
           try {
-            await WalletModel.sequelize!.transaction(async (transaction) => {
-              if (req.body.UserId) {
-                if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-                  const [debitedWallets] = await WalletModel.update(
-                    { balance: literal(`balance - ${WalletModel.sequelize!.escape(totalPrice)}`) },
-                    { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } }, transaction }
-                  )
-                  if (debitedWallets !== 1) {
-                    throw new Error('Insufficient wallet balance.')
-                  }
-                }
-                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId }, transaction })
+            if (req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+              const [debitedWallets] = await WalletModel.update(
+                { balance: literal(`balance - ${WalletModel.sequelize!.escape(totalPrice)}`) },
+                { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
+              )
+              if (debitedWallets !== 1) {
+                abortOrder(new Error('Insufficient wallet balance.'))
+                return
               }
-              for (const { ProductId, quantity } of stockUpdates) {
-                await QuantityModel.decrement({ quantity }, { where: { ProductId }, transaction })
-              }
-            })
+            }
+            for (const { ProductId, quantity } of stockUpdates) {
+              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
+            }
+            if (req.body.UserId) {
+              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+            }
           } catch (error: unknown) {
             abortOrder(error)
             return
