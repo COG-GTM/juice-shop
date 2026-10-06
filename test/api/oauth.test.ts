@@ -55,7 +55,7 @@ void describe('/rest/user/oauth', () => {
     assert.equal(res.body.authentication.umail, 'oauth.newbie@gmail.com')
     assert.equal(calls.length, 1)
     assert.equal(calls[0].init?.method, 'POST')
-    assert.equal((calls[0].init?.headers as Record<string, string>).Authorization, 'Bearer ya29.valid-token')
+    assert.equal(String(calls[0].init?.body), 'access_token=ya29.valid-token')
 
     const whoami = await request(app)
       .get('/rest/user/whoami')

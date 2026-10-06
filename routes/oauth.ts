@@ -21,7 +21,7 @@ async function verifiedGoogleEmail (accessToken: string): Promise<string | null>
 
   const response = await fetch(googleTokenInfoUrl, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ access_token: accessToken }),
     signal: AbortSignal.timeout(5000)
   })
   if (!response.ok) return null
