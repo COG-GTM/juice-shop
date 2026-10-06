@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { BasketItemModel } from '../../models/basketitem'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -137,7 +138,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT moving a basket item without basket ID into another basket is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -149,8 +150,36 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('PUT update basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/2')
+      .set(authHeader)
+      .send({ quantity: 1 })
+    assert.equal(res.status, 403)
+
+    const item = await BasketItemModel.findByPk(2)
+    assert.equal(item?.quantity, 3)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/3')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const item = await BasketItemModel.findByPk(3)
+    assert.notEqual(item, null)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {

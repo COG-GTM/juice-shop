@@ -214,9 +214,32 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing user by id', async () => {
-    const res = await request(app).get('/api/Users/1').set(authHeader)
+  void it('GET existing user by id as admin', async () => {
+    const adminHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: security.roles.admin } })}` }
+    const res = await request(app).get('/api/Users/2').set(adminHeader)
     assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
+  })
+
+  void it('GET own user by id', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
+    const res = await request(app).get(`/api/Users/${jimId}`).set({ Authorization: `Bearer ${token}` })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.email, 'jim@juice-sh.op')
+  })
+
+  void it('GET other user by id is forbidden for non-admin users', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const otherId = security.decode(token).data.id === 1 ? 2 : 1
+    const res = await request(app).get(`/api/Users/${otherId}`).set({ Authorization: `Bearer ${token}` })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET user by id is forbidden for tokens without a user id', async () => {
+    const res = await request(app).get('/api/Users/1').set(authHeader)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing user is forbidden via API even when authenticated', async () => {
