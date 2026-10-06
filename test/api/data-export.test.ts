@@ -136,6 +136,27 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.reviews[1].likedBy[0], undefined)
   })
 
+  void it('Export data does not include reviews forged by other users in the author field', async () => {
+    const domain = config.get<string>('application.domain')
+    const attacker = await login(app, { email: 'bender@' + domain, password: 'OhG0dPlease1nsertLiquor!' })
+    const payload = '<img src=x onerror=alert(localStorage.token)>'
+    const reviewRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + attacker.token, 'content-type': 'application/json' })
+      .send({ message: payload, author: 'admin@' + domain })
+    assert.equal(reviewRes.status, 201)
+
+    const victim = await login(app, { email: 'admin@' + domain, password: 'admin123' })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + victim.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.reviews.some((review: { message: string }) => review.message === payload), false)
+  })
+
   void it('Export data including memories without use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

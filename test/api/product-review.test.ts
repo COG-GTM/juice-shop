@@ -49,14 +49,44 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
+    const { token } = await login(app, { email: 'bender@' + config.get<string>('application.domain'), password: 'OhG0dPlease1nsertLiquor!' })
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        message: 'Lorem Ipsum'
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
+  void it('PUT product review is denied without authentication', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
         author: 'Anonymous'
       })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT product review always uses the authenticated user as author', async () => {
+    const domain = config.get<string>('application.domain')
+    const { token } = await login(app, { email: 'bender@' + domain, password: 'OhG0dPlease1nsertLiquor!' })
+    const message = 'Forged review ' + Date.now()
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        message,
+        author: 'jim@' + domain
+      })
     assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === message)
+    assert.equal(review.author, 'bender@' + domain)
   })
 })
 
