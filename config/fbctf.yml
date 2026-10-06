@@ -251,9 +251,6 @@ ctf:
     twoFactorAuthUnsafeSecretStorageChallenge:
       name: Sweden
       code: SE
-    manipulateClockChallenge:
-      name: Vatican City
-      code: VC
     privacyPolicyChallenge:
       name: Cameroon
       code: CM

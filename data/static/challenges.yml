@@ -371,17 +371,6 @@
   mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Error_Handling_Cheat_Sheet.html'
   key: errorHandlingChallenge
 -
-  name: 'Expired Coupon'
-  category: 'Improper Input Validation'
-  description: 'Successfully redeem an expired campaign coupon code.'
-  difficulty: 4
-  hints:
-    - 'Try to identify past special event or holiday campaigns of the shop first.'
-    - 'Look for clues about the past campaign or holiday event somewhere in the application.'
-    - 'Solving this challenge does not require actual time traveling.'
-  mitigationUrl: ~
-  key: manipulateClockChallenge
--
   name: 'Extra Language'
   category: 'Broken Anti Automation'
   tags:
