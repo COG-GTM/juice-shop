@@ -12,7 +12,8 @@ export function serveKeyFiles () {
     const file = params.file
 
     if (file === 'jwt.pub') {
-      res.type('text/plain').send(publicKey)
+      // end() with a string: the /encryptionkeys listing middleware rewrites res.end() string bodies and cannot handle the Buffer res.send() would pass
+      res.type('text/plain').end(publicKey)
     } else if (!file.includes('/')) {
       res.sendFile(path.resolve('encryptionkeys/', file))
     } else {
