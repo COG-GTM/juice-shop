@@ -20,13 +20,16 @@ describe('/#/privacy-security/data-export', () => {
       cy.get('#registerButton').click()
     })
 
-    it('should be possible to steal admin user data by causing email clash during export', () => {
+    it('should not be possible to steal admin user data by causing email clash during export', () => {
       cy.login({ email: 'admun', password: 'admun123' })
 
+      cy.intercept('POST', '/rest/user/data-export').as('dataExport')
       cy.visit('/#/privacy-security/data-export')
       cy.get('#formatControl').contains('JSON').click()
       cy.get('#submitButton').click()
-      cy.expectChallengeSolved({ challenge: 'GDPR Data Theft' })
+      cy.wait('@dataExport').then(({ response }) => {
+        expect(JSON.parse(response?.body.userData).orders).to.have.length(0)
+      })
     })
   })
 })
