@@ -7,6 +7,8 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
+import { Transform, type TransformCallback } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,6 +26,18 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const MAX_ZIP_ENTRIES = 100
+const MAX_ZIP_EXTRACTED_BYTES = 10 * 1024 * 1024
+
+function resolveComplaintPath (fileName: unknown): string | null {
+  if (typeof fileName !== 'string' || fileName === '' || fileName.includes('\0') || path.isAbsolute(fileName) || path.win32.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const complaintsDir = path.resolve('uploads/complaints')
+  const targetPath = path.resolve(complaintsDir, fileName)
+  return targetPath.startsWith(complaintsDir + path.sep) ? targetPath : null
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,14 +49,59 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetPath = resolveComplaintPath(fileName)
+                entryCount++
+                if (targetPath !== null && entry.type === 'File' && entryCount <= MAX_ZIP_ENTRIES && extractedBytes < MAX_ZIP_EXTRACTED_BYTES) {
+                  let truncated = false
+                  const sizeLimiter = new Transform({
+                    transform (chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback) {
+                      extractedBytes += chunk.length
+                      if (extractedBytes > MAX_ZIP_EXTRACTED_BYTES) {
+                        truncated = true
+                        callback()
+                      } else {
+                        callback(null, chunk)
+                      }
+                    }
+                  })
+                  // Extract into a unique scratch file next to the target so an oversized entry
+                  // cannot truncate an existing complaint and a symlinked target is replaced,
+                  // not followed. The directory is resolved to reject symlinked subdirectories.
+                  const scratchPath = `${targetPath}.${crypto.randomUUID()}.part`
+                  try {
+                    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+                    const realComplaintsDir = fs.realpathSync(path.resolve('uploads/complaints'))
+                    const realTargetDir = fs.realpathSync(path.dirname(targetPath))
+                    if (realTargetDir !== realComplaintsDir && !realTargetDir.startsWith(realComplaintsDir + path.sep)) {
+                      throw new Error(`Refusing to extract ${fileName} outside of uploads/complaints`)
+                    }
+                  } catch (err) {
+                    entry.autodrain()
+                    next(err)
+                    return
+                  }
+                  entry.pipe(sizeLimiter).pipe(fs.createWriteStream(scratchPath, { flags: 'wx' })
+                    .on('error', function (err) { next(err) })
+                    .on('finish', function () {
+                      if (truncated) {
+                        fs.unlink(scratchPath, () => {})
+                      } else {
+                        fs.rename(scratchPath, targetPath, function (err) {
+                          if (err != null) {
+                            fs.unlink(scratchPath, () => {})
+                            next(err)
+                          }
+                        })
+                      }
+                    }))
                 } else {
                   entry.autodrain()
                 }
@@ -139,6 +198,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
