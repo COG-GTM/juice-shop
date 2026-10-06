@@ -7,6 +7,6 @@ User.init(
           validatePasswordHasAtLeastOneUpperCaseChar(clearTextPassword)
           validatePasswordHasAtLeastOneLowerCaseChar(clearTextPassword)
           validatePasswordHasAtLeastTenChar(clearTextPassword)
-          this.setDataValue('password', security.hashPassword(clearTextPassword))
+          this.setDataValue('password', clearTextPassword)
         }
       },
