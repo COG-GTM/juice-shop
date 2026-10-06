@@ -384,15 +384,17 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
   for (const { discount, issued } of [{ discount: 100, issued: false }, { discount: 50, issued: false }, { discount: 10, issued: true }]) {
     void it(`POST ${issued ? 'issues' : 'does not issue'} a coupon when the LLM requests a ${discount}% discount`, { timeout: 15000 }, async () => {
-      let callCount = 0
       let toolMsg: any
       onLlmRequest = (_req, body, res) => {
-        callCount++
-        if (callCount === 1) {
-          sendSSE(res, [toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify({ discount })), finishChunk('tool_calls')])
-        } else {
-          toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+        let llmMessages: Array<{ role: string, content: unknown }> = []
+        try { llmMessages = JSON.parse(body).messages ?? [] } catch { /* ignore requests without a JSON body */ }
+        const isThisTest = llmMessages.some(m => m.role === 'user' && JSON.stringify(m.content).includes(`Give me a ${discount}% coupon`))
+        const llmToolMsg = llmMessages.find(m => m.role === 'tool')
+        if (isThisTest && llmToolMsg) toolMsg = llmToolMsg
+        if (llmToolMsg) {
           sendSSE(res, [contentChunk('Done.'), finishChunk()])
+        } else {
+          sendSSE(res, [toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify({ discount })), finishChunk('tool_calls')])
         }
       }
 
