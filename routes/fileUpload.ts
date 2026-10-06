@@ -109,20 +109,24 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 const MAX_YAML_EXPANDED_LENGTH = 1000000
 const YAML_TOO_LARGE_ERROR = 'YAML document expands beyond the maximum allowed size'
 
-// Lower bound of JSON.stringify(value).length with aliases resolved. Shared nodes are measured
+// Length of JSON.stringify(value) with aliases resolved, matching how JSON serializes each node
+// (string escaping, non-finite numbers as null, dates as ISO strings). Shared nodes are measured
 // once and their size reused, so aliased "billion laughs" graphs are measured in linear time.
-function expandedYamlLength (value: unknown, sizes = new Map<object, number>()): number {
-  if (typeof value === 'string') return value.length + 2
-  if (value === null || typeof value !== 'object') return String(value).length
+// Real cycles throw the same way JSON.stringify would, so they are not treated as size bombs.
+function expandedYamlLength (value: unknown, sizes = new Map<object, number>(), ancestors = new Set<object>()): number {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value === undefined ? null : value).length
+  if (value instanceof Date) return JSON.stringify(value).length
   const known = sizes.get(value)
   if (known !== undefined) return known
-  sizes.set(value, Number.POSITIVE_INFINITY)
+  if (ancestors.has(value)) throw new TypeError('Converting circular structure to JSON')
+  ancestors.add(value)
   let length = 1
   for (const [key, child] of Object.entries(value)) {
-    length += (Array.isArray(value) ? 1 : key.length + 4) + expandedYamlLength(child, sizes)
+    length += (Array.isArray(value) ? 1 : JSON.stringify(key).length + 2) + expandedYamlLength(child, sizes, ancestors)
     if (length > MAX_YAML_EXPANDED_LENGTH) break
   }
   length = Math.max(length, 2)
+  ancestors.delete(value)
   sizes.set(value, length)
   return length
 }

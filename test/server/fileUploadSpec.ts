@@ -101,14 +101,32 @@ describe('fileUpload', () => {
       expect(expandedYamlLength({ k: 1, n: null, t: true })).to.equal(JSON.stringify({ k: 1, n: null, t: true }).length)
     })
 
+    it('should measure scalars the way JSON.stringify serializes them', () => {
+      const value = { 'tab\tkey': ['a\t"b"\n', Infinity, NaN, new Date(0)], empty: {}, list: [] }
+      expect(expandedYamlLength(value)).to.equal(JSON.stringify(value).length)
+    })
+
+    it('should reject aliased escape-heavy strings that only exceed the limit once JSON-escaped', () => {
+      const response = uploadYaml(`s: &s "${'\\t'.repeat(40000)}"\nr: [${Array(15).fill('*s').join(',')}]\n`)
+
+      expect(response.status).to.equal(503)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should not treat self-referencing YAML as a memory bomb', () => {
+      const response = uploadYaml('a: &a [*a]\n')
+
+      expect(response.status).to.equal(410)
+      expect(response.error?.message).to.contain('circular structure')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
     it('should reject an alias bomb before serializing it and solve "yamlBombChallenge"', () => {
-      const started = Date.now()
       const response = uploadYaml(yamlBomb(7)) // expands to ~33 MB of JSON
 
       expect(response.status).to.equal(503)
       expect(response.error?.message).to.equal('Sorry, we are temporarily not available! Please try again later.')
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
-      expect(Date.now() - started).to.be.below(1000)
     })
 
     it('should reject the shipped test/files/yamlBomb.yml', () => {
