@@ -6,6 +6,11 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import os from 'node:os'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +206,39 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('signing keys', () => {
+    // RS256 token signed with the private key that used to be hardcoded in lib/insecurity.ts
+    const tokenSignedWithFormerlyHardcodedKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+
+    it('rejects tokens minted with the formerly hardcoded private key', () => {
+      expect(security.verify(tokenSignedWithFormerlyHardcodedKey)).to.equal(false)
+    })
+
+    it('accepts tokens issued by authorize() with the active signing key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('loads the signing key from JWT_PRIVATE_KEY and the deluxe secret from DELUXE_TOKEN_SECRET', () => {
+      const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const insecurityModule = path.resolve('lib/insecurity.ts')
+      const tsxLoader = pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href
+      const output = execFileSync(process.execPath, ['--import', tsxLoader, '-e',
+        `const s = require(${JSON.stringify(insecurityModule)}); console.log(JSON.stringify({ publicKey: s.publicKey, deluxeToken: s.deluxeToken('test@juice-sh.op') }))`
+      ], {
+        cwd: os.tmpdir(),
+        env: { ...process.env, JWT_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n'), DELUXE_TOKEN_SECRET: 'test-deluxe-secret' }
+      }).toString()
+      const result = JSON.parse(output.trim().split('\n').pop() as string)
+
+      expect(result.publicKey).to.equal(publicKey)
+      expect(result.deluxeToken).to.equal(crypto.createHmac('sha256', 'test-deluxe-secret').update('test@juice-sh.opdeluxe').digest('hex'))
     })
   })
 })
