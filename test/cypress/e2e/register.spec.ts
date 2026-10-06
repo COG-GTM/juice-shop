@@ -47,26 +47,24 @@ describe('/#/register', () => {
   })
 
   describe('challenge "registerAdmin"', () => {
-    it('should be possible to register admin user using REST API', () => {
-      cy.window().then(async () => {
-        const response = await fetch(`${Cypress.config('baseUrl')}/api/Users/`, {
-          method: 'POST',
-          cache: 'no-cache',
-          headers: {
-            'Content-type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: 'testing@test.com',
-            password: 'pwned',
-            passwordRepeat: 'pwned',
-            role: 'admin'
-          })
-        })
-        if (response.status === 201) {
-          console.log('Success')
+    it('should register a user requesting the admin role as customer via REST API', () => {
+      cy.request({
+        method: 'POST',
+        url: '/api/Users/',
+        body: {
+          email: 'testing@test.com',
+          password: 'pwned',
+          passwordRepeat: 'pwned',
+          role: 'admin'
         }
+      }).then((response) => {
+        expect(response.status).to.equal(201)
+        expect(response.body.data.role).to.equal('customer')
       })
-      cy.expectChallengeSolved({ challenge: 'Admin Registration' })
+      cy.request('/api/Challenges/?name=Admin Registration').then((response) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        expect(response.body.data[0].solved).to.be.false
+      })
     })
   })
 
