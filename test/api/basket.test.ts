@@ -125,9 +125,23 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order for the basket of another user fails and leaves it untouched', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const adminHeader = { Authorization: 'Bearer ' + token }
+    const before = await request(app).get('/rest/basket/1').set(adminHeader)
+    assert.ok(before.body.data.Products.length > 0)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
+
+    const after = await request(app).get('/rest/basket/1').set(adminHeader)
+    assert.equal(after.body.data.Products.length, before.body.data.Products.length)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -143,7 +157,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -159,6 +173,22 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order with replayed expired campaign coupon data grants no discount', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const couponData = Buffer.from(`WMNSDY2019-${new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()}`).toString('base64')
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ couponData })
+    assert.equal(res.status, 200)
+
+    const orderRes = await request(app).get('/rest/track-order/' + res.body.orderConfirmation)
+    assert.equal(orderRes.status, 200)
+    assert.equal(orderRes.body.data[0].promotionalAmount, '0')
   })
 })
 
