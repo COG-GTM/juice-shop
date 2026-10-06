@@ -62,7 +62,7 @@ export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (add
 
   const client = url.protocol === 'https:' ? https : http
   return await new Promise<Buffer>((resolve, reject) => {
-    const req = client.get(url, { lookup, timeout: TIMEOUT_MS, headers: { accept: 'image/*' } }, (res) => {
+    const req = client.get(url, { agent: false, lookup, timeout: TIMEOUT_MS, headers: { accept: 'image/*' } }, (res) => {
       const fail = (message: string) => {
         res.destroy()
         reject(new ProfileImageFetchError(message))
