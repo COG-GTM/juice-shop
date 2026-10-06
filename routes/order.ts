@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -35,6 +36,14 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const basketItems = (basket.Products ?? []).filter(({ BasketItem }) => BasketItem != null)
+          if (basketItems.some(({ BasketItem }) => !Number.isInteger(BasketItem.quantity) || BasketItem.quantity <= 0)) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => {
+              return basketItems.reduce((sum, { BasketItem, price }) => sum + price * BasketItem.quantity, 0) < 0
+            })
+            next(new Error('Basket item quantities must be positive.'))
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -43,6 +52,13 @@ export function placeOrder () {
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const abortOrder = (error: unknown) => {
+            fileWriter.removeAllListeners('finish')
+            doc.unpipe(fileWriter)
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            next(error)
+          }
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -67,19 +83,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +147,31 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            abortOrder(new Error('Order total must not be negative.'))
+            return
+          }
+
+          try {
+            if (req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+              const [debitedWallets] = await WalletModel.update(
+                { balance: literal(`balance - ${WalletModel.sequelize!.escape(totalPrice)}`) },
+                { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
+              )
+              if (debitedWallets !== 1) {
+                abortOrder(new Error('Insufficient wallet balance.'))
                 return
               }
             }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
-              return
+            for (const { ProductId, quantity } of stockUpdates) {
+              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
             }
+            if (req.body.UserId) {
+              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+            }
+          } catch (error: unknown) {
+            abortOrder(error)
+            return
           }
 
           db.ordersCollection.insert({

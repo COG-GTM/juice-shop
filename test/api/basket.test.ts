@@ -136,16 +136,51 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order for a basket with a negative total cost is rejected without crediting the wallet', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket item quantities must be positive.'))
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
+    assert.equal(balanceAfter, balanceBefore)
+
+    const deleteRes = await request(app).delete('/api/BasketItems/' + itemRes.body.data.id).set(authHeader)
+    assert.equal(deleteRes.status, 200)
+  })
+
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+    const stockOf = async (ProductId: number) => (await request(app).get('/api/Quantitys').set(uvoginHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+    const stockBefore = { 3: await stockOf(3), 4: await stockOf(4) }
+
+    const responses = await Promise.all([1, 2].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500])
+    assert.ok(responses.some(res => res.text.includes('Error: Insufficient wallet balance.')))
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(balanceAfter >= 0)
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+    assert.equal(await stockOf(3), stockBefore[3] - 5)
+    assert.equal(await stockOf(4), stockBefore[4] - 2)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
