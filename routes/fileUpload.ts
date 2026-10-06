@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import { Transform, type TransformCallback } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,6 +25,18 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const MAX_ZIP_ENTRIES = 100
+const MAX_ZIP_EXTRACTED_BYTES = 10 * 1024 * 1024
+
+function resolveComplaintPath (fileName: unknown): string | null {
+  if (typeof fileName !== 'string' || fileName === '' || fileName.includes('\0') || path.isAbsolute(fileName) || path.win32.isAbsolute(fileName) || fileName.split(/[/\\]/).includes('..')) {
+    return null
+  }
+  const complaintsDir = path.resolve('uploads/complaints')
+  const targetPath = path.resolve(complaintsDir, fileName)
+  return targetPath.startsWith(complaintsDir + path.sep) ? targetPath : null
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,14 +48,32 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetPath = resolveComplaintPath(fileName)
+                entryCount++
+                if (targetPath !== null && entry.type === 'File' && entryCount <= MAX_ZIP_ENTRIES && extractedBytes < MAX_ZIP_EXTRACTED_BYTES) {
+                  let truncated = false
+                  const sizeLimiter = new Transform({
+                    transform (chunk: Buffer, _encoding: BufferEncoding, callback: TransformCallback) {
+                      extractedBytes += chunk.length
+                      if (extractedBytes > MAX_ZIP_EXTRACTED_BYTES) {
+                        truncated = true
+                        callback()
+                      } else {
+                        callback(null, chunk)
+                      }
+                    }
+                  })
+                  entry.pipe(sizeLimiter).pipe(fs.createWriteStream(targetPath)
+                    .on('error', function (err) { next(err) })
+                    .on('finish', function () { if (truncated) fs.unlink(targetPath, () => {}) }))
                 } else {
                   entry.autodrain()
                 }
@@ -139,6 +170,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,

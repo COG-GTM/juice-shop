@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleZipFileUpload, resolveComplaintPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,70 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveComplaintPath', () => {
+    const complaintsDir = path.resolve('uploads/complaints')
+
+    it('resolves plain entry names inside uploads/complaints', () => {
+      expect(resolveComplaintPath('complaint.pdf')).to.equal(path.join(complaintsDir, 'complaint.pdf'))
+      expect(resolveComplaintPath('nested/complaint.pdf')).to.equal(path.join(complaintsDir, 'nested', 'complaint.pdf'))
+    })
+
+    const maliciousNames = [
+      '../../ftp/legal.md',
+      '../../frontend/dist/frontend/main.js',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      'nested/../../../server.ts',
+      '..\\..\\ftp\\legal.md',
+      '..',
+      '.',
+      '/etc/passwd',
+      'C:\\Windows\\win.ini',
+      'complaint.pdf\0.js',
+      ''
+    ]
+    maliciousNames.forEach(name => {
+      it(`rejects entry name ${JSON.stringify(name)}`, () => {
+        expect(resolveComplaintPath(name)).to.equal(null)
+      })
+    })
+
+    it('rejects non-string entry names', () => {
+      expect(resolveComplaintPath(undefined)).to.equal(null)
+      expect(resolveComplaintPath(42)).to.equal(null)
+    })
+  })
+
+  describe('handleZipFileUpload', () => {
+    const legalFile = path.resolve('ftp/legal.md')
+    let legalBefore: string
+
+    beforeEach(() => {
+      legalBefore = fs.readFileSync(legalFile, 'utf8')
+    })
+
+    afterEach(() => {
+      fs.writeFileSync(legalFile, legalBefore)
+    })
+
+    it('does not overwrite ftp/legal.md from a zip entry with path traversal but still solves "fileWriteChallenge"', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      req.file = { originalname: 'arbitraryFileWrite.zip', buffer: fs.readFileSync(path.resolve(__dirname, '../files/arbitraryFileWrite.zip')) }
+      let status: number | undefined
+      res = { status (code: number) { status = code; return { end () {} } } }
+      const errors: unknown[] = []
+
+      handleZipFileUpload(req, res, (err?: unknown) => { if (err !== undefined) errors.push(err) })
+      for (let i = 0; i < 20 && !challenges.fileWriteChallenge.solved; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      await new Promise(resolve => setTimeout(resolve, 250))
+
+      expect(status).to.equal(204)
+      expect(errors).to.deep.equal([])
+      expect(challenges.fileWriteChallenge.solved).to.equal(true)
+      expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)
+    })
   })
 })
