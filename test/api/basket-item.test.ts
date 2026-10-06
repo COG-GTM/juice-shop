@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let benderAuthHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +25,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const bender = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    benderAuthHeader = {
+      Authorization: 'Bearer ' + bender.token,
       'content-type': 'application/json'
     }
   },
@@ -46,6 +56,15 @@ void describe('/api/BasketItems', () => {
   void it('GET all basket items', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all basket items only returns items from own baskets', async () => {
+    const res = await request(app).get('/api/BasketItems').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const item of res.body.data) {
+      assert.equal(item.BasketId, 2)
+    }
   })
 
   void it('POST new basket item', async () => {
@@ -137,7 +156,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT update basket ID of basket item without basket ID is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -149,8 +168,7 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
@@ -209,5 +227,56 @@ void describe('/api/BasketItems/:id', () => {
       .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET basket item from another users basket is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(benderAuthHeader)
+      .send({ BasketId: 3, ProductId: 5, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket item from another users basket is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(benderAuthHeader)
+      .send({ BasketId: 3, ProductId: 7, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+      .send({ quantity: 2 })
+    assert.equal(res.status, 403)
+
+    const ownerRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(benderAuthHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.equal(ownerRes.body.data.quantity, 1)
+  })
+
+  void it('DELETE basket item from another users basket is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(benderAuthHeader)
+      .send({ BasketId: 3, ProductId: 11, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .delete('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const ownerRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(benderAuthHeader)
+    assert.equal(ownerRes.status, 200)
   })
 })
