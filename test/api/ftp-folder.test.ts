@@ -21,12 +21,11 @@ function responseText (res: request.Response): string {
 }
 
 void describe('/ftp', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/ftp')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /ftp</title>'))
+    assert.ok(!res.text.includes('listing directory'))
+    assert.ok(!res.text.includes('incident-support.kdbx'))
   })
 
   void it('GET a non-existing Markdown file in /ftp will return a 404 error', async () => {
@@ -78,10 +77,16 @@ void describe('/ftp', () => {
     assert.ok(res.text.includes('# Planned Acquisitions'))
   })
 
-  void it('GET the KeePass database in /ftp', async () => {
+  void it('GET the KeePass database in /ftp will return a 403 error for invalid file type .kdbx', async () => {
     const res = await request(app)
       .get('/ftp/incident-support.kdbx')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET the KeePass database in /ftp via poison null byte will return a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/incident-support.kdbx%2500.md')
+    assert.equal(res.status, 403)
   })
 
   void it('GET the easter egg file by using Poison Null Byte attack with .pdf suffix', async () => {

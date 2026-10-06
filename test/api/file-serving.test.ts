@@ -132,31 +132,40 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.ok(!res.text.includes('listing directory'))
   })
 
-  void it('GET a non-existing file in will return a 404 error', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/doesnotexist.md')
-    assert.equal(res.status, 404)
-  })
-
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET does not serve the Premium Content AES key', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
-    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('EA99A61D92D2955B1E9285B55BF2AD42'))
   })
 
-  void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
+  void it('GET does not serve the JWT public key file', async () => {
     const res = await request(app)
-      .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
-    assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+      .get('/encryptionkeys/jwt.pub')
+    assert.ok(!res.text.includes('BEGIN RSA PUBLIC KEY'))
+  })
+})
+
+void describe('/support/logs', () => {
+  void it('GET does not serve a directory listing', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.ok(!res.text.includes('listing directory'))
+    assert.ok(!res.text.includes('access.log.'))
+  })
+
+  void it('GET does not serve the access log file of today', async () => {
+    await request(app).get('/rest/admin/application-version')
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .buffer(true)
+    assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    assert.ok(!(res.text ?? '').includes('GET /rest/admin/application-version'))
   })
 })
 
@@ -199,12 +208,5 @@ void describe('Hidden URL', () => {
     const res = await request(app)
       .get('/assets/public/images/uploads/%E1%93%9A%E1%98%8F%E1%97%A2-%23zatschi-%23whoneedsfourlegs-1572600969477.jpg')
     assert.equal(res.status, 200)
-  })
-
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
-    const res = await request(app)
-      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })
 })
