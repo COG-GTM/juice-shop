@@ -13,6 +13,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -113,6 +114,7 @@ function persistedCouponSigningKey (keyFile: string) {
       return key
     }
   } catch { /* fall back to a per-process key */ }
+  logger.warn(`Could not persist coupon signing key to ${keyFile}; coupons will not survive a restart unless COUPON_SIGNING_KEY is set`)
   return crypto.randomBytes(32).toString('hex')
 }
 
