@@ -96,18 +96,48 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+const maxCouponDiscount = 99
+const couponPayloadLength = 8
+const couponMacLength = 8
+
+// Set COUPON_SIGNING_KEY when running more than one instance; otherwise a random key is persisted next to the database.
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? persistedCouponSigningKey('data/juiceshop.coupon.key')
+
+function persistedCouponSigningKey (keyFile: string) {
+  try {
+    fs.writeFileSync(keyFile, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
+  } catch { /* key already exists or data directory is read-only */ }
+  try {
+    const key = fs.readFileSync(keyFile, 'utf8').trim()
+    if (key) {
+      return key
+    }
+  } catch { /* fall back to a per-process key */ }
+  return crypto.randomBytes(32).toString('hex')
+}
+
+const couponMac = (payload: Buffer) => crypto.createHmac('sha256', couponSigningKey).update(payload).digest().subarray(0, couponMacLength)
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  const cappedDiscount = Math.min(Math.max(Math.trunc(discount) || 0, 0), maxCouponDiscount)
+  const payload = Buffer.from(utils.toMMMYY(date) + '-' + String(cappedDiscount).padStart(2, '0'))
+  return z85.encode(Buffer.concat([payload, couponMac(payload)]))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (!decoded || decoded.length !== couponPayloadLength + couponMacLength) {
+    return undefined
+  }
+  const payload = decoded.subarray(0, couponPayloadLength)
+  if (!crypto.timingSafeEqual(decoded.subarray(couponPayloadLength), couponMac(payload))) {
+    return undefined
+  }
+  if (hasValidFormat(payload.toString()) != null) {
+    const parts = payload.toString().split('-')
     const validity = parts[0]
     if (utils.toMMMYY(new Date()) === validity) {
       const discount = parts[1]
@@ -117,7 +147,7 @@ export const discountFromCoupon = (coupon?: string) => {
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

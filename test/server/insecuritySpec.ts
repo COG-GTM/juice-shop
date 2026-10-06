@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
@@ -34,10 +35,16 @@ describe('insecurity', () => {
   })
 
   describe('generateCoupon', () => {
-    it('returns base85-encoded month, year and discount as coupon code', () => {
+    it('returns base85-encoded month, year and discount followed by a signature as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(coupon).to.have.length(20)
+      expect(coupon.substring(0, 10)).to.equal('n<MiifFb4l')
+      expect(z85.decode(coupon).subarray(0, 8).toString()).to.equal('JAN80-20')
+    })
+
+    it('caps the discount at 99% and pads single-digit discounts', () => {
+      expect(z85.decode(security.generateCoupon(150, new Date('1980-01-02'))).subarray(0, 8).toString()).to.equal('JAN80-99')
+      expect(z85.decode(security.generateCoupon(5, new Date('1980-01-02'))).subarray(0, 8).toString()).to.equal('JAN80-05')
     })
 
     it('uses current month and year if not specified', () => {
@@ -74,11 +81,26 @@ describe('insecurity', () => {
 
     it('returns undefined for expired coupon code', () => {
       expect(security.discountFromCoupon(z85.encode('SEP14-50'))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(50, new Date('September 01, 2014')))).to.equal(undefined)
+    })
+
+    it('returns undefined for forged unsigned coupon code of the current month', () => {
+      expect(security.discountFromCoupon(z85.encode(utils.toMMMYY(new Date()) + '-99'))).to.equal(undefined)
+    })
+
+    it('returns undefined for coupon code with forged or tampered signature', () => {
+      const payload = Buffer.from(utils.toMMMYY(new Date()) + '-99')
+      expect(security.discountFromCoupon(z85.encode(Buffer.concat([payload, Buffer.alloc(8)])))).to.equal(undefined)
+
+      const signed = z85.decode(security.generateCoupon(10))
+      const tampered = Buffer.concat([payload, signed.subarray(8)])
+      expect(security.discountFromCoupon(z85.encode(tampered))).to.equal(undefined)
     })
 
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+      expect(security.discountFromCoupon(security.generateCoupon(5))).to.equal(5)
     })
   })
 
