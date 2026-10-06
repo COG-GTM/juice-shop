@@ -274,6 +274,26 @@ void describe('/api/Feedbacks', () => {
     }
   })
 
+  void it('GET captcha purges expired CAPTCHAs but keeps active ones usable', async () => {
+    const expiredRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(expiredRes.status, 200)
+
+    const realNow = Date.now()
+    mock.method(Date, 'now', () => realNow + 11 * 60 * 1000)
+    const activeRes = await request(app)
+      .get('/rest/captcha')
+    mock.restoreAll()
+    assert.equal(activeRes.status, 200)
+
+    assert.equal(await CaptchaModel.findOne({ where: { captchaId: expiredRes.body.captchaId } }), null)
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Fresh submission', rating: 1, captchaId: activeRes.body.captchaId, captcha: await captchaAnswer(activeRes.body.captchaId) })
+    assert.equal(res.status, 201)
+  })
+
   void it('POST feedback cannot be created with invalid CAPTCHA id', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
