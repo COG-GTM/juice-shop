@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import { login } from './helpers/auth'
 
 let app: Express
 
@@ -201,10 +202,55 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log folder is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET access log file is denied without authentication', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET access log file is denied for non-admin users', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${token}`)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is served to admin users', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${token}`)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('access log does not contain credentials passed in query strings', async () => {
+    await request(app)
+      .get('/rest/user/change-password?current=leakedCurrent123&new=leakedNew456&repeat=leakedNew456')
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    let log = ''
+    for (let attempt = 0; attempt < 20 && !log.includes('/rest/user/change-password?'); attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      const res = await request(app)
+        .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+        .set('Authorization', `Bearer ${token}`)
+        .buffer(true)
+        .parse((response, callback) => {
+          let data = ''
+          response.on('data', (chunk: Buffer) => { data += chunk.toString() })
+          response.on('end', () => { callback(null, data) })
+        })
+      log = res.body
+    }
+    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    assert.ok(!log.includes('leakedCurrent123'))
+    assert.ok(!log.includes('leakedNew456'))
   })
 })
