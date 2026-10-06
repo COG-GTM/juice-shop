@@ -67,36 +67,6 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Current password is not correct'))
   })
 
-  void it('POST password change revokes the user\'s other sessions', async () => {
-    await request(app)
-      .post('/api/Users')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'sessions@be.rt',
-        password: 'kunigunde'
-      })
-      .expect(201)
-
-    const { token: otherToken } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-    const { token } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
-    assert.notEqual(token, otherToken)
-
-    await request(app)
-      .post('/rest/user/change-password')
-      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + token })
-      .send({ current: 'kunigunde', new: 'foo', repeat: 'foo' })
-      .expect(200)
-
-    const res = await request(app)
-      .post('/rest/user/change-password')
-      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + otherToken })
-      .send({ current: 'foo', new: 'bar', repeat: 'bar' })
-
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
-  })
-
   void it('POST password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),

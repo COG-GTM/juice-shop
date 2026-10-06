@@ -6,7 +6,6 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 export function changePassword () {
   return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
@@ -49,21 +48,9 @@ export function changePassword () {
 
       await user.update({ password: newPasswordInString })
       loggedInUser.data.password = user.password
-      revokeOtherSessions(user.id, token)
       res.json({ user })
     } catch (error) {
       next(error)
     }
   }
-}
-
-function revokeOtherSessions (userId: number, currentToken: string) {
-  const { tokenMap, idMap } = security.authenticatedUsers
-  const keep = utils.unquote(currentToken)
-  for (const token of Object.keys(tokenMap)) {
-    if (token !== keep && tokenMap[token]?.data?.id === userId) {
-      delete tokenMap[token]
-    }
-  }
-  idMap[userId] = keep
 }
