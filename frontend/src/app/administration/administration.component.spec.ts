@@ -91,6 +91,19 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as text instead of HTML', () => {
+        const payload = '<img src="x" onerror="alert(`xss`)">'
+        userService.find.mockReturnValue(of([{ email: payload, lastLoginTime: Date.now() / 1000 }, { email: 'User2' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+
+        const cells: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('mat-cell.mat-column-email'))
+        expect(cells.some(cell => cell.querySelector('img') !== null)).toBe(false)
+        expect(cells.some(cell => cell.textContent?.trim() === payload)).toBe(true)
+        expect(cells.find(cell => cell.textContent?.trim() === payload)?.querySelector('span.confirmation')).toBeTruthy()
+        expect(cells.find(cell => cell.textContent?.trim() === 'User2')?.querySelector('span.error')).toBeTruthy()
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
