@@ -22,7 +22,7 @@ function favicon () {
 function profileImageOrigin (profileImage: string | undefined) {
   try {
     const { protocol, origin } = new URL(profileImage ?? '')
-    if ((protocol === 'http:' || protocol === 'https:') && /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(origin)) {
+    if ((protocol === 'http:' || protocol === 'https:') && /^https?:\/\/([a-z0-9.-]+|\[[0-9a-f:.]+\])(:\d+)?$/i.test(origin)) {
       return origin
     }
   } catch {}

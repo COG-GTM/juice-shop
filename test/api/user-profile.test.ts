@@ -86,9 +86,11 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('x #[strong pug-injected]'))
   })
 
-  void it('GET user profile does not copy profileImage directives into the CSP header', async () => {
+  void it('GET user profile does not copy profileImage directives into the CSP header', async (t) => {
     const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = user?.profileImage
     await user?.update({ profileImage: "https://a.png; script-src 'unsafe-inline' 'self'" })
+    t.after(async () => { await user?.update({ profileImage: originalProfileImage }) })
 
     const res = await request(app)
       .get('/profile')
@@ -100,9 +102,11 @@ void describe('/profile', () => {
     assert.equal(csp, "img-src 'self'; script-src 'self' 'unsafe-eval'")
   })
 
-  void it('GET user profile allows the origin of an external profileImage in the CSP header', async () => {
+  void it('GET user profile allows the origin of an external profileImage in the CSP header', async (t) => {
     const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = user?.profileImage
     await user?.update({ profileImage: 'https://www.gravatar.com/avatar/abc' })
+    t.after(async () => { await user?.update({ profileImage: originalProfileImage }) })
 
     const res = await request(app)
       .get('/profile')
@@ -110,5 +114,19 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.headers['content-security-policy'], "img-src 'self' https://www.gravatar.com; script-src 'self' 'unsafe-eval'")
+  })
+
+  void it('GET user profile allows a bracketed IPv6 profileImage origin in the CSP header', async (t) => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = user?.profileImage
+    await user?.update({ profileImage: 'http://[2001:db8::1]:8080/avatar.png' })
+    t.after(async () => { await user?.update({ profileImage: originalProfileImage }) })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self' http://[2001:db8::1]:8080; script-src 'self' 'unsafe-eval'")
   })
 })
