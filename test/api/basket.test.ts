@@ -107,7 +107,7 @@ void describe('/rest/basket/:id', () => {
   void it('GET existing basket of another user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: 'Ayhdk25xDVRISFCRqa9cd3Da'
     })
     const res = await request(app)
       .get('/rest/basket/2')
