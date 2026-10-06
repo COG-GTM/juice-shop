@@ -81,7 +81,7 @@ const metricToolCalls = new Counter({
 const maxCouponDiscount = 10
 const ordersWithIssuedCoupon = new Set<string>()
 
-async function claimCouponForOrder (req: Request, orderId: string): Promise<string | undefined> {
+async function claimCouponForOrder (req: Request, orderId: string, discount: number): Promise<string | undefined> {
   const userId = security.authenticatedUsers.from(req)?.data?.id
   if (!userId) return 'Customer not authenticated'
   const user = await UserModel.findByPk(userId, { attributes: ['email'] })
@@ -89,6 +89,7 @@ async function claimCouponForOrder (req: Request, orderId: string): Promise<stri
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || !maskedEmail || order.email !== maskedEmail) return 'No order with this ID found for the current customer'
   if (!order.delivered) return 'Coupons can only be issued for delivered orders'
+  if (security.discountFromCoupon(security.generateCoupon(discount)) !== discount) return 'Unsupported discount value'
   if (ordersWithIssuedCoupon.has(orderId)) return 'A coupon has already been issued for this order'
   ordersWithIssuedCoupon.add(orderId)
   return undefined
@@ -194,7 +195,7 @@ export function chat () {
           orderId: z.string().describe('The ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ discount, orderId }) => {
-          const ineligibility = await claimCouponForOrder(req, orderId)
+          const ineligibility = await claimCouponForOrder(req, orderId, discount)
           if (ineligibility) return { error: ineligibility }
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
