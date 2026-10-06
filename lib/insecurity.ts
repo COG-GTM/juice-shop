@@ -48,7 +48,9 @@ try {
   const publicKeyFile = path.join(fs.realpathSync('encryptionkeys'), 'jwt.pub')
   // never clobber a private key that an operator pointed JWT_PRIVATE_KEY_FILE at
   if (!process.env.JWT_PRIVATE_KEY_FILE || fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE) !== publicKeyFile) {
-    fs.writeFileSync(publicKeyFile, publicKey)
+    // write-then-rename replaces jwt.pub itself instead of following a symlink to another file
+    fs.writeFileSync(`${publicKeyFile}.tmp`, publicKey)
+    fs.renameSync(`${publicKeyFile}.tmp`, publicKeyFile)
   }
 } catch {
   // read-only deployments simply do not publish the public key file

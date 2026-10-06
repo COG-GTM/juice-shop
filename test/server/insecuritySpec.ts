@@ -265,5 +265,21 @@ describe('insecurity', () => {
       expect(fs.readFileSync(path.join(workDir, 'encryptionkeys/jwt.pub'), 'utf8')).to.equal(privateKey)
       fs.rmSync(workDir, { recursive: true, force: true })
     })
+
+    it('does not overwrite a private key file that encryptionkeys/jwt.pub links to', function () {
+      if (process.platform === 'win32') this.skip()
+      const { privateKey, publicKey } = generateRsaKeyPair()
+      const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-keys-'))
+      fs.mkdirSync(path.join(workDir, 'encryptionkeys'))
+      fs.writeFileSync(path.join(workDir, 'encryptionkeys/signing.pem'), privateKey)
+      fs.symlinkSync('signing.pem', path.join(workDir, 'encryptionkeys/jwt.pub'))
+
+      const result = loadInsecurityWith({ JWT_PRIVATE_KEY_FILE: 'encryptionkeys/signing.pem' }, workDir)
+
+      expect(result.publicKey).to.equal(publicKey)
+      expect(fs.readFileSync(path.join(workDir, 'encryptionkeys/signing.pem'), 'utf8')).to.equal(privateKey)
+      expect(fs.readFileSync(path.join(workDir, 'encryptionkeys/jwt.pub'), 'utf8')).to.equal(publicKey)
+      fs.rmSync(workDir, { recursive: true, force: true })
+    })
   })
 })

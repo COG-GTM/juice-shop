@@ -66,7 +66,7 @@ config/*.yml
 !config/defcon33.yml
 
 # JWT public key (derived at runtime from the configured signing key)
-encryptionkeys/jwt.pub
+encryptionkeys/jwt.pub*
 
 # System Files
 .DS_Store
