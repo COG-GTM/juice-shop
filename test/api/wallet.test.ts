@@ -130,6 +130,16 @@ void describe('/api/Wallets', () => {
     const after = await request(app)
       .get('/rest/wallet/balance')
       .set(authHeader)
-    assert.ok(Math.abs(after.body.data - (before.body.data + 10.12)) < 0.001)
+    assert.equal(after.body.data, before.body.data + 10.12)
+  })
+
+  void it('PUT charge wallet with malformed payment id is rejected', async () => {
+    for (const paymentId of [[2], true, '2abc', 2.5, 0, -2, { $gt: 0 }]) {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId })
+      assert.equal(res.status, 402, `paymentId ${JSON.stringify(paymentId)}`)
+    }
   })
 })

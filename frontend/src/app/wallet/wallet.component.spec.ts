@@ -91,6 +91,10 @@ describe('WalletComponent', () => {
         expect(component.balanceControl.valid).toBe(true)
         component.balanceControl.setValue(1000)
         expect(component.balanceControl.valid).toBe(true)
+        component.balanceControl.setValue(10.12)
+        expect(component.balanceControl.valid).toBe(true)
+        component.balanceControl.setValue(10.123)
+        expect(component.balanceControl.valid).toBeFalsy()
     })
 
     it('should hold balance returned by backend API', () => {

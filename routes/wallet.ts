@@ -28,6 +28,12 @@ function parseTopUpAmount (value: unknown): number | null {
   return amount
 }
 
+function parsePaymentId (value: unknown): number | null {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? value : null
+  if (typeof value === 'string' && /^[1-9]\d{0,15}$/.test(value)) return Number(value)
+  return null
+}
+
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const amount = parseTopUpAmount(req.body.balance)
@@ -35,8 +41,8 @@ export function addWalletBalance () {
       res.status(400).json({ status: 'error', message: `Amount must be between ${MIN_TOP_UP_AMOUNT} and ${MAX_TOP_UP_AMOUNT} with at most two decimal places.` })
       return
     }
-    const cardId = Number(req.body.paymentId)
-    const card = Number.isInteger(cardId) && cardId > 0 ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
+    const cardId = parsePaymentId(req.body.paymentId)
+    const card = cardId !== null ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
     if (card != null) {
       try {
         await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
