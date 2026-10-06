@@ -219,13 +219,16 @@ describe('fileUpload', () => {
       res = { status () { return { end () {} } } }
 
       const scratchFiles = () => fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part'))
+      const seenScratchFiles = new Set<string>()
+      const watcher = fs.watch(complaintsDir, (_event, name) => { if (name?.endsWith('.part') === true) seenScratchFiles.add(name) })
 
       handleZipFileUpload(req, res, () => {})
-      await waitFor(() => scratchFiles().length > 0, 2000)
-      await waitFor(() => scratchFiles().length === 0)
+      await waitFor(() => seenScratchFiles.size > 0 && scratchFiles().length === 0)
+      watcher.close()
 
       try {
         expect(fs.readFileSync(existing, 'utf8')).to.equal('original complaint')
+        expect([...seenScratchFiles]).to.have.lengthOf(1)
         expect(scratchFiles()).to.deep.equal([])
       } finally {
         fs.rmSync(existing, { force: true })
