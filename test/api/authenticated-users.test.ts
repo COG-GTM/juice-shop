@@ -14,17 +14,40 @@ import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+let adminHeader: Record<string, string>
+let customerHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminHeader = { Authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  const { token: customerToken } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  customerHeader = { Authorization: `Bearer ${customerToken}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
-  void it('GET all users with password replaced by asterisks', async () => {
+  void it('GET all users is forbidden for customers', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(customerHeader)
+
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET all users is forbidden for tokens without admin role', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')
       .set(authHeader)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users with password replaced by asterisks', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(adminHeader)
 
     assert.equal(res.status, 200)
     const userWithAsterisks = res.body.data.find((user: any) => user.password === '********************************')
@@ -39,7 +62,7 @@ void describe('/rest/user/authentication-details', () => {
 
     const res = await request(app)
       .get('/rest/user/authentication-details')
-      .set(authHeader)
+      .set(adminHeader)
 
     assert.equal(res.status, 200)
 
