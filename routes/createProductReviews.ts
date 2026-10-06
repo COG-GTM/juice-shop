@@ -15,12 +15,9 @@ async function authenticatedEmail (req: Request): Promise<string | undefined> {
   if (user?.data?.email) {
     return user.data.email
   }
-  const token = utils.jwtFrom(req)
-  if (token && security.verify(token)) {
-    const email = (security.decode(token) as { data?: { email?: string } } | undefined)?.data?.email
-    if (email && await UserModel.findOne({ where: { email } })) {
-      return email
-    }
+  const email = (req as Request & { user?: { data?: { email?: string } } }).user?.data?.email
+  if (email && await UserModel.findOne({ where: { email } })) {
+    return email
   }
 }
 
