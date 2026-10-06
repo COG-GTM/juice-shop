@@ -62,6 +62,8 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 403)
     const profile = await request(app).get('/profile').set(authHeader)
+    assert.equal(profile.status, 200)
+    assert.ok(profile.text.includes('jim@juice-sh.op'))
     assert.ok(!profile.text.includes('CSRF'))
   })
 
@@ -102,5 +104,19 @@ void describe('/profile', () => {
     assert.equal(res.status, 302)
     const cookies = [res.headers['set-cookie'] ?? []].flat()
     assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Strict')))
+  })
+
+  void it('POST update username via reverse proxy matches Origin against X-Forwarded-Host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Host', 'juice-sh.op')
+      .set('Origin', 'http://juice-sh.op')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
   })
 })

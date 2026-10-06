@@ -17,7 +17,7 @@ function isCrossSiteRequest (req: Request) {
     return false
   }
   try {
-    return new URL(source).host !== req.headers.host
+    return new URL(source).hostname !== req.hostname
   } catch {
     return true
   }
