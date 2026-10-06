@@ -125,7 +125,8 @@ void describe('/file-upload', () => {
   void it('POST zip file with directory traversal payload', async () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const legalFile = path.resolve('ftp/legal.md')
-    const legalBefore = fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+    const readLegal = () => { try { return fs.readFileSync(legalFile, 'utf8') } catch { return null } }
+    const legalBefore = readLegal()
     try {
       const res = await request(app)
         .post('/file-upload')
@@ -135,7 +136,7 @@ void describe('/file-upload', () => {
         await new Promise(resolve => setTimeout(resolve, 50))
       }
       await new Promise(resolve => setTimeout(resolve, 500))
-      assert.equal(fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null, legalBefore)
+      assert.equal(readLegal(), legalBefore)
     } finally {
       if (legalBefore !== null) fs.writeFileSync(legalFile, legalBefore)
       else fs.rmSync(legalFile, { force: true })

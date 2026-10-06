@@ -161,9 +161,14 @@ describe('fileUpload', () => {
     let legalBefore: string
 
     beforeEach(() => {
-      legalExisted = fs.existsSync(legalFile)
-      if (!legalExisted) fs.copyFileSync(path.resolve('data/static/legal.md'), legalFile)
-      legalBefore = fs.readFileSync(legalFile, 'utf8')
+      try {
+        legalBefore = fs.readFileSync(legalFile, 'utf8')
+        legalExisted = true
+      } catch {
+        fs.copyFileSync(path.resolve('data/static/legal.md'), legalFile, fs.constants.COPYFILE_EXCL)
+        legalBefore = fs.readFileSync(legalFile, 'utf8')
+        legalExisted = false
+      }
     })
 
     afterEach(() => {
@@ -292,12 +297,17 @@ describe('fileUpload', () => {
       res = { status () { return { end () {} } } }
 
       handleZipFileUpload(req, res, () => {})
-      await waitFor(() => !fs.lstatSync(link).isSymbolicLink())
+      const openRegularFile = () => fs.openSync(link, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW)
+      await waitFor(() => { try { fs.closeSync(openRegularFile()); return true } catch { return false } })
 
       try {
         expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)
-        expect(fs.lstatSync(link).isSymbolicLink()).to.equal(false)
-        expect(fs.readFileSync(link, 'utf8')).to.equal('overwritten through symlink')
+        const fd = openRegularFile()
+        try {
+          expect(fs.readFileSync(fd, 'utf8')).to.equal('overwritten through symlink')
+        } finally {
+          fs.closeSync(fd)
+        }
       } finally {
         fs.rmSync(link, { force: true })
       }
