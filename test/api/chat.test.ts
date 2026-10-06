@@ -342,15 +342,10 @@ void describe('/rest/chat generateCoupon policy enforcement', { timeout: 120000 
     assert.equal(couponFrom(toolResult), undefined)
   })
 
-  void it('does not issue an unredeemable single-digit coupon or consume the order with it', { timeout: 15000 }, async () => {
+  void it('issues at most one redeemable coupon of up to 10% for an own delivered order', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await adminOrderId(true)
     assert.equal(couponFrom(await generateCouponViaChat({ discount: 5, orderId }, token)), undefined)
-  })
-
-  void it('issues at most one coupon of up to 10% for an own delivered order', { timeout: 15000 }, async () => {
-    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
-    const orderId = await adminOrderId(true)
     const coupon = couponFrom(await generateCouponViaChat({ discount: 10, orderId }, token))
     assert.ok(coupon)
     assert.equal(security.discountFromCoupon(coupon), 10)
