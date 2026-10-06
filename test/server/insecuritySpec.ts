@@ -196,6 +196,72 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', async () => {
+      expect(await security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    })
+
+    it('uses a random salt for each hash', async () => {
+      expect(await security.hashPassword('admin123')).to.not.equal(await security.hashPassword('admin123'))
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
+      const storedHash = await security.hashPassword('admin123')
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = (await security.hashPassword('admin123')).split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', await security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', await security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects unsalted MD5 and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs only non-secret user claims into the JWT', () => {
+      const token = security.authorize({
+        status: 'success',
+        bid: 1,
+        data: { id: 10, email: 'wurstbrot@juice-sh.op', role: 'admin', username: 'wurstbrot', password: 'scrypt$16384$8$5$salt$key', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'default.svg', isActive: true }
+      })
+      const payload = security.decode(token)
+      expect(payload.data).to.deep.equal({ id: 10, email: 'wurstbrot@juice-sh.op', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'default.svg' })
+      expect(payload.status).to.equal('success')
+      expect(payload).to.not.have.property('bid')
+      expect(token).to.not.include('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+    })
+
+    it('leaves payloads without user data untouched', () => {
+      const payload = security.decode(security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }))
+      expect(payload.userId).to.equal(10)
+      expect(payload.type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')

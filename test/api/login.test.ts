@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -150,6 +151,23 @@ void describe('/rest/user/login', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.authentication.token, 'string')
+  })
+
+  void it('POST login returns a token without password hash or TOTP secret', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'bjoern.kimminich@gmail.com',
+        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      })
+
+    assert.equal(res.status, 200)
+    const payload = security.decode(res.body.authentication.token)
+    assert.equal(payload.data.email, 'bjoern.kimminich@gmail.com')
+    assert.equal(payload.data.role, 'admin')
+    assert.equal(payload.data.password, undefined)
+    assert.equal(payload.data.totpSecret, undefined)
   })
 
   void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
