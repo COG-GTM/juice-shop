@@ -118,6 +118,23 @@ describe('fileUpload', () => {
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
     })
 
+    it('should accept aliased lists whose JSON stays below the size limit', () => {
+      const lines = ['a: &a [' + new Array(100).fill('1').join(',') + ']', 'b: [' + new Array(3000).fill('*a').join(',') + ']']
+      uploadYaml(lines.join('\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(error?.message).to.contain('B2B customer complaints via file upload have been deprecated for security reasons: {"a":[1,1,1')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should report self-referencing aliases as a serialization error without solving "yamlBombChallenge"', () => {
+      uploadYaml('a: &a\n  self: *a\n')
+
+      expect(statusCode).to.equal(410)
+      expect(error?.message).to.contain('Converting circular structure to JSON')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
     it('should solve "yamlBombChallenge" for the Billion Laughs file without expanding it', () => {
       uploadYaml(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8'))
 

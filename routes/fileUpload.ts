@@ -109,7 +109,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 const MAX_YAML_EXPANDED_LENGTH = 1000000
 const YAML_TOO_LARGE_ERROR = 'YAML document expands beyond the maximum allowed size'
 
-// Upper bound of JSON.stringify(value).length with aliases resolved. Shared (aliased) nodes are
+// JSON.stringify(value).length with aliases resolved. Shared (aliased) nodes are
 // measured once, so "billion laughs" documents are rejected without ever being expanded.
 function expandedYamlLength (value: unknown, sizes = new Map<object, number>()): number {
   if (value !== null && typeof value === 'object' && typeof (value as { toJSON?: unknown }).toJSON === 'function') {
@@ -117,13 +117,16 @@ function expandedYamlLength (value: unknown, sizes = new Map<object, number>()):
   }
   if (value === null || typeof value !== 'object') return (JSON.stringify(value) ?? 'null').length
   const known = sizes.get(value)
+  if (known === -1) throw new TypeError('Converting circular structure to JSON')
   if (known !== undefined) return known
-  sizes.set(value, Infinity)
-  let length = 2
+  sizes.set(value, -1)
+  const isArray = Array.isArray(value)
+  let length = 1
   for (const [key, child] of Object.entries(value)) {
-    length += JSON.stringify(key).length + 2 + expandedYamlLength(child, sizes)
+    length += (isArray ? 0 : JSON.stringify(key).length + 1) + expandedYamlLength(child, sizes) + 1
     if (length > MAX_YAML_EXPANDED_LENGTH) break
   }
+  length = Math.max(length, 2)
   sizes.set(value, length)
   return length
 }
