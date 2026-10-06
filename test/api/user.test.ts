@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -59,7 +60,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new admin', async () => {
+  void it('POST new user with role admin is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -74,7 +75,7 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'admin')
+    assert.equal(res.body.data.role, 'customer')
   })
 
   void it('POST new blank user', async () => {
@@ -127,7 +128,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new deluxe user', async () => {
+  void it('POST new user with role deluxe is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -142,10 +143,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'deluxe')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST new accounting user', async () => {
+  void it('POST new user with role accounting is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -160,10 +161,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'accounting')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST user not belonging to customer, deluxe, accounting, admin is forbidden', async () => {
+  void it('POST new user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -172,11 +173,53 @@ void describe('/api/Users', () => {
         password: 'hooooorst',
         role: 'accountinguser'
       })
-    assert.equal(res.status, 400)
+    assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
-    assert.equal(res.body.errors[0].field, 'role')
-    assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
+    assert.equal(res.body.data.role, 'customer')
+  })
+
+  void it('POST new user with role admin cannot log in as admin', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        passwordRepeat: 'hooooorst',
+        role: 'admin'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
+    assert.notEqual(res.body.data.profileImage, '/assets/public/images/uploads/defaultAdmin.png')
+
+    const { token } = await login(app, { email: 'horst6@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+  })
+
+  void it('POST new user ignores privileged attributes', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst7@horstma.nn',
+        password: 'hooooorst',
+        passwordRepeat: 'hooooorst',
+        id: 4711,
+        role: 'admin',
+        deluxeToken: 'forged',
+        totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH',
+        profileImage: '/assets/public/images/uploads/defaultAdmin.png',
+        isActive: false
+      })
+    assert.equal(res.status, 201)
+    assert.notEqual(res.body.data.id, 4711)
+    assert.equal(res.body.data.role, 'customer')
+    assert.equal(res.body.data.deluxeToken, '')
+    assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+    assert.equal(res.body.data.isActive, true)
+
+    const user = await UserModel.findByPk(res.body.data.id)
+    assert.equal(user?.totpSecret, '')
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
