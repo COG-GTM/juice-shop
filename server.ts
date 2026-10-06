@@ -264,6 +264,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  /* Access logs are restricted to administrators */
+  app.use('/support/logs', security.isAuthorized(), security.isAdmin())
+
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -334,6 +337,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     frequency: 'daily',
     verbose: false,
     max_logs: '2d'
+  })
+  morgan.token<Request>('url', (req) => utils.redactQueryString(req.originalUrl ?? req.url))
+  morgan.token<Request>('referrer', (req) => {
+    const referrer = req.headers.referer ?? req.headers.referrer
+    return typeof referrer === 'string' ? utils.redactQueryString(referrer) : undefined
   })
   app.use(morgan('combined', { stream: accessLogStream }))
 

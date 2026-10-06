@@ -47,6 +47,24 @@ describe('utils', () => {
     })
   })
 
+  describe('redactQueryString', () => {
+    it('returns URL without query string unchanged', () => {
+      expect(utils.redactQueryString('/rest/user/change-password')).to.equal('/rest/user/change-password')
+    })
+
+    it('redacts credentials passed as query parameters', () => {
+      expect(utils.redactQueryString('/rest/user/change-password?current=old&new=secret&repeat=secret')).to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts query parameters without a name', () => {
+      expect(utils.redactQueryString('/rest/track-order?secret')).to.equal('/rest/track-order?[REDACTED]')
+    })
+
+    it('redacts everything after the first equals sign of a parameter', () => {
+      expect(utils.redactQueryString('/api?token=a=b&x=')).to.equal('/api?token=[REDACTED]&x=[REDACTED]')
+    })
+  })
+
   describe('matchesSystemIniFile', () => {
     it('fails on plain input string', () => {
       expect(utils.matchesSystemIniFile('Bla Blubb')).to.equal(false)

@@ -79,11 +79,30 @@ describe('/', () => {
     })
   })
 
-  describe('challenge "accessLogDisclosure"', () => {
-    it("should be able to access today's access log file", () => {
-      // cy.visit requires a text/html response hence cy.request has been used
+  describe('access log disclosure', () => {
+    it("should not be able to access today's access log file anonymously", () => {
       cy.task<Date>('toISO8601').then((date: Date) => {
-        cy.request(`/support/logs/access.log.${date.toString()}`)
+        cy.request({
+          url: `/support/logs/access.log.${date.toString()}`,
+          failOnStatusCode: false
+        }).its('status').should('equal', 401)
+      })
+    })
+  })
+
+  describe('challenge "accessLogDisclosure"', () => {
+    beforeEach(() => {
+      cy.login({ email: 'admin', password: 'admin123' })
+    })
+
+    it("should be able to access today's access log file as admin", () => {
+      cy.task<Date>('toISO8601').then((date: Date) => {
+        cy.window().then(() => {
+          cy.request({
+            url: `/support/logs/access.log.${date.toString()}`,
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          }).its('status').should('equal', 200)
+        })
       })
       cy.expectChallengeSolved({ challenge: 'Access Log' })
     })
