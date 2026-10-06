@@ -120,6 +120,21 @@ function hasValidFormat (coupon: string) {
   return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
 }
 
+const toOriginAndPath = (url: unknown) => {
+  if (typeof url !== 'string') return null
+  try {
+    const { origin, pathname } = new URL(url)
+    return origin + pathname
+  } catch {
+    return null
+  }
+}
+
+const matchesAllowedUrl = (url: unknown, allowedUrl: string) => {
+  const target = toOriginAndPath(url)
+  return target !== null && target === toOriginAndPath(allowedUrl) && (url as string).startsWith(allowedUrl)
+}
+
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
 export const redirectAllowlist = new Set([
   'https://github.com/juice-shop/juice-shop',
@@ -135,7 +150,7 @@ export const redirectAllowlist = new Set([
 export const isRedirectAllowed = (url: string) => {
   let allowed = false
   for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || url.includes(allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
+    allowed = allowed || matchesAllowedUrl(url, allowedUrl) // vuln-code-snippet vuln-line redirectChallenge
   }
   return allowed
 }
