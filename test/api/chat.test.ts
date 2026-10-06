@@ -410,4 +410,23 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       }
     })
   }
+
+  void it('POST rate-limits each authenticated user independently', { timeout: 30000 }, async () => {
+    onLlmRequest = (_req, _body, res) => {
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+
+    const statuses: number[] = []
+    for (let i = 0; i < 31; i++) {
+      const res = await request(app).post('/rest/chat').set(benderHeader).set('X-Forwarded-For', `10.0.0.${i}`).send({ messages: 'invalid' })
+      statuses.push(res.status)
+    }
+    assert.deepEqual(statuses.slice(0, 30), Array(30).fill(400))
+    assert.equal(statuses[30], 429)
+
+    const jimRes = await request(app).post('/rest/chat').set(authHeader).send({ messages: 'invalid' })
+    assert.equal(jimRes.status, 400)
+  })
 })
