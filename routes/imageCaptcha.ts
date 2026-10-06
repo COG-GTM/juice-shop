@@ -26,6 +26,7 @@ export function imageCaptchas () {
         answer: captcha.text,
         UserId: user.data.id
       }
+      await ImageCaptchaModel.destroy({ where: { UserId: user.data.id } })
       const imageCaptchaInstance = ImageCaptchaModel.build(imageCaptcha)
       await imageCaptchaInstance.save()
       res.json(imageCaptcha)
