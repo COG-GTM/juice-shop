@@ -9,8 +9,11 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -98,6 +101,52 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL does not fetch internal addresses (SSRF)', async () => {
+    const hits: string[] = []
+    const internalService = http.createServer((req, res) => {
+      hits.push(req.url ?? '')
+      res.writeHead(200, { 'content-type': 'image/png' }).end('AKIA-INTERNAL-SECRET')
+    })
+    await new Promise<void>(resolve => internalService.listen(0, '127.0.0.1', resolve))
+    const imageUrl = `http://127.0.0.1:${(internalService.address() as AddressInfo).port}/latest/meta-data/iam/security-credentials/role.png`
+
+    try {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', imageUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      assert.deepEqual(hits, [])
+      const user = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+      assert.ok(!user?.profileImage.startsWith('/assets/public/images/uploads/'))
+    } finally {
+      internalService.close()
+    }
+  })
+
+  void it('POST profile image URL with blocked server-side challenge URL does not arm SSRF challenge', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'http://127.0.0.1:3000/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.notEqual(app.locals.abused_ssrf_bug, true)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
