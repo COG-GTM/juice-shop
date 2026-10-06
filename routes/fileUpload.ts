@@ -77,10 +77,20 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
+      if (/<!DOCTYPE/i.test(data)) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: DTDs are not allowed (' + file.originalname + ')'))
+        return
+      }
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nonet: true, dtdload: false, dtdvalid: false, nocdata: true })', sandbox, { timeout: 2000 })
+        if (xmlDoc.getDtd() != null) {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: DTDs are not allowed (' + file.originalname + ')'))
+          return
+        }
         const xmlString = xmlDoc.toString(false)
         challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
         res.status(410)

@@ -77,14 +77,6 @@ describe('/#/complain', () => {
         }
       })
     })
-
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
-        }
-      })
-    })
   })
 
   describe('challenge "xxeDos"', () => {
