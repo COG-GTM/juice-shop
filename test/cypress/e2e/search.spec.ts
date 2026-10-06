@@ -19,6 +19,8 @@ describe('/#/search', () => {
   })
   describe('challenge "xssBonusPayload"', () => {
     it('search query should be susceptible to reflected XSS attacks', () => {
+      cy.login({ email: 'admin', password: 'admin123' })
+      cy.visit('/#/search')
       cy.get('#searchQuery').click()
       cy.get('app-mat-search-bar input')
         .type(
