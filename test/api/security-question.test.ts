@@ -96,7 +96,7 @@ void describe('/rest/user/security-question', () => {
     const first = await request(app)
       .get('/rest/user/security-question?email=horst@unknown-us.er')
     const second = await request(app)
-      .get('/rest/user/security-question?email=HORST@unknown-us.er')
+      .get('/rest/user/security-question?email=horst@unknown-us.er')
 
     assert.equal(first.status, 200)
     assert.equal(first.body.question.id, second.body.question.id)
