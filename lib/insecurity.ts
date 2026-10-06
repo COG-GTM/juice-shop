@@ -141,6 +141,40 @@ export const isRedirectAllowed = (url: string) => {
 }
 // vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
 
+const CONTINUE_CODE_KEY_FILE = 'data/continue-code.key'
+let continueCodeKey: string | undefined
+const continueCodeSigningKey = () => {
+  if (continueCodeKey === undefined) {
+    const fromEnv = process.env.CONTINUE_CODE_SECRET
+    if (fromEnv !== undefined && fromEnv.trim() !== '') {
+      continueCodeKey = fromEnv
+    } else {
+      try {
+        continueCodeKey = fs.readFileSync(CONTINUE_CODE_KEY_FILE, 'utf8').trim()
+      } catch {
+        continueCodeKey = ''
+      }
+      if (continueCodeKey === '') {
+        continueCodeKey = crypto.randomBytes(32).toString('hex')
+        try {
+          fs.writeFileSync(CONTINUE_CODE_KEY_FILE, continueCodeKey, { mode: 0o600 })
+        } catch {
+          // key only lives for this process; codes will not survive a restart
+        }
+      }
+    }
+  }
+  return continueCodeKey
+}
+const continueCodeSignature = (scope: string, code: string) => crypto.createHmac('sha256', continueCodeSigningKey()).update(scope + ':' + code).digest('hex')
+export const signContinueCode = (scope: string, code: string) => code + '.' + continueCodeSignature(scope, code)
+export const verifyContinueCode = (scope: string, code: string, signature?: string) => {
+  if (signature === undefined) return false
+  const expected = Buffer.from(continueCodeSignature(scope, code), 'hex')
+  const actual = Buffer.from(signature, 'hex')
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected)
+}
+
 export const roles = {
   customer: 'customer',
   deluxe: 'deluxe',
