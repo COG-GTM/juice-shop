@@ -139,6 +139,24 @@ describe('AdministrationComponent', () => {
         expect(dialog.open).toHaveBeenCalledWith(FeedbackDetailsComponent, { data: { feedback: 'Feedback', id: 1 } })
     })
 
+    it('should render a malicious user email as text', () => {
+        userService.find.mockReturnValue(of([{ email: '<img src="x" onerror="alert(1)">' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
+        expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
+    })
+
+    it('should render a malicious feedback comment as text', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<img src="x" onerror="alert(1)">', rating: 1 }]))
+        component.findAllFeedbacks()
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
+        expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
+    })
+
     it('should have three columns in the user table', () => {
         expect(component.userColumns.length).toBe(3)
         expect(component.userColumns[0]).toBe('user')
