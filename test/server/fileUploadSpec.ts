@@ -101,14 +101,18 @@ describe('fileUpload', () => {
 
   describe('handleZipFileUpload', () => {
     const legalFile = path.resolve('ftp/legal.md')
+    let legalExisted: boolean
     let legalBefore: string
 
     beforeEach(() => {
+      legalExisted = fs.existsSync(legalFile)
+      if (!legalExisted) fs.copyFileSync(path.resolve('data/static/legal.md'), legalFile)
       legalBefore = fs.readFileSync(legalFile, 'utf8')
     })
 
     afterEach(() => {
-      fs.writeFileSync(legalFile, legalBefore)
+      if (legalExisted) fs.writeFileSync(legalFile, legalBefore)
+      else fs.rmSync(legalFile, { force: true })
     })
 
     it('does not overwrite ftp/legal.md from a zip entry with path traversal but still solves "fileWriteChallenge"', async () => {
