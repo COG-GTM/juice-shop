@@ -12,6 +12,55 @@ import { checkUploadSize, checkFileType, handleZipFileUpload, resolveComplaintPa
 
 const expect = chai.expect
 
+const MAX_ZIP_ENTRIES = 100
+
+// Minimal stored-mode (uncompressed) zip writer, so the extraction limits can be
+// exercised without checking large fixture archives into the repository.
+function zipOf (files: ReadonlyArray<readonly [string, Buffer]>): Buffer {
+  const locals: Buffer[] = []
+  const central: Buffer[] = []
+  let offset = 0
+  for (const [name, data] of files) {
+    const nameBuf = Buffer.from(name)
+    const crc = crc32(data)
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4)
+    local.writeUInt32LE(crc, 14)
+    local.writeUInt32LE(data.length, 18)
+    local.writeUInt32LE(data.length, 22)
+    local.writeUInt16LE(nameBuf.length, 26)
+    locals.push(local, nameBuf, data)
+    const entry = Buffer.alloc(46)
+    entry.writeUInt32LE(0x02014b50, 0)
+    entry.writeUInt16LE(20, 6)
+    entry.writeUInt32LE(crc, 16)
+    entry.writeUInt32LE(data.length, 20)
+    entry.writeUInt32LE(data.length, 24)
+    entry.writeUInt16LE(nameBuf.length, 28)
+    entry.writeUInt32LE(offset, 42)
+    central.push(entry, nameBuf)
+    offset += local.length + nameBuf.length + data.length
+  }
+  const centralBuf = Buffer.concat(central)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(files.length, 8)
+  end.writeUInt16LE(files.length, 10)
+  end.writeUInt32LE(centralBuf.length, 12)
+  end.writeUInt32LE(offset, 16)
+  return Buffer.concat([...locals, centralBuf, end])
+}
+
+function crc32 (buf: Buffer): number {
+  let crc = ~0
+  for (const byte of buf) {
+    crc ^= byte
+    for (let i = 0; i < 8; i++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1))
+  }
+  return (~crc) >>> 0
+}
+
 describe('fileUpload', () => {
   let req: any
   let res: any
@@ -133,5 +182,65 @@ describe('fileUpload', () => {
       expect(challenges.fileWriteChallenge.solved).to.equal(true)
       expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)
     })
+
+    it('extracts at most MAX_ZIP_ENTRIES files from one archive', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      req.file = { originalname: 'manyEntries.zip', buffer: zipOf(Array.from({ length: MAX_ZIP_ENTRIES + 1 }, (_, i) => [`entry${i}.txt`, Buffer.from('x')] as const)) }
+      res = { status () { return { end () {} } } }
+
+      handleZipFileUpload(req, res, () => {})
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      const written = Array.from({ length: MAX_ZIP_ENTRIES + 1 }, (_, i) => `entry${i}.txt`).filter(name => fs.existsSync(path.resolve('uploads/complaints', name)))
+
+      try {
+        expect(written).to.have.lengthOf(MAX_ZIP_ENTRIES)
+        expect(written).to.not.include(`entry${MAX_ZIP_ENTRIES}.txt`)
+      } finally {
+        for (const name of written) fs.rmSync(path.resolve('uploads/complaints', name), { force: true })
+      }
+    }).timeout(10000)
+
+    it('discards an entry beyond the total size cap without destroying an existing complaint', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      const complaintsDir = path.resolve('uploads/complaints')
+      const existing = path.join(complaintsDir, 'existingComplaint.txt')
+      fs.mkdirSync(complaintsDir, { recursive: true })
+      fs.writeFileSync(existing, 'original complaint')
+      req.file = { originalname: 'oversized.zip', buffer: zipOf([['existingComplaint.txt', Buffer.alloc(11 * 1024 * 1024, 0x79)]]) }
+      res = { status () { return { end () {} } } }
+
+      handleZipFileUpload(req, res, () => {})
+      await new Promise(resolve => setTimeout(resolve, 1500))
+
+      try {
+        expect(fs.readFileSync(existing, 'utf8')).to.equal('original complaint')
+        expect(fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part'))).to.deep.equal([])
+      } finally {
+        fs.rmSync(existing, { force: true })
+      }
+    }).timeout(10000)
+
+    it('replaces a symlink inside uploads/complaints instead of writing through it', async function () {
+      if (process.platform === 'win32') this.skip()
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      const complaintsDir = path.resolve('uploads/complaints')
+      const link = path.join(complaintsDir, 'linkedComplaint.txt')
+      fs.mkdirSync(complaintsDir, { recursive: true })
+      fs.rmSync(link, { force: true })
+      fs.symlinkSync(legalFile, link)
+      req.file = { originalname: 'symlink.zip', buffer: zipOf([['linkedComplaint.txt', Buffer.from('overwritten through symlink')]]) }
+      res = { status () { return { end () {} } } }
+
+      handleZipFileUpload(req, res, () => {})
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      try {
+        expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)
+        expect(fs.lstatSync(link).isSymbolicLink()).to.equal(false)
+        expect(fs.readFileSync(link, 'utf8')).to.equal('overwritten through symlink')
+      } finally {
+        fs.rmSync(link, { force: true })
+      }
+    }).timeout(10000)
   })
 })

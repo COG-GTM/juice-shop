@@ -131,6 +131,9 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 204)
+      for (let i = 0; i < 40 && !challenges.fileWriteChallenge.solved; i++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
       await new Promise(resolve => setTimeout(resolve, 500))
       assert.equal(fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null, legalBefore)
     } finally {

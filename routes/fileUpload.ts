@@ -71,9 +71,16 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                       }
                     }
                   })
-                  entry.pipe(sizeLimiter).pipe(fs.createWriteStream(targetPath)
+                  // Extract into a scratch file next to the target so an oversized entry cannot
+                  // truncate an existing complaint and a symlinked target is replaced, not followed.
+                  const scratchPath = `${targetPath}.${process.pid}-${entryCount}.part`
+                  fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+                  entry.pipe(sizeLimiter).pipe(fs.createWriteStream(scratchPath, { flags: 'wx' })
                     .on('error', function (err) { next(err) })
-                    .on('finish', function () { if (truncated) fs.unlink(targetPath, () => {}) }))
+                    .on('finish', function () {
+                      if (truncated) fs.unlink(scratchPath, () => {})
+                      else fs.rename(scratchPath, targetPath, () => {})
+                    }))
                 } else {
                   entry.autodrain()
                 }
