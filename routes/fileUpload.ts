@@ -80,7 +80,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
         const xmlString = xmlDoc.toString(false)
         challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
         res.status(410)
@@ -106,6 +106,27 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+const MAX_YAML_EXPANDED_LENGTH = 1000000
+const YAML_TOO_LARGE_ERROR = 'YAML document expands beyond the maximum allowed size'
+
+// Lower bound of JSON.stringify(value).length with aliases resolved. Shared nodes are measured
+// once and their size reused, so aliased "billion laughs" graphs are measured in linear time.
+function expandedYamlLength (value: unknown, sizes = new Map<object, number>()): number {
+  if (typeof value === 'string') return value.length + 2
+  if (value === null || typeof value !== 'object') return String(value).length
+  const known = sizes.get(value)
+  if (known !== undefined) return known
+  sizes.set(value, Number.POSITIVE_INFINITY)
+  let length = 1
+  for (const [key, child] of Object.entries(value)) {
+    length += (Array.isArray(value) ? 1 : key.length + 4) + expandedYamlLength(child, sizes)
+    if (length > MAX_YAML_EXPANDED_LENGTH) break
+  }
+  length = Math.max(length, 2)
+  sizes.set(value, length)
+  return length
+}
+
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -114,12 +135,16 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
       try {
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        const parsedYaml = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
+        if (expandedYamlLength(parsedYaml) > MAX_YAML_EXPANDED_LENGTH) {
+          throw new Error(YAML_TOO_LARGE_ERROR)
+        }
+        const yamlString = JSON.stringify(parsedYaml)
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
+        if (utils.contains(errorMessage, YAML_TOO_LARGE_ERROR) || utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
           if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
             challengeUtils.solve(challenges.yamlBombChallenge)
           }
@@ -144,5 +169,6 @@ export {
   checkUploadSize,
   checkFileType,
   handleXmlUpload,
-  handleYamlUpload
+  handleYamlUpload,
+  expandedYamlLength
 }
