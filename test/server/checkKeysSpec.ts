@@ -28,9 +28,9 @@ describe('checkKeys', () => {
   it('should not contain a BIP-39 mnemonic or derive the wallet from one', () => {
     const source = fs.readFileSync(path.resolve(__dirname, '../../routes/checkKeys.ts'), 'utf8')
 
-    expect(source).to.not.match(/['"`](?:[a-z]{3,8} ){11,23}[a-z]{3,8}['"`]/)
-    expect(source).to.not.contain(leakedSeedPhrase())
-    expect(source).to.not.contain('fromPhrase')
+    expect(/['"`](?:[a-z]{3,8} ){11,23}[a-z]{3,8}['"`]/.test(source), 'mnemonic-like literal in routes/checkKeys.ts').to.equal(false)
+    expect(source.includes(leakedSeedPhrase()), 'leaked seed phrase in routes/checkKeys.ts').to.equal(false)
+    expect(source.includes('fromPhrase'), 'fromPhrase call in routes/checkKeys.ts').to.equal(false)
   })
 
   it('should accept the private key derived from the leaked seed phrase and solve "nftUnlockChallenge"', async () => {
