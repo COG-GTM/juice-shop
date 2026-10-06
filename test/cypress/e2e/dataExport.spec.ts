@@ -25,6 +25,10 @@ describe('/#/privacy-security/data-export', () => {
 
       cy.visit('/#/privacy-security/data-export')
       cy.get('#formatControl').contains('JSON').click()
+      cy.get('.captcha-image svg').should('exist')
+      cy.task<string>('GetImageCaptchaAnswer').then((answer: string) => {
+        cy.get('input[aria-label="Input for the CAPTCHA"]').type(answer)
+      })
       cy.get('#submitButton').click()
       cy.expectChallengeSolved({ challenge: 'GDPR Data Theft' })
     })
