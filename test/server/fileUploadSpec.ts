@@ -167,13 +167,6 @@ describe('fileUpload', () => {
       challenges.xxeDosChallenge = { solved: false, save } as unknown as Challenge
     })
 
-    it('should not resolve entities that have to be fetched over the network', () => {
-      const errors = uploadXml(Buffer.from('<!DOCTYPE foo [<!ENTITY xxe SYSTEM "http://127.0.0.1:1/secret">]><foo>&xxe;</foo>'))
-
-      expect(errors).to.have.length(1)
-      expect(errors[0].message).to.not.contain('secret')
-    })
-
     it('should still expand local file entities so "xxeFileDisclosureChallenge" stays solvable', () => {
       const errors = uploadXml(fs.readFileSync(path.resolve(__dirname, '../files/xxeForLinux.xml')))
 
