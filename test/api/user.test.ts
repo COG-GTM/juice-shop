@@ -249,6 +249,22 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.body.user.email, 'bjoern.kimminich@gmail.com')
   })
 
+  void it('GET who-am-i restores full user record from database for unknown session', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    delete security.authenticatedUsers.tokenMap[token]
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    const session = security.authenticatedUsers.get(token)
+    assert.equal(session?.data.email, 'bjoern.kimminich@gmail.com')
+    assert.equal(typeof session?.data.username, 'string')
+    assert.ok(await security.verifyPassword('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=', session?.data.password))
+  })
+
   void it('GET who-am-i request returns nothing on missing auth token', async () => {
     const res = await request(app).get('/rest/user/whoami')
     assert.equal(res.status, 200)

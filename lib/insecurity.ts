@@ -261,17 +261,26 @@ export const appendUserId = () => {
   }
 }
 
+const sessionFromToken = async (decoded: any) => {
+  const { UserModel } = await import('../models/user')
+  const user = decoded?.data?.id ? await UserModel.findByPk(decoded.data.id) : null
+  return user ? utils.queryResultToJson(user) : decoded
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  if (!token) {
+    next()
+    return
   }
-  next()
+  jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    if (err !== null || authenticatedUsers.get(token) !== undefined) {
+      next()
+      return
+    }
+    sessionFromToken(decoded).then((user) => {
+      authenticatedUsers.put(token, user)
+      res.cookie('token', token)
+    }).catch(() => {}).finally(() => { next() })
+  })
 }
