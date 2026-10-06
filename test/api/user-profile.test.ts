@@ -51,4 +51,56 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+  void it('POST update username is rejected for cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const profile = await request(app).get('/profile').set(authHeader)
+    assert.ok(!profile.text.includes('CSRF'))
+  })
+
+  void it('POST update username is rejected for cross-site Referer without Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Referer', 'http://attacker.example/csrf.html')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for opaque Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'null')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from same origin sets SameSite=Strict token cookie', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const cookies = [res.headers['set-cookie'] ?? []].flat()
+    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Strict')))
+  })
 })
