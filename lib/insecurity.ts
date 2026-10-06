@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -43,10 +44,10 @@ const loadSigningKeys = () => {
 const signingKeys = loadSigningKeys()
 const privateKey = signingKeys.privateKey
 export const publicKey = signingKeys.publicKey
-const publicKeyFile = 'encryptionkeys/jwt.pub'
 try {
+  const publicKeyFile = path.join(fs.realpathSync('encryptionkeys'), 'jwt.pub')
   // never clobber a private key that an operator pointed JWT_PRIVATE_KEY_FILE at
-  if (!fs.existsSync(publicKeyFile) || !fs.readFileSync(publicKeyFile, 'utf8').includes('PRIVATE KEY')) {
+  if (!process.env.JWT_PRIVATE_KEY_FILE || fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE) !== publicKeyFile) {
     fs.writeFileSync(publicKeyFile, publicKey)
   }
 } catch {
