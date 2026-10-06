@@ -42,6 +42,12 @@ void describe('HTTP', () => {
     assert.equal(res.headers['access-control-allow-origin'], origin)
   })
 
+  void it('response must allow reading from the loopback development frontend origin', async () => {
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', 'http://127.0.0.1:4200')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], 'http://127.0.0.1:4200')
+  })
+
   void it('response must contain sameorigin frameguard header', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)

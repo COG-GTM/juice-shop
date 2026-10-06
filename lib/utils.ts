@@ -240,7 +240,7 @@ export const genericErrorHandler = () => (err: any, req: any, res: any, next: an
   const status = Number(err?.status ?? err?.statusCode)
   const statusCode = status >= 400 && status < 600 ? status : (res.statusCode >= 400 ? res.statusCode : 500)
   const message = statusCode < 500 && err?.message ? String(err) : (STATUS_CODES[statusCode] ?? 'Error')
-  logger.error(`${req.method} ${req.originalUrl ?? req.url} failed with ${statusCode}: ${err instanceof Error ? err.stack : String(err)}`)
+  logger.error(`${req.method} ${req.path} failed with ${statusCode}: ${err instanceof Error ? err.stack : String(err)}`)
   res.status(statusCode)
   if (req.accepts(['html', 'json']) === 'json') {
     res.json({ error: { message } })

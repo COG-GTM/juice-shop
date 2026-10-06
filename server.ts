@@ -138,7 +138,7 @@ const startTime = Date.now()
 
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 
-const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? `${config.get<string>('server.baseUrl')},http://localhost:4200`)
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? `${config.get<string>('server.baseUrl')},http://localhost:4200,http://127.0.0.1:4200`)
   .split(',')
   .map(origin => origin.trim())
   .filter(origin => origin !== '')

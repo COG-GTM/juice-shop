@@ -211,7 +211,7 @@ describe('utils', () => {
 
   describe('genericErrorHandler', () => {
     const run = (err: unknown, { accept = 'text/html', statusCode = 200 }: { accept?: string, statusCode?: number } = {}) => {
-      const req = { method: 'GET', originalUrl: '/rest/x', accepts: (types: string[]) => accept.includes('json') ? 'json' : types[0] } as any
+      const req = { method: 'GET', path: '/rest/x', accepts: (types: string[]) => accept.includes('json') ? 'json' : types[0] } as any
       const out: { status?: number, type?: string, body?: unknown } = {}
       const res = {
         headersSent: false,
