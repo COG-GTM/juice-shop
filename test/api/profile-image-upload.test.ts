@@ -52,7 +52,7 @@ void describe('/profile/image/file', () => {
 
     assert.equal(res.status, 415)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`${config.get<string>('application.name')} (Express`))
+    assert.ok(!res.text.includes(`${config.get<string>('application.name')} (Express`))
     assert.ok(res.text.includes('Error: Profile image upload does not accept this file type'))
   })
 
@@ -65,7 +65,7 @@ void describe('/profile/image/file', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(res.text, 'Internal Server Error')
   })
 })
 
@@ -107,7 +107,7 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(res.text, 'Internal Server Error')
   })
 
   void it('POST valid image with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
@@ -126,6 +126,6 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Unexpected end of form'))
+    assert.equal(res.text, 'Internal Server Error')
   })
 })
