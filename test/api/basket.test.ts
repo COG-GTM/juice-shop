@@ -188,13 +188,16 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
   })
 
   void it('PUT apply valid coupon to basket of another user is forbidden and leaves it unchanged', async () => {
+    const victim = await BasketModel.findByPk(1)
+    const couponBefore = victim?.coupon
+
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 403)
 
-    const basket = await BasketModel.findByPk(1)
-    assert.notEqual(basket?.coupon, validCoupon)
+    await victim?.reload()
+    assert.equal(victim?.coupon, couponBefore)
   })
 
   void it('PUT apply invalid coupon to basket of another user does not clear its coupon', async () => {
