@@ -4,17 +4,16 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const currentPassword = body?.current as string
+    const newPassword = body?.new as string
     const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -36,11 +35,6 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
-      return
-    }
-
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
@@ -48,14 +42,28 @@ export function changePassword () {
         return
       }
 
+      if (!currentPassword || security.hash(currentPassword) !== user.password) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
       await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
+      loggedInUser.data.password = user.password
+      revokeOtherSessions(user.id, token)
       res.json({ user })
     } catch (error) {
       next(error)
     }
   }
+}
+
+function revokeOtherSessions (userId: number, currentToken: string) {
+  const { tokenMap, idMap } = security.authenticatedUsers
+  const keep = utils.unquote(currentToken)
+  for (const token of Object.keys(tokenMap)) {
+    if (token !== keep && tokenMap[token]?.data?.id === userId) {
+      delete tokenMap[token]
+    }
+  }
+  idMap[userId] = keep
 }
