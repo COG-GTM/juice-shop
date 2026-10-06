@@ -52,6 +52,13 @@ function zipOf (files: ReadonlyArray<readonly [string, Buffer]>): Buffer {
   return Buffer.concat([...locals, centralBuf, end])
 }
 
+async function waitFor (condition: () => boolean, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs
+  while (!condition() && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 25))
+  }
+}
+
 function crc32 (buf: Buffer): number {
   let crc = ~0
   for (const byte of buf) {
@@ -172,9 +179,7 @@ describe('fileUpload', () => {
       const errors: unknown[] = []
 
       handleZipFileUpload(req, res, (err?: unknown) => { if (err !== undefined) errors.push(err) })
-      for (let i = 0; i < 20 && !challenges.fileWriteChallenge.solved; i++) {
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
+      await waitFor(() => challenges.fileWriteChallenge.solved)
       await new Promise(resolve => setTimeout(resolve, 250))
 
       expect(status).to.equal(204)
@@ -188,9 +193,13 @@ describe('fileUpload', () => {
       req.file = { originalname: 'manyEntries.zip', buffer: zipOf(Array.from({ length: MAX_ZIP_ENTRIES + 1 }, (_, i) => [`entry${i}.txt`, Buffer.from('x')] as const)) }
       res = { status () { return { end () {} } } }
 
+      const names = Array.from({ length: MAX_ZIP_ENTRIES + 1 }, (_, i) => `entry${i}.txt`)
+      const extracted = () => names.filter(name => fs.existsSync(path.resolve('uploads/complaints', name)))
+
       handleZipFileUpload(req, res, () => {})
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      const written = Array.from({ length: MAX_ZIP_ENTRIES + 1 }, (_, i) => `entry${i}.txt`).filter(name => fs.existsSync(path.resolve('uploads/complaints', name)))
+      await waitFor(() => extracted().length >= MAX_ZIP_ENTRIES)
+      await new Promise(resolve => setTimeout(resolve, 250))
+      const written = extracted()
 
       try {
         expect(written).to.have.lengthOf(MAX_ZIP_ENTRIES)
@@ -209,14 +218,62 @@ describe('fileUpload', () => {
       req.file = { originalname: 'oversized.zip', buffer: zipOf([['existingComplaint.txt', Buffer.alloc(11 * 1024 * 1024, 0x79)]]) }
       res = { status () { return { end () {} } } }
 
+      const scratchFiles = () => fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part'))
+
       handleZipFileUpload(req, res, () => {})
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      await waitFor(() => scratchFiles().length > 0, 2000)
+      await waitFor(() => scratchFiles().length === 0)
 
       try {
         expect(fs.readFileSync(existing, 'utf8')).to.equal('original complaint')
-        expect(fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part'))).to.deep.equal([])
+        expect(scratchFiles()).to.deep.equal([])
       } finally {
         fs.rmSync(existing, { force: true })
+      }
+    }).timeout(10000)
+
+    it('rejects an entry nested under an existing complaint file instead of throwing', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      const complaintsDir = path.resolve('uploads/complaints')
+      const blocker = path.join(complaintsDir, 'blockingComplaint.txt')
+      fs.mkdirSync(complaintsDir, { recursive: true })
+      fs.writeFileSync(blocker, 'original complaint')
+      req.file = { originalname: 'conflict.zip', buffer: zipOf([['blockingComplaint.txt/page.txt', Buffer.from('nested')]]) }
+      res = { status () { return { end () {} } } }
+      const errors: unknown[] = []
+
+      handleZipFileUpload(req, res, (err?: unknown) => { if (err !== undefined) errors.push(err) })
+      await waitFor(() => errors.length > 0)
+
+      try {
+        expect(errors).to.have.lengthOf(1)
+        expect(fs.readFileSync(blocker, 'utf8')).to.equal('original complaint')
+        expect(fs.readdirSync(complaintsDir).filter(name => name.endsWith('.part'))).to.deep.equal([])
+      } finally {
+        fs.rmSync(blocker, { force: true })
+      }
+    }).timeout(10000)
+
+    it('rejects an entry whose complaint subdirectory is a symlink pointing outside', async function () {
+      if (process.platform === 'win32') this.skip()
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      const complaintsDir = path.resolve('uploads/complaints')
+      const linkedDir = path.join(complaintsDir, 'linkedDir')
+      fs.mkdirSync(complaintsDir, { recursive: true })
+      fs.rmSync(linkedDir, { force: true, recursive: true })
+      fs.symlinkSync(path.resolve('ftp'), linkedDir)
+      req.file = { originalname: 'symlinkDir.zip', buffer: zipOf([['linkedDir/legal.md', Buffer.from('overwritten through symlinked directory')]]) }
+      res = { status () { return { end () {} } } }
+      const errors: unknown[] = []
+
+      handleZipFileUpload(req, res, (err?: unknown) => { if (err !== undefined) errors.push(err) })
+      await waitFor(() => errors.length > 0)
+
+      try {
+        expect(errors).to.have.lengthOf(1)
+        expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)
+      } finally {
+        fs.rmSync(linkedDir, { force: true })
       }
     }).timeout(10000)
 
@@ -232,7 +289,7 @@ describe('fileUpload', () => {
       res = { status () { return { end () {} } } }
 
       handleZipFileUpload(req, res, () => {})
-      await new Promise(resolve => setTimeout(resolve, 500))
+      await waitFor(() => !fs.lstatSync(link).isSymbolicLink())
 
       try {
         expect(fs.readFileSync(legalFile, 'utf8')).to.equal(legalBefore)

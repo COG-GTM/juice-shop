@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { Transform, type TransformCallback } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
@@ -71,15 +72,35 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                       }
                     }
                   })
-                  // Extract into a scratch file next to the target so an oversized entry cannot
-                  // truncate an existing complaint and a symlinked target is replaced, not followed.
-                  const scratchPath = `${targetPath}.${process.pid}-${entryCount}.part`
-                  fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+                  // Extract into a unique scratch file next to the target so an oversized entry
+                  // cannot truncate an existing complaint and a symlinked target is replaced,
+                  // not followed. The directory is resolved to reject symlinked subdirectories.
+                  const scratchPath = `${targetPath}.${crypto.randomUUID()}.part`
+                  try {
+                    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+                    const realComplaintsDir = fs.realpathSync(path.resolve('uploads/complaints'))
+                    const realTargetDir = fs.realpathSync(path.dirname(targetPath))
+                    if (realTargetDir !== realComplaintsDir && !realTargetDir.startsWith(realComplaintsDir + path.sep)) {
+                      throw new Error(`Refusing to extract ${fileName} outside of uploads/complaints`)
+                    }
+                  } catch (err) {
+                    entry.autodrain()
+                    next(err)
+                    return
+                  }
                   entry.pipe(sizeLimiter).pipe(fs.createWriteStream(scratchPath, { flags: 'wx' })
                     .on('error', function (err) { next(err) })
                     .on('finish', function () {
-                      if (truncated) fs.unlink(scratchPath, () => {})
-                      else fs.rename(scratchPath, targetPath, () => {})
+                      if (truncated) {
+                        fs.unlink(scratchPath, () => {})
+                      } else {
+                        fs.rename(scratchPath, targetPath, function (err) {
+                          if (err != null) {
+                            fs.unlink(scratchPath, () => {})
+                            next(err)
+                          }
+                        })
+                      }
                     }))
                 } else {
                   entry.autodrain()
