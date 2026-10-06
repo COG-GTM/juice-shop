@@ -26,11 +26,22 @@ void describe('/api', () => {
 })
 
 void describe('/rest', () => {
-  void it('GET error message with information leakage when calling unrecognized path with /rest in it', async () => {
+  void it('GET generic error message without information leakage when calling unrecognized path with /rest in it', async () => {
     const res = await request(app)
       .get('/rest/unrecognized')
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
-    assert.ok(res.text.includes('Unexpected path: /rest/unrecognized'))
+    assert.ok(!res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
+    assert.equal(res.text, 'Internal Server Error')
+    assert.ok(!res.text.includes('node_modules'))
+  })
+
+  void it('GET generic JSON error without stack trace when calling unrecognized path with /rest in it', async () => {
+    const res = await request(app)
+      .get('/rest/unrecognized')
+      .set('Accept', 'application/json')
+    assert.equal(res.status, 500)
+    assert.deepEqual(res.body, { error: { message: 'Internal Server Error' } })
+    assert.ok(!res.text.includes('stack'))
+    assert.ok(!res.text.includes('Unexpected path'))
   })
 })

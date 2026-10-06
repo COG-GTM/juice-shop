@@ -72,10 +72,8 @@ void describe('/redirect', () => {
       .get('/redirect')
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
-    assert.ok(res.text.includes('TypeError'))
-    assert.ok(res.text.includes('of undefined'))
-    assert.ok(res.text.includes('&#39;includes&#39;'))
+    assert.ok(!res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
+    assert.equal(res.text, 'Internal Server Error')
   })
 
   void it('GET error message with information leakage when calling /redirect with unrecognized query parameter', async () => {
@@ -83,10 +81,8 @@ void describe('/redirect', () => {
       .get('/redirect?x=y')
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
-    assert.ok(res.text.includes('TypeError'))
-    assert.ok(res.text.includes('of undefined'))
-    assert.ok(res.text.includes('&#39;includes&#39;'))
+    assert.ok(!res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
+    assert.equal(res.text, 'Internal Server Error')
   })
 
   void it('GET error message hinting at allowlist validation when calling /redirect with an unrecognized "to" target', async () => {
@@ -94,7 +90,7 @@ void describe('/redirect', () => {
       .get('/redirect?to=whatever')
     assert.equal(res.status, 406)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
+    assert.ok(!res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
     assert.ok(res.text.includes('Unrecognized target URL for redirect: whatever'))
   })
 

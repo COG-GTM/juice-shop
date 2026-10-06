@@ -18,10 +18,28 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
+  void it('response must not contain CORS header allowing all origins', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.notEqual(res.headers['access-control-allow-origin'], '*')
+  })
+
+  void it('response must not allow an untrusted origin to read it', async () => {
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', 'https://attacker.example')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('preflight from an untrusted origin must not be allowed', async () => {
+    const res = await request(app).options('/api/Users').set('Origin', 'https://attacker.example').set('Access-Control-Request-Method', 'POST')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('response must allow the configured application origin to read it', async () => {
+    const origin = config.get<string>('server.baseUrl')
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', origin)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], origin)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {
@@ -51,6 +69,7 @@ void describe('HTTP', () => {
   void it('unexpected path under known sub-path caught by generic error handler', async () => {
     const res = await request(app).get('/rest/x')
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('<title>Error: Unexpected path: /rest/x</title>'))
+    assert.equal(res.text, 'Internal Server Error')
+    assert.ok(!res.text.includes('node_modules'))
   })
 })
