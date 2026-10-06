@@ -90,6 +90,11 @@ describe('DataExportComponent', () => {
         expect(component.captchaControl.valid).toBe(true)
     })
 
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+        expect(component.presenceOfCaptcha).toBe(true)
+    })
+
     it('should store the captcha on getting new captcha', () => {
         imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
         component.getNewCaptcha()
@@ -117,5 +122,6 @@ describe('DataExportComponent', () => {
         expect(component.confirmation).toBeNull()
         expect(component.error).toBe('Error')
         expect(component.resetFormError).toHaveBeenCalled()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(2)
     })
 })
