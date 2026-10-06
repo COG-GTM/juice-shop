@@ -6,6 +6,7 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import { STATUS_CODES } from 'node:http'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -227,6 +228,25 @@ export const matchesSystemIniFile = (text: string) => {
 export const matchesEtcPasswdFile = (text: string) => {
   const match = text.match(/(\w*:\w*:\d*:\d*:\w*:.*)|(Note that this file is consulted directly)/gi)
   return match !== null && match.length >= 1
+}
+
+const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)
+
+export const genericErrorHandler = () => (err: any, req: any, res: any, next: any) => {
+  if (res.headersSent) {
+    next(err)
+    return
+  }
+  const status = Number(err?.status ?? err?.statusCode)
+  const statusCode = status >= 400 && status < 600 ? status : (res.statusCode >= 400 ? res.statusCode : 500)
+  const message = statusCode < 500 && err?.message ? String(err) : (STATUS_CODES[statusCode] ?? 'Error')
+  logger.error(`${req.method} ${req.originalUrl ?? req.url} failed with ${statusCode}: ${err instanceof Error ? err.stack : String(err)}`)
+  res.status(statusCode)
+  if (req.accepts(['html', 'json']) === 'json') {
+    res.json({ error: { message } })
+  } else {
+    res.type('html').send(escapeHtml(message))
+  }
 }
 
 /**

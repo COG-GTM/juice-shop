@@ -9,7 +9,9 @@ import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
 
@@ -19,9 +21,37 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
+  void it('GET metrics is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/metrics')
+      .expect(403)
+
+    assert.ok(!res.text.includes('_version_info'))
+    assert.ok(!res.text.includes('process_cpu'))
+  })
+
+  void it('GET metrics is denied for non-admin users', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    await request(app)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(403)
+  })
+
+  void it('GET metrics is allowed for admin users', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const res = await request(app)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', `Bearer ${(await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })).token}`)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +80,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', `Bearer ${(await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })).token}`)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +97,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', `Bearer ${(await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })).token}`)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))

@@ -208,4 +208,43 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('genericErrorHandler', () => {
+    const run = (err: unknown, { accept = 'text/html', statusCode = 200 }: { accept?: string, statusCode?: number } = {}) => {
+      const req = { method: 'GET', originalUrl: '/rest/x', accepts: (types: string[]) => accept.includes('json') ? 'json' : types[0] } as any
+      const out: { status?: number, type?: string, body?: unknown } = {}
+      const res = {
+        headersSent: false,
+        statusCode,
+        status (code: number) { out.status = code; this.statusCode = code; return this },
+        type (t: string) { out.type = t; return this },
+        send (body: unknown) { out.body = body; return this },
+        json (body: unknown) { out.type = 'json'; out.body = body; return this }
+      }
+      utils.genericErrorHandler()(err, req, res, () => {})
+      return out
+    }
+
+    it('returns a generic message without stack trace or framework version for server errors', () => {
+      const out = run(new Error('SQLITE_ERROR: near "union": syntax error'))
+      expect(out).to.deep.equal({ status: 500, type: 'html', body: 'Internal Server Error' })
+    })
+
+    it('returns a generic JSON error without stack trace when JSON is requested', () => {
+      const out = run(new Error('Unexpected path: /rest/x'), { accept: 'application/json' })
+      expect(out).to.deep.equal({ status: 500, type: 'json', body: { error: { message: 'Internal Server Error' } } })
+    })
+
+    it('keeps the status code set by the route and only the escaped message for client errors', () => {
+      const out = run(new Error('Only .md and <b>.pdf</b> files are allowed!'), { statusCode: 403 })
+      expect(out.status).to.equal(403)
+      expect(out.body).to.equal('Error: Only .md and &#60;b&#62;.pdf&#60;/b&#62; files are allowed!')
+      expect(String(out.body)).to.not.match(/at .*\.(ts|js):\d+/)
+    })
+
+    it('honours the status of http-errors style errors', () => {
+      const err = Object.assign(new Error('Bad JSON'), { status: 400 })
+      expect(run(err).status).to.equal(400)
+    })
+  })
 })

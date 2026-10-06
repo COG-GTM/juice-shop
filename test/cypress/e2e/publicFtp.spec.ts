@@ -7,12 +7,11 @@ describe('/ftp', () => {
   })
 
   describe('challenge "errorHandling"', () => {
-    it('should leak information through error message accessing /ftp/easter.egg due to wrong file suffix', () => {
-      cy.visit('/ftp/easter.egg', { failOnStatusCode: false })
-
-      cy.get('#stacktrace').then((elements) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        expect(!!elements.length).to.be.true
+    it('should provoke an error accessing /ftp/easter.egg due to wrong file suffix without leaking a stack trace', () => {
+      cy.request({ url: '/ftp/easter.egg', failOnStatusCode: false }).then((response) => {
+        expect(response.status).to.eq(403)
+        expect(response.body).not.to.contain('node_modules')
+        expect(response.body).not.to.contain('(Express')
       })
       cy.expectChallengeSolved({ challenge: 'Error Handling' })
     })
