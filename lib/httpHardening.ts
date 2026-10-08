@@ -75,7 +75,10 @@ const configuredNotificationUrl = () => config.has('ctf.systemWideNotifications.
 export function notificationOrigins (url: string | null = configuredNotificationUrl()): string[] {
   if (!url) return []
   try {
-    if (url.startsWith('//')) return [new URL(`https:${url}`).host]
+    if (url.startsWith('//')) {
+      const explicitPort = /^\/\/[^/?#]*:(\d+)(?=[/?#]|$)/.exec(url)?.[1]
+      return [new URL(`https:${url}`).hostname + (explicitPort ? `:${explicitPort}` : '')]
+    }
     const { origin, protocol } = new URL(url)
     return protocol === 'https:' || protocol === 'http:' ? [origin] : []
   } catch {
