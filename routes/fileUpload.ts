@@ -16,6 +16,8 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
 
+const MAX_XML_UPLOAD_SIZE = 100000
+
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
     next()
@@ -72,30 +74,47 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+function isSafeXmlUpload (buffer: Buffer) {
+  if (buffer.length > MAX_XML_UPLOAD_SIZE || buffer.includes(0)) {
+    return false
+  }
+  const data = buffer.toString('utf8')
+  if (/<!(DOCTYPE|ENTITY)/i.test(data)) {
+    return false
+  }
+  const declaredEncoding = /^\uFEFF?\s*<\?xml[^>]*\bencoding\s*=\s*["']([^"']*)["']/i.exec(data)?.[1]
+  return declaredEncoding === undefined || /^(utf-8|us-ascii)$/i.test(declaredEncoding)
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
-      const data = file.buffer.toString()
+      if (!isSafeXmlUpload(file.buffer)) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML files must be UTF-8 encoded, smaller than ' + MAX_XML_UPLOAD_SIZE + ' bytes and must not contain a DTD (' + file.originalname + ')'))
+        return
+      }
+      const data = file.buffer.toString('utf8')
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdattr: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
+        if (xmlDoc.getDtd() != null) {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML files must not contain a DTD (' + file.originalname + ')'))
+          return
+        }
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
-          if (challengeUtils.notSolved(challenges.xxeDosChallenge)) {
-            challengeUtils.solve(challenges.xxeDosChallenge)
-          }
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: invalid XML (' + file.originalname + ')'))
         }
       }
     } else {
