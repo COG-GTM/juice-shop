@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketModel } from '../../models/basket'
+import { BasketItemModel } from '../../models/basketitem'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -48,12 +50,12 @@ void describe('/rest/basket/:id', () => {
     assert.ok(res.body.data === null || (typeof res.body.data === 'object' && Object.keys(res.body.data).length === 0))
   })
 
-  void it('GET existing basket with contained products by id', async () => {
-    const res = await request(app).get('/rest/basket/1').set(authHeader)
+  void it('GET own basket with contained products by id', async () => {
+    const res = await request(app).get('/rest/basket/2').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.id, 1)
-    assert.equal(res.body.data.Products.length, 3)
+    assert.equal(res.body.data.id, 2)
+    assert.equal(res.body.data.Products.length, 1)
   })
 
   void it.skip('GET basket should accept forged JWTs', async () => {
@@ -104,7 +106,7 @@ void describe('/api/Baskets/:id', () => {
 })
 
 void describe('/rest/basket/:id', () => {
-  void it('GET existing basket of another user', async () => {
+  void it('GET existing basket of another user is forbidden', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -112,9 +114,15 @@ void describe('/rest/basket/:id', () => {
     const res = await request(app)
       .get('/rest/basket/2')
       .set({ Authorization: 'Bearer ' + token })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.id, 2)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+    assert.ok(!JSON.stringify(res.body).includes('Products'))
+  })
+
+  void it('GET admin basket as jim is forbidden', async () => {
+    const res = await request(app).get('/rest/basket/1').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
   })
 })
 
@@ -124,8 +132,18 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for an existing basket returns orderId', async () => {
+  void it('POST placing an order for a basket of another user is forbidden and leaves it untouched', async () => {
+    const itemsBefore = await BasketItemModel.count({ where: { BasketId: 1 } })
+    assert.ok(itemsBefore > 0)
+
     const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.orderConfirmation, undefined)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), itemsBefore)
+  })
+
+  void it('POST placing an order for own basket returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -143,7 +161,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -163,9 +181,20 @@ void describe('/rest/basket/:id/checkout', () => {
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
-  void it('PUT apply valid coupon to existing basket', async () => {
+  void it('PUT apply valid coupon to basket of another user is forbidden', async () => {
+    const couponBefore = (await BasketModel.findByPk(1))?.coupon ?? null
+
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.discount, undefined)
+    assert.equal((await BasketModel.findByPk(1))?.coupon ?? null, couponBefore)
+  })
+
+  void it('PUT apply valid coupon to own basket', async () => {
+    const res = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -174,14 +203,14 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
 
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/xxxxxxxxxx')
+      .put('/rest/basket/2/coupon/xxxxxxxxxx')
       .set(authHeader)
     assert.equal(res.status, 404)
   })
 
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(outdatedCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
