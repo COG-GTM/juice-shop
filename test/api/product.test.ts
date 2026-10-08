@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as security from '../../lib/insecurity'
 
@@ -100,19 +101,53 @@ void describe('/api/Products/:id', () => {
       .send({
         description: '<iframe src="javascript:alert(`xss`)">'
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
     const product = await request(app).get('/api/Products/1')
     assert.ok(!product.body.data.description.includes('<iframe'))
   })
 
-  void it('PUT update existing product is forbidden via API even when authenticated', async () => {
+  void it('PUT update existing product is forbidden for non-accounting users', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(authHeader)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product price is allowed for accounting users', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+      .send({ price: original.price })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.price, original.price)
+  })
+
+  void it('PUT update existing product by accounting users sanitizes XSS attacks in description', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const accountingHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(accountingHeader)
+      .send({ description: 'Tasty<iframe src="javascript:alert(`xss`)"></iframe> juice' })
+    assert.equal(res.status, 200)
+    assert.ok(!res.body.data.description.includes('<iframe'))
+    assert.ok(res.body.data.description.includes('Tasty'))
+    await request(app)
+      .put('/api/Products/1')
+      .set(accountingHeader)
+      .send({ description: original.description })
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {

@@ -41,14 +41,12 @@
 	},
 	"changeProductChallenge_1.ts": {
 		"added": [
-			17,
 			48
 		],
 		"removed": []
 	},
 	"changeProductChallenge_2.ts": {
 		"added": [
-			17,
 			18,
 			48
 		],
@@ -62,12 +60,9 @@
 	},
 	"changeProductChallenge_4.ts": {
 		"added": [
-			17,
 			48
 		],
-		"removed": [
-			17
-		]
+		"removed": []
 	},
 	"chatbotGreedyInjectionChallenge_1.ts": {
 		"added": [
