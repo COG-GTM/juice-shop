@@ -27,7 +27,7 @@
             <span class="captcha-label" translate>CAPTCHA <span>:</span></span>
             <div class="captcha-image" [innerHTML]="captcha"></div>
             <button type="button" id="refreshCaptchaButton" mat-icon-button (click)="getNewCaptcha()"
-              [disabled]="captchaLoading" aria-label="Request a new CAPTCHA">
+              [disabled]="captchaLoading || exportPending" aria-label="Request a new CAPTCHA">
               <mat-icon aria-hidden="true" fontIcon="refresh"></mat-icon>
             </button>
             @if (captchaError) {
@@ -52,7 +52,7 @@
           </div>
         </div>
         <button type="submit" id="submitButton" color="primary" mat-raised-button (click)="save()"
-          [disabled]="formatControl.invalid || captchaControl.invalid || !captcha"
+          [disabled]="formatControl.invalid || captchaControl.invalid || !captcha || exportPending"
           aria-label="Button to send the request">
           <mat-icon aria-hidden="true" fontIcon="file_download"></mat-icon>
           {{'BTN_REQUEST' | translate}}

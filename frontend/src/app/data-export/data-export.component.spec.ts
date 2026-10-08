@@ -136,14 +136,16 @@ describe('DataExportComponent', () => {
         expect(component.captcha).toBeDefined()
     })
 
-    it('should not start another captcha request while one is pending', () => {
-        const pending = new Subject<any>()
-        imageCaptchaService.getCaptcha.mockClear()
-        imageCaptchaService.getCaptcha.mockReturnValue(pending.asObservable())
+    it('should only display the newest captcha when refreshes overlap', () => {
+        const older = new Subject<any>()
+        const newer = new Subject<any>()
+        imageCaptchaService.getCaptcha.mockReturnValueOnce(older.asObservable()).mockReturnValueOnce(newer.asObservable())
         component.getNewCaptcha()
         component.getNewCaptcha()
-        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(1)
-        pending.next({ image: '<svg>captcha</svg>' })
+        newer.next({ image: '<svg>newer</svg>' })
+        const newest = component.captcha
+        older.next({ image: '<svg>older</svg>' })
+        expect(component.captcha).toBe(newest)
         expect(component.captchaLoading).toBe(false)
     })
 

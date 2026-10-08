@@ -37,6 +37,8 @@ export class DataExportComponent implements OnInit {
   public error: any
   public captchaError: any
   public captchaLoading = false
+  public exportPending = false
+  private captchaRequest = 0
   public lastSuccessfulTry: any
   public userData: any
   ngOnInit (): void {
@@ -45,16 +47,18 @@ export class DataExportComponent implements OnInit {
   }
 
   getNewCaptcha () {
-    if (this.captchaLoading) return
+    const request = ++this.captchaRequest
     this.captchaLoading = true
     this.captcha = undefined
     this.imageCaptchaService.getCaptcha().subscribe({
       next: (data: any) => {
+        if (request !== this.captchaRequest) return
         this.captchaLoading = false
         this.captchaError = null
         this.captcha = this.sanitizer.bypassSecurityTrustHtml(data.image)
       },
       error: (error) => {
+        if (request !== this.captchaRequest) return
         this.captchaLoading = false
         this.captchaError = error.error
       }
@@ -64,8 +68,10 @@ export class DataExportComponent implements OnInit {
   save () {
     this.dataRequest.answer = this.captchaControl.value
     this.dataRequest.format = this.formatControl.value
+    this.exportPending = true
     this.dataSubjectService.dataExport(this.dataRequest).subscribe({
       next: (data: any) => {
+        this.exportPending = false
         this.error = null
         this.confirmation = data.confirmation
         this.userData = data.userData
@@ -75,6 +81,7 @@ export class DataExportComponent implements OnInit {
         this.resetForm()
       },
       error: (error) => {
+        this.exportPending = false
         this.error = error.error
         this.confirmation = null
         this.getNewCaptcha()
