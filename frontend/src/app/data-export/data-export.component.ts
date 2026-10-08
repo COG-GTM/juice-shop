@@ -35,6 +35,8 @@ export class DataExportComponent implements OnInit {
   private dataRequest: any = undefined
   public confirmation: any
   public error: any
+  public captchaError: any
+  public captchaLoading = false
   public lastSuccessfulTry: any
   public userData: any
   ngOnInit (): void {
@@ -43,13 +45,18 @@ export class DataExportComponent implements OnInit {
   }
 
   getNewCaptcha () {
+    if (this.captchaLoading) return
+    this.captchaLoading = true
     this.captcha = undefined
     this.imageCaptchaService.getCaptcha().subscribe({
       next: (data: any) => {
+        this.captchaLoading = false
+        this.captchaError = null
         this.captcha = this.sanitizer.bypassSecurityTrustHtml(data.image)
       },
       error: (error) => {
-        this.error = error.error
+        this.captchaLoading = false
+        this.captchaError = error.error
       }
     })
   }

@@ -9,7 +9,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { ImageCaptchaService } from '../Services/image-captcha.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { ReactiveFormsModule } from '@angular/forms'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { DomSanitizer } from '@angular/platform-browser'
 import { SecurityContext } from '@angular/core'
 import { DataSubjectService } from '../Services/data-subject.service'
@@ -129,7 +129,22 @@ describe('DataExportComponent', () => {
         imageCaptchaService.getCaptcha.mockReturnValue(throwError({ error: 'Unable to create CAPTCHA. Please try again.' }))
         component.getNewCaptcha()
         expect(component.captcha).toBeUndefined()
-        expect(component.error).toBe('Unable to create CAPTCHA. Please try again.')
+        expect(component.captchaError).toBe('Unable to create CAPTCHA. Please try again.')
+        imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
+        component.getNewCaptcha()
+        expect(component.captchaError).toBeNull()
+        expect(component.captcha).toBeDefined()
+    })
+
+    it('should not start another captcha request while one is pending', () => {
+        const pending = new Subject<any>()
+        imageCaptchaService.getCaptcha.mockClear()
+        imageCaptchaService.getCaptcha.mockReturnValue(pending.asObservable())
+        component.getNewCaptcha()
+        component.getNewCaptcha()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(1)
+        pending.next({ image: '<svg>captcha</svg>' })
+        expect(component.captchaLoading).toBe(false)
     })
 
     it('should send the captcha answer and request a fresh captcha after a failed export', () => {

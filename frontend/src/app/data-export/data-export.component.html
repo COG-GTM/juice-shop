@@ -27,9 +27,12 @@
             <span class="captcha-label" translate>CAPTCHA <span>:</span></span>
             <div class="captcha-image" [innerHTML]="captcha"></div>
             <button type="button" id="refreshCaptchaButton" mat-icon-button (click)="getNewCaptcha()"
-              aria-label="Request a new CAPTCHA">
+              [disabled]="captchaLoading" aria-label="Request a new CAPTCHA">
               <mat-icon aria-hidden="true" fontIcon="refresh"></mat-icon>
             </button>
+            @if (captchaError) {
+              <p class="error">{{captchaError}}</p>
+            }
           </div>
           <mat-form-field class="captcha-input-field" appearance="outline" color="tertiary">
             <mat-label translate>ENTER_CAPTCHA</mat-label>
