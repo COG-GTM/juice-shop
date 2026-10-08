@@ -92,12 +92,6 @@ export const jwtChallenges = () => (req: Request, res: Response, next: NextFunct
 
 export const serverSideChallenges = () => (req: Request, res: Response, next: NextFunction) => {
   if (req.query.key === 'tRy_H4rd3r_n0thIng_iS_Imp0ssibl3') {
-    if (challengeUtils.notSolved(challenges.sstiChallenge) && req.app.locals.abused_ssti_bug === true) {
-      challengeUtils.solve(challenges.sstiChallenge)
-      res.status(204).send()
-      return
-    }
-
     if (challengeUtils.notSolved(challenges.ssrfChallenge) && req.app.locals.abused_ssrf_bug === true) {
       challengeUtils.solve(challenges.ssrfChallenge)
       res.status(204).send()
