@@ -292,6 +292,16 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     await assertRejected(security.authorize({ data: { id: 1, email: adminEmail, role: 'admin' } }))
   })
 
+  void it('POST treats an expired JWT as anonymous instead of rejecting the chat', { timeout: 30000 }, async () => {
+    const { orderId } = await firstOrderIdOf(adminEmail, 'admin123')
+    const expiredToken = unsignedToken({ data: { id: 1, email: adminEmail, role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+
+    const toolResult = await requestOrder(orderId, expiredToken)
+
+    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
+    assert.ok(!toolResult?.includes(orderId), `order leaked: ${String(toolResult)}`)
+  })
+
   void it('POST personalizes the system prompt for a JWT issued at login', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     let systemPrompt = ''

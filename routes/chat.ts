@@ -39,13 +39,16 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
+function isExpired (token: string): boolean {
+  const { exp } = (security.decode(token) ?? {}) as { exp?: number }
+  return typeof exp === 'number' && exp * 1000 <= Date.now()
+}
+
 function getAuthenticatedUser (req: Request): { id?: number, role?: string } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token || !security.verify(token)) return undefined
+  if (!token || !security.verify(token) || isExpired(token)) return undefined
   const session = security.authenticatedUsers.get(token)
   if (!session?.data) return undefined
-  const { exp } = (security.decode(token) ?? {}) as { exp?: number }
-  if (typeof exp === 'number' && exp * 1000 <= Date.now()) return undefined
   return { id: session.data.id, role: session.data.role }
 }
 
@@ -55,8 +58,9 @@ async function getUserId (req: Request): Promise<number | undefined> {
 
 export function rejectUnverifiedChatToken () {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (utils.jwtFrom(req) && !getAuthenticatedUser(req)) {
-      res.status(401).json({ error: 'Invalid or expired authentication token' })
+    const token = utils.jwtFrom(req)
+    if (token && !isExpired(token) && !getAuthenticatedUser(req)) {
+      res.status(401).json({ error: 'Invalid authentication token' })
       return
     }
     next()
