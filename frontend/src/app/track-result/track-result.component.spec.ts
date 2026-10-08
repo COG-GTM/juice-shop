@@ -62,7 +62,7 @@ describe('TrackResultComponent', () => {
     it('should render a server-echoed order number as text instead of HTML', () => {
         const payload = '<iframe src="javascript:alert(`xss`)">'
         trackOrderService.find.mockReturnValue(of({ data: [{ orderId: payload }] }))
-        component.ngOnInit()
+        fixture = TestBed.createComponent(TrackResultComponent)
         fixture.detectChanges()
 
         const orderNo = fixture.nativeElement.querySelector('h1 code')
