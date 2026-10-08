@@ -162,7 +162,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
-            UserId: customer?.data?.id,
+            UserId: customer?.data?.id ?? security.decode(utils.jwtFrom(req) ?? '')?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,

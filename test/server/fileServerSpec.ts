@@ -213,6 +213,26 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 
+  it('should prefer the bearer token over the token cookie', async () => {
+    req.headers = { authorization: `Bearer ${adminToken}` }
+    req.cookies = { token: jimToken }
+    req.params.file = 'acquisitions.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md/))
+  })
+
+  it('should accept a validly signed token that is missing from the authenticated users cache', async () => {
+    const uncachedToken = security.authorize({ data: { id: 4, email: 'uncached@juice-sh.op', role: 'admin' } })
+    req.headers = { authorization: `Bearer ${uncachedToken}` }
+    req.params.file = 'acquisitions.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md/))
+  })
+
   describe('order confirmation PDFs', () => {
     const orderId = security.hash('jim@juice-sh.op').slice(0, 4) + '-0123456789abcdef'
 

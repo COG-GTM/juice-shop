@@ -12,15 +12,16 @@ import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as db from '../data/mongodb'
 
+const ftpDir = path.resolve('ftp')
 const PUBLIC_FILES = ['legal.md']
 const ORDER_CONFIRMATION = /^order_([0-9a-f]{4}-[0-9a-f]{16})\.pdf$/
 
 export function authenticatedUser (req: Request) {
-  const token = utils.unquote(req.cookies?.token ?? utils.jwtFrom(req) ?? '')
+  const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
   if (!token || !security.verify(token)) return undefined
-  const exp = security.decode(token)?.exp
-  if (exp && exp * 1000 < Date.now()) return undefined
-  return security.authenticatedUsers.get(token)
+  const payload = security.decode(token)
+  if (payload?.exp && payload.exp * 1000 < Date.now()) return undefined
+  return security.authenticatedUsers.get(token) ?? (payload?.data ? { data: payload.data } : undefined)
 }
 
 export function isAdmin (req: Request) {
@@ -70,7 +71,13 @@ export function servePublicFiles () {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      const filePath = path.resolve(ftpDir, file)
+      if (filePath.startsWith(ftpDir + path.sep)) {
+        res.sendFile(filePath)
+      } else {
+        res.status(403)
+        next(new Error('File names cannot contain forward slashes!'))
+      }
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
