@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
+import { randomUUID } from 'node:crypto'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
@@ -64,7 +65,7 @@ for (const endpoint of ['setup', 'disable']) {
   void describe(`/rest/2fa/${endpoint} rate limiting`, () => {
     void it('POST ignores spoofed X-Forwarded-For and limits failed password confirmations per account', async () => {
       const email = `xff-rate-limit-${endpoint}@bar.com`
-      const password = '123456'
+      const password = randomUUID()
       await register(app, { email, password })
       const { token } = await login(app, { email, password })
       const statuses: number[] = []
