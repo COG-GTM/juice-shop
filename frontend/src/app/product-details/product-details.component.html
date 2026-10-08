@@ -99,7 +99,7 @@
         <span>{{'BTN_CLOSE' | translate}}</span>
       </button>
 
-      <button type="submit" id="submitButton" [disabled]="!textPut.value.trim()" mat-raised-button color="primary"
+      <button type="submit" id="submitButton" [disabled]="!textPut.value.trim() || isSubmittingReview" mat-raised-button color="primary"
         (click)="addReview(textPut)" class="buttons submit-button-spacing"
         aria-label="Send the review"
         [style.display]="isLoggedIn() ? 'flex' : 'none' ">
