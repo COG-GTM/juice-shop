@@ -135,6 +135,19 @@ async function requestOrder (token: string, orderId: string): Promise<string | u
   return toolResult
 }
 
+async function withUnpersistedAiDebuggingChallenge (fn: () => Promise<void>): Promise<void> {
+  const challenge: any = challenges.aiDebuggingChallenge
+  const { solved } = challenge
+  challenge.solved = false
+  challenge.save = async function () { return this }
+  try {
+    await fn()
+  } finally {
+    challenge.solved = solved
+    delete challenge.save
+  }
+}
+
 async function chatWithToolCallsShown (token: string): Promise<void> {
   let callCount = 0
   onLlmRequest = (_req, _body, res) => {
@@ -328,27 +341,19 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
   })
 
   void it('POST does not solve aiDebuggingChallenge for a signed-in admin showing tool calls', { timeout: 30000 }, async () => {
-    const wasSolved = challenges.aiDebuggingChallenge.solved
-    challenges.aiDebuggingChallenge.solved = false
-    try {
+    await withUnpersistedAiDebuggingChallenge(async () => {
       const { token } = await login(app, { email: adminEmail, password: 'admin123' })
       await chatWithToolCallsShown(token)
       assert.equal(challenges.aiDebuggingChallenge.solved, false)
-    } finally {
-      challenges.aiDebuggingChallenge.solved = wasSolved
-    }
+    })
   })
 
   void it('POST solves aiDebuggingChallenge for a signed-in non-admin showing tool calls', { timeout: 30000 }, async () => {
-    const wasSolved = challenges.aiDebuggingChallenge.solved
-    challenges.aiDebuggingChallenge.solved = false
-    try {
+    await withUnpersistedAiDebuggingChallenge(async () => {
       const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
       await chatWithToolCallsShown(token)
       assert.equal(challenges.aiDebuggingChallenge.solved, true)
-    } finally {
-      challenges.aiDebuggingChallenge.solved = wasSolved
-    }
+    })
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
