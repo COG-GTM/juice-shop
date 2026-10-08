@@ -13,6 +13,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -21,6 +22,32 @@ import * as z85 from 'z85'
 
 export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
 const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+
+// Reads a secret from the environment variable <name>, or from the file the
+// variable <name>_FILE points to (as mounted by most secret managers). Falls
+// back to a secret generated for this process, so no key material has to be
+// committed for the application to start.
+export const runtimeSecret = (name: string) => {
+  const value = process.env[name]
+  if (value !== undefined) {
+    if (!value.trim()) {
+      throw new Error(`${name} is set but contains no secret`)
+    }
+    return value
+  }
+  const file = process.env[`${name}_FILE`]
+  if (file !== undefined) {
+    const secret = fs.readFileSync(file, 'utf8').trim()
+    if (!secret) {
+      throw new Error(`${name}_FILE points to ${file} which contains no secret`)
+    }
+    return secret
+  }
+  logger.warn(`No ${name} configured: using an ephemeral secret that changes on every restart`)
+  return crypto.randomBytes(32).toString('hex')
+}
+
+const hmacSecret = runtimeSecret('HMAC_SECRET')
 
 interface ResponseWithUser {
   status?: string
@@ -41,7 +68,76 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const PASSWORD_HASH_ALGORITHM = 'scrypt'
+const PASSWORD_SALT_BYTES = 16
+const PASSWORD_KEY_BYTES = 64
+const SCRYPT_DEFAULTS = { N: 16384, r: 8, p: 5 }
+const SCRYPT_LIMITS = { N: 65536, r: 8, p: 16 }
+
+interface ParsedPasswordHash {
+  N: number
+  r: number
+  p: number
+  salt: Buffer
+  key: Buffer
+}
+
+const parsePasswordHash = (storedHash?: string | null): ParsedPasswordHash | undefined => {
+  const parts = storedHash?.split('$')
+  if (parts?.length !== 6 || parts[0] !== PASSWORD_HASH_ALGORITHM) return undefined
+  const [N, r, p] = parts.slice(1, 4).map(Number)
+  const salt = Buffer.from(parts[4], 'base64url')
+  const key = Buffer.from(parts[5], 'base64url')
+  const validCost = Number.isInteger(N) && N > 1 && N <= SCRYPT_LIMITS.N && (N & (N - 1)) === 0
+  const validBlock = Number.isInteger(r) && r > 0 && r <= SCRYPT_LIMITS.r && Number.isInteger(p) && p > 0 && p <= SCRYPT_LIMITS.p
+  if (!validCost || !validBlock || salt.length !== PASSWORD_SALT_BYTES || key.length !== PASSWORD_KEY_BYTES) return undefined
+  return { N, r, p, salt, key }
+}
+
+const scryptOptions = (N: number, r: number, p: number) => ({ N, r, p, maxmem: 256 * N * r })
+
+const deriveKey = async (password: string, salt: Buffer, N: number, r: number, p: number) =>
+  await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p), (err, key) => { err ? reject(err) : resolve(key) })
+  })
+
+const formatPasswordHash = (N: number, r: number, p: number, salt: Buffer, key: Buffer) =>
+  [PASSWORD_HASH_ALGORITHM, N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$')
+
+/**
+ * Salted scrypt password hash in the format `scrypt$N$r$p$salt$key` using a fresh random salt.
+ */
+export const hashPassword = async (password: string) => {
+  const { N, r, p } = SCRYPT_DEFAULTS
+  const salt = crypto.randomBytes(PASSWORD_SALT_BYTES)
+  return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
+}
+
+/**
+ * Hashes a password with the salt and cost parameters of a valid stored hash (or a fresh salt otherwise),
+ * so the result can be compared against the stored hash.
+ */
+export const rehashPassword = async (password: string, storedHash?: string | null) => {
+  const { N, r, p, salt } = parsePasswordHash(storedHash) ?? { ...SCRYPT_DEFAULTS, salt: crypto.randomBytes(PASSWORD_SALT_BYTES) }
+  return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
+}
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
+  const parsed = parsePasswordHash(storedHash)
+  if (!parsed) return false
+  const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
+  return crypto.timingSafeEqual(key, parsed.key)
+}
+export const hmac = (data: string) => crypto.createHmac('sha256', hmacSecret).update(data).digest('hex')
+
+/**
+ * Security answers are peppered with the HMAC_SECRET key and then stored as a salted scrypt hash,
+ * so a leaked SecurityAnswers table can neither be matched against precomputed tables nor brute-forced offline.
+ */
+export const hashSecurityAnswer = async (answer: string) => await hashPassword(hmac(String(answer)))
+
+export const verifySecurityAnswer = async (answer: string, storedHash?: string | null) => await verifyPassword(hmac(String(answer)), storedHash)
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
