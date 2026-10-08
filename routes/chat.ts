@@ -84,6 +84,7 @@ const ordersWithIssuedCoupon = new Set<string>()
 
 async function claimCouponForOrder (req: Request, orderId: string, discount: number): Promise<string | undefined> {
   if (!Number.isInteger(discount) || discount < 1 || discount > maxCouponDiscount) return 'Unsupported discount value'
+  if (security.discountFromCoupon(security.generateCoupon(discount)) !== discount) return 'Unsupported discount value'
   const userId = security.authenticatedUsers.from(req)?.data?.id
   if (!userId) return 'Customer not authenticated'
   const user = await UserModel.findByPk(userId, { attributes: ['email'] })

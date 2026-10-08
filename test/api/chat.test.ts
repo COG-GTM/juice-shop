@@ -403,6 +403,7 @@ void describe('/rest/chat generateCoupon policy enforcement', { timeout: 120000 
   void it('issues one redeemable coupon of at most 10% per own delivered order', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await adminOrderId(true)
+    assert.equal(couponFrom(await generateCouponViaChat({ discount: 5, orderId }, token)), undefined)
     const coupon = couponFrom(await generateCouponViaChat({ discount: 10, orderId }, token))
     assert.ok(coupon)
     assert.equal(security.discountFromCoupon(coupon), 10)
