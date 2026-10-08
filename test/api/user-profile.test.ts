@@ -120,19 +120,33 @@ void describe('/profile', () => {
     assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Strict')))
   })
 
-  void it('POST update username via reverse proxy matches Origin against X-Forwarded-Host', async () => {
+  void it('POST update username is rejected when a forged X-Forwarded-Host matches the cross-site Origin', async () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .set('Host', 'localhost:3000')
-      .set('X-Forwarded-Host', 'juice-sh.op')
-      .set('Origin', 'http://juice-sh.op')
+      .set('X-Forwarded-Host', 'attacker.example')
+      .set('Origin', 'http://attacker.example')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username via reverse proxy accepts Origin matching the configured server.baseUrl', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'juice-shop-internal:8080')
+      .set('Origin', new URL(config.get<string>('server.baseUrl')).origin)
       .type('form')
       .send('username=Localhorst')
       .redirects(0)
 
     assert.equal(res.status, 302)
   })
+
   void it('POST update username is rejected when username is missing', async () => {
     const res = await request(app)
       .post('/profile')

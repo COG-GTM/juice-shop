@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import config from 'config'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
@@ -11,15 +12,23 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+function configuredHost () {
+  try {
+    return new URL(config.get<string>('server.baseUrl')).host
+  } catch {
+    return undefined
+  }
+}
+
 function isCrossSiteRequest (req: Request) {
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
     return false
   }
-  const forwardedHost = req.app.enabled('trust proxy') ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined
   try {
     const sourceUrl = new URL(source)
-    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${forwardedHost ?? req.headers.host}`).host
+    const requestHost = new URL(`${sourceUrl.protocol}//${req.headers.host}`).host
+    return sourceUrl.host !== requestHost && sourceUrl.host !== configuredHost()
   } catch {
     return true
   }
