@@ -8,6 +8,7 @@ import {
   type InferAttributes,
   type InferCreationAttributes,
   DataTypes,
+  type CreationOptional,
   type Sequelize
 } from 'sequelize'
 
@@ -18,6 +19,7 @@ InferCreationAttributes<Captcha>
   declare captchaId: number
   declare captcha: string
   declare answer: string
+  declare createdAt: CreationOptional<Date>
 }
 
 const CaptchaModelInit = (sequelize: Sequelize) => {
