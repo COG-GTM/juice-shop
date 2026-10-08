@@ -49,8 +49,8 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
-      const isSlurmClassic = user.id === 3 && !currentPassword && await security.verifyPassword('slurmCl4ssic', user.password)
-      challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => isSlurmClassic)
+      const isSlurmClassic = user.id === 3 && await security.verifyPassword('slurmCl4ssic', user.password)
+      challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => isSlurmClassic && !currentPassword)
       res.json({ user })
     } catch (error) {
       next(error)

@@ -29,11 +29,14 @@ const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgT
 // committed for the application to start.
 export const runtimeSecret = (name: string) => {
   const value = process.env[name]
-  if (value) {
+  if (value !== undefined) {
+    if (!value.trim()) {
+      throw new Error(`${name} is set but contains no secret`)
+    }
     return value
   }
   const file = process.env[`${name}_FILE`]
-  if (file) {
+  if (file !== undefined) {
     const secret = fs.readFileSync(file, 'utf8').trim()
     if (!secret) {
       throw new Error(`${name}_FILE points to ${file} which contains no secret`)
