@@ -95,6 +95,18 @@ describe('fileUpload', () => {
       expect(estimateJsonLength(yaml.load(levels.join('\n')))).to.be.above(1000000)
     })
 
+    it('should account for escaped characters in aliased strings', () => {
+      const document = yaml.load('a: &a "' + '\\0'.repeat(1000) + '"\nb: [*a, *a, *a]\n')
+
+      expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
+    })
+
+    it('should account for the serialized form of aliased timestamps', () => {
+      const document = yaml.load('a: &a 2001-12-14t21:59:43.10-05:00\nb: [*a, *a, *a]\n')
+
+      expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
+    })
+
     it('should treat cyclic aliases as exceeding the limit', () => {
       const cyclic: any[] = []
       cyclic.push(cyclic)
@@ -114,9 +126,19 @@ describe('fileUpload', () => {
       return { statusCode: statusCodes[0], error: errors[0] }
     }
 
+    let originalChallenges: Pick<typeof challenges, 'deprecatedInterfaceChallenge' | 'yamlBombChallenge'>
+
+    before(() => {
+      originalChallenges = { deprecatedInterfaceChallenge: challenges.deprecatedInterfaceChallenge, yamlBombChallenge: challenges.yamlBombChallenge }
+    })
+
     beforeEach(() => {
       challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
       challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    after(() => {
+      Object.assign(challenges, originalChallenges)
     })
 
     it('should reject YAML files above the size limit without parsing them', () => {
@@ -129,8 +151,12 @@ describe('fileUpload', () => {
 
     it('should solve "yamlBombChallenge" without serializing a YAML bomb', () => {
       const stringify = JSON.stringify
-      let serialized = false
-      JSON.stringify = (...args: Parameters<typeof JSON.stringify>) => { serialized = true; return stringify(...args) }
+      let longestSerialization = 0
+      JSON.stringify = (...args: Parameters<typeof JSON.stringify>) => {
+        const json = stringify(...args)
+        longestSerialization = Math.max(longestSerialization, json?.length ?? 0)
+        return json
+      }
       try {
         const { statusCode } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
 
@@ -138,7 +164,7 @@ describe('fileUpload', () => {
       } finally {
         JSON.stringify = stringify
       }
-      expect(serialized).to.equal(false)
+      expect(longestSerialization).to.be.below(100)
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
     })
 
