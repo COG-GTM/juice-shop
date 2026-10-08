@@ -109,6 +109,31 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('revokes all other tokens of a user but keeps the current one', () => {
+      security.authenticatedUsers.put('rev-old', { data: { id: 42 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-other-user', { data: { id: 43 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-current', { data: { id: 42 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeOtherSessions(42, 'rev-current')
+
+      expect(security.authenticatedUsers.get('rev-old')).to.equal(undefined)
+      expect(security.isRevoked('rev-old')).to.equal(true)
+      expect(security.authenticatedUsers.get('rev-current')).to.deep.equal({ data: { id: 42 } })
+      expect(security.authenticatedUsers.get('rev-other-user')).to.deep.equal({ data: { id: 43 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 42 } as unknown as UserModel)).to.equal('rev-current')
+    })
+
+    it('does not re-register a revoked token', () => {
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-fresh', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(44, 'rev-fresh')
+
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('rev-stale')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 44 } as unknown as UserModel)).to.equal('rev-fresh')
+    })
   })
 
   describe('sanitizeHtml', () => {
