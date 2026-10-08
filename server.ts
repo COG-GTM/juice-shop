@@ -55,6 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
+import { angularClientCsp, corsOptions, exposeErrorDetails, genericErrorHandler } from './lib/httpHardening'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
@@ -178,14 +179,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to trusted origins (CORS_ALLOWED_ORIGINS) */
+  const trustedOriginsCors = cors(corsOptions())
+  app.options('*', trustedOriginsCors)
+  app.use(trustedOriginsCors)
 
   /* Security middleware */
   app.use(helmet.noSniff())
   app.use(helmet.frameguard())
-  // app.use(helmet.xssFilter()); // = no protection from persisted XSS via RESTful API
+  app.use(helmet.xssFilter())
+  app.use(angularClientCsp())
   app.disable('x-powered-by')
   app.use(featurePolicy({
     features: {
@@ -675,7 +678,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use(exposeErrorDetails() ? errorhandler() : genericErrorHandler())
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.

@@ -12,6 +12,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { themes } from '../views/themes/themes'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
+import { contentSecurityPolicy, cspHeaderName, inlineScriptHashes } from '../lib/httpHardening'
 
 const entities = new Entities()
 
@@ -68,6 +69,7 @@ export const promotionVideo = () => {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
+      res.setHeader(cspHeaderName(), contentSecurityPolicy(inlineScriptHashes(compiledTemplate)))
       compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
       res.send(compiledTemplate)
     })
