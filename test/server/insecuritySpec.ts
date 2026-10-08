@@ -215,7 +215,6 @@ describe('insecurity', () => {
   const hmacWithPublicKey = (input: string) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')
 
   describe('verify', () => {
-
     it('accepts RS256 tokens issued by authorize()', () => {
       expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
     })
