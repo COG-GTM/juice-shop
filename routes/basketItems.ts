@@ -4,11 +4,12 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import clarinet from 'clarinet'
+import { BasketModel } from '../models/basket'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
-import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
@@ -24,19 +25,53 @@ interface BasketItemFields {
 
 const basketItemKeys = ['ProductId', 'BasketId', 'quantity'] as const
 
+function countTopLevelBasketItemKeys (json: string) {
+  const parser = clarinet.parser()
+  const counts: Record<string, number> = {}
+  let depth = 0
+  const countKey = (key?: string) => {
+    if (depth === 1 && key !== undefined && (basketItemKeys as readonly string[]).includes(key)) {
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  }
+  parser.onopenobject = (key?: string) => {
+    depth++
+    countKey(key)
+  }
+  parser.onkey = countKey
+  parser.oncloseobject = () => { depth-- }
+  parser.onopenarray = () => { depth++ }
+  parser.onclosearray = () => { depth-- }
+  parser.onerror = (error: Error) => { throw error }
+  parser.write(json).close()
+  return counts
+}
+
 function parseBasketItemBody (req: Request): { fields: BasketItemFields, duplicateKeys: boolean } {
   const rawBody = (req as RequestWithRawBody).rawBody
+  const json = typeof rawBody === 'string' ? rawBody : JSON.stringify(req.body ?? {})
+  const duplicateKeys = Object.values(countTopLevelBasketItemKeys(json)).some(count => count > 1)
+  const body = JSON.parse(json)
   const fields: BasketItemFields = {}
-  let duplicateKeys = false
-  for (const { key, value } of utils.parseJsonCustom(typeof rawBody === 'string' ? rawBody : JSON.stringify(req.body ?? {}))) {
-    if ((basketItemKeys as readonly string[]).includes(key)) {
-      if (Object.prototype.hasOwnProperty.call(fields, key)) {
-        duplicateKeys = true
+  if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+    for (const key of basketItemKeys) {
+      if (Object.prototype.hasOwnProperty.call(body, key)) {
+        fields[key] = body[key]
       }
-      fields[key as keyof BasketItemFields] = value
     }
   }
   return { fields, duplicateKeys }
+}
+
+async function sessionBasketId (user: { bid?: number, data?: { id?: number } } | undefined) {
+  if (user?.bid != null) {
+    return user.bid
+  }
+  if (user?.data?.id == null) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
 }
 
 function hasForeignBasketId (basketId: any, userBid: any) {
@@ -45,25 +80,25 @@ function hasForeignBasketId (basketId: any, userBid: any) {
 
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const { fields, duplicateKeys } = parseBasketItemBody(req)
-    const user = security.authenticatedUsers.from(req)
-    if (duplicateKeys) {
-      res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
-    } else if (user?.bid == null || hasForeignBasketId(fields.BasketId, user.bid)) {
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
+    try {
+      const { fields, duplicateKeys } = parseBasketItemBody(req)
+      if (duplicateKeys) {
+        res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
+        return
+      }
+      const bid = await sessionBasketId(security.authenticatedUsers.from(req))
+      if (bid == null || hasForeignBasketId(fields.BasketId, bid)) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
+      }
+      const addedBasketItem = await BasketItemModel.build({
         ProductId: fields.ProductId,
-        BasketId: user.bid,
+        BasketId: bid,
         quantity: fields.quantity
-      }
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+      }).save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }

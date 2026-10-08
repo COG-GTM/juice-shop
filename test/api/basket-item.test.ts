@@ -10,9 +10,11 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { BasketItemModel } from '../../models/basketitem'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let jimToken: string
 
 before(
   async () => {
@@ -23,6 +25,7 @@ before(
       email: 'jim@juice-sh.op',
       password: 'ncc-1701'
     })
+    jimToken = token
     authHeader = {
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
@@ -100,6 +103,33 @@ void describe('/api/BasketItems', () => {
       .send({ ProductId: 7, quantity: 1 })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.BasketId, 2)
+  })
+
+  void it('POST new basket item ignores BasketItem keys nested below the top level', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":2,"quantity":1,"meta":{"ProductId":5,"BasketId":"3"}}')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.ProductId, 2)
+    assert.equal(res.body.data.BasketId, 2)
+  })
+
+  void it('POST new basket item recovers the basket of a cached user without bid', async () => {
+    const cachedUser = security.authenticatedUsers.get(jimToken)
+    assert.ok(cachedUser)
+    const { bid, ...userWithoutBid } = cachedUser
+    security.authenticatedUsers.put(jimToken, userWithoutBid)
+    try {
+      const res = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 3, quantity: 1 })
+      assert.equal(res.status, 200)
+      assert.equal(res.body.data.BasketId, 2)
+    } finally {
+      security.authenticatedUsers.put(jimToken, { ...userWithoutBid, bid })
+    }
   })
 
   void it('POST new basket item with more than available quantity is forbidden', async () => {
