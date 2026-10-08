@@ -109,9 +109,9 @@ void describe('/api/BasketItems', () => {
     const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
-      .send('{"ProductId":2,"quantity":1,"meta":{"ProductId":5,"BasketId":"3"}}')
+      .send('{"ProductId":13,"quantity":1,"meta":{"ProductId":5,"BasketId":"3"}}')
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.ProductId, 2)
+    assert.equal(res.body.data.ProductId, 13)
     assert.equal(res.body.data.BasketId, 2)
   })
 
@@ -124,7 +124,7 @@ void describe('/api/BasketItems', () => {
       const res = await request(app)
         .post('/api/BasketItems')
         .set(authHeader)
-        .send({ BasketId: 2, ProductId: 3, quantity: 1 })
+        .send({ BasketId: 2, ProductId: 14, quantity: 1 })
       assert.equal(res.status, 200)
       assert.equal(res.body.data.BasketId, 2)
     } finally {
