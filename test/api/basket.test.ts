@@ -160,7 +160,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .set(authHeader)
       .send({ orderDetails: { paymentId: 'wallet' } })
     assert.equal(res.status, 400)
-    assert.equal(res.body.message, 'Basket item quantities must be positive integers.')
+    assert.equal(res.body.error.message, 'Basket item quantities must be positive integers.')
 
     const balanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
     assert.equal(balanceAfter, balanceBefore)

@@ -41,152 +41,151 @@ export function placeOrder () {
     }
     BasketModel.findOne({ where: { id, UserId: userId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
-        if (basket != null) {
-          const basketItems = (basket.Products ?? []).map(({ BasketItem }) => BasketItem).filter((item): item is BasketItemModel => item != null)
-          if (basketItems.some((item) => !Number.isSafeInteger(item.quantity) || item.quantity < 1)) {
-            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some((item) => item.quantity < 0) })
-            res.status(400).json({ status: 'error', message: 'Basket item quantities must be positive integers.' })
-            return
-          }
-          const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
-          const { default: PDFDocument } = await import('pdfkit')
-          const doc = new PDFDocument()
-          const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
-
-          fileWriter.on('finish', () => {
-            void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
-              res.json({ orderConfirmation: orderId })
-            })()
-          })
-
-          doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
-          doc.moveTo(70, 115).lineTo(540, 115).stroke()
-          doc.moveTo(70, 120).lineTo(540, 120).stroke()
-          doc.fontSize(20).moveDown()
-          doc.font('Times-Roman').fontSize(20).text(req.__('Order Confirmation'), { align: 'center' })
-          doc.fontSize(20).moveDown()
-          doc.font('Times-Roman').fontSize(15).text(`${req.__('Customer')}: ${email}`, { align: 'left' })
-          doc.font('Times-Roman').fontSize(15).text(`${req.__('Order')} #: ${orderId}`, { align: 'left' })
-          doc.moveDown()
-          doc.font('Times-Roman').fontSize(15).text(`${req.__('Date')}: ${date}`, { align: 'left' })
-          doc.moveDown()
-          doc.moveDown()
-          let totalPrice = 0
-          const basketProducts: Product[] = []
-          let totalPoints = 0
-          for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
-            if (BasketItem != null) {
-              challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
-              let itemPrice: number
-              if (security.isDeluxe(req)) {
-                itemPrice = deluxePrice
-              } else {
-                itemPrice = price
-              }
-              const itemTotal = itemPrice * BasketItem.quantity
-              const itemBonus = Math.round(itemPrice / 10) * BasketItem.quantity
-              const product = {
-                quantity: BasketItem.quantity,
-                id,
-                name: req.__(name),
-                price: itemPrice,
-                total: itemTotal,
-                bonus: itemBonus
-              }
-              basketProducts.push(product)
-              doc.text(`${BasketItem.quantity}x ${req.__(name)} ${req.__('ea.')} ${itemPrice} = ${itemTotal}¤`)
-              doc.moveDown()
-              totalPrice += itemTotal
-              totalPoints += itemBonus
-            }
-          }
-          doc.moveDown()
-          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
-          let discountAmount = '0'
-          if (discount > 0) {
-            discountAmount = (totalPrice * (discount / 100)).toFixed(2)
-            doc.text(discount + '% discount from coupon: -' + discountAmount + '¤')
-            doc.moveDown()
-            totalPrice -= parseFloat(discountAmount)
-          }
-          const deliveryMethod = {
-            deluxePrice: 0,
-            price: 0,
-            eta: 5
-          }
-          if (req.body.orderDetails?.deliveryMethodId) {
-            const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id: req.body.orderDetails.deliveryMethodId } })
-            if (deliveryMethodFromModel != null) {
-              deliveryMethod.deluxePrice = deliveryMethodFromModel.deluxePrice
-              deliveryMethod.price = deliveryMethodFromModel.price
-              deliveryMethod.eta = deliveryMethodFromModel.eta
-            }
-          }
-          const deliveryAmount = security.isDeluxe(req) ? deliveryMethod.deluxePrice : deliveryMethod.price
-          totalPrice += deliveryAmount
-          doc.text(`${req.__('Delivery Price')}: ${deliveryAmount.toFixed(2)}¤`)
-          doc.moveDown()
-          doc.font('Helvetica-Bold').fontSize(20).text(`${req.__('Total Price')}: ${totalPrice.toFixed(2)}¤`)
-          doc.moveDown()
-          doc.font('Helvetica-Bold').fontSize(15).text(`${req.__('Bonus Points Earned')}: ${totalPoints}`)
-          doc.font('Times-Roman').fontSize(15).text(`(${req.__('The bonus points from this order will be added 1:1 to your wallet ¤-fund for future purchases!')}`)
-          doc.moveDown()
-          doc.moveDown()
-          doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
-
-          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
-            next(new Error('Order total must not be negative.'))
-            return
-          }
-
-          if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-            const wallet = await WalletModel.findOne({ where: { UserId: userId } })
-            if ((wallet != null) && wallet.balance >= totalPrice) {
-              await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: userId } })
-            } else {
-              next(new Error('Insufficient wallet balance.'))
-              return
-            }
-          }
-          try {
-            await WalletModel.increment({ balance: totalPoints }, { where: { UserId: userId } })
-          } catch (error: unknown) {
-            next(error)
-            return
-          }
-
-          db.ordersCollection.insert({
-            promotionalAmount: discountAmount,
-            paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
-            addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
-            orderId,
-            delivered: false,
-            email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
-            totalPrice,
-            products: basketProducts,
-            bonus: totalPoints,
-            deliveryPrice: deliveryAmount,
-            eta: deliveryMethod.eta.toString()
-          }).then(() => {
-            doc.end()
-          })
-        } else {
+        if (basket == null) {
           next(new Error(`Basket with id=${id} does not exist.`))
+          return
         }
+        const basketItems = (basket.Products ?? []).map(({ BasketItem }) => BasketItem).filter((item): item is BasketItemModel => item != null)
+        if (basketItems.some((item) => !Number.isSafeInteger(item.quantity) || item.quantity < 1)) {
+          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some((item) => item.quantity < 0) })
+          res.status(400).json({ error: { message: 'Basket item quantities must be positive integers.' } })
+          return
+        }
+
+        const isDeluxe = security.isDeluxe(req)
+        let totalPrice = 0
+        const basketProducts: Product[] = []
+        let totalPoints = 0
+        for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
+          if (BasketItem != null) {
+            challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
+            const itemPrice = isDeluxe ? deluxePrice : price
+            const itemTotal = itemPrice * BasketItem.quantity
+            const itemBonus = Math.round(itemPrice / 10) * BasketItem.quantity
+            basketProducts.push({
+              quantity: BasketItem.quantity,
+              id,
+              name: req.__(name),
+              price: itemPrice,
+              total: itemTotal,
+              bonus: itemBonus
+            })
+            totalPrice += itemTotal
+            totalPoints += itemBonus
+          }
+        }
+        const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
+        let discountAmount = '0'
+        if (discount > 0) {
+          discountAmount = (totalPrice * (discount / 100)).toFixed(2)
+          totalPrice -= parseFloat(discountAmount)
+        }
+        const deliveryMethod = {
+          deluxePrice: 0,
+          price: 0,
+          eta: 5
+        }
+        if (req.body.orderDetails?.deliveryMethodId) {
+          const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id: req.body.orderDetails.deliveryMethodId } })
+          if (deliveryMethodFromModel != null) {
+            deliveryMethod.deluxePrice = deliveryMethodFromModel.deluxePrice
+            deliveryMethod.price = deliveryMethodFromModel.price
+            deliveryMethod.eta = deliveryMethodFromModel.eta
+          }
+        }
+        const deliveryAmount = isDeluxe ? deliveryMethod.deluxePrice : deliveryMethod.price
+        totalPrice += deliveryAmount
+
+        if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+          res.status(400).json({ error: { message: 'Order total must not be negative.' } })
+          return
+        }
+
+        const payWithWallet = req.body.orderDetails?.paymentId === 'wallet'
+        if (payWithWallet) {
+          const wallet = await WalletModel.findOne({ where: { UserId: userId } })
+          if ((wallet == null) || wallet.balance < totalPrice) {
+            next(new Error('Insufficient wallet balance.'))
+            return
+          }
+        }
+
+        try {
+          for (const item of basketItems) {
+            const quantityRow = await QuantityModel.findOne({ where: { ProductId: item.ProductId } })
+            if (quantityRow) {
+              await QuantityModel.update({ quantity: quantityRow.quantity - item.quantity }, { where: { ProductId: item.ProductId } })
+            }
+          }
+          if (payWithWallet) {
+            await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: userId } })
+          }
+          await WalletModel.increment({ balance: totalPoints }, { where: { UserId: userId } })
+        } catch (error: unknown) {
+          next(error)
+          return
+        }
+
+        const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
+        const pdfFile = `order_${orderId}.pdf`
+        const { default: PDFDocument } = await import('pdfkit')
+        const doc = new PDFDocument()
+        const date = new Date().toJSON().slice(0, 10)
+        const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+
+        fileWriter.on('finish', () => {
+          void (async () => {
+            void basket.update({ coupon: null })
+            await BasketItemModel.destroy({ where: { BasketId: id } })
+            res.json({ orderConfirmation: orderId })
+          })()
+        })
+
+        doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
+        doc.moveTo(70, 115).lineTo(540, 115).stroke()
+        doc.moveTo(70, 120).lineTo(540, 120).stroke()
+        doc.fontSize(20).moveDown()
+        doc.font('Times-Roman').fontSize(20).text(req.__('Order Confirmation'), { align: 'center' })
+        doc.fontSize(20).moveDown()
+        doc.font('Times-Roman').fontSize(15).text(`${req.__('Customer')}: ${email}`, { align: 'left' })
+        doc.font('Times-Roman').fontSize(15).text(`${req.__('Order')} #: ${orderId}`, { align: 'left' })
+        doc.moveDown()
+        doc.font('Times-Roman').fontSize(15).text(`${req.__('Date')}: ${date}`, { align: 'left' })
+        doc.moveDown()
+        doc.moveDown()
+        for (const product of basketProducts) {
+          doc.text(`${product.quantity}x ${product.name} ${req.__('ea.')} ${product.price} = ${product.total}¤`)
+          doc.moveDown()
+        }
+        doc.moveDown()
+        if (discount > 0) {
+          doc.text(discount + '% discount from coupon: -' + discountAmount + '¤')
+          doc.moveDown()
+        }
+        doc.text(`${req.__('Delivery Price')}: ${deliveryAmount.toFixed(2)}¤`)
+        doc.moveDown()
+        doc.font('Helvetica-Bold').fontSize(20).text(`${req.__('Total Price')}: ${totalPrice.toFixed(2)}¤`)
+        doc.moveDown()
+        doc.font('Helvetica-Bold').fontSize(15).text(`${req.__('Bonus Points Earned')}: ${totalPoints}`)
+        doc.font('Times-Roman').fontSize(15).text(`(${req.__('The bonus points from this order will be added 1:1 to your wallet ¤-fund for future purchases!')}`)
+        doc.moveDown()
+        doc.moveDown()
+        doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
+
+        await db.ordersCollection.insert({
+          promotionalAmount: discountAmount,
+          paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
+          addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
+          orderId,
+          delivered: false,
+          email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+          totalPrice,
+          products: basketProducts,
+          bonus: totalPoints,
+          deliveryPrice: deliveryAmount,
+          eta: deliveryMethod.eta.toString()
+        })
+        doc.end()
       }).catch((error: unknown) => {
         next(error)
       })
