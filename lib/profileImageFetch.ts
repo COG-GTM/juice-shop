@@ -9,7 +9,7 @@ import https from 'node:https'
 import net from 'node:net'
 
 export const MAX_PROFILE_IMAGE_BYTES = 1024 * 1024
-const TIMEOUT_MS = 10000
+export const PROFILE_IMAGE_TIMEOUT_MS = 10000
 
 export class ProfileImageFetchError extends Error {}
 
@@ -18,10 +18,10 @@ export interface ProfileImage {
   extension: 'jpg' | 'png' | 'gif'
 }
 
-const imageTypes: Array<{ contentType: RegExp, extension: ProfileImage['extension'], magic: number[] }> = [
-  { contentType: /^image\/(jpeg|jpg|pjpeg)$/, extension: 'jpg', magic: [0xff, 0xd8, 0xff] },
-  { contentType: /^image\/png$/, extension: 'png', magic: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] },
-  { contentType: /^image\/gif$/, extension: 'gif', magic: [0x47, 0x49, 0x46, 0x38] }
+const imageTypes: Array<{ contentType: RegExp, extension: ProfileImage['extension'], magic: number[], isComplete: (data: Buffer) => boolean }> = [
+  { contentType: /^image\/(jpeg|jpg|pjpeg)$/, extension: 'jpg', magic: [0xff, 0xd8, 0xff], isComplete: data => data.length > 4 && data[data.length - 2] === 0xff && data[data.length - 1] === 0xd9 },
+  { contentType: /^image\/png$/, extension: 'png', magic: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], isComplete: data => data.length >= 8 + 25 + 12 && data.subarray(-8, -4).toString('latin1') === 'IEND' },
+  { contentType: /^image\/gif$/, extension: 'gif', magic: [0x47, 0x49, 0x46, 0x38], isComplete: data => data.length > 13 && data[data.length - 1] === 0x3b }
 ]
 
 const blockedIpv4Ranges = new net.BlockList()
@@ -63,10 +63,11 @@ function detectImageType (contentType: string, data: Buffer) {
   if (data.length < type.magic.length || type.magic.some((byte, i) => data[i] !== byte)) {
     throw new ProfileImageFetchError('profile image content does not match its content type')
   }
+  if (!type.isComplete(data)) throw new ProfileImageFetchError('profile image is truncated')
   return type.extension
 }
 
-export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (address: string) => boolean = isPublicAddress): Promise<ProfileImage> {
+export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (address: string) => boolean = isPublicAddress, timeoutMs = PROFILE_IMAGE_TIMEOUT_MS): Promise<ProfileImage> {
   const url = parseProfileImageUrl(rawUrl)
   const host = url.hostname.replace(/^\[(.*)\]$/, '$1')
   if (net.isIP(host) && !isAllowedAddress(host)) throw new ProfileImageFetchError('profile image host is not allowed')
@@ -85,10 +86,20 @@ export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (add
 
   const client = url.protocol === 'https:' ? https : http
   return await new Promise<ProfileImage>((resolve, reject) => {
-    const req = client.get(url, { agent: false, lookup, timeout: TIMEOUT_MS, headers: { accept: 'image/jpeg, image/png, image/gif', 'accept-encoding': 'identity' } }, (res) => {
+    // Socket timeouts only catch idle connections; this bounds the whole download, so a trickling server cannot hold the request open.
+    const deadline = setTimeout(() => { req.destroy(new ProfileImageFetchError('profile image request timed out')) }, timeoutMs)
+    const succeed = (image: ProfileImage) => {
+      clearTimeout(deadline)
+      resolve(image)
+    }
+    const abort = (error: unknown) => {
+      clearTimeout(deadline)
+      reject(error)
+    }
+    const req = client.get(url, { agent: false, lookup, timeout: timeoutMs, headers: { accept: 'image/jpeg, image/png, image/gif', 'accept-encoding': 'identity' } }, (res) => {
       const fail = (message: string) => {
         res.destroy()
-        reject(new ProfileImageFetchError(message))
+        abort(new ProfileImageFetchError(message))
       }
       if (res.statusCode !== 200) return fail(`profile image URL returned status ${res.statusCode}`)
       const contentType = res.headers['content-type'] ?? ''
@@ -112,14 +123,14 @@ export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (add
         if (aborted) return
         const data = Buffer.concat(chunks)
         try {
-          resolve({ data, extension: detectImageType(contentType, data) })
+          succeed({ data, extension: detectImageType(contentType, data) })
         } catch (error) {
-          reject(error)
+          abort(error)
         }
       })
-      res.on('error', reject)
+      res.on('error', abort)
     })
     req.on('timeout', () => req.destroy(new ProfileImageFetchError('profile image request timed out')))
-    req.on('error', reject)
+    req.on('error', abort)
   })
 }

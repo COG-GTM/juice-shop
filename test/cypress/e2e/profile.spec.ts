@@ -13,6 +13,18 @@ describe('/profile', () => {
       cy.visit('/')
       cy.expectChallengeSolved({ challenge: 'SSRF' })
     })
+
+    it('should not fetch internal resources via image upload URL or keep the URL as profile image', () => {
+      cy.request('/rest/user/whoami').its('body.user.profileImage').then((profileImageBefore) => {
+        cy.visit('/profile')
+        cy.get('#url').type(
+          `${Cypress.config('baseUrl')}/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3`
+        )
+        cy.get('#submitUrl').click()
+        cy.request('/rest/user/whoami').its('body.user.profileImage').should('eq', profileImageBefore)
+        cy.request('/api/Challenges/?name=SSRF').its('body.data.0.solved').should('eq', false)
+      })
+    })
   })
 
   describe('challenge "usernameXss"', () => {
@@ -42,6 +54,18 @@ describe('/profile', () => {
           cy.visit('/#/')
           cy.expectChallengeSolved({ challenge: 'CSP Bypass' })
         }
+      })
+    })
+
+    it('should not let a profile image URL inject directives into the CSP header', () => {
+      cy.request('/rest/user/whoami').its('body.user.profileImage').then((profileImageBefore) => {
+        cy.visit('/profile')
+        cy.get('#url').type(
+          "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
+        )
+        cy.get('#submitUrl').click()
+        cy.request('/rest/user/whoami').its('body.user.profileImage').should('eq', profileImageBefore)
+        cy.request('/profile').its('headers.content-security-policy').should('not.contain', 'unsafe-inline')
       })
     })
   })

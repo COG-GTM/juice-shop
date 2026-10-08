@@ -10,7 +10,7 @@ import { fetchProfileImage, isPublicAddress, parseProfileImageUrl, ProfileImageF
 
 const expect = chai.expect
 
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d])
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 const allowAll = () => true
 
 async function expectRejection (promise: Promise<unknown>, message: RegExp) {
@@ -124,6 +124,29 @@ describe('profileImageFetch', () => {
     it('rejects bodies whose bytes do not match the declared image type', async () => {
       handler = (req, res) => { res.writeHead(200, { 'content-type': 'image/png' }).end('root:x:0:0:root:/root:/bin/bash') }
       await expectRejection(fetchProfileImage(`${baseUrl}/passwd.png`, allowAll), /does not match/)
+    })
+
+    it('rejects truncated images', async () => {
+      handler = (req, res) => { res.writeHead(200, { 'content-type': 'image/png' }).end(PNG.subarray(0, 20)) }
+      await expectRejection(fetchProfileImage(`${baseUrl}/truncated.png`, allowAll), /truncated/)
+      handler = (req, res) => { res.writeHead(200, { 'content-type': 'image/jpeg' }).end(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])) }
+      await expectRejection(fetchProfileImage(`${baseUrl}/truncated.jpg`, allowAll), /truncated/)
+      handler = (req, res) => { res.writeHead(200, { 'content-type': 'image/gif' }).end(Buffer.from('GIF89a\x01\x00\x01\x00\x00\x00\x00', 'latin1')) }
+      await expectRejection(fetchProfileImage(`${baseUrl}/truncated.gif`, allowAll), /truncated/)
+    })
+
+    it('aborts downloads that trickle past the overall deadline', async () => {
+      let timer: NodeJS.Timeout | undefined
+      handler = (req, res) => {
+        res.writeHead(200, { 'content-type': 'image/png' })
+        res.write(PNG.subarray(0, 8))
+        timer = setInterval(() => res.write(Buffer.alloc(1)), 200)
+        res.on('close', () => { clearInterval(timer) })
+      }
+      const started = Date.now()
+      await expectRejection(fetchProfileImage(`${baseUrl}/trickle.png`, allowAll, 1000), /timed out/)
+      expect(Date.now() - started).to.be.below(1800)
+      clearInterval(timer)
     })
 
     it('rejects responses larger than the size limit', async () => {
