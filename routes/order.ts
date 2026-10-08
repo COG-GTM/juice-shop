@@ -37,7 +37,7 @@ export function placeOrder () {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
           if (customer?.data?.id == null || basket.UserId !== customer.data.id) {
-            res.status(403).json({ status: 'error', error: 'You are not allowed to check out this basket.' })
+            res.status(403).json({ error: { message: 'You are not allowed to check out this basket.' } })
             return
           }
           const email = customer.data.email ?? ''

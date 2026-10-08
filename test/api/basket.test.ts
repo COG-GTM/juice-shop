@@ -137,6 +137,7 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
     assert.equal(res.status, 403)
+    assert.equal(res.body.error.message, 'You are not allowed to check out this basket.')
     assert.equal(res.body.orderConfirmation, undefined)
     assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), victimItemsBefore)
   })
