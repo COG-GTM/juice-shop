@@ -91,7 +91,7 @@ void describe('/rest/products/search', () => {
     assert.equal(res.body.data.length, 0)
   })
 
-  void it('GET product search ignores non-string search parameters', async () => {
+  void it('GET product search is not vulnerable to SQL Injection via array-valued search parameter', async () => {
     const res = await request(app)
       .get("/rest/products/search?q=a&q=')) union select sql,'2','3','4','5','6','7','8','9' from sqlite_master--")
     assert.equal(res.status, 200)
