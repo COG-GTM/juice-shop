@@ -170,6 +170,36 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT update address of another user is forbidden and leaves it unchanged', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Bender' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const unchanged = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(unchanged.status, 200)
+    assert.equal(unchanged.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address cannot change its id or owner', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ id: 999999, UserId: 1, city: 'Boston' })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, addressId)
+    assert.equal(res.body.data.city, 'Boston')
+    assert.notEqual(res.body.data.UserId, 1)
+  })
+
   void it('DELETE address by id', async () => {
     const res = await request(app)
       .delete('/api/Addresss/' + addressId)
