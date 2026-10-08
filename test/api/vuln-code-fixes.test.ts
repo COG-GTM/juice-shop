@@ -47,6 +47,16 @@ void describe('/snippets/fixes/:key', () => {
     assert.equal(res.body.error, 'No fixes found for the snippet!')
   })
 
+  void it('GET fixes for traversal or Object.prototype keys throws error', async () => {
+    for (const key of ['__proto__', 'constructor', 'toString', '..%2F..%2Fx', 'resetPasswordBenderChallenge.info.yml']) {
+      const res = await request(app)
+        .get(`/snippets/fixes/${key}`)
+
+      assert.equal(res.status, 404, `key ${key}`)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    }
+  })
+
   void it('GET fixes for existing challenge key', async () => {
     const res = await request(app)
       .get('/snippets/fixes/resetPasswordBenderChallenge')
@@ -91,6 +101,17 @@ void describe('/snippets/fixes', () => {
 
     assert.equal(res.status, 404)
     assert.equal(res.body.error, 'No fixes found for the snippet!')
+  })
+
+  void it('POST fix for traversal, Object.prototype or non-string key throws error', async () => {
+    for (const key of ['../../x', '../codefixes/resetPasswordBenderChallenge', '__proto__', 'toString', ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }]) {
+      const res = await request(app)
+        .post('/snippets/fixes')
+        .send({ key, selectedFix: 0 })
+
+      assert.equal(res.status, 404, `key ${JSON.stringify(key)}`)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    }
   })
 
   void it('POST wrong fix for existing challenge key gives negative verdict and explanation', async () => {
