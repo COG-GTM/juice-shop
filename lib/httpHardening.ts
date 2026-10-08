@@ -78,7 +78,7 @@ export function contentSecurityPolicy ({ scripts, handlers }: InlineScriptHashes
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', 'https:'],
     'media-src': ["'self'"],
-    'connect-src': ["'self'", 'https:', 'wss:'],
+    'connect-src': ["'self'", 'https://ethereum-sepolia.blockpi.network', 'https://www.googleapis.com', 'https://binaries.soliditylang.org'],
     'worker-src': ["'self'", 'blob:'],
     'frame-src': ["'self'", 'https://w.soundcloud.com'],
     'object-src': ["'none'"],
@@ -89,24 +89,35 @@ export function contentSecurityPolicy ({ scripts, handlers }: InlineScriptHashes
   return Object.entries(directives).map(([name, sources]) => `${name} ${[...new Set(sources)].join(' ')}`).join('; ')
 }
 
-export function angularClientCsp (indexFile: string = path.resolve('frontend/dist/frontend/index.html')) {
+export function applyFileCsp (file: string) {
   let cached: { version: string, header: string } | undefined
   const currentPolicy = () => {
     try {
-      const { mtimeMs, size } = fs.statSync(indexFile)
+      const { mtimeMs, size } = fs.statSync(file)
       const version = `${mtimeMs}:${size}`
       if (cached?.version !== version) {
-        cached = { version, header: contentSecurityPolicy(inlineScriptHashes(fs.readFileSync(indexFile, 'utf8'))) }
+        cached = { version, header: contentSecurityPolicy(inlineScriptHashes(fs.readFileSync(file, 'utf8'))) }
       }
       return cached.header
     } catch {
       return contentSecurityPolicy()
     }
   }
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (res: Response) => {
     res.setHeader(cspHeaderName(), currentPolicy())
+  }
+}
+
+export function fileCsp (file: string) {
+  const applyCsp = applyFileCsp(file)
+  return (req: Request, res: Response, next: NextFunction) => {
+    applyCsp(res)
     next()
   }
+}
+
+export function angularClientCsp (indexFile: string = path.resolve('frontend/dist/frontend/index.html')) {
+  return fileCsp(indexFile)
 }
 
 export function exposeErrorDetails (env: NodeJS.ProcessEnv = process.env): boolean {

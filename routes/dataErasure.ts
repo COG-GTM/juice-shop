@@ -16,6 +16,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { applyFileCsp } from '../lib/httpHardening'
 
 const entities = new Entities()
 
@@ -71,7 +72,10 @@ interface DataErasureRequestParams {
   securityAnswer: string
 }
 
+const dataErasureResultCsp = applyFileCsp(path.resolve('views/dataErasureResult.hbs'))
+
 router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
+  dataErasureResultCsp(res)
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {

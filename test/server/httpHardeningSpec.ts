@@ -12,7 +12,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { angularClientCsp, contentSecurityPolicy, corsAllowedOrigins, cspHeaderName, corsOptions, exposeErrorDetails, genericErrorHandler, inlineScriptHashes } from '../../lib/httpHardening'
+import { angularClientCsp, applyFileCsp, contentSecurityPolicy, corsAllowedOrigins, cspHeaderName, fileCsp, corsOptions, exposeErrorDetails, genericErrorHandler, inlineScriptHashes } from '../../lib/httpHardening'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -87,6 +87,7 @@ describe('httpHardening', () => {
       expect(directive(policy, 'object-src')).to.equal("object-src 'none'")
       expect(directive(policy, 'base-uri')).to.equal("base-uri 'self'")
       expect(directive(policy, 'frame-ancestors')).to.equal("frame-ancestors 'self'")
+      expect(directive(policy, 'connect-src')).to.not.match(/\shttps:(\s|$)|wss:|\*/)
     })
 
     it('allows hashed inline scripts and only adds unsafe-hashes for event handlers', () => {
@@ -143,6 +144,29 @@ describe('httpHardening', () => {
 
     it('falls back to the base policy when there is no frontend build', () => {
       expect(policyFor(angularClientCsp(path.join(dir, 'missing.html')))).to.equal(contentSecurityPolicy())
+    })
+  })
+
+  describe('fileCsp', () => {
+    it('authorizes the inline script of the data erasure result page', () => {
+      const res = { setHeader: sinon.spy() }
+      applyFileCsp(path.resolve('views/dataErasureResult.hbs'))(res as any)
+      const { scripts } = inlineScriptHashes(fs.readFileSync(path.resolve('views/dataErasureResult.hbs'), 'utf8'))
+      expect(scripts).to.have.length(1)
+      expect(res.setHeader.firstCall.args[0]).to.equal(cspHeaderName())
+      expect(res.setHeader.firstCall.args[1]).to.include(scripts[0])
+    })
+
+    it('sets a policy based on the given file before continuing', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csp-'))
+      const file = path.join(dir, 'page.html')
+      fs.writeFileSync(file, '<script>window.onload = init</script>')
+      const res = { setHeader: sinon.spy() }
+      const next = sinon.spy()
+      fileCsp(file)({} as any, res as any, next)
+      expect(next.calledOnce).to.equal(true)
+      expect(res.setHeader.firstCall.args[1]).to.include(inlineScriptHashes('<script>window.onload = init</script>').scripts[0])
+      fs.rmSync(dir, { recursive: true, force: true })
     })
   })
 

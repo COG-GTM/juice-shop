@@ -55,7 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
-import { angularClientCsp, corsOptions, exposeErrorDetails, genericErrorHandler } from './lib/httpHardening'
+import { angularClientCsp, corsOptions, fileCsp, exposeErrorDetails, genericErrorHandler } from './lib/httpHardening'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
@@ -650,7 +650,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', b2bOrder())
 
   /* File Serving */
-  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
+  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileCsp(path.resolve('frontend/dist/frontend/assets/private/threejs-demo.html')), serveEasterEgg())
   app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
   app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
 
