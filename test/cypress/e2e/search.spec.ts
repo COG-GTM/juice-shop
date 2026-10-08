@@ -32,20 +32,22 @@ describe('/#/search', () => {
 
 describe('/rest/products/search', () => {
   describe('challenge "unionSqlInjection"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+    it('query param in product search endpoint should not be susceptible to UNION SQL injection attacks', () => {
       cy.request(
         "/rest/products/search?q=')) union select id,'2','3',email,password,'6','7','8','9' from users--"
       )
-      cy.expectChallengeSolved({ challenge: 'User Credentials' })
+        .its('body.data')
+        .should('have.length', 0)
     })
   })
 
   describe('challenge "dbSchema"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+    it('query param in product search endpoint should not be susceptible to UNION SQL injection attacks', () => {
       cy.request(
         "/rest/products/search?q=')) union select sql,'2','3','4','5','6','7','8','9' from sqlite_master--"
       )
-      cy.expectChallengeSolved({ challenge: 'Database Schema' })
+        .its('body.data')
+        .should('have.length', 0)
     })
   })
 
@@ -57,20 +59,14 @@ describe('/rest/products/search', () => {
       })
     })
 
-    it('search query should logically reveal the special product', () => {
+    it('search query should not reveal the logically deleted special product', () => {
       cy.request("/rest/products/search?q='))--")
         .its('body')
         .then((sourceContent) => {
           cy.task<Product>('GetPastebinLeakProduct').then((pastebinLeakProduct: Product) => {
-            let foundProduct = false
-
-            sourceContent.data.forEach((product: Product) => {
-              if (product.name === pastebinLeakProduct.name) {
-                foundProduct = true
-              }
-            })
+            const foundProduct = sourceContent.data.some((product: Product) => product.name === pastebinLeakProduct.name)
             // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            expect(foundProduct).to.be.true
+            expect(foundProduct).to.be.false
           })
         })
     })
