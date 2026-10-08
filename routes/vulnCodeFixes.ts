@@ -13,35 +13,33 @@ interface codeFix {
   correct: number
 }
 
-type cache = Record<string, codeFix>
+let CodeFixes: Map<string, codeFix> | null = null
 
-const CodeFixes: cache = {}
-
-export const readFixes = (key: string) => {
-  if (CodeFixes[key]) {
-    return CodeFixes[key]
-  }
-  const files = fs.readdirSync(FixesDir)
-  const fixes: string[] = []
-  let correct: number = -1
-  for (const file of files) {
-    if (file.startsWith(`${key}_`)) {
-      const fix = fs.readFileSync(`${FixesDir}/${file}`).toString()
-      const metadata = file.split('_')
-      const number = metadata[1]
-      fixes.push(fix)
-      if (metadata.length === 3) {
-        correct = parseInt(number, 10)
-        correct--
-      }
+const loadCodeFixes = () => {
+  const index = new Map<string, codeFix>()
+  for (const file of fs.readdirSync(FixesDir).sort()) {
+    const metadata = file.split('_')
+    if (metadata.length < 2 || !/^[A-Za-z0-9]+$/.test(metadata[0])) continue
+    const entry = index.get(metadata[0]) ?? { fixes: [], correct: -1 }
+    entry.fixes.push(fs.readFileSync(`${FixesDir}/${file}`).toString())
+    if (metadata.length === 3) {
+      entry.correct = parseInt(metadata[1], 10) - 1
     }
+    index.set(metadata[0], entry)
   }
+  return index
+}
 
-  CodeFixes[key] = {
-    fixes,
-    correct
-  }
-  return CodeFixes[key]
+const noFixes = (): codeFix => ({ fixes: [], correct: -1 })
+
+export const isKnownFixKey = (key: unknown): key is string => {
+  CodeFixes ??= loadCodeFixes()
+  return typeof key === 'string' && CodeFixes.has(key)
+}
+
+export const readFixes = (key: string): codeFix => {
+  if (!isKnownFixKey(key)) return noFixes()
+  return CodeFixes?.get(key) ?? noFixes()
 }
 
 interface FixesRequestParams {
@@ -71,14 +69,15 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
   const key = req.body.key
   const selectedFix = req.body.selectedFix
   const fixData = readFixes(key)
-  if (fixData.fixes.length === 0) {
+  if (!isKnownFixKey(key) || fixData.fixes.length === 0) {
     res.status(404).json({
       error: 'No fixes found for the snippet!'
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
+    const infoFile = `${FixesDir}/${key}.info.yml`
+    if (fs.existsSync(infoFile)) {
+      const codingChallengeInfos = yaml.load(fs.readFileSync(infoFile, 'utf8'))
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     }
