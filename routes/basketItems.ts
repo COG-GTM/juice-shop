@@ -87,21 +87,42 @@ export function quantityCheckBeforeBasketItemAddition () {
   }
 }
 
+async function findOwnedBasketItem (req: Request, res: Response) {
+  const bid = sessionBasketId(req)
+  if (bid === undefined) {
+    res.status(401).json({ error: 'Invalid BasketId' })
+    return undefined
+  }
+  const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+  if (item == null) {
+    res.status(404).json({ error: 'No such item found!' })
+    return undefined
+  }
+  if (item.BasketId == null || Number(item.BasketId) !== bid) {
+    res.status(403).json({ error: 'Not allowed to modify this basket item' })
+    return undefined
+  }
+  return item
+}
+
+export function ownershipCheckBeforeBasketItemDeletion () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await findOwnedBasketItem(req, res)
+      if (item !== undefined) {
+        next()
+      }
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const bid = sessionBasketId(req)
-      if (bid === undefined) {
-        res.status(401).json({ error: 'Invalid BasketId' })
-        return
-      }
-      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      if (item == null) {
-        res.status(404).json({ error: 'No such item found!' })
-        return
-      }
-      if (item.BasketId == null || Number(item.BasketId) !== bid) {
-        res.status(403).json({ error: 'Not allowed to modify this basket item' })
+      const item = await findOwnedBasketItem(req, res)
+      if (item === undefined) {
         return
       }
       if (req.body.quantity !== undefined) {

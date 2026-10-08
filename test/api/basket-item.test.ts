@@ -268,6 +268,23 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const item = await BasketItemModel.findOne({ where: { id: 1 } })
+    assert.ok(item !== null)
+  })
+
+  void it('DELETE non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/999999')
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
   void it('DELETE newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
