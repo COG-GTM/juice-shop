@@ -29,7 +29,8 @@ const CaptchaModelInit = (sequelize: Sequelize) => {
         type: DataTypes.INTEGER
       },
       captcha: DataTypes.STRING,
-      answer: DataTypes.STRING
+      answer: DataTypes.STRING,
+      createdAt: DataTypes.DATE
     },
     {
       tableName: 'Captchas',
