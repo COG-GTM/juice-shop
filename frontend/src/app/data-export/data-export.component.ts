@@ -38,7 +38,7 @@ export class DataExportComponent implements OnInit {
   public captchaError: any
   public captchaLoading = false
   public exportPending = false
-  private captchaRequest = 0
+  private captchaRefreshQueued = false
   public lastSuccessfulTry: any
   public userData: any
   ngOnInit (): void {
@@ -47,22 +47,32 @@ export class DataExportComponent implements OnInit {
   }
 
   getNewCaptcha () {
-    const request = ++this.captchaRequest
-    this.captchaLoading = true
     this.captcha = undefined
+    if (this.captchaLoading) {
+      this.captchaRefreshQueued = true
+      return
+    }
+    this.captchaLoading = true
     this.imageCaptchaService.getCaptcha().subscribe({
       next: (data: any) => {
-        if (request !== this.captchaRequest) return
         this.captchaLoading = false
+        if (this.refreshIfQueued()) return
         this.captchaError = null
         this.captcha = this.sanitizer.bypassSecurityTrustHtml(data.image)
       },
       error: (error) => {
-        if (request !== this.captchaRequest) return
         this.captchaLoading = false
+        if (this.refreshIfQueued()) return
         this.captchaError = error.error
       }
     })
+  }
+
+  private refreshIfQueued () {
+    if (!this.captchaRefreshQueued) return false
+    this.captchaRefreshQueued = false
+    this.getNewCaptcha()
+    return true
   }
 
   save () {
