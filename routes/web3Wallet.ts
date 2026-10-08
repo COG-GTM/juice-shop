@@ -10,7 +10,8 @@ const web3WalletAddress = '0x413744D59d31AFDC2889aeE602636177805Bd7b0'
 const ETH_ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/
 export const MAX_WALLETS_CONNECTED = 1000
 export const WALLET_TTL_MS = 60 * 60 * 1000
-export const walletsConnected = new Map<string, number>()
+export const walletsConnected = new Map<string, { connectedAt: number, token: number }>()
+let registrationCount = 0
 let exploitListener: Promise<void> | null = null
 
 export function isWalletAddress (address: unknown): address is string {
@@ -18,7 +19,7 @@ export function isWalletAddress (address: unknown): address is string {
 }
 
 function pruneExpiredWallets (now: number) {
-  for (const [address, connectedAt] of walletsConnected) {
+  for (const [address, { connectedAt }] of walletsConnected) {
     if (now - connectedAt < WALLET_TTL_MS) break
     walletsConnected.delete(address)
   }
@@ -28,18 +29,19 @@ export function rememberWallet (address: string, now = Date.now()) {
   pruneExpiredWallets(now)
   const normalized = address.toLowerCase()
   walletsConnected.delete(normalized)
-  walletsConnected.set(normalized, now)
+  const token = ++registrationCount
+  walletsConnected.set(normalized, { connectedAt: now, token })
   while (walletsConnected.size > MAX_WALLETS_CONNECTED) {
     const oldest = walletsConnected.keys().next().value
     if (oldest === undefined) break
     walletsConnected.delete(oldest)
   }
-  return now
+  return token
 }
 
-function forgetWallet (address: string, registeredAt: number) {
+function forgetWallet (address: string, token: number) {
   const normalized = address.toLowerCase()
-  if (walletsConnected.get(normalized) === registeredAt) walletsConnected.delete(normalized)
+  if (walletsConnected.get(normalized)?.token === token) walletsConnected.delete(normalized)
 }
 
 export function consumeWallet (address: string, now = Date.now()) {
@@ -75,8 +77,10 @@ function ensureExploitListener (): Promise<void> {
       const { WebSocketProvider, Contract } = await exploitListenerDeps.loadEthers()
       const provider: ExploitListenerProvider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`) as any
       activeProvider = provider
+      let socketError: unknown = null
       provider.websocket.onerror = (error: any) => {
         logger.error(`WebSocket error (Contract Exploit Listener): ${error.message || error}`)
+        socketError = error ?? new Error('WebSocket error')
         if (exploitListener === setup) exploitListener = null
         teardownProvider(provider)
       }
@@ -88,9 +92,10 @@ function ensureExploitListener (): Promise<void> {
           }
         })
       } catch (error) {
-        teardownProvider(provider)
+        if (socketError === null) teardownProvider(provider)
         throw error
       }
+      if (socketError !== null) throw socketError
     })().catch((error) => {
       if (exploitListener === setup) exploitListener = null
       throw error
@@ -107,12 +112,12 @@ export function contractExploitListener () {
       res.status(400).json({ success: false, message: 'Invalid wallet address' })
       return
     }
-    const registeredAt = rememberWallet(metamaskAddress)
+    const registration = rememberWallet(metamaskAddress)
     try {
       await ensureExploitListener()
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
-      forgetWallet(metamaskAddress, registeredAt)
+      forgetWallet(metamaskAddress, registration)
       res.status(500).json(utils.getErrorMessage(error))
     }
   }

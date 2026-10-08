@@ -23,9 +23,10 @@ chai.use(sinonChai)
 const address = (n: number) => '0x' + n.toString(16).padStart(40, '0')
 const nextTick = async () => { await new Promise((resolve) => setImmediate(resolve)) }
 
-function fakeEthers ({ failSubscription = false } = {}) {
+function fakeEthers ({ failSubscription = false, deferFirstSubscription = false } = {}) {
   const providers: any[] = []
   const handlers: Array<(exploiter: string) => void> = []
+  const pendingSubscriptions: Array<() => void> = []
   class WebSocketProvider {
     websocket: any = { onerror: null }
     destroy = sinon.spy()
@@ -33,12 +34,15 @@ function fakeEthers ({ failSubscription = false } = {}) {
   }
   class Contract {
     async on (_event: string, handler: (exploiter: string) => void) {
+      if (deferFirstSubscription && providers.length === 1 && pendingSubscriptions.length === 0) {
+        await new Promise<void>((resolve) => pendingSubscriptions.push(resolve))
+      }
       await nextTick()
       if (failSubscription) throw new Error('subscription failed')
       handlers.push(handler)
     }
   }
-  return { ethers: { WebSocketProvider, Contract } as any, providers, handlers }
+  return { ethers: { WebSocketProvider, Contract } as any, providers, handlers, pendingSubscriptions }
 }
 
 function mockRes () {
@@ -165,5 +169,26 @@ describe('web3Wallet', () => {
     await nextTick()
     expect(providers.length).to.equal(2)
     expect(providers[1].destroy.called).to.equal(false)
+  })
+
+  it('rejects a registration whose socket errored mid-subscription without dropping a same-millisecond retry', async () => {
+    const { ethers, providers, pendingSubscriptions } = fakeEthers({ deferFirstSubscription: true })
+    sinon.stub(exploitListenerDeps, 'loadEthers').resolves(ethers)
+    sinon.stub(Date, 'now').returns(1000)
+    const wallet = address(9)
+
+    const first = contractExploitListener()({ body: { walletAddress: wallet } } as any, res)
+    while (pendingSubscriptions.length === 0) await nextTick()
+    providers[0].websocket.onerror(new Error('socket closed during subscription'))
+
+    const retryRes = mockRes()
+    await contractExploitListener()({ body: { walletAddress: wallet } } as any, retryRes)
+    pendingSubscriptions[0]()
+    await first
+
+    expect(res.status).to.have.been.calledWith(500)
+    expect(retryRes.status).to.have.been.calledWith(200)
+    expect(providers.length).to.equal(2)
+    expect(walletsConnected.has(wallet)).to.equal(true)
   })
 })
