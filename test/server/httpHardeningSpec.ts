@@ -30,8 +30,12 @@ describe('httpHardening', () => {
   })
 
   describe('corsAllowedOrigins', () => {
-    it('defaults to the configured base URL and the Angular dev server', () => {
-      expect(corsAllowedOrigins({})).to.deep.equal([config.get<string>('server.baseUrl'), 'http://localhost:4200'])
+    it('defaults to the configured base URL and the Angular dev server origins', () => {
+      expect(corsAllowedOrigins({})).to.deep.equal([config.get<string>('server.baseUrl'), 'http://localhost:4200', 'http://127.0.0.1:4200'])
+    })
+
+    it('trusts only the configured base URL by default in production', () => {
+      expect(corsAllowedOrigins({ NODE_ENV: 'production' })).to.deep.equal([config.get<string>('server.baseUrl')])
     })
 
     it('reads a comma-separated list from CORS_ALLOWED_ORIGINS', () => {
@@ -62,12 +66,12 @@ describe('httpHardening', () => {
   })
 
   describe('exposeErrorDetails', () => {
-    it('is enabled only for development and test environments', () => {
+    it('is disabled only in production', () => {
+      expect(exposeErrorDetails({ NODE_ENV: 'production' })).to.equal(false)
       expect(exposeErrorDetails({ NODE_ENV: 'development' })).to.equal(true)
       expect(exposeErrorDetails({ NODE_ENV: 'test' })).to.equal(true)
-      expect(exposeErrorDetails({ NODE_ENV: 'production' })).to.equal(false)
-      expect(exposeErrorDetails({ NODE_ENV: 'ctf' })).to.equal(false)
-      expect(exposeErrorDetails({})).to.equal(false)
+      expect(exposeErrorDetails({ NODE_ENV: 'tutorial' })).to.equal(true)
+      expect(exposeErrorDetails({})).to.equal(true)
     })
   })
 
@@ -107,6 +111,11 @@ describe('httpHardening', () => {
       genericErrorHandler()(new Error('Only .md and .pdf files are allowed!'), req, res, next)
       expect(res.status).to.have.been.calledWith(403)
       expect(res.send).to.have.been.calledWith('Forbidden')
+    })
+
+    it('strips line breaks from the logged request path', () => {
+      genericErrorHandler()(new Error('boom'), { method: 'GET', path: '/rest/x\r\nforged entry' }, res, next)
+      expect((logger.error as sinon.SinonStub).firstCall.args[0]).to.match(/^GET \/rest\/xforged entry failed: /)
     })
 
     it('maps invalid status codes to 500', () => {
