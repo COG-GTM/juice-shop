@@ -99,9 +99,15 @@ void describe('/rest/continue-code', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT unsigned continue code forged with the public salt is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code/apply/yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code/apply/' + security.signContinueCode('continueCode', 'yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY'))
     assert.equal(res.status, 200)
   })
 
@@ -131,9 +137,15 @@ void describe('/rest/continue-code-findIt', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT unsigned continue code forged with the public salt is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code-findIt/apply/Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6')
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-findIt/apply/' + security.signContinueCode('continueCodeFindIt', 'Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6'))
     assert.equal(res.status, 200)
   })
 })
@@ -157,9 +169,15 @@ void describe('/rest/continue-code-fixIt', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT unsigned continue code forged with the public salt is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code-fixIt/apply/y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW')
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-fixIt/apply/' + security.signContinueCode('continueCodeFixIt', 'y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW'))
     assert.equal(res.status, 200)
   })
 })
