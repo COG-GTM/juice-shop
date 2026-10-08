@@ -7,16 +7,19 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
+let sequelize: Sequelize
 let authHeader: { Cookie: string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
   const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
   authHeader = { Cookie: `token=${token}` }
 }, { timeout: 60000 })
@@ -73,5 +76,19 @@ void describe('/profile', () => {
       assert.ok(!res.text.includes('uid='))
       assert.ok(!res.text.includes('sstiMarkerEvaluated'))
     }
+  })
+
+  void it('GET user profile HTML-escapes stored username markup', async () => {
+    await sequelize.query('UPDATE Users SET username = ? WHERE email = ?', {
+      replacements: ['<script>alert(1)</script>', 'jim@juice-sh.op']
+    })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('&lt;script&gt;alert(1)&lt;/script&gt;'))
+    assert.ok(!res.text.includes('<script>alert(1)</script>'))
   })
 })
