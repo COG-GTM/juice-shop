@@ -50,7 +50,7 @@ const attribute = (attributes: string, name: string) => new RegExp(`\\s${name}\\
 export function inlineScriptHashes (html: string): InlineScriptHashes {
   const scripts = new Set<string>()
   const handlers = new Set<string>()
-  const markup = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, (_match, attributes: string, body: string) => {
+  const markup = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi, (_match, attributes: string, body: string) => {
     const type = attribute(attributes, 'type')
     const isJavaScript = JAVASCRIPT_TYPES.includes((type?.[1] ?? type?.[2] ?? type?.[3] ?? '').trim().toLowerCase())
     if (isJavaScript && attribute(attributes, 'src') === null) {
@@ -108,15 +108,19 @@ export function contentSecurityPolicy ({ scripts, handlers }: InlineScriptHashes
 export function applyFileCsp (file: string) {
   let cached: { version: string, header: string } | undefined
   const currentPolicy = () => {
+    let fd: number | undefined
     try {
-      const { mtimeMs, size } = fs.statSync(file)
+      fd = fs.openSync(file, 'r')
+      const { mtimeMs, size } = fs.fstatSync(fd)
       const version = `${mtimeMs}:${size}`
       if (cached?.version !== version) {
-        cached = { version, header: contentSecurityPolicy(inlineScriptHashes(fs.readFileSync(file, 'utf8'))) }
+        cached = { version, header: contentSecurityPolicy(inlineScriptHashes(fs.readFileSync(fd, 'utf8'))) }
       }
       return cached.header
     } catch {
       return contentSecurityPolicy()
+    } finally {
+      if (fd !== undefined) fs.closeSync(fd)
     }
   }
   return (res: Response) => {

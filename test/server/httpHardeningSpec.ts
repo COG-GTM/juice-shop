@@ -61,6 +61,11 @@ describe('httpHardening', () => {
   describe('inlineScriptHashes', () => {
     const hash = (text: string) => `'sha256-${crypto.createHash('sha256').update(text).digest('base64')}'`
 
+    it('recognizes script end tags with whitespace and junk attributes', () => {
+      const { scripts } = inlineScriptHashes('<script>a()</script\t\n bar><script>b()</script >')
+      expect(scripts).to.deep.equal(inlineScriptHashes('<script>a()</script><script>b()</script>').scripts)
+    })
+
     it('hashes the exact body of inline JavaScript blocks', () => {
       const body = '\n    window.addEventListener("load", function () {})\n  '
       expect(inlineScriptHashes(`<head><script>${body}</script><script type="module">import "./a.js"</script></head>`).scripts)
