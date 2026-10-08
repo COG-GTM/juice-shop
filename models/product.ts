@@ -4,8 +4,6 @@
  */
 
 /* jslint node: true */
-import * as utils from '../lib/utils'
-import * as challengeUtils from '../lib/challengeUtils'
 import {
   Model,
   type InferAttributes,
@@ -15,8 +13,10 @@ import {
   type Sequelize
 } from 'sequelize'
 import { type BasketItemModel } from './basketitem'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
+import * as challengeUtils from '../lib/challengeUtils'
+import { challenges } from '../data/datacache'
 
 class Product extends Model<
 InferAttributes<Product>,
@@ -45,15 +45,10 @@ const ProductModelInit = (sequelize: Sequelize) => {
         set (description: string) {
           if (utils.isChallengeEnabled(challenges.restfulXssChallenge)) {
             challengeUtils.solveIf(challenges.restfulXssChallenge, () => {
-              return utils.contains(
-                description,
-                '<iframe src="javascript:alert(`xss`)">'
-              )
+              return utils.contains(description, '<iframe src="javascript:alert(`xss`)">')
             })
-          } else {
-            description = security.sanitizeSecure(description)
           }
-          this.setDataValue('description', description)
+          this.setDataValue('description', security.sanitizeSecure(description))
         }
       },
       price: DataTypes.DECIMAL,
