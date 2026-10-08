@@ -20,7 +20,12 @@ function configuredHost () {
   }
 }
 
+// Browsers set Sec-Fetch-Site themselves, so it reflects the page origin even behind host-rewriting proxies
 function isCrossSiteRequest (req: Request) {
+  const fetchSite = req.get('sec-fetch-site')
+  if (fetchSite !== undefined) {
+    return fetchSite !== 'same-origin' && fetchSite !== 'none'
+  }
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
     return false

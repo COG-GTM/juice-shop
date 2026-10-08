@@ -147,6 +147,47 @@ void describe('/profile', () => {
     assert.equal(res.status, 302)
   })
 
+  void it('POST update username via host-rewriting reverse proxy accepts Sec-Fetch-Site same-origin from a non-default public host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'juice-shop-internal:8080')
+      .set('X-Forwarded-Host', 'shop.example')
+      .set('Origin', 'https://shop.example')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username is rejected when Sec-Fetch-Site is cross-site even if Origin matches Host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected when Sec-Fetch-Site is same-site', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Sec-Fetch-Site', 'same-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST update username is rejected when username is missing', async () => {
     const res = await request(app)
       .post('/profile')
