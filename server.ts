@@ -416,6 +416,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const registration: Record<string, unknown> = { role: security.roles.customer }
+    for (const field of ['email', 'password', 'passwordRepeat']) {
+      if (req.body?.[field] !== undefined) {
+        registration[field] = req.body[field]
+      }
+    }
+    req.body = registration
+    next()
+  })
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
