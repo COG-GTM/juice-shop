@@ -193,6 +193,18 @@ void describe('/api/Users', () => {
       assert.equal(res.body.data.email, '')
     })
   }
+
+  void it('POST new user with ampersand in email address stores the email unchanged', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'amy&bob@juice-sh.op',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.email, 'amy&bob@juice-sh.op')
+  })
 })
 
 void describe('/api/Users/:id', () => {
