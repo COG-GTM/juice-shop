@@ -28,14 +28,19 @@ export function captchas () {
     }
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
-    res.json(captcha)
+    res.json({ captchaId, captcha: expression })
   }
 }
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
+    const { captchaId } = req.body
+    const captcha = typeof captchaId === 'number' || typeof captchaId === 'string'
+      ? await CaptchaModel.findOne({ where: { captchaId } })
+      : null
+    /* Every verification attempt consumes the CAPTCHA; only the request whose delete succeeds may use it */
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId } }) > 0
+    if (consumed && req.body.captcha === captcha?.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
