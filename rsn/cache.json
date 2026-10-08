@@ -1141,32 +1141,22 @@
 		"removed": []
 	},
 	"resetPasswordMortyChallenge_2.ts": {
-		"added": [
-			2
-		],
-		"removed": [
-			2
-		]
+		"added": [],
+		"removed": []
 	},
 	"resetPasswordMortyChallenge_3.ts": {
 		"added": [
-			2,
 			4,
 			5
 		],
 		"removed": [
-			2,
 			4,
 			5
 		]
 	},
 	"resetPasswordMortyChallenge_4_correct.ts": {
-		"added": [
-			2
-		],
-		"removed": [
-			2
-		]
+		"added": [],
+		"removed": []
 	},
 	"resetPasswordUvoginChallenge_1.yml": {
 		"added": [],

@@ -41,7 +41,12 @@ export function emailOf (req: Request) {
 
 export function secondFactorUserOf (req: Request) {
   const tmpToken = req.body?.tmpToken
-  if (typeof tmpToken !== 'string' || !security.verify(tmpToken)) return undefined
-  const userId = security.decode(tmpToken)?.userId
-  return userId !== undefined && userId !== null ? String(userId) : undefined
+  if (typeof tmpToken !== 'string') return undefined
+  try {
+    if (!security.verify(tmpToken)) return undefined
+    const userId = security.decode(tmpToken)?.userId
+    return userId !== undefined && userId !== null ? String(userId) : undefined
+  } catch {
+    return undefined
+  }
 }
