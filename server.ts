@@ -457,7 +457,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100 }),
     rateLimiting.accountRateLimit(rateLimiting.secondFactorUserOf),
     utils.asyncHandler(twoFactorAuth.verify)
   )
@@ -465,13 +465,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/2fa/status', security.isAuthorized(), utils.asyncHandler(twoFactorAuth.status))
   /* Enable 2FA for the current User */
   app.post('/rest/2fa/setup',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100 }),
+    rateLimiting.accountRateLimit(rateLimiting.authenticatedUserOf),
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.setup)
   )
   /* Disable 2FA Status for the current User */
   app.post('/rest/2fa/disable',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100 }),
+    rateLimiting.accountRateLimit(rateLimiting.authenticatedUserOf),
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.disable)
   )

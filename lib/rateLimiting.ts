@@ -50,3 +50,8 @@ export function secondFactorUserOf (req: Request) {
     return undefined
   }
 }
+
+export function authenticatedUserOf (req: Request) {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  return userId !== undefined && userId !== null ? String(userId) : undefined
+}

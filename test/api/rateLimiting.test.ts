@@ -10,6 +10,7 @@ import config from 'config'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
+import { login, register } from './helpers/auth'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -58,3 +59,25 @@ void describe('/rest/2fa/verify rate limiting', () => {
     assert.equal(statuses[10], 429)
   })
 })
+
+for (const endpoint of ['setup', 'disable']) {
+  void describe(`/rest/2fa/${endpoint} rate limiting`, () => {
+    void it('POST ignores spoofed X-Forwarded-For and limits failed password confirmations per account', async () => {
+      const email = `xff-rate-limit-${endpoint}@bar.com`
+      const password = '123456'
+      await register(app, { email, password })
+      const { token } = await login(app, { email, password })
+      const statuses: number[] = []
+      for (let i = 0; i < 11; i++) {
+        const res = await request(app)
+          .post(`/rest/2fa/${endpoint}`)
+          .set({ ...jsonHeader, Authorization: 'Bearer ' + token, 'X-Forwarded-For': spoofedIp(i) })
+          .send({ password: 'wrong' + i })
+        statuses.push(res.status)
+      }
+
+      assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
+      assert.equal(statuses[10], 429)
+    })
+  })
+}

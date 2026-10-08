@@ -61,4 +61,17 @@ describe('rateLimiting', () => {
       expect(rateLimiting.secondFactorUserOf(requestWithBody({}))).to.equal(undefined)
     })
   })
+
+  describe('authenticatedUserOf', () => {
+    it('returns the id of the user owning the bearer token', () => {
+      const token = security.authorize({ data: { id: 42 } })
+      security.authenticatedUsers.put(token, { data: { id: 42 } } as any)
+      expect(rateLimiting.authenticatedUserOf({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal('42')
+    })
+
+    it('returns undefined for unknown or missing tokens', () => {
+      expect(rateLimiting.authenticatedUserOf({ headers: { authorization: 'Bearer unknown' } } as unknown as Request)).to.equal(undefined)
+      expect(rateLimiting.authenticatedUserOf({ headers: {} } as unknown as Request)).to.equal(undefined)
+    })
+  })
 })
