@@ -41,8 +41,27 @@ interface IAuthenticatedUsers {
   revokeOtherSessions: (userId: number, currentToken: string) => void
 }
 
-const revokedTokens = new Set<string>()
-export const isRevoked = (token?: string | null) => token ? revokedTokens.has(utils.unquote(token)) : false
+const revokedTokens = new Map<string, number>()
+const pruneExpiredRevocations = (now = Date.now()) => {
+  for (const [token, expiresAt] of revokedTokens) {
+    if (expiresAt <= now) revokedTokens.delete(token)
+  }
+}
+const revokeToken = (token: string) => {
+  pruneExpiredRevocations()
+  const exp = jws.decode(token)?.payload?.exp
+  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + 6 * 60 * 60 * 1000)
+}
+export const isRevoked = (token?: string | null) => {
+  if (!token) return false
+  const expiresAt = revokedTokens.get(utils.unquote(token))
+  if (expiresAt === undefined) return false
+  if (expiresAt <= Date.now()) {
+    revokedTokens.delete(utils.unquote(token))
+    return false
+  }
+  return true
+}
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
@@ -112,7 +131,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     const keep = utils.unquote(currentToken)
     for (const token of Object.keys(this.tokenMap)) {
       if (token !== keep && this.tokenMap[token]?.data?.id === userId) {
-        revokedTokens.add(token)
+        revokeToken(token)
         delete this.tokenMap[token]
       }
     }
@@ -183,7 +202,8 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const token = utils.jwtFrom(req)
+    const decodedToken = verify(token) && !isRevoked(token) && decode(token)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -193,12 +213,14 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && !isRevoked(token) && decode(token)
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && !isRevoked(token) && decode(token)
   return decodedToken?.data?.role === roles.customer
 }
 

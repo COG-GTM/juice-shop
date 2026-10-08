@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -133,6 +134,42 @@ describe('insecurity', () => {
 
       expect(security.authenticatedUsers.get('rev-stale')).to.equal(undefined)
       expect(security.authenticatedUsers.tokenOf({ id: 44 } as unknown as UserModel)).to.equal('rev-fresh')
+    })
+
+    it('stops treating a revoked token as revoked once it has expired', () => {
+      const expired = security.authorize({ data: { id: 45 } })
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.put(expired, { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.put('rev-keep-45', { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.revokeOtherSessions(45, 'rev-keep-45')
+        expect(security.isRevoked(expired)).to.equal(true)
+
+        clock.tick(6 * 60 * 60 * 1000 + 1000)
+        expect(security.isRevoked(expired)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('denies deluxe and accounting privileges to revoked tokens', () => {
+      const deluxe = security.authorize({ data: { id: 46, email: 'deluxe@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('deluxe@juice-sh.op') } })
+      const accounting = security.authorize({ data: { id: 47, role: security.roles.accounting } })
+      const deluxeReq = { headers: { authorization: 'Bearer ' + deluxe } } as unknown as Request
+      const accountingReq = { headers: { authorization: 'Bearer ' + accounting } } as unknown as Request
+      expect(security.isDeluxe(deluxeReq)).to.equal(true)
+
+      security.authenticatedUsers.put(deluxe, { data: { id: 46 } as unknown as UserModel })
+      security.authenticatedUsers.put(accounting, { data: { id: 47 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(46, 'rev-keep-46')
+      security.authenticatedUsers.revokeOtherSessions(47, 'rev-keep-47')
+
+      expect(security.isDeluxe(deluxeReq)).to.equal(false)
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAccounting()(accountingReq, res as unknown as Response, next)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 

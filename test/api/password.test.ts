@@ -88,10 +88,12 @@ void describe('/rest/user/change-password', () => {
       .send({ current: 'kunigunde', new: 'foo', repeat: 'foo' })
       .expect(200)
 
-    await request(app)
+    const whoami = await request(app)
       .get('/rest/user/whoami')
-      .set({ Authorization: 'Bearer ' + otherToken })
+      .set({ Cookie: 'token=' + otherToken })
       .expect(200)
+    assert.equal(whoami.body.user.id, undefined)
+    assert.equal(whoami.body.user.email, undefined)
 
     const res = await request(app)
       .post('/rest/user/change-password')
