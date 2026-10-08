@@ -44,4 +44,12 @@ void describe('/rest/track-order/:id', () => {
       assert.equal(typeof item._id, 'string')
     }
   })
+
+  void it('GET does not echo markup from an unknown order id', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/' + encodeURIComponent('<iframe src="javascript:alert(`xss`)">'))
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, 'iframesrcjavascriptalertxss')
+  })
 })
