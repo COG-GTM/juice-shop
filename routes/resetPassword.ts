@@ -57,7 +57,8 @@ export function resetPassword () {
           passwordResetLockout.release(account)
         }
       } else {
-        passwordResetLockout.recordFailure(account)
+        if (data != null) passwordResetLockout.recordFailure(account)
+        else passwordResetLockout.release(account)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {

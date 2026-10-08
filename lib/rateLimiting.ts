@@ -67,10 +67,12 @@ export class FailedAttemptLockout {
     }
   }
 
-  /* Gives back an admitted attempt that ended without checking the answer, e.g. on a database error */
+  /* Gives back an admitted attempt that ended without checking an answer (e.g. unknown account or database error) and forgets keys with nothing left to track */
   release (key: string) {
     const record = this.records.get(key)
-    if (record != null) record.pending = Math.max(0, record.pending - 1)
+    if (record == null) return
+    record.pending = Math.max(0, record.pending - 1)
+    if (record.pending === 0 && record.failures === 0 && record.lockedUntil <= this.now()) this.records.delete(key)
   }
 
   reset (key: string) {

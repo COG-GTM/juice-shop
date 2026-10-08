@@ -101,6 +101,20 @@ describe('rateLimiting', () => {
       expect(lockout.retryAfterSeconds('a')).to.equal(0)
     })
 
+    it('forgets keys whose only attempts were released', () => {
+      expect(lockout.admit('unknown')).to.equal(0)
+      lockout.release('unknown')
+      expect((lockout as any).records.size).to.equal(0)
+    })
+
+    it('keeps tracking failures when a later attempt is released', () => {
+      fail(lockout, 'a', 2)
+      expect(lockout.admit('a')).to.equal(0)
+      lockout.release('a')
+      fail(lockout, 'a')
+      expect(lockout.retryAfterSeconds('a')).to.equal(300)
+    })
+
     it('reuses expired entries when the table is full', () => {
       const small = new FailedAttemptLockout(3, 60_000, 300_000, () => now, 2)
       fail(small, 'a')
