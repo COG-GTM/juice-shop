@@ -12,6 +12,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as db from '../../data/mongodb'
+import { challenges } from '../../data/datacache'
 
 const MOCK_LLM_PORT = 43210
 
@@ -132,6 +133,25 @@ async function requestOrder (token: string, orderId: string): Promise<string | u
 
   assert.equal(res.status, 200)
   return toolResult
+}
+
+async function chatWithToolCallsShown (token: string): Promise<void> {
+  let callCount = 0
+  onLlmRequest = (_req, _body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [toolCallChunk('call_search', 'searchProducts', '{"query":"apple"}'), finishChunk('tool_calls')])
+    } else {
+      sendSSE(res, [contentChunk('Done.'), finishChunk()])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}`, Cookie: 'show_tool_calls=true' })
+    .send({ messages: [{ role: 'user', content: 'Search for apple' }] })
+
+  assert.equal(res.status, 200)
 }
 
 void describe('/rest/chat', { timeout: 120000 }, () => {
@@ -305,6 +325,30 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     const toolResult = await requestOrder(token, orderId)
 
     assert.ok(toolResult?.includes('Order does not belong to the current customer'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
+  void it('POST does not solve aiDebuggingChallenge for a signed-in admin showing tool calls', { timeout: 30000 }, async () => {
+    const wasSolved = challenges.aiDebuggingChallenge.solved
+    challenges.aiDebuggingChallenge.solved = false
+    try {
+      const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+      await chatWithToolCallsShown(token)
+      assert.equal(challenges.aiDebuggingChallenge.solved, false)
+    } finally {
+      challenges.aiDebuggingChallenge.solved = wasSolved
+    }
+  })
+
+  void it('POST solves aiDebuggingChallenge for a signed-in non-admin showing tool calls', { timeout: 30000 }, async () => {
+    const wasSolved = challenges.aiDebuggingChallenge.solved
+    challenges.aiDebuggingChallenge.solved = false
+    try {
+      const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+      await chatWithToolCallsShown(token)
+      assert.equal(challenges.aiDebuggingChallenge.solved, true)
+    } finally {
+      challenges.aiDebuggingChallenge.solved = wasSolved
+    }
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
