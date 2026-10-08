@@ -49,9 +49,10 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
       .put('/rest/products/1/reviews')
-      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'reviewer@juice-sh.op' } })}` })
+      .set({ Authorization: `Bearer ${token}` })
       .send({
         message: 'Lorem Ipsum'
       })
