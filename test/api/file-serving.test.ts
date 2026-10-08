@@ -130,18 +130,25 @@ void describe('/public/images/padding', () => {
   })
 })
 
+function assertNotServedAsFile (res: request.Response) {
+  assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+  assert.ok(res.status !== 200 || res.headers['content-type']?.includes('text/html'))
+}
+
 void describe('/encryptionkeys', () => {
   void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
     assert.ok(!res.text.includes('listing directory'))
     assert.ok(!res.text.includes('premium.key'))
+    assertNotServedAsFile(res)
   })
 
   void it('GET does not serve the Premium Content AES key', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
     assert.ok(!res.text.includes('1337133713371337'))
+    assertNotServedAsFile(res)
   })
 
   void it('GET does not serve the JWT public key file', async () => {
@@ -149,6 +156,7 @@ void describe('/encryptionkeys', () => {
       .get('/encryptionkeys/jwt.pub')
     assert.ok(!res.text.includes('BEGIN RSA PUBLIC KEY'))
     assert.ok(!res.text.includes('BEGIN PUBLIC KEY'))
+    assertNotServedAsFile(res)
   })
 })
 
@@ -157,12 +165,14 @@ void describe('/support/logs', () => {
     const res = await request(app)
       .get('/support/logs')
     assert.ok(!res.text.includes('listing directory'))
+    assertNotServedAsFile(res)
   })
 
   void it('GET does not serve access log files', async () => {
     const res = await request(app)
       .get(`/support/logs/access.log.${new Date().toISOString().slice(0, 10)}`)
     assert.ok(!res.text.includes('HTTP/1.1"'))
+    assertNotServedAsFile(res)
   })
 })
 
@@ -205,4 +215,5 @@ void describe('Hidden URL', () => {
     const res = await request(app)
       .get('/assets/public/images/uploads/%E1%93%9A%E1%98%8F%E1%97%A2-%23zatschi-%23whoneedsfourlegs-1572600969477.jpg')
     assert.equal(res.status, 200)
-  })})
+  })
+})

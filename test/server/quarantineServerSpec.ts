@@ -16,9 +16,14 @@ describe('quarantineServer', () => {
   let res: any
   let next: any
 
+  const adminUser = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+  const jimUser = { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }
+  const adminToken = security.authorize(adminUser)
+  const jimToken = security.authorize(jimUser)
+
   before(() => {
-    security.authenticatedUsers.put('quarantineSpecAdmin', { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } } as any)
-    security.authenticatedUsers.put('quarantineSpecJim', { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } } as any)
+    security.authenticatedUsers.put(adminToken, adminUser as any)
+    security.authenticatedUsers.put(jimToken, jimUser as any)
   })
 
   beforeEach(() => {
@@ -28,7 +33,7 @@ describe('quarantineServer', () => {
   })
 
   it('should serve quarantined files to admins', () => {
-    req.headers.authorization = 'Bearer quarantineSpecAdmin'
+    req.headers.authorization = `Bearer ${adminToken}`
 
     serveQuarantineFiles()(req, res, next)
 
@@ -44,7 +49,7 @@ describe('quarantineServer', () => {
   })
 
   it('should reject non-admin users with 403', () => {
-    req.headers.authorization = 'Bearer quarantineSpecJim'
+    req.headers.authorization = `Bearer ${jimToken}`
 
     serveQuarantineFiles()(req, res, next)
 
@@ -53,7 +58,7 @@ describe('quarantineServer', () => {
   })
 
   it('should raise error for slashes in filename', () => {
-    req.headers.authorization = 'Bearer quarantineSpecAdmin'
+    req.headers.authorization = `Bearer ${adminToken}`
     req.params.file = '../../../../nice.try'
 
     serveQuarantineFiles()(req, res, next)

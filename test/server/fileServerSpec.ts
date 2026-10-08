@@ -20,10 +20,17 @@ describe('fileServer', () => {
   let next: any
   let save: any
 
+  const adminUser = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+  const jimUser = { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }
+  const benderUser = { data: { id: 3, email: 'bender@juice-sh.op', role: 'customer' } }
+  const adminToken = security.authorize(adminUser)
+  const jimToken = security.authorize(jimUser)
+  const benderToken = security.authorize(benderUser)
+
   before(() => {
-    security.authenticatedUsers.put('fileServerSpecAdmin', { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } } as any)
-    security.authenticatedUsers.put('fileServerSpecJim', { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } } as any)
-    security.authenticatedUsers.put('fileServerSpecBender', { data: { id: 3, email: 'bender@juice-sh.op', role: 'customer' } } as any)
+    security.authenticatedUsers.put(adminToken, adminUser as any)
+    security.authenticatedUsers.put(jimToken, jimUser as any)
+    security.authenticatedUsers.put(benderToken, benderUser as any)
   })
 
   afterEach(() => {
@@ -32,7 +39,7 @@ describe('fileServer', () => {
 
   beforeEach(() => {
     res = { sendFile: sinon.spy(), status: sinon.spy() }
-    req = { params: {}, query: {}, cookies: {}, headers: { authorization: 'Bearer fileServerSpecAdmin' } }
+    req = { params: {}, query: {}, cookies: {}, headers: { authorization: `Bearer ${adminToken}` } }
     next = sinon.spy()
     save = () => ({
       then () { }
@@ -143,7 +150,7 @@ describe('fileServer', () => {
   })
 
   it('should reject non-admin users for non-public files with 403', async () => {
-    req.headers = { authorization: 'Bearer fileServerSpecJim' }
+    req.headers = { authorization: `Bearer ${jimToken}` }
     req.params.file = 'acquisitions.md'
 
     await servePublicFiles()(req, res, next)
@@ -153,7 +160,7 @@ describe('fileServer', () => {
   })
 
   it('should reject a Poison Null Byte request by a non-admin user', async () => {
-    req.headers = { authorization: 'Bearer fileServerSpecJim' }
+    req.headers = { authorization: `Bearer ${jimToken}` }
     req.params.file = 'coupons_2013.md.bak%00.md'
 
     await servePublicFiles()(req, res, next)
@@ -173,7 +180,7 @@ describe('fileServer', () => {
 
   it('should accept the token cookie for authentication', async () => {
     req.headers = {}
-    req.cookies = { token: 'fileServerSpecAdmin' }
+    req.cookies = { token: adminToken }
     req.params.file = 'acquisitions.md'
 
     await servePublicFiles()(req, res, next)
@@ -181,24 +188,49 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md/))
   })
 
+  it('should reject expired tokens', async () => {
+    const expiredToken = security.authorize({ ...adminUser, exp: Math.floor(Date.now() / 1000) - 60 })
+    security.authenticatedUsers.put(expiredToken, adminUser as any)
+    req.headers = { authorization: `Bearer ${expiredToken}` }
+    req.params.file = 'acquisitions.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(401)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+  })
+
+  it('should reject tokens with an invalid signature', async () => {
+    const [header, payload] = adminToken.split('.')
+    const forgedToken = `${header}.${payload}.invalidsignature`
+    security.authenticatedUsers.put(forgedToken, adminUser as any)
+    req.headers = { authorization: `Bearer ${forgedToken}` }
+    req.params.file = 'acquisitions.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(401)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+  })
+
   describe('order confirmation PDFs', () => {
     const orderId = security.hash('jim@juice-sh.op').slice(0, 4) + '-0123456789abcdef'
 
     beforeEach(() => {
-      sinon.stub(db.ordersCollection, 'findOne').resolves({ orderId, email: 'j*m@j**c*-sh.*p' })
+      sinon.stub(db.ordersCollection, 'findOne').resolves({ orderId, UserId: 2 })
       req.params.file = `order_${orderId}.pdf`
     })
 
     it('should be served to the customer who placed the order', async () => {
-      req.headers = { authorization: 'Bearer fileServerSpecJim' }
+      req.headers = { authorization: `Bearer ${jimToken}` }
 
       await servePublicFiles()(req, res, next)
 
       expect(res.sendFile).to.have.been.calledWith(sinon.match(new RegExp(`ftp[/\\\\]order_${orderId}\\.pdf`)))
     })
 
-    it('should not be served to another customer', async () => {
-      req.headers = { authorization: 'Bearer fileServerSpecBender' }
+    it('should not be served to another customer even with a colliding order id prefix', async () => {
+      req.headers = { authorization: `Bearer ${benderToken}` }
 
       await servePublicFiles()(req, res, next)
 
@@ -217,7 +249,7 @@ describe('fileServer', () => {
 
     it('should not be served when no matching order exists', async () => {
       (db.ordersCollection.findOne as sinon.SinonStub).resolves(undefined)
-      req.headers = { authorization: 'Bearer fileServerSpecJim' }
+      req.headers = { authorization: `Bearer ${jimToken}` }
 
       await servePublicFiles()(req, res, next)
 

@@ -16,7 +16,10 @@ const PUBLIC_FILES = ['legal.md']
 const ORDER_CONFIRMATION = /^order_([0-9a-f]{4}-[0-9a-f]{16})\.pdf$/
 
 export function authenticatedUser (req: Request) {
-  const token = req.cookies?.token ?? utils.jwtFrom(req)
+  const token = utils.unquote(req.cookies?.token ?? utils.jwtFrom(req) ?? '')
+  if (!token || !security.verify(token)) return undefined
+  const exp = security.decode(token)?.exp
+  if (exp && exp * 1000 < Date.now()) return undefined
   return security.authenticatedUsers.get(token)
 }
 
@@ -26,11 +29,11 @@ export function isAdmin (req: Request) {
 
 async function isOrderOwner (req: Request, file: string) {
   const orderId = ORDER_CONFIRMATION.exec(file)?.[1]
-  const email = authenticatedUser(req)?.data?.email
-  if (!orderId || !email || !orderId.startsWith(security.hash(email).slice(0, 4) + '-')) return false
+  const userId = authenticatedUser(req)?.data?.id
+  if (!orderId || userId === undefined) return false
   try {
     const order = await db.ordersCollection.findOne({ orderId })
-    return order?.email === email.replace(/[aeiou]/gi, '*')
+    return order?.UserId !== undefined && order.UserId === userId
   } catch {
     return false
   }
