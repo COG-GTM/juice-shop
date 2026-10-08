@@ -14,6 +14,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -33,7 +34,13 @@ export const loadJwtPrivateKey = (env: NodeJS.ProcessEnv = process.env): crypto.
 const jwtPrivateKey = loadJwtPrivateKey()
 const privateKey = jwtPrivateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
 export const publicKey = crypto.createPublicKey(jwtPrivateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
-export const publishPublicKey = (directory = 'encryptionkeys') => { fs.writeFileSync(path.join(directory, 'jwt.pub'), publicKey) }
+export const publishPublicKey = (directory = 'encryptionkeys') => {
+  try {
+    fs.writeFileSync(path.join(directory, 'jwt.pub'), publicKey)
+  } catch (err) {
+    logger.warn(`Could not write JWT public key to ${directory}/jwt.pub (${utils.getErrorMessage(err)}); it is still served at /encryptionkeys/jwt.pub`)
+  }
+}
 
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
