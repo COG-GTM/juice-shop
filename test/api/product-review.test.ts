@@ -91,7 +91,7 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(created.author, 'bjoern.kimminich@gmail.com')
   })
 
-  void it('PUT product review accepts a valid token unknown to the session map', async () => {
+  void it('PUT product review is rejected for a valid token without a login session', async () => {
     const token = security.authorize({ data: { id: 1, email: 'jwt.only@juice-sh.op' } } as any)
     const res = await request(app)
       .put('/rest/products/1/reviews')
@@ -100,11 +100,10 @@ void describe('/rest/products/:id/reviews', () => {
         message: 'Token-only review',
         author: 'admin@juice-sh.op'
       })
-    assert.equal(res.status, 201)
+    assert.equal(res.status, 401)
 
     const reviews = await request(app).get('/rest/products/1/reviews')
-    const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Token-only review')
-    assert.equal(created.author, 'jwt.only@juice-sh.op')
+    assert.ok(!reviews.body.data.some(({ message }: { message: string }) => message === 'Token-only review'))
   })
 })
 
@@ -172,7 +171,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const reviewsCreatedByTests = 3
+    const reviewsCreatedByTests = 2
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, reviewsCreatedByTests)
 
     const res = await request(app)
