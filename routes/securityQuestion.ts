@@ -15,8 +15,7 @@ const decoyKey = process.env.SECURITY_QUESTION_DECOY_KEY ?? randomBytes(32).toSt
 // Unknown emails get a stable, keyed pseudo-random question so the response cannot reveal whether an account exists.
 // The raw email is hashed (no normalization) because the account lookup is exact-match; normalizing would let
 // variants of a registered email (padding, case) receive a decoy that differs from the real question.
-async function decoyQuestionFor (email: string) {
-  const questions = await SecurityQuestionModel.findAll({ order: [['id', 'ASC']] })
+function decoyQuestionFor (email: string, questions: SecurityQuestionModel[]) {
   if (questions.length === 0) {
     return null
   }
@@ -34,9 +33,11 @@ export function securityQuestion () {
           where: { email: email?.toString() }
         }]
       })
+      // Both paths run the same queries so response timing does not reveal whether the account exists
+      const questions = await SecurityQuestionModel.findAll({ order: [['id', 'ASC']] })
       const question = answer != null
-        ? await SecurityQuestionModel.findByPk(answer.SecurityQuestionId)
-        : await decoyQuestionFor(email?.toString() ?? '')
+        ? questions.find(({ id }) => id === answer.SecurityQuestionId) ?? null
+        : decoyQuestionFor(email?.toString() ?? '', questions)
       res.json({ question })
     } catch (error) {
       next(error)
