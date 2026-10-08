@@ -9,7 +9,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { ImageCaptchaService } from '../Services/image-captcha.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { ReactiveFormsModule } from '@angular/forms'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { DomSanitizer } from '@angular/platform-browser'
 import { SecurityContext } from '@angular/core'
 import { DataSubjectService } from '../Services/data-subject.service'
@@ -83,7 +83,11 @@ describe('DataExportComponent', () => {
         expect(component.formatControl.valid).toBeFalsy()
     })
 
-    it('should be compulsory to answer the captcha when captcha is present', () => {
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
+    it('should be compulsory to answer the captcha', () => {
         component.captchaControl.setValue('')
         expect(component.captchaControl.valid).toBeFalsy()
         component.captchaControl.setValue('12345')
@@ -117,5 +121,44 @@ describe('DataExportComponent', () => {
         expect(component.confirmation).toBeNull()
         expect(component.error).toBe('Error')
         expect(component.resetFormError).toHaveBeenCalled()
+    })
+
+    it('should clear the stale captcha and show the error if fetching a new captcha fails', () => {
+        imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
+        component.getNewCaptcha()
+        imageCaptchaService.getCaptcha.mockReturnValue(throwError({ error: 'Unable to create CAPTCHA. Please try again.' }))
+        component.getNewCaptcha()
+        expect(component.captcha).toBeUndefined()
+        expect(component.captchaError).toBe('Unable to create CAPTCHA. Please try again.')
+        imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
+        component.getNewCaptcha()
+        expect(component.captchaError).toBeNull()
+        expect(component.captcha).toBeDefined()
+    })
+
+    it('should serialize overlapping captcha refreshes and display only the last one', () => {
+        const first = new Subject<any>()
+        const second = new Subject<any>()
+        imageCaptchaService.getCaptcha.mockClear()
+        imageCaptchaService.getCaptcha.mockReturnValueOnce(first.asObservable()).mockReturnValueOnce(second.asObservable())
+        component.getNewCaptcha()
+        component.getNewCaptcha()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(1)
+        first.next({ image: '<svg>first</svg>' })
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalledTimes(2)
+        expect(component.captcha).toBeUndefined()
+        second.next({ image: '<svg>second</svg>' })
+        expect(component.captcha).toBeDefined()
+        expect(component.captchaLoading).toBe(false)
+    })
+
+    it('should send the captcha answer and request a fresh captcha after a failed export', () => {
+        dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Wrong answer to CAPTCHA. Please try again.' }))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.captchaControl.setValue('abcde')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith({ answer: 'abcde', format: '1' })
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
     })
 })
