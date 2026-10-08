@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,43 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST username with nested script payload is not stored or rendered as a working tag', async () => {
+    const payload = '<<a|ascript>alert(`xss`)</script>'
+    const postRes = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', payload)
+      .redirects(0)
+    assert.equal(postRes.status, 302)
+
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.doesNotMatch(user?.username ?? '', /<\s*script/i)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+  })
+
+  void it('GET user profile HTML-encodes a previously stored username payload', async () => {
+    await UserModel.sequelize?.query('UPDATE Users SET username = ? WHERE email = ?', {
+      replacements: ['<script>alert(`xss`)</script>', 'jim@juice-sh.op']
+    })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+    assert.ok(res.text.includes('&lt;script&gt;alert(`xss`)&lt;/script&gt;'))
+
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'Localhorst')
+      .redirects(0)
   })
 })
