@@ -10,12 +10,19 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
+import { CaptchaModel } from '../../models/captcha'
+import { CAPTCHA_TTL_MS } from '../../routes/captcha'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
+
+async function captchaAnswer (captchaId: number) {
+  const captcha = await CaptchaModel.findOne({ where: { captchaId } })
+  return captcha?.answer
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -42,7 +49,7 @@ void describe('/api/Feedbacks', () => {
         comment: 'I am a harm<script>steal-cookie</script><img src="csrf-attack"/><iframe src="evil-content"></iframe>less comment.',
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 201)
     assert.equal(res.body.data.comment, 'I am a harmless comment.')
@@ -62,7 +69,7 @@ void describe('/api/Feedbacks', () => {
           comment: 'The sanitize-html module up to at least version 1.4.2 has this issue: <<script>Foo</script>iframe src="javascript:alert(`xss`)">',
           rating: 1,
           captchaId: captchaRes.body.captchaId,
-          captcha: captchaRes.body.answer
+          captcha: await captchaAnswer(captchaRes.body.captchaId)
         })
       assert.equal(res.status, 201)
       assert.equal(res.body.data.comment, 'The sanitize-html module up to at least version 1.4.2 has this issue: <iframe src="javascript:alert(`xss`)">')
@@ -83,7 +90,7 @@ void describe('/api/Feedbacks', () => {
         rating: 1,
         UserId: 3,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -104,7 +111,7 @@ void describe('/api/Feedbacks', () => {
         rating: 0,
         UserId: 4711,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -130,7 +137,7 @@ void describe('/api/Feedbacks', () => {
         rating: 5,
         UserId: 4,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -156,7 +163,7 @@ void describe('/api/Feedbacks', () => {
         rating: 5,
         UserId: 3,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -175,7 +182,7 @@ void describe('/api/Feedbacks', () => {
       .send({
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -194,7 +201,7 @@ void describe('/api/Feedbacks', () => {
       .set(jsonHeader)
       .send({
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -214,8 +221,105 @@ void describe('/api/Feedbacks', () => {
       .send({
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: (captchaRes.body.answer + 1)
+        captcha: `${await captchaAnswer(captchaRes.body.captchaId)}1`
       })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET captcha does not reveal the answer', async () => {
+    const res = await request(app)
+      .get('/rest/captcha')
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body).sort(), ['captcha', 'captchaId'])
+    assert.match(res.body.captcha, /^\d+[*+-]\d+[*+-]\d+$/)
+  })
+
+  void it('GET captcha issues unpredictable ids', async () => {
+    const first = await request(app).get('/rest/captcha')
+    const second = await request(app).get('/rest/captcha')
+    assert.equal(first.status, 200)
+    assert.equal(second.status, 200)
+    assert.notEqual(second.body.captchaId - first.body.captchaId, 1)
+  })
+
+  void it('POST feedback cannot be created by replaying an already solved CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const answer = await captchaAnswer(captchaRes.body.captchaId)
+
+    const firstRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'First submission', rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })
+    assert.equal(firstRes.status, 201)
+
+    const replayRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Replayed submission', rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })
+    assert.equal(replayRes.status, 401)
+  })
+
+  void it('POST feedback can only be created once when the same solved CAPTCHA is submitted concurrently', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const answer = await captchaAnswer(captchaRes.body.captchaId)
+
+    const statuses = await Promise.all([1, 2, 3].map(async (n) => (await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: `Concurrent submission ${n}`, rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })).status))
+    assert.deepEqual(statuses.sort(), [201, 401, 401])
+  })
+
+  void it('POST feedback cannot be created after a wrong answer was already submitted for the CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const answer = await captchaAnswer(captchaRes.body.captchaId)
+
+    const wrongRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Guess', rating: 1, captchaId: captchaRes.body.captchaId, captcha: `${answer}1` })
+    assert.equal(wrongRes.status, 401)
+
+    const retryRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Second guess', rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })
+    assert.equal(retryRes.status, 401)
+    assert.equal(await CaptchaModel.findOne({ where: { captchaId: captchaRes.body.captchaId } }), null)
+  })
+
+  void it('POST feedback cannot be created with an expired CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const answer = await captchaAnswer(captchaRes.body.captchaId)
+    await CaptchaModel.sequelize?.query('UPDATE Captchas SET createdAt = ? WHERE captchaId = ?', {
+      replacements: [new Date(Date.now() - CAPTCHA_TTL_MS - 1000), captchaRes.body.captchaId]
+    })
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Late submission', rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })
+    assert.equal(res.status, 401)
+    assert.equal(await CaptchaModel.findOne({ where: { captchaId: captchaRes.body.captchaId } }), null)
+  })
+
+  void it('POST feedback cannot be created with a non-string CAPTCHA answer', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Odd answer', rating: 1, captchaId: captchaRes.body.captchaId, captcha: { $ne: '' } })
     assert.equal(res.status, 401)
   })
 
@@ -291,7 +395,7 @@ void describe('/api/Feedbacks/:id', () => {
         comment: 'I will be gone soon!',
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: await captchaAnswer(captchaRes.body.captchaId)
       })
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
