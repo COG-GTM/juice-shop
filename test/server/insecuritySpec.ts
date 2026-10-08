@@ -5,6 +5,8 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import fs from 'node:fs'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -197,10 +199,52 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a stable SHA-256 HMAC for the same input', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+
+    it('does not use the formerly hardcoded HMAC secret', () => {
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+      expect(security.hmac('')).to.not.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT signing key', () => {
+    it('is not embedded in the source code', () => {
+      expect(fs.readFileSync('lib/insecurity.ts', 'utf8')).to.not.match(/PRIVATE KEY/)
+    })
+
+    it('signs tokens that verify against the exported public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('loads the private key from JUICE_SHOP_JWT_PRIVATE_KEY and derives the matching public key', () => {
+      const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const keyPair = security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY: pem.replace(/\n/g, '\\n') })
+      expect(keyPair.privateKey).to.equal(pem)
+      expect(keyPair.publicKey).to.equal(publicKey.export({ type: 'pkcs1', format: 'pem' }).toString())
+    })
+
+    it('generates a fresh key pair when none is configured', () => {
+      const first = security.loadJwtKeyPair({})
+      const second = security.loadJwtKeyPair({})
+      expect(first.publicKey).to.match(/^-----BEGIN RSA PUBLIC KEY-----/)
+      expect(first.privateKey).to.not.equal(second.privateKey)
+    })
+  })
+
+  describe('secretOrRandom', () => {
+    it('uses a configured secret', () => {
+      expect(security.secretOrRandom('configured')).to.equal('configured')
+    })
+
+    it('generates a random secret when unset or empty', () => {
+      expect(security.secretOrRandom(undefined)).to.match(/^[0-9a-f]{64}$/)
+      expect(security.secretOrRandom('')).to.not.equal(security.secretOrRandom(''))
     })
   })
 })
