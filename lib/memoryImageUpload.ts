@@ -11,6 +11,8 @@ import * as security from './insecurity'
 
 export const MEMORY_IMAGE_MAX_BYTES = 200000
 
+const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
+
 const mimeTypeMap: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -25,7 +27,7 @@ const uploadToDisk = multer({
       if (isValid) {
         error = null
       }
-      cb(error, path.resolve('frontend/dist/frontend/assets/public/images/uploads/'))
+      cb(error, uploadsDir)
     },
     filename: (req: Request, file: any, cb: any) => {
       const name = security.sanitizeFilename(file.originalname)
@@ -51,8 +53,8 @@ export function uploadMemoryImage () {
         next(err)
         return
       }
-      const uploadedPath = req.file?.path
-      if (uploadedPath) {
+      const uploadedPath = req.file ? path.resolve(uploadsDir, path.basename(req.file.filename)) : undefined
+      if (uploadedPath?.startsWith(uploadsDir + path.sep)) {
         res.on('finish', () => {
           if (res.statusCode >= 400) {
             fs.unlink(uploadedPath, () => {})
