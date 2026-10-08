@@ -29,7 +29,7 @@ describe('hintUpdate', () => {
 
     expect(next).to.have.been.calledWith()
     expect(req.body).to.deep.equal({ unlocked: true })
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
   })
 
   const rejected: Record<string, unknown> = {
@@ -49,7 +49,7 @@ describe('hintUpdate', () => {
 
       restrictHintUpdate()(req, res, next)
 
-      expect(next).to.not.have.been.called
+      expect(next.called).to.equal(false)
       expect(res.status).to.have.been.calledWith(403)
       expect(res.json).to.have.been.calledWith({ status: 'error', message: 'Only unlocking a hint is allowed.' })
     })
