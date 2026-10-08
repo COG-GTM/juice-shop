@@ -127,9 +127,11 @@ function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes
   if (typeof (value as { toJSON?: unknown }).toJSON === 'function') {
     length = estimateJsonLength((value as { toJSON: () => unknown }).toJSON(), limit, sizes)
   } else {
+    let separator = 0
     for (const [key, child] of Object.entries(value)) {
-      length += (Array.isArray(value) ? 1 : JSON.stringify(key).length + 2) + estimateJsonLength(child, limit, sizes)
+      length += separator + (Array.isArray(value) ? 0 : JSON.stringify(key).length + 1) + estimateJsonLength(child, limit, sizes)
       if (length > limit) { break }
+      separator = 1
     }
   }
   sizes.set(value, length)

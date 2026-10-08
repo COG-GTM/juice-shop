@@ -107,6 +107,23 @@ describe('fileUpload', () => {
       expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
     })
 
+    it('should match the serialized length of a near-limit aliased document exactly', () => {
+      const levels = ['a: &a 0']
+      for (let level = 1; level <= 8; level++) {
+        levels.push(`l${level}: &l${level} [${Array(5).fill(level === 1 ? '*a' : `*l${level - 1}`).join(',')}]`)
+      }
+      const document = yaml.load(levels.join('\n') + '\nroot: *l8\n') as Record<string, unknown>
+
+      expect(JSON.stringify(document.root).length).to.be.below(1000000)
+      expect(estimateJsonLength(document.root)).to.equal(JSON.stringify(document.root).length)
+    })
+
+    it('should match the serialized length of objects exactly', () => {
+      const document = yaml.load('a: &x {k: 1, "q\\"": [1, {}, []], e: ""}\nb: [*x, *x]\n')
+
+      expect(estimateJsonLength(document)).to.equal(JSON.stringify(document).length)
+    })
+
     it('should treat cyclic aliases as exceeding the limit', () => {
       const cyclic: any[] = []
       cyclic.push(cyclic)
