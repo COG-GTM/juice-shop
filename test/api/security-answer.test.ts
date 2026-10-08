@@ -9,8 +9,11 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { SecurityAnswerModel } from '../../models/securityAnswer'
+import { UserModel } from '../../models/user'
 
 let app: Express
+const jsonHeader = { 'content-type': 'application/json' }
 const authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
 
 before(async () => {
@@ -27,7 +30,7 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST new security answer for existing user fails from unique constraint', async () => {
+  void it('POST security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .post('/api/SecurityAnswers')
       .set(authHeader)
@@ -37,9 +40,99 @@ void describe('/api/SecurityAnswers', () => {
         answer: 'Horst'
       })
 
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST security answer cannot be planted anonymously for a user without one', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'no.answer@te.st',
+        password: '12345'
+      })
+    assert.equal(userRes.status, 201)
+
+    const plantRes = await request(app)
+      .post('/api/SecurityAnswers')
+      .set(jsonHeader)
+      .send({
+        UserId: userRes.body.data.id,
+        SecurityQuestionId: 1,
+        answer: 'planted'
+      })
+    assert.equal(plantRes.status, 401)
+    assert.equal(await SecurityAnswerModel.count({ where: { UserId: userRes.body.data.id } }), 0)
+
+    const resetRes = await request(app)
+      .post('/rest/user/reset-password')
+      .set(jsonHeader)
+      .send({
+        email: 'no.answer@te.st',
+        answer: 'planted',
+        new: 'hijacked',
+        repeat: 'hijacked'
+      })
+    assert.equal(resetRes.status, 401)
+  })
+})
+
+void describe('/api/Users registration with security answer', () => {
+  void it('POST user stores the security answer bound to the newly created user', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'new.user@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1, question: 'Your eldest siblings middle name?' },
+        securityAnswer: 'Horst'
+      })
+    assert.equal(userRes.status, 201)
+
+    const answers = await SecurityAnswerModel.findAll({ where: { UserId: userRes.body.data.id } })
+    assert.equal(answers.length, 1)
+    assert.equal(answers[0].SecurityQuestionId, 1)
+
+    const resetRes = await request(app)
+      .post('/rest/user/reset-password')
+      .set(jsonHeader)
+      .send({
+        email: 'new.user@te.st',
+        answer: 'Horst',
+        new: '54321',
+        repeat: '54321'
+      })
+    assert.equal(resetRes.status, 200)
+  })
+
+  void it('POST user with an unknown security question is rejected before the user is created', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'bad.question@te.st',
+        password: '12345',
+        securityQuestion: { id: 9999 },
+        securityAnswer: 'Horst'
+      })
     assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error')
+    assert.equal(await UserModel.count({ where: { email: 'bad.question@te.st' } }), 0)
+  })
+
+  void it('POST user with a security question but an empty answer is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'empty.answer@te.st',
+        password: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: ' '
+      })
+    assert.equal(res.status, 400)
+    assert.equal(await UserModel.count({ where: { email: 'empty.answer@te.st' } }), 0)
   })
 })
 

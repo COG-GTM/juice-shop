@@ -85,6 +85,8 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { restrictHintUpdate } from './routes/hintUpdate'
+import { validateRegistrationSecurityAnswer, saveRegistrationSecurityAnswer } from './routes/registrationSecurityAnswer'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -453,6 +455,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Hints: anonymous updates may only unlock a hint */
+  app.put('/api/Hints/:id', restrictHintUpdate())
+  /* SecurityAnswers: only created by user registration, bound to the new user */
+  app.post('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/Users', utils.asyncHandler(validateRegistrationSecurityAnswer()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
@@ -515,6 +523,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      resource.create.write.after(saveRegistrationSecurityAnswer())
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
@@ -629,7 +641,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/memories', utils.asyncHandler(getMemories()))
   /* NoSQL API endpoints */
   app.get('/rest/products/:id/reviews', showProductReviews())
-  app.put('/rest/products/:id/reviews', utils.asyncHandler(createProductReviews()))
+  app.put('/rest/products/:id/reviews', security.isAuthorized(), utils.asyncHandler(createProductReviews()))
   app.patch('/rest/products/reviews', security.isAuthorized(), updateProductReviews())
   app.post('/rest/products/reviews', security.isAuthorized(), utils.asyncHandler(likeProductReviews()))
 
