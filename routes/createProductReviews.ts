@@ -11,13 +11,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
 async function authenticatedEmail (req: Request): Promise<string | undefined> {
-  const user = security.authenticatedUsers.from(req)
-  if (user?.data?.email) {
-    return user.data.email
-  }
-  const email = (req as Request & { user?: { data?: { email?: string } } }).user?.data?.email
-  if (email && await UserModel.findOne({ where: { email } })) {
-    return email
+  const data = security.authenticatedUsers.from(req)?.data ?? (req as Request & { user?: { data?: { id?: number, email?: string } } }).user?.data
+  if (data?.id != null && data.email && await UserModel.findOne({ where: { id: data.id, email: data.email } })) {
+    return data.email
   }
 }
 

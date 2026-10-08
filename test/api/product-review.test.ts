@@ -51,7 +51,7 @@ void describe('/rest/products/:id/reviews', () => {
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
-      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op' } })}` })
+      .set({ Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } } as any)}` })
       .send({
         message: 'Lorem Ipsum'
       })
@@ -105,6 +105,17 @@ void describe('/rest/products/:id/reviews', () => {
     const reviews = await request(app).get('/rest/products/1/reviews')
     const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Token-only review')
     assert.equal(created.author, 'jim@juice-sh.op')
+  })
+
+  void it('PUT product review is rejected for a signed token whose id and email belong to different accounts', async () => {
+    const token = security.authorize({ data: { id: 2, email: 'admin@juice-sh.op' } } as any)
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Mismatched token review'
+      })
+    assert.equal(res.status, 401)
   })
 
   void it('PUT product review is rejected for a signed token of a non-existent account', async () => {

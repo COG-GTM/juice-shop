@@ -30,10 +30,15 @@ export function validateRegistrationSecurityAnswer () {
 }
 
 export function saveRegistrationSecurityAnswer () {
-  return async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+  return async (req: Request, res: Response, context: { instance: { id: number, destroy: (options: { force: boolean }) => Promise<void> }, continue: any }) => {
     const pending: PendingSecurityAnswer | undefined = res.locals.pendingSecurityAnswer
     if (pending != null) {
-      await SecurityAnswerModel.create({ UserId: context.instance.id, ...pending })
+      try {
+        await SecurityAnswerModel.create({ UserId: context.instance.id, ...pending })
+      } catch (err) {
+        await context.instance.destroy({ force: true })
+        throw err
+      }
     }
     return context.continue
   }
