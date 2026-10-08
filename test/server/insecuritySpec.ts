@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,51 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const claims = { data: { email: 'attacker@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+    const unsignedToken = `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(claims)}.`
+    const hs256Unsigned = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(claims)}`
+    const hs256Token = `${hs256Unsigned}.${crypto.createHmac('sha256', security.publicKey).update(hs256Unsigned).digest('base64url')}`
+
+    const runMiddleware = (token?: string) => {
+      const req = { method: 'GET', headers: token ? { authorization: `Bearer ${token}` } : {} } as unknown as Request
+      let error: any
+      security.isAuthorized()(req, {} as Response, (err?: any) => { error = err })
+      return { req: req as Request & { user?: any }, error }
+    }
+
+    it('verify accepts RS256 tokens issued by authorize', () => {
+      expect(security.verify(security.authorize({ data: { email: 'user@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('verify rejects unsigned "alg: none" tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('verify rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('verify rejects expired tokens', () => {
+      const expired = security.authorize({ data: {}, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(security.verify(expired)).to.equal(false)
+    })
+
+    it('isAuthorized accepts RS256 tokens and exposes their claims', () => {
+      const { req, error } = runMiddleware(security.authorize({ data: { email: 'user@juice-sh.op' } }))
+      expect(error).to.equal(undefined)
+      expect(req.user.data.email).to.equal('user@juice-sh.op')
+    })
+
+    it('isAuthorized rejects missing, unsigned and HS256 tokens with 401', () => {
+      for (const token of [undefined, unsignedToken, hs256Token]) {
+        const { error } = runMiddleware(token)
+        expect(error?.status).to.equal(401)
+      }
     })
   })
 
