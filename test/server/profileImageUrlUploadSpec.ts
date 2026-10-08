@@ -65,6 +65,17 @@ describe('profileImageUrlUpload', () => {
     expect(update).to.have.been.calledOnceWith({ profileImage: '/assets/public/images/uploads/42.png' })
   })
 
+  it('keeps the stored image when removing a previous SVG fails', async () => {
+    req.body.imageUrl = 'https://images.example/avatar.png'
+    respondWith(PNG)
+    ;(fs.rm as sinon.SinonStub).rejects(new Error('EACCES'))
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(writeFile).to.have.been.calledOnceWith('frontend/dist/frontend/assets/public/images/uploads/42.png', PNG)
+    expect(update).to.have.been.calledOnceWith({ profileImage: '/assets/public/images/uploads/42.png' })
+  })
+
   it('does not store HTML disguised behind an image extension', async () => {
     req.body.imageUrl = 'https://attacker.example/x.png'
     respondWith(Buffer.from('<html><script>alert(1)</script></html>'))

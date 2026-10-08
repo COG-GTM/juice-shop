@@ -60,7 +60,9 @@ export function profileImageUrlUpload () {
           const buffer = await readBodyWithLimit(response.body, MAX_PROFILE_IMAGE_BYTES)
           const ext = await detectProfileImageExtension(buffer)
           await fs.writeFile(`${UPLOADS_DIR}/${loggedInUser.data.id}.${ext}`, buffer)
-          await fs.rm(`${UPLOADS_DIR}/${loggedInUser.data.id}.svg`, { force: true })
+          await fs.rm(`${UPLOADS_DIR}/${loggedInUser.data.id}.svg`, { force: true }).catch((error) => {
+            logger.warn(`Could not remove previous SVG profile image: ${utils.getErrorMessage(error)}`)
+          })
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
