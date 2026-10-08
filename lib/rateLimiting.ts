@@ -34,11 +34,19 @@ export class FailedAttemptLockout {
     return remaining > 0 ? Math.ceil(remaining / 1000) : 0
   }
 
+  // Checks and counts in one synchronous step so concurrent requests cannot all pass the check before any is counted.
+  // Callers reset() the key after a successful attempt.
+  consumeAttempt (key: string): number {
+    const retryAfter = this.retryAfterSeconds(key)
+    if (retryAfter === 0) this.recordFailure(key)
+    return retryAfter
+  }
+
   recordFailure (key: string) {
     const now = this.now()
     let record = this.records.get(key)
     if (record == null || (record.lockedUntil <= now && now - record.windowStart >= this.windowMs)) {
-      if (record == null && this.records.size >= this.maxEntries) this.prune(now)
+      if (record == null && this.records.size >= this.maxEntries) this.makeRoom(now)
       record = { failures: 0, windowStart: now, lockedUntil: 0 }
       this.records.set(key, record)
     }
@@ -54,10 +62,19 @@ export class FailedAttemptLockout {
     this.records.delete(key)
   }
 
-  private prune (now: number) {
+  private makeRoom (now: number) {
     for (const [key, record] of this.records) {
       if (record.lockedUntil <= now && now - record.windowStart >= this.windowMs) this.records.delete(key)
     }
+    if (this.records.size < this.maxEntries) return
+    for (const [key, record] of this.records) {
+      if (record.lockedUntil <= now) {
+        this.records.delete(key)
+        return
+      }
+    }
+    const oldest = this.records.keys().next().value
+    if (oldest !== undefined) this.records.delete(oldest)
   }
 }
 

@@ -33,7 +33,7 @@ export function resetPassword () {
       return
     }
     const account = accountKey(email)
-    const retryAfter = passwordResetLockout.retryAfterSeconds(account)
+    const retryAfter = passwordResetLockout.consumeAttempt(account)
     if (retryAfter > 0) {
       res.set('Retry-After', String(retryAfter))
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
@@ -55,7 +55,6 @@ export function resetPassword () {
           res.json({ user: updatedUser })
         }
       } else {
-        passwordResetLockout.recordFailure(account)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
