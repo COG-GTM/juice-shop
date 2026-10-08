@@ -217,7 +217,7 @@ void describe('/api/Users', () => {
       .send({ ...credentials, passwordRepeat: credentials.password, role: 'admin' })
     assert.equal(res.status, 201)
 
-    const token = await login(app, credentials)
+    const { token } = await login(app, credentials)
     const decoded = security.decode(token)
     assert.equal(decoded.data.role, 'customer')
   })
