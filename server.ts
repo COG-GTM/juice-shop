@@ -86,6 +86,7 @@ import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
 import { enforceResourceOwnership } from './routes/resourceOwnership'
+import { restrictHintUpdate } from './routes/hintUpdate'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -454,6 +455,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
   app.put('/api/Addresss/:id', utils.asyncHandler(address.updateAddressById()))
+
+  /* Hints: anonymous updates may only unlock a hint */
+  app.put('/api/Hints/:id', restrictHintUpdate())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
