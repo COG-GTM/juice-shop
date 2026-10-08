@@ -11,6 +11,27 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+function isCrossSiteRequest (req: Request) {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) {
+    return false
+  }
+  const forwardedHost = req.app.enabled('trust proxy') ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined
+  try {
+    const sourceUrl = new URL(source)
+    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${forwardedHost ?? req.headers.host}`).host
+  } catch {
+    return true
+  }
+}
+
+const MAX_USERNAME_LENGTH = 255
+
+function isValidUsername (username: unknown): username is string {
+  // eslint-disable-next-line no-control-regex
+  return typeof username === 'string' && username.length <= MAX_USERNAME_LENGTH && !/[\u0000-\u001f\u007f]/.test(username)
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -27,6 +48,16 @@ export function updateUserProfile () {
         return
       }
 
+      if (isCrossSiteRequest(req)) {
+        res.status(403).json({ error: 'Cross-site profile update rejected' })
+        return
+      }
+
+      if (!isValidUsername(req.body.username)) {
+        res.status(400).json({ error: 'Invalid username' })
+        return
+      }
+
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
         return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
           (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
@@ -37,7 +68,7 @@ export function updateUserProfile () {
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      res.cookie('token', updatedToken, { sameSite: 'strict' })
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {
