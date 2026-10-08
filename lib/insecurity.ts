@@ -85,10 +85,7 @@ export const isAuthorized = () => (req: Request, res: Response, next: NextFuncti
   Object.assign(req, { user: claims })
   next()
 }
-export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
-  if (isCorsPreflightForAuthorization(req)) return next()
-  next(unauthorizedError('Access denied'))
-}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => { next(unauthorizedError('Access denied')) }
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: JWT_ALGORITHM })
 export const verify = (token: string) => token ? verifiedPayload(token) !== null : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
