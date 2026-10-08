@@ -49,9 +49,9 @@ describe('profileImageUrlUpload', () => {
 
     await profileImageUrlUpload()(req, res, next)
 
-    expect(writeFile).to.not.have.been.called
+    expect(writeFile.called).to.equal(false)
     expect(update).to.have.been.calledOnceWith({ profileImage: 'https://attacker.example/x.svg' })
-    expect(res.redirect).to.have.been.called
+    expect(res.redirect.called).to.equal(true)
   })
 
   it('stores a real PNG under the extension detected from its content, not from the URL', async () => {
@@ -71,7 +71,7 @@ describe('profileImageUrlUpload', () => {
 
     await profileImageUrlUpload()(req, res, next)
 
-    expect(writeFile).to.not.have.been.called
+    expect(writeFile.called).to.equal(false)
     expect(update).to.have.been.calledOnceWith({ profileImage: 'https://attacker.example/x.png' })
   })
 
@@ -81,7 +81,7 @@ describe('profileImageUrlUpload', () => {
 
     await profileImageUrlUpload()(req, res, next)
 
-    expect(writeFile).to.not.have.been.called
+    expect(writeFile.called).to.equal(false)
     expect(update).to.have.been.calledOnceWith({ profileImage: 'https://images.example/huge.png' })
   })
 })
