@@ -22,7 +22,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatExpansionModule } from '@angular/material/expansion'
 
 import { ProductDetailsComponent } from './product-details.component'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
@@ -140,6 +140,24 @@ describe('ProductDetailsComponent', () => {
         buttonDe.triggerEventHandler('click', null)
         expect(console.log).toHaveBeenCalledWith('Error')
         fixture.destroy()
+    })
+
+    it('should keep review text and send it only once while the review is pending', () => {
+        component.data = { productData: { id: 42 } as Product }
+        const pending = new Subject<any>()
+        productReviewService.create.mockReturnValue(pending)
+        userService.whoAmI.mockReturnValue(of({}))
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        buttonDe.triggerEventHandler('click', null)
+        expect(productReviewService.create).toHaveBeenCalledTimes(1)
+        expect(textArea.value).toBe('Great product!')
+        pending.error('Unauthorized')
+        expect(textArea.value).toBe('Great product!')
+        expect(component.isSubmittingReview).toBe(false)
     })
 
     it('should refresh reviews after posting a review', () => {
