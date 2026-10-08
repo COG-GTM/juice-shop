@@ -44,6 +44,7 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   private readonly snackBarHelperService = inject(SnackBarHelperService)
 
   public author = 'Anonymous'
+  public isSubmittingReview = false
   public reviews$: any
   public userSubscription: any
   public reviewControl: UntypedFormControl = new UntypedFormControl('', [Validators.maxLength(160)])
@@ -70,16 +71,26 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   }
 
   addReview (textPut: HTMLTextAreaElement) {
+    if (this.isSubmittingReview) {
+      return
+    }
+    this.isSubmittingReview = true
     const review = { message: textPut.value, author: this.author }
 
-    textPut.value = ''
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
+        this.isSubmittingReview = false
+        if (textPut.value === review.message) {
+          textPut.value = ''
+        }
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
+        this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        this.isSubmittingReview = false
+        console.log(err)
+      }
     })
-    this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
   }
 
   editReview (review: Review) {
