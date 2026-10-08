@@ -35,8 +35,6 @@ void describe('Error handling outside development', () => {
   void it('error status codes of handled errors are preserved', async () => {
     const res = await request(app).get('/ftp/package.json.bak')
     assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Forbidden'))
-    assert.ok(!res.text.includes('Only .md and .pdf files are allowed'))
-    assert.ok(!res.text.includes('(Express'))
+    assert.match(res.text, /^(Forbidden|<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error<\/title>\n<\/head>\n<body>\n<pre>Forbidden<\/pre>\n<\/body>\n<\/html>\n)$/)
   })
 })
