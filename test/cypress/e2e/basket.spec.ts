@@ -104,6 +104,7 @@ describe('/#/basket', () => {
 
     describe('challenge "forgedCoupon"', () => {
       it('should be able to access file /ftp/coupons_2013.md.bak with poison null byte attack', () => {
+        cy.login({ email: 'admin', password: 'admin123' })
         cy.request(`${Cypress.config('baseUrl')}/ftp/coupons_2013.md.bak%2500.md`)
       })
 

@@ -236,9 +236,6 @@ ctf:
     resetPasswordBjoernOwaspChallenge:
       name: Kazakhstan
       code: KZ
-    accessLogDisclosureChallenge:
-      name: Singapore
-      code: SG
     dlpPasswordSprayingChallenge:
       name: Chad
       code: TD
