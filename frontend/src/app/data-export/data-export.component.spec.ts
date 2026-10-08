@@ -123,6 +123,15 @@ describe('DataExportComponent', () => {
         expect(component.resetFormError).toHaveBeenCalled()
     })
 
+    it('should clear the stale captcha and show the error if fetching a new captcha fails', () => {
+        imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
+        component.getNewCaptcha()
+        imageCaptchaService.getCaptcha.mockReturnValue(throwError({ error: 'Unable to create CAPTCHA. Please try again.' }))
+        component.getNewCaptcha()
+        expect(component.captcha).toBeUndefined()
+        expect(component.error).toBe('Unable to create CAPTCHA. Please try again.')
+    })
+
     it('should send the captcha answer and request a fresh captcha after a failed export', () => {
         dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Wrong answer to CAPTCHA. Please try again.' }))
         imageCaptchaService.getCaptcha.mockClear()

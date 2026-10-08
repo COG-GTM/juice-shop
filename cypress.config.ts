@@ -5,6 +5,7 @@ import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/con
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
 import { ImageCaptchaModel } from './models/imageCaptcha'
+import { UserModel } from './models/user'
 import './models/index'
 
 export default defineConfig({
@@ -44,8 +45,10 @@ export default defineConfig({
             }
           }
         },
-        async GetImageCaptchaAnswer () {
-          const captcha = await ImageCaptchaModel.findOne({ order: [['createdAt', 'DESC']] })
+        async GetImageCaptchaAnswer (email: string) {
+          const user = await UserModel.findOne({ where: { email } })
+          if (!user) return null
+          const captcha = await ImageCaptchaModel.findOne({ where: { UserId: user.id }, order: [['createdAt', 'DESC']] })
           return captcha ? captcha.answer : null
         },
         GetFromConfig (variable: string) {
