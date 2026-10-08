@@ -32,7 +32,7 @@ describe('videoHandler', () => {
 
   describe('promotionVideo', () => {
     let readFileSync: sinon.SinonStub
-    let save: any
+    let originalChallenge: Challenge
 
     beforeEach(() => {
       const original = fs.readFileSync
@@ -40,12 +40,13 @@ describe('videoHandler', () => {
         if (String(path).endsWith('.vtt')) return exploit
         return original(path, options)
       })
-      save = () => ({ then () { } })
-      challenges.videoXssChallenge = { solved: false, save } as unknown as Challenge
+      originalChallenge = challenges.videoXssChallenge
+      challenges.videoXssChallenge = { solved: false, save: () => ({ then () { } }) } as unknown as Challenge
     })
 
     afterEach(() => {
       readFileSync.restore()
+      challenges.videoXssChallenge = originalChallenge
     })
 
     it('should embed malicious subtitles as inert JSON data', async () => {
