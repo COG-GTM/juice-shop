@@ -111,6 +111,35 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const run = (headers: Record<string, string>) => {
+      let nextCalled = false
+      let statusCode: number | undefined
+      const res = { status: (code: number) => { statusCode = code; return { json: () => {} } } }
+      security.isAdmin()({ headers } as unknown as Request, res as any, () => { nextCalled = true })
+      return { nextCalled, statusCode }
+    }
+
+    it('lets a validly signed admin token pass', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ nextCalled: true, statusCode: undefined })
+    })
+
+    it('rejects customer, deluxe and accounting tokens with 403', () => {
+      for (const role of ['customer', 'deluxe', 'accounting']) {
+        const token = security.authorize({ data: { email: 'jim@juice-sh.op', role } })
+        expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
+      }
+    })
+
+    it('rejects missing and unsigned tokens with 403', () => {
+      expect(run({})).to.deep.equal({ nextCalled: false, statusCode: 403 })
+      const unsigned = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url') + '.' +
+        Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url') + '.'
+      expect(run({ authorization: `Bearer ${unsigned}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
