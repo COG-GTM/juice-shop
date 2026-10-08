@@ -80,7 +80,9 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
         this.isSubmittingReview = false
-        textPut.value = ''
+        if (textPut.value === review.message) {
+          textPut.value = ''
+        }
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
         this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
