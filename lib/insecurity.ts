@@ -14,6 +14,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -121,10 +122,12 @@ export function couponSigningKeyIn (directory: string) {
       } catch { /* cleanup must not keep the winner's key from being read */ }
     }
     const persistedKey = fs.readFileSync(keyFile, 'utf8')
-    return persistedKey.length > 0 ? persistedKey : key
-  } catch {
-    return key
-  }
+    if (persistedKey.length > 0) {
+      return persistedKey
+    }
+  } catch { /* falls through to the ephemeral key below */ }
+  logger.warn(`Coupon signing key could not be persisted in ${keyFile}; coupons issued now will be rejected after a restart unless COUPON_SIGNING_KEY is set`)
+  return key
 }
 
 const couponSignature = (payload: string) => {
