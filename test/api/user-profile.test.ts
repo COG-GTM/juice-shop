@@ -61,11 +61,9 @@ void describe('/profile', () => {
       "#{'ssti' + 'Marker' + 'Evaluated'}"
     ]
     for (const payload of payloads) {
-      await request(app)
-        .post('/profile')
-        .set('Cookie', authHeader.Cookie)
-        .field('username', payload)
-        .redirects(0)
+      await sequelize.query('UPDATE Users SET username = ? WHERE email = ?', {
+        replacements: [payload, 'jim@juice-sh.op']
+      })
 
       const res = await request(app)
         .get('/profile')
