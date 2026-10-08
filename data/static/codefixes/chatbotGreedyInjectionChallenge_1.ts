@@ -70,17 +70,19 @@ const chatTools = {
       orderId: z.string().describe('The order ID to get details for (format: xxxx-xxxxxxxxxxxxxxxx)')
     }),
     execute: async ({ orderId }) => {
-      const userId = await getUserId(req)
+      const userId = getUserId(req)
       if (!userId) return { error: 'Customer not authenticated' }
 
       const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-      if (!user) return { error: 'Customer not found' }
+      if (!user?.email) return { error: 'Customer not found' }
 
-      const maskedEmail = user.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
+      const maskedEmail = user.email.replace(/[aeiou]/gi, '*')
       const order = await db.ordersCollection.findOne({ orderId })
 
       if (!order) return { error: 'Order not found' }
-      if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
+      if (order.email !== maskedEmail || !orderId.startsWith(security.hash(user.email).slice(0, 4) + '-')) {
+        return { error: 'Order does not belong to the current customer' }
+      }
 
       return order
     }
