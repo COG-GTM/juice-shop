@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -18,8 +17,20 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIIEowIBAAKCAQEAuIue//RvKVw0rBDan1YUKHAok7/DIjuqMxwZlNkIjexo5zXw\r\n0V3H3ydmGisjRXv8wRh3dN2P8IHDXQ4qqNHNpmvlKL3tT7VfxIB2HVTphUmMdmxX\r\nuAaiwoo/wngsLDHDNj/LA3tQU4Z65jiu0zlZ8EKgJfJ2/1SnTqrj4RO9pKIUGEoi\r\nHuVCNCnuCwxbHSoQY90zZ05qZ96/IsvNhIuX8CyTfgltWzUZ5+te2FT8U5hOmuvq\r\n//yCRd03Itm1d2Wh+ih0JRwUGbSy4vk9DN8MZtLK4CFKtpo+f+y/zMdab8UMe+U7\r\nrCJAIvFXfUjQw0ziToEBtMktxzZuOKEi7gQEVwIDAQABAoIBAAP9wqbG5fySab7R\r\nVbK3TUcbaq7Y9kk9DYJLeK/ECq/r5zaEIr0BQ6H4G5I0HdaSRulaNE/+I4kDe9kw\r\nX3Ke280rBwRcwmj3g3NTH+4K3xeqro04UwrzQcpMhfJ++aplbSAB1mWXevZDfoPD\r\nwawzalZZUPAt9uFKagMejEBa7/GpvwcOrvOhqr48nR/njFFnQWCkcASOb1Jo/0HP\r\niHpnu8uLlm3AxIPhK3jyia26SBgEeFG0UL/4L94/RbW32uAztXfKmkzj7zgnYbXb\r\nPkt2F9zloSFmPnqvUbxr5UusyQW7tmDZswuqcD4l9TpEWiYYh3gwFfJQfCGtCR1v\r\n9Tcl7dkCgYEA+a+7uzFBjqPunOcQYwHYbB6V5oFfUfpHNjd4OjwxabGg97zZc1uu\r\np77rRmgpaE5zwq4Pygqosaszo9elaYCAUvDTiN0aLdhoZZODv87ZStbTHc4wUA/l\r\nl/Ov11b2iSKKRGy3ztgKK1SboxcU1vgZQBaMpHbDgc9gHVMqR/HnsjUCgYEAvTY3\r\ntNwd30n7NN8V5qsXV+0Zz7LiJkE/h0GWtgHpTD9zl3d/isS9EmDYB+saKc1XDqg4\r\njm4h4wU8Bg59HujPjOVpyAJI5XsFhsY87iRp7/tNTF1xIKD2Y8Sej+SpNbNlUEir\r\nnqXOVe/ttmGnvtVNSXHLcwYrzwzUjDI/XJv2bdsCgYATVr0fno0JU0Ej/fGS+Y2d\r\nsjDCDbsoSk5BsMIrIIZjPVLOXV4qRSud6nemmGK8pXbp2Tl32KOAP1ZcllNFfKJz\r\nyhtYOmfQrTZIx8gojwjddw4a/OFZEiIiRsmT0DSAIqC69AC4kJsZCBCV7S+8BrNN\r\n93ElO92grEMxgkOAFwhvEQKBgAevehfIkRYOxTtijFswO+SAZvn+xBzVraTqzxpZ\r\nfYZxVVqjqfSTBTMH5/56WDe2dYDM6G8wngPApK2CTSbCQhvw/Zj4LsnTc2gECVmK\r\n9RqgVIVzjjLLFvb6d45UtWLPBKB8Myxgg78N3dP4p32i4F7JVoA3kfP5C3EeYWB7\r\nnUjdAoGBAJcLUiMhzr3f0+wD3ohaa+9SymzxhCFRi3XXi8BksTRNXleN4VyZFdot\r\nBIYSfx1vQTah4gKJ48zQhnCgnilyanlRBG9+Y3LEUttO922jXcUR8Pp3JMnTce+8\r\nbVC8Jejrrgg7feMa9OUoPU8VuhgDaVyqVrW+3ZEhTT/ZN7MpJRBG\r\n-----END RSA PRIVATE KEY-----'
+const loadJwtKeyPair = () => {
+  const configuredPrivateKey = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n')
+  if (configuredPrivateKey) {
+    return { privateKey: configuredPrivateKey, publicKey: crypto.createPublicKey(configuredPrivateKey).export({ type: 'spki', format: 'pem' }).toString() }
+  }
+  return crypto.generateKeyPairSync('rsa', {
+    modulusLength: 2048,
+    publicKeyEncoding: { type: 'spki', format: 'pem' },
+    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+  })
+}
+const jwtKeyPair = loadJwtKeyPair()
+export const publicKey = jwtKeyPair.publicKey
+const privateKey = jwtKeyPair.privateKey
 
 interface ResponseWithUser {
   status?: string
