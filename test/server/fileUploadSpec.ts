@@ -121,7 +121,7 @@ describe('fileUpload', () => {
       const response: any = { status: (code: number) => { statusCodes.push(code); return response }, end: () => {} }
       const errors: Error[] = []
 
-      handleYamlUpload({ file: { originalname: 'complaint.yml', buffer } } as any, response, (err: Error) => { errors.push(err) })
+      handleYamlUpload({ file: { originalname: 'complaint.yml', buffer } } as any, response, (err?: any) => { errors.push(err) })
 
       return { statusCode: statusCodes[0], error: errors[0] }
     }
@@ -152,11 +152,11 @@ describe('fileUpload', () => {
     it('should solve "yamlBombChallenge" without serializing a YAML bomb', () => {
       const stringify = JSON.stringify
       let longestSerialization = 0
-      JSON.stringify = (...args: Parameters<typeof JSON.stringify>) => {
+      JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
         const json = stringify(...args)
         longestSerialization = Math.max(longestSerialization, json?.length ?? 0)
         return json
-      }
+      }) as typeof JSON.stringify
       try {
         const { statusCode } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
 
