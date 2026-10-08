@@ -32,11 +32,22 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const customer = security.authenticatedUsers.from(req)
+    const userId = customer?.data?.id
+    const email = customer?.data?.email ?? ''
+    if (userId == null) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    BasketModel.findOne({ where: { id, UserId: userId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
-          const customer = security.authenticatedUsers.from(req)
-          const email = customer ? customer.data ? customer.data.email : '' : ''
+          const basketItems = (basket.Products ?? []).map(({ BasketItem }) => BasketItem).filter((item): item is BasketItemModel => item != null)
+          if (basketItems.some((item) => !Number.isSafeInteger(item.quantity) || item.quantity < 1)) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some((item) => item.quantity < 0) })
+            res.status(400).json({ status: 'error', message: 'Basket item quantities must be positive integers.' })
+            return
+          }
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
           const { default: PDFDocument } = await import('pdfkit')
@@ -104,7 +115,7 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
@@ -137,24 +148,25 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            next(new Error('Order total must not be negative.'))
+            return
+          }
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
+          if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+            const wallet = await WalletModel.findOne({ where: { UserId: userId } })
+            if ((wallet != null) && wallet.balance >= totalPrice) {
+              await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: userId } })
+            } else {
+              next(new Error('Insufficient wallet balance.'))
               return
             }
+          }
+          try {
+            await WalletModel.increment({ balance: totalPoints }, { where: { UserId: userId } })
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -190,14 +202,21 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]
     const couponDate = Number(couponData[1])
-    const campaign = campaigns[couponCode as keyof typeof campaigns]
+    const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
     if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+      const now = Date.now()
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < now })
+      return isCampaignActive(campaign, now) ? campaign.discount : 0
     }
   }
   return 0
+}
+
+const CAMPAIGN_DURATION_IN_MS = 24 * 60 * 60 * 1000
+
+export function isCampaignActive (campaign: { validOn: number }, now: number = Date.now()) {
+  return now >= campaign.validOn && now < campaign.validOn + CAMPAIGN_DURATION_IN_MS
 }
 
 const campaigns = {

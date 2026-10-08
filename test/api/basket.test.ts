@@ -124,8 +124,8 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+  void it('POST placing an order for the own basket returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -136,16 +136,55 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order for another user\'s basket fails and leaves that basket intact', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
+
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const adminBasket = await request(app).get('/rest/basket/1').set({ Authorization: 'Bearer ' + token })
+    assert.equal(adminBasket.status, 200)
+    assert.equal(adminBasket.body.data.Products.length, 3)
+  })
+
+  void it('POST placing an order for a basket with a negative quantity is rejected without crediting the wallet', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.message, 'Basket item quantities must be positive integers.')
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
+    assert.equal(balanceAfter, balanceBefore)
+
+    const deleteRes = await request(app).delete('/api/BasketItems/' + itemRes.body.data.id).set(authHeader)
+    assert.equal(deleteRes.status, 200)
+  })
+
+  void it('POST placing an order with an expired campaign coupon does not apply its discount', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    const couponData = Buffer.from('WMNSDY2019-' + new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()).toString('base64')
+
+    const res = await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ couponData, orderDetails: { paymentId: 'wallet' } })
     assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
