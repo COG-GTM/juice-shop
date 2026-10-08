@@ -4,10 +4,8 @@
  */
 
 import * as utils from '../lib/utils'
-import * as challengeUtils from '../lib/challengeUtils'
 import { type Request, type Response } from 'express'
 import * as db from '../data/mongodb'
-import { challenges } from '../data/datacache'
 
 // Order ids are generated as <first 4 hex chars of md5(email)>-<16 random hex chars>
 const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
@@ -15,9 +13,6 @@ const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
 export function trackOrder () {
   return (req: Request, res: Response) => {
     const id = String(req.params.id)
-
-    // Detection only: the payload is rejected below and never queried or reflected
-    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
 
     if (!ORDER_ID_PATTERN.test(id)) {
       res.status(400).json({ error: 'Invalid order id' })

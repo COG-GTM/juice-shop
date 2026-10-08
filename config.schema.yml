@@ -238,11 +238,6 @@ ctf:
         type: string
       code:
         type: string
-    reflectedXssChallenge:
-      name:
-        type: string
-      code:
-        type: string
     persistedXssUserChallenge:
       name:
         type: string
@@ -444,11 +439,6 @@ ctf:
       code:
         type: string
     noSqlReviewsChallenge:
-      name:
-        type: string
-      code:
-        type: string
-    noSqlOrdersChallenge:
       name:
         type: string
       code:
