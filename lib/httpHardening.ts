@@ -72,9 +72,10 @@ export function cspHeaderName (env: NodeJS.ProcessEnv = process.env): string {
 
 const configuredNotificationUrl = () => config.has('ctf.systemWideNotifications.url') ? config.get<string | null>('ctf.systemWideNotifications.url') : null
 
-export function notificationOrigins (url: string | null = configuredNotificationUrl()): string[] {
+export function notificationOrigins (url: string | null = configuredNotificationUrl(), baseUrl: string = config.get<string>('server.baseUrl')): string[] {
+  if (!url) return []
   try {
-    const { origin, protocol } = new URL(url ?? '')
+    const { origin, protocol } = new URL(url, baseUrl)
     return protocol === 'https:' || protocol === 'http:' ? [origin] : []
   } catch {
     return []

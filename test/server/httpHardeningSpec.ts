@@ -152,9 +152,14 @@ describe('httpHardening', () => {
       expect(notificationOrigins('https://ctf.example.org/notifications?x=1')).to.deep.equal(['https://ctf.example.org'])
     })
 
+    it('resolves protocol-relative and relative notification URLs against the base URL', () => {
+      expect(notificationOrigins('//ctf.example.org/notifications', 'https://shop.example.org')).to.deep.equal(['https://ctf.example.org'])
+      expect(notificationOrigins('/rest/notifications', 'https://shop.example.org')).to.deep.equal(['https://shop.example.org'])
+    })
+
     it('adds nothing without a valid http(s) notification URL', () => {
       expect(notificationOrigins(null)).to.deep.equal([])
-      expect(notificationOrigins('not a url')).to.deep.equal([])
+      expect(notificationOrigins('http://[invalid')).to.deep.equal([])
       expect(notificationOrigins('javascript:alert(1)')).to.deep.equal([])
     })
   })
