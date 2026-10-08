@@ -4,11 +4,12 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import clarinet from 'clarinet'
+import { BasketModel } from '../models/basket'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
-import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
@@ -16,48 +17,106 @@ interface RequestWithRawBody extends Request {
   rawBody: string
 }
 
-export function addBasketItem () {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
+interface BasketItemFields {
+  ProductId?: any
+  BasketId?: any
+  quantity?: any
+}
 
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
+const basketItemKeys = ['ProductId', 'BasketId', 'quantity'] as const
+
+function countTopLevelBasketItemKeys (json: string) {
+  const parser = clarinet.parser()
+  const counts: Record<string, number> = {}
+  let depth = 0
+  const countKey = (key?: string) => {
+    if (depth === 1 && key !== undefined && (basketItemKeys as readonly string[]).includes(key)) {
+      counts[key] = (counts[key] ?? 0) + 1
+    }
+  }
+  parser.onopenobject = (key?: string) => {
+    depth++
+    countKey(key)
+  }
+  parser.onkey = countKey
+  parser.oncloseobject = () => { depth-- }
+  parser.onopenarray = () => { depth++ }
+  parser.onclosearray = () => { depth-- }
+  parser.onerror = (error: Error) => { throw error }
+  parser.write(json).close()
+  return counts
+}
+
+function parseBasketItemBody (req: Request): { fields: BasketItemFields, duplicateKeys: boolean } {
+  const rawBody = (req as RequestWithRawBody).rawBody
+  const json = typeof rawBody === 'string' ? rawBody : JSON.stringify(req.body ?? {})
+  const duplicateKeys = Object.values(countTopLevelBasketItemKeys(json)).some(count => count > 1)
+  const body = JSON.parse(json)
+  const fields: BasketItemFields = {}
+  if (body !== null && typeof body === 'object' && !Array.isArray(body)) {
+    for (const key of basketItemKeys) {
+      if (Object.prototype.hasOwnProperty.call(body, key)) {
+        fields[key] = body[key]
       }
     }
+  }
+  return { fields, duplicateKeys }
+}
 
-    const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
+async function sessionBasketId (user: { bid?: number, data?: { id?: number } } | undefined) {
+  if (user?.bid != null) {
+    return user.bid
+  }
+  if (user?.data?.id == null) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
+}
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
+function hasForeignBasketId (basketId: any, userBid: any) {
+  return basketId != null && basketId !== 'undefined' && Number(basketId) !== Number(userBid)
+}
+
+export function addBasketItem () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fields, duplicateKeys } = parseBasketItemBody(req)
+      if (duplicateKeys) {
+        res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
+        return
       }
+      const bid = await sessionBasketId(security.authenticatedUsers.from(req))
+      if (bid == null || hasForeignBasketId(fields.BasketId, bid)) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
+      }
+      const addedBasketItem = await BasketItemModel.build({
+        ProductId: fields.ProductId,
+        BasketId: bid,
+        quantity: fields.quantity
+      }).save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
 
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
-    void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
+    let parsed
+    try {
+      parsed = parseBasketItemBody(req)
+    } catch (error) {
+      next(error)
+      return
+    }
+    if (parsed.duplicateKeys) {
+      res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
+      return
+    }
+    void quantityCheck(req, res, next, parsed.fields.ProductId, parsed.fields.quantity).catch((error: Error) => {
       next(error)
     })
   }
