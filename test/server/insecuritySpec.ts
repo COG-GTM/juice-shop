@@ -150,13 +150,13 @@ describe('insecurity', () => {
     })
 
     it('denyAll rejects CORS preflight-shaped requests with 401', () => {
-    const req = { method: 'OPTIONS', headers: { 'access-control-request-headers': 'authorization' } } as unknown as Request
-    let error: any
-    security.denyAll()(req, {} as Response, (err?: any) => { error = err })
-    expect(error?.status).to.equal(401)
-  })
+      const req = { method: 'OPTIONS', headers: { 'access-control-request-headers': 'authorization' } } as unknown as Request
+      let error: any
+      security.denyAll()(req, {} as Response, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
 
-  it('isAuthorized rejects missing, unsigned and HS256 tokens with 401', () => {
+    it('isAuthorized rejects missing, unsigned and HS256 tokens with 401', () => {
       for (const token of [undefined, unsignedToken, hs256Token]) {
         const { error } = runMiddleware(token)
         expect(error?.status).to.equal(401)
