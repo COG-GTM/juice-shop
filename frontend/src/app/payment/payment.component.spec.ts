@@ -242,14 +242,23 @@ describe('PaymentComponent', () => {
 
     it('should drop a previously applied discount when the server rejects a coupon', () => {
         sessionStorage.setItem('couponDiscount', '20')
-        basketService.applyCoupon.mockReturnValue(throwError('Invalid coupon.'))
-        const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
+        basketService.applyCoupon.mockReturnValue(throwError({ status: 404, error: 'Invalid coupon.' }))
 
         component.couponControl.setValue('WMNSDY2019')
         component.applyCoupon()
 
-        expect(removeItemSpy).toHaveBeenCalledWith('couponDiscount')
         expect(sessionStorage.getItem('couponDiscount')).toBeNull()
+    })
+
+    it('should keep a previously applied discount when the coupon request fails without a server rejection', () => {
+        sessionStorage.setItem('couponDiscount', '20')
+        basketService.applyCoupon.mockReturnValue(throwError({ status: 0, error: 'Network error' }))
+
+        component.couponControl.setValue('WMNSDY2019')
+        component.applyCoupon()
+
+        expect(sessionStorage.getItem('couponDiscount')).toBe('20')
+        sessionStorage.removeItem('couponDiscount')
     })
 
     it('should translate DISCOUNT_APPLIED message', () => {
