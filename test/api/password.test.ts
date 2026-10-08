@@ -260,3 +260,39 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 })
+
+void describe('/rest/user/reset-password brute-force protection', () => {
+  const email = 'mc.safesearch@' + config.get<string>('application.domain')
+  const wrongAnswer = (n: number) => request(app)
+    .post('/rest/user/reset-password')
+    .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.${Math.floor(n / 256)}.${n % 256}` })
+    .send({ email, answer: 'wrong answer ' + n, new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
+
+  void it('locks the account after 10 wrong answers even when X-Forwarded-For rotates', async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await wrongAnswer(i)
+      assert.equal(res.status, 401)
+    }
+    const res = await wrongAnswer(10)
+    assert.equal(res.status, 429)
+    assert.ok(Number(res.headers['retry-after']) > 0)
+  })
+
+  void it('rejects even the correct answer while the account is locked', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: email.toUpperCase(), answer: 'I even shared my pizza bagels with you!', new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
+
+    assert.equal(res.status, 429)
+  })
+
+  void it('does not lock other accounts', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'amy@' + config.get<string>('application.domain'), answer: 'wrong', new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
+
+    assert.equal(res.status, 401)
+  })
+})
