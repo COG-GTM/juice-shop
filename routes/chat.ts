@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import * as crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
@@ -44,6 +45,16 @@ function isExpired (token: string): boolean {
   return typeof exp === 'number' && exp * 1000 <= Date.now()
 }
 
+function hasServerSignature (token: string): boolean {
+  const [header, payload, signature] = token.split('.')
+  try {
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString()) as { alg?: string }
+    return alg === 'RS256' && !!signature && crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
+
 function getAuthenticatedUser (req: Request): { id?: number, role?: string } | undefined {
   const token = utils.jwtFrom(req)
   if (!token || !security.verify(token) || isExpired(token)) return undefined
@@ -59,7 +70,7 @@ async function getUserId (req: Request): Promise<number | undefined> {
 export function rejectUnverifiedChatToken () {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    if (token && !isExpired(token) && !getAuthenticatedUser(req)) {
+    if (token && !getAuthenticatedUser(req) && !(isExpired(token) && hasServerSignature(token))) {
       res.status(401).json({ error: 'Invalid authentication token' })
       return
     }

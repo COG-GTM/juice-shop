@@ -292,9 +292,14 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     await assertRejected(security.authorize({ data: { id: 1, email: adminEmail, role: 'admin' } }))
   })
 
+  void it('POST rejects an unsigned JWT even if it claims to be expired', { timeout: 15000 }, async () => {
+    await assertRejected(unsignedToken({ data: { id: 1, email: adminEmail, role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 }))
+  })
+
   void it('POST treats an expired JWT as anonymous instead of rejecting the chat', { timeout: 30000 }, async () => {
     const { orderId } = await firstOrderIdOf(adminEmail, 'admin123')
-    const expiredToken = unsignedToken({ data: { id: 1, email: adminEmail, role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+    const expiredToken = security.authorize({ data: { id: 1, email: adminEmail, role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+    assert.ok(security.decode(expiredToken).exp * 1000 < Date.now(), 'test token is not expired')
 
     const toolResult = await requestOrder(orderId, expiredToken)
 
