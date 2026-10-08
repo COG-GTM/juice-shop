@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -121,12 +123,29 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 500)
   })
 
-  void it('POST zip file with directory traversal payload', async () => {
+  void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
+    const legalFile = path.resolve('ftp/legal.md')
+    const legalBefore = fs.readFileSync(legalFile)
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    await sleep(500)
+    assert.deepEqual(fs.readFileSync(legalFile), legalBefore)
+  })
+
+  void it('POST zip file extracts regular entries into uploads/complaints', async () => {
+    const extracted = path.resolve('uploads/complaints/validComplaint.txt')
+    fs.rmSync(extracted, { force: true })
+    const file = path.resolve(__dirname, '../files/validComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await sleep(500)
+    assert.equal(fs.readFileSync(extracted, 'utf8'), 'Zip Slip test complaint\n')
+    fs.rmSync(extracted, { force: true })
   })
 
   void it('POST zip file with password protection', async () => {

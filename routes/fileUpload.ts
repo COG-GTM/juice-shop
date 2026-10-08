@@ -24,6 +24,16 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+
+function resolveComplaintPath (fileName: unknown): string | null {
+  if (typeof fileName !== 'string' || fileName === '' || fileName.includes('\0')) return null
+  if (path.posix.isAbsolute(fileName) || path.win32.isAbsolute(fileName)) return null
+  if (fileName.split(/[\\/]/).includes('..')) return null
+  const targetPath = path.resolve(complaintsDir, fileName)
+  return targetPath.startsWith(complaintsDir + path.sep) ? targetPath : null
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -41,8 +51,15 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetPath = entry.type === 'File' ? resolveComplaintPath(fileName) : null
+                if (targetPath != null) {
+                  try {
+                    fs.mkdirSync(path.dirname(targetPath), { recursive: true })
+                  } catch {
+                    entry.autodrain()
+                    return
+                  }
+                  entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
@@ -139,6 +156,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveComplaintPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,

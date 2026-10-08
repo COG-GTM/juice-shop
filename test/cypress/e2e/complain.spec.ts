@@ -147,7 +147,8 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "videoXssChallenge"', () => {
-    it('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
+    // Zip entries can no longer be extracted outside uploads/complaints, so the subtitle overwrite via videoExploit.zip is blocked
+    it.skip('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('Here we go!')
