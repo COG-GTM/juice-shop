@@ -47,7 +47,7 @@ export class OAuthComponent implements OnInit {
       next: (authentication) => {
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
-        this.cookieService.put('token', authentication.token, { expires })
+        this.cookieService.put('token', authentication.token, { expires, sameSite: 'strict' })
         localStorage.setItem('token', authentication.token)
         sessionStorage.setItem('bid', authentication.bid)
         this.userService.isLoggedIn.next(true)
