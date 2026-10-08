@@ -154,6 +154,22 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data.fullName, 'Jimy')
   })
 
+  void it('PUT update address of another user is forbidden', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Bender' })
+    assert.equal(res.status, 400)
+
+    const ownRes = await request(app).get('/api/Addresss/' + addressId).set(authHeader)
+    assert.equal(ownRes.status, 200)
+    assert.equal(ownRes.body.data.fullName, 'Jimy')
+  })
+
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)

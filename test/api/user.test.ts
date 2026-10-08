@@ -15,6 +15,8 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
+const adminHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
+const customerHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -30,13 +32,18 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET all users is forbidden for non-admin users', async () => {
+    const res = await request(app).get('/api/Users').set(customerHeader)
+    assert.equal(res.status, 403)
+  })
+
   void it('GET all users', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+    const res = await request(app).get('/api/Users').set(adminHeader)
     assert.equal(res.status, 200)
   })
 
   void it('GET all users doesnt include passwords', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+    const res = await request(app).get('/api/Users').set(adminHeader)
     assert.equal(res.status, 200)
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
@@ -215,8 +222,19 @@ void describe('/api/Users/:id', () => {
   })
 
   void it('GET existing user by id', async () => {
-    const res = await request(app).get('/api/Users/1').set(authHeader)
+    const res = await request(app).get('/api/Users/1').set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET own user by id', async () => {
+    const res = await request(app).get('/api/Users/2').set(customerHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
+  })
+
+  void it('GET other user by id is forbidden for non-admin users', async () => {
+    const res = await request(app).get('/api/Users/1').set(customerHeader)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing user is forbidden via API even when authenticated', async () => {

@@ -13,7 +13,8 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+const authHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
+const customerHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -21,6 +22,19 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
+  void it('GET is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
+  })
+
   void it('GET all users with password replaced by asterisks', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')

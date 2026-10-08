@@ -12,9 +12,12 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { FeedbackModel } from '../../models/feedback'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -296,9 +299,32 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
+    const forbiddenRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(customerHeader)
+    assert.equal(forbiddenRes.status, 403)
+
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const feedback = await FeedbackModel.create({ UserId: 3, comment: 'Bender was here', rating: 3 })
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(customerHeader)
+    assert.equal(res.status, 403)
+    assert.ok(await FeedbackModel.findByPk(feedback.id))
+  })
+
+  void it('DELETE own feedback', async () => {
+    const feedback = await FeedbackModel.create({ UserId: 2, comment: 'Jim was here', rating: 3 })
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(customerHeader)
+    assert.equal(res.status, 200)
+    assert.equal(await FeedbackModel.findByPk(feedback.id), null)
   })
 })
