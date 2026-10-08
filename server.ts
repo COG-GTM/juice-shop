@@ -403,6 +403,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
   /* Captcha Bypass challenge verification */
   app.post('/api/Feedbacks', verify.captchaBypassChallenge())
+  /* Only allow clients to set registration fields; role, deluxeToken, totpSecret, isActive etc. are server-controlled */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const { email, password, passwordRepeat } = req.body ?? {}
+    req.body = { email, password, passwordRepeat }
+    next()
+  })
   /* User registration challenge verifications before finale takes over */
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body.email !== undefined && req.body.password !== undefined && req.body.passwordRepeat !== undefined) {
