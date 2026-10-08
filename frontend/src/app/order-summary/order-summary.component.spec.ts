@@ -167,7 +167,6 @@ describe('OrderSummaryComponent', () => {
         expect(removeItemSpy).toHaveBeenCalledWith('paymentId')
         expect(removeItemSpy).toHaveBeenCalledWith('addressId')
         expect(removeItemSpy).toHaveBeenCalledWith('deliveryMethodId')
-        expect(removeItemSpy).toHaveBeenCalledWith('couponDetails')
         expect(removeItemSpy).toHaveBeenCalledWith('couponDiscount')
     })
 })

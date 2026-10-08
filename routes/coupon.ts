@@ -12,7 +12,7 @@ export function applyCoupon () {
     try {
       const id = params.id
       let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
-      const discount = security.discountFromCoupon(coupon)
+      const discount = security.discountFromCoupon(coupon) ?? security.discountFromCampaign(coupon)
       coupon = discount ? coupon : null
 
       const basket = await BasketModel.findByPk(id)

@@ -228,6 +228,39 @@ describe('PaymentComponent', () => {
         expect(component.couponError).toBeUndefined()
     })
 
+    it('should validate campaign coupon codes on the server', () => {
+        basketService.applyCoupon.mockReturnValue(throwError('Invalid coupon.'))
+        sessionStorage.setItem('bid', '4')
+
+        component.couponControl.setValue('WMNSDY2019')
+        component.applyCoupon()
+
+        expect(basketService.applyCoupon).toHaveBeenCalledWith(4, 'WMNSDY2019')
+        expect(component.couponConfirmation).toBeUndefined()
+        expect(component.couponError).toBe('Invalid coupon.')
+    })
+
+    it('should drop a previously applied discount when the server rejects a coupon', () => {
+        sessionStorage.setItem('couponDiscount', '20')
+        basketService.applyCoupon.mockReturnValue(throwError({ status: 404, error: 'Invalid coupon.' }))
+
+        component.couponControl.setValue('WMNSDY2019')
+        component.applyCoupon()
+
+        expect(sessionStorage.getItem('couponDiscount')).toBeNull()
+    })
+
+    it('should keep a previously applied discount when the coupon request fails without a server rejection', () => {
+        sessionStorage.setItem('couponDiscount', '20')
+        basketService.applyCoupon.mockReturnValue(throwError({ status: 0, error: 'Network error' }))
+
+        component.couponControl.setValue('WMNSDY2019')
+        component.applyCoupon()
+
+        expect(sessionStorage.getItem('couponDiscount')).toBe('20')
+        sessionStorage.removeItem('couponDiscount')
+    })
+
     it('should translate DISCOUNT_APPLIED message', () => {
         basketService.applyCoupon.mockReturnValue(of(42))
         translateService.get.mockReturnValue(of('Translation of DISCOUNT_APPLIED'))

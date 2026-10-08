@@ -76,7 +76,7 @@ describe('/#/basket', () => {
       cy.login({ email: 'jim', password: 'ncc-1701' })
     })
     describe('challenge "manipulateClock"', () => {
-      it('should be possible to enter WMNSDY2019 coupon & place order with this expired coupon', () => {
+      it('should reject the expired WMNSDY2019 coupon even with a manipulated client clock', () => {
         cy.window().then(() => {
           window.localStorage.couponPanelExpanded = false
         })
@@ -93,12 +93,11 @@ describe('/#/basket', () => {
         })
         cy.get('#collapseCouponElement').click()
 
+        cy.intercept('PUT', '/rest/basket/*/coupon/WMNSDY2019').as('applyCampaignCoupon')
         cy.get('#coupon').type('WMNSDY2019')
         cy.get('#applyCouponButton').click()
-        cy.get('.mat-mdc-radio-button').first().click()
-        cy.get('.nextButton').click()
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Expired Coupon' })
+        cy.wait('@applyCampaignCoupon').its('response.statusCode').should('eq', 404)
+        cy.get('.error.message-spacing').should('contain', 'Invalid coupon.')
       })
     })
 

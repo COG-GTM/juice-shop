@@ -82,6 +82,35 @@ describe('insecurity', () => {
     })
   })
 
+  describe('discountFromCampaign', () => {
+    const WMNSDY2019 = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+    const ONE_HOUR = 60 * 60 * 1000
+
+    it('returns campaign discount during the campaign day', () => {
+      expect(security.discountFromCampaign('WMNSDY2019', WMNSDY2019)).to.equal(75)
+      expect(security.discountFromCampaign('WMNSDY2019', WMNSDY2019 + 23 * ONE_HOUR)).to.equal(75)
+    })
+
+    it('returns undefined before or after the campaign day', () => {
+      expect(security.discountFromCampaign('WMNSDY2019', WMNSDY2019 - 1)).to.equal(undefined)
+      expect(security.discountFromCampaign('WMNSDY2019', WMNSDY2019 + 24 * ONE_HOUR)).to.equal(undefined)
+    })
+
+    it('returns undefined for expired campaigns at the current server time', () => {
+      for (const code of Object.keys(security.campaigns)) {
+        expect(security.discountFromCampaign(code)).to.equal(undefined)
+      }
+    })
+
+    it('returns undefined for unknown, inherited or client-dated campaign codes', () => {
+      expect(security.discountFromCampaign(undefined, WMNSDY2019)).to.equal(undefined)
+      expect(security.discountFromCampaign('', WMNSDY2019)).to.equal(undefined)
+      expect(security.discountFromCampaign('NOSUCHCODE', WMNSDY2019)).to.equal(undefined)
+      expect(security.discountFromCampaign('constructor', WMNSDY2019)).to.equal(undefined)
+      expect(security.discountFromCampaign(`WMNSDY2019-${WMNSDY2019}`, WMNSDY2019)).to.equal(undefined)
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
