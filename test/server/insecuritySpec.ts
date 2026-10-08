@@ -212,7 +212,11 @@ describe('insecurity', () => {
     })
 
     it('rejects RS256 tokens signed with any other private key', () => {
-      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
       const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey, { algorithm: 'RS256' })
       expect(security.verify(forged)).to.equal(false)
     })
