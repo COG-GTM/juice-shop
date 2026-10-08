@@ -1,7 +1,7 @@
 {
 	"accessLogDisclosureChallenge_1_correct.ts": {
 		"added": [
-			16
+			14
 		],
 		"removed": []
 	},
@@ -694,7 +694,7 @@
 	},
 	"directoryListingChallenge_1_correct.ts": {
 		"added": [
-			5
+			4
 		],
 		"removed": []
 	},

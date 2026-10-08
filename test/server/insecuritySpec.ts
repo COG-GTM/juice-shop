@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -185,6 +186,61 @@ describe('insecurity', () => {
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+    })
+  })
+
+  describe('isAdmin', () => {
+    const adminToken = () => security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+    const run = (headers: Record<string, string>) => {
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAdmin()({ headers } as unknown as Request, res, next)
+      return { res, next }
+    }
+
+    it('lets a signed admin bearer token pass', () => {
+      const { next } = run({ authorization: 'Bearer ' + adminToken() })
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('lets a signed admin token cookie pass', () => {
+      const { next } = run({ cookie: 'language=en; token=' + adminToken() })
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('responds 401 without any token', () => {
+      const { res, next } = run({})
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('responds 403 for a non-admin token', () => {
+      const { res, next } = run({ authorization: 'Bearer ' + security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }) })
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('responds 403 for an unsigned admin token', () => {
+      const encode = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+      const unsigned = encode({ alg: 'none', typ: 'JWT' }) + '.' + encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } }) + '.'
+      const { res, next } = run({ authorization: 'Bearer ' + unsigned })
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('responds 403 for an expired admin token', () => {
+      const expired = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+      const { res, next } = run({ authorization: 'Bearer ' + expired })
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('responds 403 for an admin token with a tampered payload', () => {
+      const [header, , signature] = security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }).split('.')
+      const forgedPayload = Buffer.from(JSON.stringify({ data: { email: 'jim@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const { res, next } = run({ authorization: `Bearer ${header}.${forgedPayload}.${signature}` })
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 

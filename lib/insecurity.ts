@@ -164,6 +164,49 @@ export const isAccounting = () => {
   }
 }
 
+const tokenFromCookie = (req: Request) => {
+  const match = /(?:^|;\s*)token=([^;]+)/.exec(req.headers?.cookie ?? '')
+  if (match == null) return undefined
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return undefined
+  }
+}
+
+const hasValidRs256Signature = (token: string) => {
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+  try {
+    return crypto.createVerify('RSA-SHA256').update(parts[0] + '.' + parts[1]).verify(publicKey, parts[2], 'base64url')
+  } catch {
+    return false
+  }
+}
+
+export const isAdminToken = (token?: string) => {
+  if (!token || !hasValidRs256Signature(token)) return false
+  const payload = decode(token)
+  if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return false
+  return payload?.data?.role === roles.admin
+}
+
+export const tokenFrom = (req: Request): string | undefined => utils.jwtFrom(req) ?? tokenFromCookie(req)
+
+export const isAdminRequest = (req: Request) => isAdminToken(tokenFrom(req))
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isAdminRequest(req)) {
+      next()
+    } else if (tokenFrom(req) === undefined) {
+      res.status(401).json({ error: 'Authentication required' })
+    } else {
+      res.status(403).json({ error: 'Admin role required' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
