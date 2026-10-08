@@ -68,7 +68,7 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 410)
-    assert.ok(res.text.includes('must not contain a DTD'))
+    assert.ok(res.text.includes('must be smaller than 100000 bytes'))
     assert.ok(!res.text.includes('B. Kimminich'))
   })
 
@@ -98,7 +98,7 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(payload, 'utf16le')]), 'xxeUtf16.xml')
     assert.equal(res.status, 410)
-    assert.ok(res.text.includes('must not contain a DTD'))
+    assert.ok(res.text.includes('must be UTF-8 encoded'))
     assert.ok(!res.text.includes('root:x:0:0'))
   })
 
@@ -108,7 +108,7 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', Buffer.from(payload), 'xxeUtf7.xml')
     assert.equal(res.status, 410)
-    assert.ok(res.text.includes('must not contain a DTD'))
+    assert.ok(res.text.includes('must be UTF-8 encoded'))
     assert.ok(!res.text.includes('root:x:0:0'))
   })
 

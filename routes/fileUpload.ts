@@ -74,25 +74,29 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
-function isSafeXmlUpload (buffer: Buffer) {
-  if (buffer.length > MAX_XML_UPLOAD_SIZE || buffer.includes(0)) {
-    return false
+function xmlUploadRejectionReason (buffer: Buffer) {
+  if (buffer.length > MAX_XML_UPLOAD_SIZE) {
+    return 'XML files must be smaller than ' + MAX_XML_UPLOAD_SIZE + ' bytes'
   }
   const data = buffer.toString('utf8')
-  if (/<!(DOCTYPE|ENTITY)/i.test(data)) {
-    return false
-  }
   const declaredEncoding = /^\uFEFF?\s*<\?xml[^>]*\bencoding\s*=\s*["']([^"']*)["']/i.exec(data)?.[1]
-  return declaredEncoding === undefined || /^(utf-8|us-ascii)$/i.test(declaredEncoding)
+  if (buffer.includes(0) || (declaredEncoding !== undefined && !/^(utf-8|us-ascii)$/i.test(declaredEncoding))) {
+    return 'XML files must be UTF-8 encoded'
+  }
+  if (/<!(DOCTYPE|ENTITY)/i.test(data)) {
+    return 'XML files must not contain a DTD'
+  }
+  return null
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
-      if (!isSafeXmlUpload(file.buffer)) {
+      const rejectionReason = xmlUploadRejectionReason(file.buffer)
+      if (rejectionReason != null) {
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML files must be UTF-8 encoded, smaller than ' + MAX_XML_UPLOAD_SIZE + ' bytes and must not contain a DTD (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + rejectionReason + ' (' + file.originalname + ')'))
         return
       }
       const data = file.buffer.toString('utf8')
