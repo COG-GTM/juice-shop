@@ -27,6 +27,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 
 describe('ProductDetailsComponent', () => {
     let component: ProductDetailsComponent
@@ -140,6 +141,33 @@ describe('ProductDetailsComponent', () => {
         buttonDe.triggerEventHandler('click', null)
         expect(console.log).toHaveBeenCalledWith('Error')
         fixture.destroy()
+    })
+
+    it('should confirm a review only after it was saved', () => {
+        component.data = { productData: { id: 42 } as Product }
+        const snackBarHelperService = TestBed.inject(SnackBarHelperService)
+        vi.spyOn(snackBarHelperService, 'open').mockReturnValue(undefined)
+        productReviewService.create.mockReturnValue(of({}))
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(snackBarHelperService.open).toHaveBeenCalledWith('CONFIRM_REVIEW_SAVED')
+    })
+
+    it('should not confirm a review when posting it fails', () => {
+        component.data = { productData: { id: 42 } as Product }
+        const snackBarHelperService = TestBed.inject(SnackBarHelperService)
+        vi.spyOn(snackBarHelperService, 'open').mockReturnValue(undefined)
+        productReviewService.create.mockReturnValue(throwError('Unauthorized'))
+        console.log = vi.fn()
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(snackBarHelperService.open).not.toHaveBeenCalled()
     })
 
     it('should refresh reviews after posting a review', () => {
