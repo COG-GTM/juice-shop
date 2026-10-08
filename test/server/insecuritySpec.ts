@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -137,6 +138,14 @@ describe('insecurity', () => {
       const unsigned = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url') + '.' +
         Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url') + '.'
       expect(run({ authorization: `Bearer ${unsigned}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+
+    it('rejects HS256 tokens signed with the public key and malformed tokens with 403', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(run({ authorization: `Bearer ${header}.${payload}.${signature}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
+      expect(run({ authorization: 'Bearer not.a.jwt' })).to.deep.equal({ nextCalled: false, statusCode: 403 })
     })
   })
 
