@@ -88,6 +88,7 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.isSubmittingReview = false
+        this.snackBarHelperService.open('ERROR_REVIEW_NOT_SAVED', 'errorBar')
         console.log(err)
       }
     })

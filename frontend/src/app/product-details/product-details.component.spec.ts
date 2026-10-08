@@ -22,6 +22,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatExpansionModule } from '@angular/material/expansion'
 
 import { ProductDetailsComponent } from './product-details.component'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { of, Subject, throwError } from 'rxjs'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
@@ -157,10 +158,13 @@ describe('ProductDetailsComponent', () => {
         fixture.detectChanges()
         expect(buttonDe.nativeElement.disabled).toBe(true)
         expect(textArea.value).toBe('Great product!')
+        const snackBarOpen = vi.spyOn(TestBed.inject(SnackBarHelperService), 'open').mockImplementation(() => undefined)
         pending.error('Unauthorized')
         fixture.detectChanges()
         expect(textArea.value).toBe('Great product!')
         expect(buttonDe.nativeElement.disabled).toBe(false)
+        expect(snackBarOpen).toHaveBeenCalledWith('ERROR_REVIEW_NOT_SAVED', 'errorBar')
+        expect(snackBarOpen).not.toHaveBeenCalledWith('CONFIRM_REVIEW_SAVED')
     })
 
     it('should keep a newer draft typed while the previous review was pending', () => {
