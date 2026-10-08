@@ -86,7 +86,7 @@ async function generateCouponViaChat (args: object, token?: string): Promise<str
         finishChunk('tool_calls')
       ])
     } else {
-      const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+      const toolMsg = parseJsonOrEmpty(body).messages?.find((m: { role: string }) => m.role === 'tool')
       toolResult = toolMsg?.content ?? ''
       sendSSE(res, [contentChunk('Done.'), finishChunk()])
     }
@@ -108,6 +108,14 @@ async function adminOrderId (delivered: boolean): Promise<string> {
   const order = await db.ordersCollection.findOne({ email: '*dm*n@j**c*-sh.*p', delivered })
   assert.ok(order)
   return order.orderId
+}
+
+function parseJsonOrEmpty (body: string): any {
+  try {
+    return JSON.parse(body)
+  } catch {
+    return {}
+  }
 }
 
 function couponFrom (toolResult: string): string | undefined {
@@ -336,7 +344,7 @@ void describe('/rest/chat client message validation', { timeout: 120000 }, () =>
   void it('forwards only role and text content of user/assistant turns', { timeout: 15000 }, async () => {
     let parsedBody: any
     onLlmRequest = (_req, body, res) => {
-      parsedBody = JSON.parse(body)
+      parsedBody = parseJsonOrEmpty(body)
       sendSSE(res, [contentChunk('Sure'), finishChunk()])
     }
 
