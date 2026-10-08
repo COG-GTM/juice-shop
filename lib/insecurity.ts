@@ -178,7 +178,8 @@ export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
     const decodedToken = token && hasValidRs256Signature(token) && decode(token)
-    if (decodedToken?.data?.role === roles.admin) {
+    const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp <= Math.floor(Date.now() / 1000)
+    if (!isExpired && decodedToken?.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })

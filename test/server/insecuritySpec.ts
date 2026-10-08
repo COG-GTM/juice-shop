@@ -140,6 +140,11 @@ describe('insecurity', () => {
       expect(run({ authorization: `Bearer ${unsigned}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
     })
 
+    it('rejects expired admin tokens with 403', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+
     it('rejects HS256 tokens signed with the public key and malformed tokens with 403', () => {
       const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
       const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
