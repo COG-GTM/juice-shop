@@ -164,10 +164,20 @@ export const isAccounting = () => {
   }
 }
 
+const hasValidRs256Signature = (token: string) => {
+  const [header, payload, signature] = token.split('.')
+  if (!header || !payload || !signature) return false
+  try {
+    return crypto.createVerify('RSA-SHA256').update(`${header}.${payload}`).verify(publicKey, signature, 'base64url')
+  } catch {
+    return false
+  }
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    const decodedToken = token && jws.decode(token)?.header?.alg === 'RS256' && verify(token) && decode(token)
+    const decodedToken = token && hasValidRs256Signature(token) && decode(token)
     if (decodedToken?.data?.role === roles.admin) {
       next()
     } else {
