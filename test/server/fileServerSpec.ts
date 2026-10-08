@@ -8,6 +8,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { servePublicFiles } from '../../routes/fileServer'
+import * as security from '../../lib/insecurity'
 import { type Challenge } from 'data/types'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -20,11 +21,60 @@ describe('fileServer', () => {
 
   beforeEach(() => {
     res = { sendFile: sinon.spy(), status: sinon.spy() }
-    req = { params: {}, query: {} }
+    req = { params: {}, query: {}, headers: { authorization: 'Bearer ' + security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } }) } }
     next = sinon.spy()
     save = () => ({
       then () { }
     })
+  })
+
+  it('should serve the public legal.md to anonymous users', () => {
+    req.headers = {}
+    req.params.file = 'legal.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]legal\.md/))
+  })
+
+  it('should serve order confirmation PDFs to anonymous users', () => {
+    req.headers = {}
+    req.params.file = 'order_5267-f9cd5882f54c75a3.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]order_5267-f9cd5882f54c75a3\.pdf/))
+  })
+
+  it('should deny confidential files to anonymous users with 401', () => {
+    req.headers = {}
+    req.params.file = 'acquisitions.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(401)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should deny confidential files to non-admin users with 403', () => {
+    req.headers = { authorization: 'Bearer ' + security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }) }
+    req.params.file = 'acquisitions.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+  })
+
+  it('should deny confidential files when requested with a poison null byte by anonymous users', () => {
+    req.headers = {}
+    req.params.file = 'package.json.bak%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(401)
   })
 
   it('should serve PDF files from folder /ftp', () => {

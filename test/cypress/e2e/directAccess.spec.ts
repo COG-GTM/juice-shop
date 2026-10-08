@@ -80,7 +80,14 @@ describe('/', () => {
   })
 
   describe('challenge "accessLogDisclosure"', () => {
-    it("should be able to access today's access log file", () => {
+    it("should deny anonymous access to today's access log file", () => {
+      cy.task<Date>('toISO8601').then((date: Date) => {
+        cy.request({ url: `/support/logs/access.log.${date.toString()}`, failOnStatusCode: false }).its('status').should('eq', 401)
+      })
+    })
+
+    it("should be able to access today's access log file as admin", () => {
+      cy.login({ email: 'admin', password: 'admin123' })
       // cy.visit requires a text/html response hence cy.request has been used
       cy.task<Date>('toISO8601').then((date: Date) => {
         cy.request(`/support/logs/access.log.${date.toString()}`)

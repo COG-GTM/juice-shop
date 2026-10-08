@@ -11,15 +11,23 @@ import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
-export function servePublicFiles () {
-  return ({ params, query }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+const PUBLIC_FILES = ['legal.md']
+const ORDER_CONFIRMATION = /^order_[0-9a-f]{4}-[0-9a-f]{16}\.pdf$/
 
-    if (!file.includes('/')) {
-      verify(file, res, next)
-    } else {
+export const isPublicFile = (file: string) => PUBLIC_FILES.includes(file) || ORDER_CONFIRMATION.test(file)
+
+export function servePublicFiles () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const file = req.params.file
+
+    if (file.includes('/')) {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
+    } else if (isPublicFile(file) || security.isAdminRequest(req)) {
+      verify(file, res, next)
+    } else {
+      res.status(security.tokenFrom(req) === undefined ? 401 : 403)
+      next(new Error('You are not allowed to access this file!'))
     }
   }
 

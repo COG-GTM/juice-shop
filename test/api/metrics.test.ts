@@ -10,8 +10,10 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+const adminAuth = 'Bearer ' + security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
 
 before(async () => {
   const result = await createTestApp()
@@ -19,9 +21,23 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
+  void it('GET metrics anonymously fails with a 401 error', async () => {
+    const res = await request(app)
+      .get('/metrics')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET metrics as a non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/metrics')
+      .set('Authorization', 'Bearer ' + security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }))
+    assert.equal(res.status, 403)
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +66,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +83,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
