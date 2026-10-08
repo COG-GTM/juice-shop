@@ -5,16 +5,19 @@
 
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+import { denyFileAccess, isAdmin } from './fileServer'
 
 export function serveQuarantineFiles () {
-  return ({ params, query }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+  return (req: Request, res: Response, next: NextFunction) => {
+    const file = req.params.file
 
-    if (!file.includes('/')) {
-      res.sendFile(path.resolve('ftp/quarantine/', file))
-    } else {
+    if (file.includes('/')) {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
+    } else if (isAdmin(req)) {
+      res.sendFile(path.resolve('ftp/quarantine/', file))
+    } else {
+      denyFileAccess(req, res, next)
     }
   }
 }
