@@ -125,7 +125,7 @@ describe('httpHardening', () => {
       const res = { setHeader: sinon.spy() }
       const next = sinon.spy()
       middleware({} as any, res as any, next)
-      expect(next).to.have.been.calledOnce
+      expect(next.calledOnce).to.equal(true)
       expect(res.setHeader.firstCall.args[0]).to.equal(cspHeaderName())
       return res.setHeader.firstCall.args[1] as string
     }
