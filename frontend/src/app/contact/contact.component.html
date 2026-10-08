@@ -65,7 +65,7 @@
     </div>
 
     <button type="submit" id="submitButton" mat-raised-button color="primary"
-      [disabled]="authorControl.invalid || feedbackControl.invalid || captchaControl.invalid || !rating"
+      [disabled]="authorControl.invalid || feedbackControl.invalid || captchaControl.invalid || !rating || captchaId === undefined"
       (click)="save()" aria-label="Button to send the review">
       <mat-icon>send</mat-icon>
       {{'BTN_SUBMIT' | translate}}
