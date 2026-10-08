@@ -43,4 +43,13 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should strip script from a malicious feedback comment but keep harmless formatting', () => {
+        component.feedback = 'This is <b>the</b> store<iframe src="javascript:alert(`xss`)"></iframe><img src="x" onerror="alert(1)">'
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('cite iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite [onerror]')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite b').textContent).toBe('the')
+    })
 })
