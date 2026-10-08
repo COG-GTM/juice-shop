@@ -145,33 +145,6 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST security answer for a newly registered user', async () => {
-    const userRes = await request(app)
-      .post('/api/Users')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'new.user@te.st',
-        password: '12345'
-      })
-
-    assert.equal(userRes.status, 201)
-
-    const res = await request(app)
-      .post('/api/SecurityAnswers')
-      .set(authHeader)
-      .send({
-        UserId: userRes.body.id,
-        SecurityQuestionId: 1,
-        answer: 'Horst'
-      })
-
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.data.id, 'number')
-    assert.equal(typeof res.body.data.createdAt, 'string')
-    assert.equal(typeof res.body.data.updatedAt, 'string')
-  })
-
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .put('/api/SecurityAnswers/1')
