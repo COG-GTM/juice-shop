@@ -180,7 +180,7 @@ void describe('/api/Users', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-    void it('POST new user with XSS attack in email address', async () => {
+    void it('POST new user with XSS attack in email address stores the email sanitized', async () => {
       const res = await request(app)
         .post('/api/Users')
         .set(jsonHeader)
@@ -190,9 +190,21 @@ void describe('/api/Users', () => {
         })
       assert.equal(res.status, 201)
       assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.email, '<iframe src="javascript:alert(`xss`)">')
+      assert.equal(res.body.data.email, '')
     })
   }
+
+  void it('POST new user with ampersand in email address stores the email unchanged', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'amy&bob@juice-sh.op',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.email, 'amy&bob@juice-sh.op')
+  })
 })
 
 void describe('/api/Users/:id', () => {
