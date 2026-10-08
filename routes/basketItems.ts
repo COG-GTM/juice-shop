@@ -68,10 +68,19 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
+      if (!user) {
+        res.status(401).json({ error: 'Unauthorized' })
+        return
+      }
+      if (item?.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+        res.status(403).json({ error: 'Basket item does not belong to your basket' })
+        return
+      }
+      if (req.body.BasketId !== undefined && Number(req.body.BasketId) !== Number(item.BasketId)) {
+        res.status(400).json({ error: 'BasketId of a basket item cannot be changed' })
+        return
+      }
       if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
         void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
