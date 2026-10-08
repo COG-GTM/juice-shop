@@ -27,7 +27,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
@@ -36,14 +36,14 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
   it('accepts requests without orderLinesData', () => {
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
