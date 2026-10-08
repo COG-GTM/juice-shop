@@ -164,6 +164,29 @@ export const isAccounting = () => {
   }
 }
 
+const hasValidRs256Signature = (token: string) => {
+  const [header, payload, signature] = token.split('.')
+  if (!header || !payload || !signature) return false
+  try {
+    return crypto.createVerify('RSA-SHA256').update(`${header}.${payload}`).verify(publicKey, signature, 'base64url')
+  } catch {
+    return false
+  }
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    const decodedToken = token && hasValidRs256Signature(token) && decode(token)
+    const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp <= Math.floor(Date.now() / 1000)
+    if (!isExpired && decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
