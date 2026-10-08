@@ -55,7 +55,7 @@ void describe('/api/Products', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.restfulXssChallenge)) {
-    void it('POST new product does not filter XSS attacks', async () => {
+    void it('POST new product strips XSS payload from description', async () => {
       const res = await request(app)
         .post('/api/Products')
         .set(authHeader)
@@ -66,7 +66,7 @@ void describe('/api/Products', () => {
           image: 'xss3juice.jpg'
         })
       assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.description, '<iframe src="javascript:alert(`xss`)">')
+      assert.ok(!res.body.data.description.includes('<iframe'))
     })
   }
 })
@@ -96,16 +96,29 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
+    const before = await request(app)
+      .get('/api/Products/' + tamperingProductId)
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.status, 401)
+    const after = await request(app)
+      .get('/api/Products/' + tamperingProductId)
+    assert.equal(after.body.data.description, before.body.data.description)
+  })
+
+  void it('PUT update existing product is forbidden via API even when authenticated', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(authHeader)
+      .send({
+        description: '<iframe src="javascript:alert(`xss`)">'
+      })
+    assert.equal(res.status, 401)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
