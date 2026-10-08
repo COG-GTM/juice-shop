@@ -18,10 +18,24 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
-    const res = await request(app).get('/')
+  void it('response must echo CORS header for the configured base URL origin', async () => {
+    const origin = config.get<string>('server.baseUrl')
+    const res = await request(app).get('/rest/languages').set('Origin', origin)
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.equal(res.headers['access-control-allow-origin'], origin)
+  })
+
+  void it('response must not contain CORS header for an untrusted origin', async () => {
+    const res = await request(app).get('/rest/languages').set('Origin', 'https://attacker.example')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('preflight request from an untrusted origin is not granted CORS access', async () => {
+    const res = await request(app).options('/rest/languages')
+      .set('Origin', 'https://attacker.example')
+      .set('Access-Control-Request-Method', 'POST')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {
@@ -30,7 +44,7 @@ void describe('HTTP', () => {
     assert.equal(res.headers['x-frame-options'], 'SAMEORIGIN')
   })
 
-  void it('response must contain CORS header allowing all origins', async () => {
+  void it('response must contain nosniff header', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)
     assert.equal(res.headers['x-content-type-options'], 'nosniff')

@@ -55,6 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
+import { corsOptions, exposeErrorDetails, genericErrorHandler, loadCookieParserSecret } from './lib/httpHardening'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
@@ -135,6 +136,7 @@ const server = new http.Server(app)
 const errorhandler = require('errorhandler')
 
 const startTime = Date.now()
+const cookieParserSecret = loadCookieParserSecret()
 
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 
@@ -178,9 +180,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to trusted origins (CORS_ALLOWED_ORIGINS) */
+  const trustedOriginsCors = cors(corsOptions())
+  app.options('*', trustedOriginsCors)
+  app.use(trustedOriginsCors)
 
   /* Security middleware */
   app.use(helmet.noSniff())
@@ -286,7 +289,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
 
   app.use(express.static(path.resolve('frontend/dist/frontend')))
-  app.use(cookieParser('kekse'))
+  app.use(cookieParser(cookieParserSecret))
   // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
 
   /* Serve vendor dependencies locally instead of from CDN */
@@ -675,7 +678,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use(exposeErrorDetails() ? errorhandler() : genericErrorHandler())
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
