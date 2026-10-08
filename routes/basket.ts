@@ -12,19 +12,12 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 
-function loggedInUserId (req: Request): number | undefined {
-  const cached = security.authenticatedUsers.from(req)?.data?.id
-  if (cached !== undefined) return cached
-  const token = utils.jwtFrom(req)
-  return security.verify(token) ? security.decode(token)?.data?.id : undefined
-}
-
 export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = req.params.id
       const user = security.authenticatedUsers.from(req)
-      const userId = loggedInUserId(req)
+      const userId = user?.data?.id
       if (userId === undefined) {
         res.status(401).json({ status: 'error', message: 'Unauthorized' })
         return
