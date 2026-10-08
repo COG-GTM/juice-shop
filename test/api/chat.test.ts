@@ -139,7 +139,7 @@ async function withUnpersistedAiDebuggingChallenge (fn: () => Promise<void>): Pr
   const challenge: any = challenges.aiDebuggingChallenge
   const { solved } = challenge
   challenge.solved = false
-  challenge.save = async function () { return this }
+  challenge.save = async () => await new Promise(() => {})
   try {
     await fn()
   } finally {
