@@ -46,9 +46,189 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send('username=Localhorst')
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+  void it('POST update username is rejected for cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const profile = await request(app).get('/profile').set(authHeader)
+    assert.equal(profile.status, 200)
+    assert.ok(profile.text.includes('jim@juice-sh.op'))
+    assert.ok(!profile.text.includes('CSRF'))
+  })
+
+  void it('POST update username is rejected for cross-site Referer without Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Referer', 'http://attacker.example/csrf.html')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for opaque Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'null')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for same hostname on a different port', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:8080')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from same origin sets SameSite=Strict token cookie', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const cookies = [res.headers['set-cookie'] ?? []].flat()
+    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Strict')))
+  })
+
+  void it('POST update username is rejected when a forged X-Forwarded-Host matches the cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Host', 'attacker.example')
+      .set('Origin', 'http://attacker.example')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username via reverse proxy accepts Origin matching the configured server.baseUrl', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'juice-shop-internal:8080')
+      .set('Origin', new URL(config.get<string>('server.baseUrl')).origin)
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username via host-rewriting reverse proxy accepts Sec-Fetch-Site same-origin from a non-default public host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'juice-shop-internal:8080')
+      .set('X-Forwarded-Host', 'shop.example')
+      .set('Origin', 'https://shop.example')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username is rejected when Sec-Fetch-Site is cross-site even if Origin matches Host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected when Sec-Fetch-Site is same-site', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Sec-Fetch-Site', 'same-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected when username is missing', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send('email=jim@juice-sh.op')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update username is rejected when username is not a string', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send('username[]=a&username[]=b')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update username is rejected when username contains control characters', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send('username=evil%0Aname')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update username is rejected when username is too long', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send(`username=${'a'.repeat(256)}`)
+      .redirects(0)
+
+    assert.equal(res.status, 400)
   })
 })

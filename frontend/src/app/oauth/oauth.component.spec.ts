@@ -21,7 +21,7 @@ import { ActivatedRoute } from '@angular/router'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { UserService } from '../Services/user.service'
-import { CookieModule } from 'ngy-cookie'
+import { CookieModule, CookieService } from 'ngy-cookie'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('OAuthComponent', () => {
@@ -96,6 +96,13 @@ describe('OAuthComponent', () => {
         userService.save.mockReturnValue(throwError({ error: 'Account already exists' }))
         component.ngOnInit()
         expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
+    })
+
+    it('stores the returned authentication token in a SameSite=Strict cookie', () => {
+        const putSpy = vi.spyOn(TestBed.inject(CookieService), 'put')
+        userService.login.mockReturnValue(of({ token: 'TOKEN' }))
+        component.login({ email: 'test@test.com' })
+        expect(putSpy).toHaveBeenCalledWith('token', 'TOKEN', expect.objectContaining({ sameSite: 'strict' }))
     })
 
     it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
