@@ -5,6 +5,8 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -201,6 +203,26 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+  describe('authorize', () => {
+    it('signs tokens that verify against the runtime public key', () => {
+      const token = security.authorize({ data: { id: 1, role: 'admin' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects RS256 tokens signed with any other private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is deterministic per email', () => {
+      const token = security.deluxeToken('test@juice-sh.op')
+      expect(token).to.equal(security.deluxeToken('test@juice-sh.op'))
+      expect(token).to.not.equal(security.deluxeToken('other@juice-sh.op'))
     })
   })
 })
