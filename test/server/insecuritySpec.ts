@@ -3,6 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -196,11 +199,113 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', async () => {
+      expect(await security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    })
+
+    it('uses a random salt for each hash', async () => {
+      expect(await security.hashPassword('admin123')).to.not.equal(await security.hashPassword('admin123'))
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
+      const storedHash = await security.hashPassword('admin123')
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = (await security.hashPassword('admin123')).split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', await security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', await security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects unsalted MD5 and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('')).to.match(/^[0-9a-f]{64}$/)
+    })
+
+    it('returns the same HMAC for the same input and different HMACs for different inputs', () => {
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+  })
+
+  describe('runtimeSecret', () => {
+    const name = 'TEST_RUNTIME_SECRET'
+    let secretDir: string
+    let secretFile: string
+
+    beforeEach(() => {
+      secretDir = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`))
+      secretFile = path.join(secretDir, 'secret')
+    })
+
+    afterEach(() => {
+      delete process.env[name]
+      delete process.env[`${name}_FILE`]
+      fs.rmSync(secretDir, { recursive: true, force: true })
+    })
+
+    it('returns the value of the environment variable', () => {
+      process.env[name] = 's3cr3t'
+      expect(security.runtimeSecret(name)).to.equal('s3cr3t')
+    })
+
+    it('returns the trimmed content of the file the <name>_FILE variable points to', () => {
+      fs.writeFileSync(secretFile, 's3cr3t\n')
+      process.env[`${name}_FILE`] = secretFile
+      expect(security.runtimeSecret(name)).to.equal('s3cr3t')
+    })
+
+    it('prefers the environment variable over the file', () => {
+      fs.writeFileSync(secretFile, 'from-file')
+      process.env[name] = 'from-env'
+      process.env[`${name}_FILE`] = secretFile
+      expect(security.runtimeSecret(name)).to.equal('from-env')
+    })
+
+    it('throws if the environment variable is set but empty', () => {
+      fs.writeFileSync(secretFile, 'from-file')
+      process.env[name] = ' '
+      process.env[`${name}_FILE`] = secretFile
+      expect(() => security.runtimeSecret(name)).to.throw(`${name} is set but contains no secret`)
+    })
+
+    it('throws if the file the <name>_FILE variable points to holds no secret', () => {
+      fs.writeFileSync(secretFile, '  \n')
+      process.env[`${name}_FILE`] = secretFile
+      expect(() => security.runtimeSecret(name)).to.throw(`${name}_FILE points to ${secretFile} which contains no secret`)
+    })
+
+    it('returns a random secret when nothing is configured', () => {
+      expect(security.runtimeSecret(name)).to.match(/^[0-9a-f]{64}$/)
+      expect(security.runtimeSecret(name)).to.not.equal(security.runtimeSecret(name))
     })
   })
 })
