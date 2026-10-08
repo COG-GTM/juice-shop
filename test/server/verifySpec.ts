@@ -267,6 +267,16 @@ describe('verify', () => {
       expect(challenges.jwtUnsignedChallenge.solved).to.equal(true)
     })
 
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token has expired', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'jwtn3d@juice-sh.op' }, iat: 1508639612, exp: 1508639613 })).toString('base64url')
+      req.headers = { authorization: `Bearer ${header}.${payload}.` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
     it('"jwtUnsignedChallenge" is solved when forged unsigned token has string "jwtn3d@" in the payload', () => {
       /*
       Header: { "alg": "none", "typ": "JWT" }

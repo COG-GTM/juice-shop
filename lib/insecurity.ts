@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
+import { expressjwt } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,10 +51,27 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
+
+const jwtMiddleware = (secret: string, algorithms: jwt.Algorithm[]) => {
+  const middleware = expressjwt({ secret, algorithms })
+  return (req: Request, res: Response, next: NextFunction) => {
+    void middleware(req, res, next)
+  }
+}
+
+export const isAuthorized = () => jwtMiddleware(publicKey, jwtAlgorithms)
+export const denyAll = () => jwtMiddleware(crypto.randomBytes(32).toString('hex'), ['HS256'])
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const verify = (token: string) => {
+  if (!token) return false
+  try {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+    return true
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -188,7 +205,7 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
