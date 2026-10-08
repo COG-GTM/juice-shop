@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path'
+import jws from 'jws'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as utils from '../lib/utils'
@@ -16,12 +17,18 @@ const ftpDir = path.resolve('ftp')
 const PUBLIC_FILES = ['legal.md']
 const ORDER_CONFIRMATION = /^order_([0-9a-f]{4}-[0-9a-f]{16})\.pdf$/
 
-export function authenticatedUser (req: Request) {
-  const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
-  if (!token || !security.verify(token)) return undefined
+export function verifiedTokenPayload (token: string) {
+  if (!token || jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
   const payload = security.decode(token)
   if (payload?.exp && payload.exp * 1000 < Date.now()) return undefined
-  return security.authenticatedUsers.get(token) ?? (payload?.data ? { data: payload.data } : undefined)
+  return payload
+}
+
+export function authenticatedUser (req: Request) {
+  const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
+  const payload = verifiedTokenPayload(token)
+  if (!payload) return undefined
+  return security.authenticatedUsers.get(token) ?? (payload.data ? { data: payload.data } : undefined)
 }
 
 export function isAdmin (req: Request) {

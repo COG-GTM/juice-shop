@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import { verifiedTokenPayload } from './fileServer'
 
 interface Product {
   quantity: number
@@ -162,7 +163,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
-            UserId: customer?.data?.id ?? security.decode(utils.jwtFrom(req) ?? '')?.data?.id,
+            UserId: customer?.data?.id ?? verifiedTokenPayload(utils.unquote(utils.jwtFrom(req) ?? ''))?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,

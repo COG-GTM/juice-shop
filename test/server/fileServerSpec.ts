@@ -213,6 +213,18 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 
+  it('should reject unsigned tokens with algorithm "none"', async () => {
+    const encode = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const unsignedToken = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}.`
+    req.headers = { authorization: `Bearer ${unsignedToken}` }
+    req.params.file = 'acquisitions.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(401)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+  })
+
   it('should prefer the bearer token over the token cookie', async () => {
     req.headers = { authorization: `Bearer ${adminToken}` }
     req.cookies = { token: jimToken }
