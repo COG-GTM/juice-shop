@@ -462,6 +462,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Users', security.isAdmin())
   app.get('/api/Users/:id', ownership.checkUserAccess())
   app.get('/api/Complaints', utils.asyncHandler(ownership.getOwnComplaints()))
+  app.post('/api/Complaints', ownership.assignComplaintOwner())
   app.use('/rest/user/authentication-details', security.isAdmin())
 
   /* Verify the 2FA Token */

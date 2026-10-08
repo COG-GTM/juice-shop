@@ -49,6 +49,20 @@ void describe('/api/Complaints', () => {
     assert.ok(res.body.data.some((complaint: { UserId: number }) => complaint.UserId === 3))
   })
 
+  void it('POST complaint without UserId is attributed to the authenticated user', async () => {
+    const createRes = await request(app)
+      .post('/api/Complaints')
+      .set(customerHeader)
+      .send({ message: 'Missing delivery' })
+    assert.equal(createRes.status, 201)
+    assert.equal(createRes.body.data.UserId, 2)
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(customerHeader)
+    assert.ok(res.body.data.some((complaint: { id: number }) => complaint.id === createRes.body.data.id))
+  })
+
   void it('GET complaints as customer only returns own complaints', async () => {
     const createRes = await request(app)
       .post('/api/Complaints')

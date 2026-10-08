@@ -87,6 +87,14 @@ export function checkUserAccess () {
   }
 }
 
+export function assignComplaintOwner () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const requester = requesterFrom(req)
+    if (requester != null) req.body.UserId = requester.id
+    next()
+  }
+}
+
 export function getOwnComplaints () {
   return async (req: Request, res: Response) => {
     const requester = requesterFrom(req)
