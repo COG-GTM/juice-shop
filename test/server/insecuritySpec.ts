@@ -259,18 +259,18 @@ describe('insecurity', () => {
 
   describe('runtimeSecret', () => {
     const name = 'TEST_RUNTIME_SECRET'
+    let secretDir: string
     let secretFile: string
 
     beforeEach(() => {
-      secretFile = path.join(os.tmpdir(), `${name}-${crypto.randomUUID()}`)
+      secretDir = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`))
+      secretFile = path.join(secretDir, 'secret')
     })
 
     afterEach(() => {
       delete process.env[name]
       delete process.env[`${name}_FILE`]
-      if (fs.existsSync(secretFile)) {
-        fs.unlinkSync(secretFile)
-      }
+      fs.rmSync(secretDir, { recursive: true, force: true })
     })
 
     it('returns the value of the environment variable', () => {
@@ -289,6 +289,13 @@ describe('insecurity', () => {
       process.env[name] = 'from-env'
       process.env[`${name}_FILE`] = secretFile
       expect(security.runtimeSecret(name)).to.equal('from-env')
+    })
+
+    it('throws if the environment variable is set but empty', () => {
+      fs.writeFileSync(secretFile, 'from-file')
+      process.env[name] = ' '
+      process.env[`${name}_FILE`] = secretFile
+      expect(() => security.runtimeSecret(name)).to.throw(`${name} is set but contains no secret`)
     })
 
     it('throws if the file the <name>_FILE variable points to holds no secret', () => {
