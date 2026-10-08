@@ -51,4 +51,22 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders username as escaped text without evaluating it', async () => {
+    const payload = "#{global.process.mainModule.require('child_process').execSync('id')}<script>alert(`xss`)</script>"
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', payload)
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes("#{global.process.mainModule.require(&#39;child_process&#39;).execSync(&#39;id&#39;)}&lt;script&gt;alert(`xss`)&lt;/script&gt;"))
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+    assert.ok(!res.text.includes('uid='))
+  })
 })
