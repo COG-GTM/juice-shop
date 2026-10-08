@@ -63,7 +63,9 @@ const verifiedPayload = (token?: string): any => {
     if (parseBase64UrlJson(header)?.alg !== JWT_ALGORITHM) return null
     if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))) return null
     const claims = parseBase64UrlJson(payload)
-    if (typeof claims?.exp === 'number' && claims.exp <= Math.floor(Date.now() / 1000)) return null
+    const now = Math.floor(Date.now() / 1000)
+    if (claims?.exp !== undefined && (typeof claims.exp !== 'number' || claims.exp <= now)) return null
+    if (claims?.nbf !== undefined && (typeof claims.nbf !== 'number' || claims.nbf > now)) return null
     return claims
   } catch {
     return null

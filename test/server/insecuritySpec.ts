@@ -143,6 +143,14 @@ describe('insecurity', () => {
       expect(security.verify(expired)).to.equal(false)
     })
 
+    it('verify rejects tokens with non-numeric expiry', () => {
+      expect(security.verify(security.authorize({ data: {}, exp: '0' }))).to.equal(false)
+    })
+
+    it('verify rejects tokens before their not-before time', () => {
+      expect(security.verify(security.authorize({ data: {}, nbf: Math.floor(Date.now() / 1000) + 3600 }))).to.equal(false)
+    })
+
     it('isAuthorized accepts RS256 tokens and exposes their claims', () => {
       const { req, error } = runMiddleware(security.authorize({ data: { email: 'user@juice-sh.op' } }))
       expect(error).to.equal(undefined)
