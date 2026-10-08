@@ -38,6 +38,18 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
   return targetPath.startsWith(complaintsDirectory + path.sep) ? targetPath : null
 }
 
+function isRealPathWithinComplaintsDirectory (targetPath: string): boolean {
+  try {
+    const realRoot = fs.realpathSync(complaintsDirectory)
+    const realParent = fs.realpathSync(path.dirname(targetPath))
+    return realParent === realRoot || realParent.startsWith(realRoot + path.sep)
+  } catch {
+    return false
+  }
+}
+
+const noFollowWriteFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -55,8 +67,8 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-                if (targetPath !== null) {
-                  entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
+                if (targetPath !== null && isRealPathWithinComplaintsDirectory(targetPath)) {
+                  entry.pipe(fs.createWriteStream(targetPath, { flags: noFollowWriteFlags }).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
