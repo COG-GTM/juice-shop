@@ -37,77 +37,86 @@ describe('rateLimiting', () => {
     let now: number
     let lockout: FailedAttemptLockout
 
+    function fail (l: FailedAttemptLockout, key: string, times = 1) {
+      for (let i = 0; i < times; i++) {
+        expect(l.admit(key)).to.equal(0)
+        l.recordFailure(key)
+      }
+    }
+
     beforeEach(() => {
       now = 1_000_000
       lockout = new FailedAttemptLockout(3, 60_000, 300_000, () => now)
     })
 
     it('does not lock below the failure threshold', () => {
-      lockout.recordFailure('a')
-      lockout.recordFailure('a')
+      fail(lockout, 'a', 2)
       expect(lockout.retryAfterSeconds('a')).to.equal(0)
+      expect(lockout.admit('a')).to.equal(0)
     })
 
     it('locks the key once the threshold is reached', () => {
-      for (let i = 0; i < 3; i++) lockout.recordFailure('a')
+      fail(lockout, 'a', 3)
       expect(lockout.retryAfterSeconds('a')).to.equal(300)
-      expect(lockout.retryAfterSeconds('b')).to.equal(0)
+      expect(lockout.admit('a')).to.equal(300)
+      expect(lockout.admit('b')).to.equal(0)
     })
 
     it('unlocks after the lock period', () => {
-      for (let i = 0; i < 3; i++) lockout.recordFailure('a')
+      fail(lockout, 'a', 3)
       now += 299_000
-      expect(lockout.retryAfterSeconds('a')).to.equal(1)
+      expect(lockout.admit('a')).to.equal(1)
       now += 1_000
-      expect(lockout.retryAfterSeconds('a')).to.equal(0)
+      expect(lockout.admit('a')).to.equal(0)
     })
 
     it('forgets failures older than the window', () => {
-      lockout.recordFailure('a')
-      lockout.recordFailure('a')
+      fail(lockout, 'a', 2)
       now += 60_000
-      lockout.recordFailure('a')
+      fail(lockout, 'a')
       expect(lockout.retryAfterSeconds('a')).to.equal(0)
     })
 
     it('clears failures on reset', () => {
-      lockout.recordFailure('a')
-      lockout.recordFailure('a')
+      fail(lockout, 'a', 2)
       lockout.reset('a')
-      lockout.recordFailure('a')
+      fail(lockout, 'a')
       expect(lockout.retryAfterSeconds('a')).to.equal(0)
     })
 
-    it('bounds memory by pruning expired entries', () => {
+    it('counts in-flight attempts so parallel attempts cannot exceed the threshold', () => {
+      const admitted = [0, 1, 2, 3, 4].map(() => lockout.admit('a')).filter(retryAfter => retryAfter === 0)
+      expect(admitted).to.have.length(3)
+      for (let i = 0; i < 3; i++) lockout.recordFailure('a')
+      expect(lockout.admit('a')).to.equal(300)
+    })
+
+    it('does not count released attempts as failures', () => {
+      for (let i = 0; i < 10; i++) {
+        expect(lockout.admit('a')).to.equal(0)
+        lockout.release('a')
+      }
+      expect(lockout.retryAfterSeconds('a')).to.equal(0)
+      fail(lockout, 'a', 2)
+      expect(lockout.retryAfterSeconds('a')).to.equal(0)
+    })
+
+    it('reuses expired entries when the table is full', () => {
       const small = new FailedAttemptLockout(3, 60_000, 300_000, () => now, 2)
-      small.recordFailure('a')
-      small.recordFailure('b')
+      fail(small, 'a')
+      fail(small, 'b')
       now += 60_000
-      small.recordFailure('c')
+      expect(small.admit('c')).to.equal(0)
       expect((small as any).records.size).to.equal(1)
     })
 
-    it('counts an attempt when it is admitted so parallel attempts cannot exceed the threshold', () => {
-      const admitted = [0, 1, 2, 3, 4].map(() => lockout.consumeAttempt('a')).filter(retryAfter => retryAfter === 0)
-      expect(admitted).to.have.length(3)
-      expect(lockout.retryAfterSeconds('a')).to.equal(300)
-    })
-
-    it('does not count attempts rejected while locked', () => {
-      for (let i = 0; i < 3; i++) lockout.consumeAttempt('a')
-      expect(lockout.consumeAttempt('a')).to.equal(300)
-      now += 300_000
-      expect(lockout.consumeAttempt('a')).to.equal(0)
-      expect(lockout.retryAfterSeconds('a')).to.equal(0)
-    })
-
-    it('never grows beyond its capacity, evicting unlocked entries before locked ones', () => {
-      const small = new FailedAttemptLockout(2, 60_000, 300_000, () => now, 3)
-      small.recordFailure('locked')
-      small.recordFailure('locked')
-      for (let i = 0; i < 10; i++) small.recordFailure(`fresh${i}`)
-      expect((small as any).records.size).to.equal(3)
-      expect(small.retryAfterSeconds('locked')).to.equal(300)
+    it('refuses new keys instead of evicting tracked ones when the table is full', () => {
+      const small = new FailedAttemptLockout(2, 60_000, 300_000, () => now, 2)
+      fail(small, 'victim', 2)
+      fail(small, 'other')
+      expect(small.admit('fresh')).to.equal(60)
+      expect((small as any).records.size).to.equal(2)
+      expect(small.admit('victim')).to.equal(300)
     })
   })
 })

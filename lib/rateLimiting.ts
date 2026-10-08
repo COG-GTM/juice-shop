@@ -11,6 +11,7 @@ export function trustedProxyHops (value = process.env.JUICE_SHOP_TRUSTED_PROXY_H
 
 interface AttemptRecord {
   failures: number
+  pending: number
   windowStart: number
   lockedUntil: number
 }
@@ -24,7 +25,7 @@ export class FailedAttemptLockout {
     readonly windowMs = 15 * 60 * 1000,
     readonly lockMs = 15 * 60 * 1000,
     private readonly now: () => number = Date.now,
-    private readonly maxEntries = 10000
+    private readonly maxEntries = 100000
   ) {}
 
   retryAfterSeconds (key: string): number {
@@ -34,22 +35,30 @@ export class FailedAttemptLockout {
     return remaining > 0 ? Math.ceil(remaining / 1000) : 0
   }
 
-  // Checks and counts in one synchronous step so concurrent requests cannot all pass the check before any is counted.
-  // Callers reset() the key after a successful attempt.
-  consumeAttempt (key: string): number {
-    const retryAfter = this.retryAfterSeconds(key)
-    if (retryAfter === 0) this.recordFailure(key)
-    return retryAfter
+  /* Returns 0 and reserves an attempt, or the seconds to wait. In-flight attempts count against the limit so parallel requests cannot exceed it.
+     Every admitted attempt must end with recordFailure(), release() or reset(). When the table is full, unknown keys are refused rather than evicting tracked ones. */
+  admit (key: string): number {
+    const now = this.now()
+    let record = this.records.get(key)
+    if (record == null) {
+      if (this.records.size >= this.maxEntries) this.prune(now)
+      if (this.records.size >= this.maxEntries) return Math.ceil(this.windowMs / 1000)
+      record = { failures: 0, pending: 0, windowStart: now, lockedUntil: 0 }
+      this.records.set(key, record)
+    }
+    if (record.lockedUntil > now) return Math.ceil((record.lockedUntil - now) / 1000)
+    this.expireWindow(record, now)
+    if (record.failures + record.pending >= this.maxFailures) return 1
+    record.pending++
+    return 0
   }
 
   recordFailure (key: string) {
+    const record = this.records.get(key)
+    if (record == null) return
     const now = this.now()
-    let record = this.records.get(key)
-    if (record == null || (record.lockedUntil <= now && now - record.windowStart >= this.windowMs)) {
-      if (record == null && this.records.size >= this.maxEntries) this.makeRoom(now)
-      record = { failures: 0, windowStart: now, lockedUntil: 0 }
-      this.records.set(key, record)
-    }
+    record.pending = Math.max(0, record.pending - 1)
+    this.expireWindow(record, now)
     record.failures++
     if (record.failures >= this.maxFailures) {
       record.lockedUntil = now + this.lockMs
@@ -58,23 +67,27 @@ export class FailedAttemptLockout {
     }
   }
 
+  /* Gives back an admitted attempt that ended without checking the answer, e.g. on a database error */
+  release (key: string) {
+    const record = this.records.get(key)
+    if (record != null) record.pending = Math.max(0, record.pending - 1)
+  }
+
   reset (key: string) {
     this.records.delete(key)
   }
 
-  private makeRoom (now: number) {
-    for (const [key, record] of this.records) {
-      if (record.lockedUntil <= now && now - record.windowStart >= this.windowMs) this.records.delete(key)
+  private expireWindow (record: AttemptRecord, now: number) {
+    if (record.lockedUntil <= now && now - record.windowStart >= this.windowMs) {
+      record.failures = 0
+      record.windowStart = now
     }
-    if (this.records.size < this.maxEntries) return
+  }
+
+  private prune (now: number) {
     for (const [key, record] of this.records) {
-      if (record.lockedUntil <= now) {
-        this.records.delete(key)
-        return
-      }
+      if (record.pending === 0 && record.lockedUntil <= now && now - record.windowStart >= this.windowMs) this.records.delete(key)
     }
-    const oldest = this.records.keys().next().value
-    if (oldest !== undefined) this.records.delete(oldest)
   }
 }
 
