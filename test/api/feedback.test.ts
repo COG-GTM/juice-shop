@@ -252,6 +252,19 @@ void describe('/api/Feedbacks', () => {
     assert.equal(replayRes.status, 401)
   })
 
+  void it('POST feedback can only be created once when the same solved CAPTCHA is submitted concurrently', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const answer = await captchaAnswer(captchaRes.body.captchaId)
+
+    const statuses = await Promise.all([1, 2, 3].map(async (n) => (await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: `Concurrent submission ${n}`, rating: 1, captchaId: captchaRes.body.captchaId, captcha: answer })).status))
+    assert.deepEqual(statuses.sort(), [201, 401, 401])
+  })
+
   void it('POST feedback cannot be created after a wrong answer was already submitted for the CAPTCHA', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')

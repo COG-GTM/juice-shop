@@ -39,8 +39,8 @@ export const verifyCaptcha = () => async (req: Request, res: Response, next: Nex
       ? await CaptchaModel.findOne({ where: { captchaId } })
       : null
     /* Every verification attempt consumes the CAPTCHA; only the request whose delete succeeds may use it */
-    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId } }) > 0
-    if (consumed && req.body.captcha === captcha?.answer) {
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId, answer: captcha.answer } }) > 0
+    if (consumed && req.body.captcha === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))

@@ -136,6 +136,8 @@ export class ContactComponent implements OnInit {
     this.captchaControl.markAsUntouched()
     this.captchaControl.markAsPristine()
     this.captchaControl.setValue('')
+    this.captcha = undefined
+    this.captchaId = undefined
     this.getNewCaptcha()
   }
 
