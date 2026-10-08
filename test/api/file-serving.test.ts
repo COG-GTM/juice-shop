@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -150,6 +151,13 @@ void describe('/encryptionkeys', () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET the runtime JWT public key', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
+    assert.equal(res.status, 200)
+    assert.equal(res.text, security.publicKey)
   })
 
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
