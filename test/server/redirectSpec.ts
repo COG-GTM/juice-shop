@@ -77,12 +77,32 @@ describe('redirect', () => {
     expect(challenges.redirectCryptoCurrencyChallenge.solved).to.equal(true)
   })
 
-  it('tricking the allowlist should solve "redirectChallenge"', () => {
+  it('should raise error for URL merely containing an allowlisted URL', () => {
     req.query.to = 'http://kimminich.de?to=https://github.com/juice-shop/juice-shop'
     challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
 
     performRedirect()(req, res, next)
 
-    expect(challenges.redirectChallenge.solved).to.equal(true)
+    expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    expect(challenges.redirectChallenge.solved).to.equal(false)
+  })
+
+  describe('should raise error for external URLs embedding an allowlisted URL', () => {
+    for (const url of [
+      'https://evil.example/?x=https://github.com/juice-shop/juice-shop',
+      'https://evil.example/https://github.com/juice-shop/juice-shop',
+      'https://github.com/juice-shop/juice-shop@evil.example',
+      'https://github.com/juice-shop/juice-shop.evil.example'
+    ]) {
+      it(url, () => {
+        req.query.to = url
+
+        performRedirect()(req, res, next)
+
+        expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+        expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+      })
+    }
   })
 })
