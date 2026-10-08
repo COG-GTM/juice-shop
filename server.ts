@@ -453,6 +453,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Only allow deletion of basket items in the user's own basket */
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.ownershipCheckBeforeBasketItemDeletion()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
