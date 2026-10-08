@@ -97,7 +97,7 @@ describe('httpHardening', () => {
       expect(res.status).to.have.been.calledWith(500)
       expect(res.type).to.have.been.calledWith('text/plain')
       expect(res.send).to.have.been.calledWith('Internal Server Error')
-      expect(next).to.not.have.been.called
+      expect(next.called).to.equal(false)
     })
 
     it('preserves client error status codes', () => {
@@ -128,7 +128,7 @@ describe('httpHardening', () => {
       const err = new Error('late')
       genericErrorHandler()(err, req, res, next)
       expect(next).to.have.been.calledWith(err)
-      expect(res.send).to.not.have.been.called
+      expect(res.send.called).to.equal(false)
     })
   })
 })
