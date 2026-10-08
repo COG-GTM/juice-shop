@@ -31,7 +31,7 @@ export function servePublicFiles () {
 
   function verify (file: string, res: Response, next: NextFunction) {
     const resolvedPath = path.resolve(ftpFolder, file)
-    if (file && isAllowlisted(file) && path.dirname(resolvedPath) === ftpFolder) {
+    if (file && isAllowlisted(file) && resolvedPath.startsWith(ftpFolder + path.sep) && path.dirname(resolvedPath) === ftpFolder) {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
 
       res.sendFile(resolvedPath)
