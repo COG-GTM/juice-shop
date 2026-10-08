@@ -130,7 +130,10 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105
 		],
 		"removed": [
 			4,
@@ -263,7 +266,10 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105
 		],
 		"removed": [
 			31,
@@ -395,7 +401,10 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105
 		],
 		"removed": [
 			31,
@@ -534,7 +543,10 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105
 		],
 		"removed": [
 			20,
@@ -605,25 +617,33 @@
 	},
 	"chatbotPromptInjectionChallenge_1.ts": {
 		"added": [
-			1
+			1,
+			5,
+			7,
+			8,
+			9
 		],
 		"removed": [
-			1
+			1,
+			3,
+			5
 		]
 	},
 	"chatbotPromptInjectionChallenge_2_correct.ts": {
 		"added": [
 			1,
-			6
+			5,
+			7,
+			8,
+			9
 		],
 		"removed": [
 			1,
 			3,
 			5,
 			6,
+			7,
 			9,
-			10,
-			11,
 			12,
 			13,
 			14,
@@ -646,26 +666,36 @@
 	},
 	"chatbotPromptInjectionChallenge_3.ts": {
 		"added": [
-			1
+			1,
+			5,
+			7,
+			8,
+			9
 		],
 		"removed": [
 			1,
 			3,
 			5,
-			6
+			6,
+			3,
+			5
 		]
 	},
 	"chatbotPromptInjectionChallenge_4.ts": {
 		"added": [
 			1,
-			6
+			5,
+			7,
+			8,
+			9
 		],
 		"removed": [
 			1,
 			5,
 			6,
-			9,
-			10
+			7,
+			8,
+			9
 		]
 	},
 	"dbSchemaChallenge_1.ts": {

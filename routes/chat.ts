@@ -19,6 +19,7 @@ import { challenges } from '../data/datacache'
 import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
+import { parseClientMessages } from '../lib/chatPolicy'
 import { Counter } from 'prom-client'
 
 function summarizeLlmError (error: unknown): string {
@@ -77,6 +78,23 @@ const metricToolCalls = new Counter({
   help: 'Number of tool calls made',
   labelNames: ['tool'],
 })
+
+const maxCouponDiscount = 10
+const ordersWithIssuedCoupon = new Set<string>()
+
+async function claimCouponForOrder (req: Request, orderId: string, discount: number): Promise<string | undefined> {
+  if (!Number.isInteger(discount) || discount < 1 || discount > maxCouponDiscount) return 'Unsupported discount value'
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  if (!userId) return 'Customer not authenticated'
+  const user = await UserModel.findByPk(userId, { attributes: ['email'] })
+  const maskedEmail = user?.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
+  const order = await db.ordersCollection.findOne({ orderId: String(orderId) })
+  if (!order || !maskedEmail || order.email !== maskedEmail) return 'No order with this ID found for the current customer'
+  if (!order.delivered) return 'Coupons can only be issued for delivered orders'
+  if (ordersWithIssuedCoupon.has(order.orderId)) return 'A coupon has already been issued for this order'
+  ordersWithIssuedCoupon.add(order.orderId)
+  return undefined
+}
 
 // vuln-code-snippet start chatbotGreedyInjectionChallenge
 function buildSystemPrompt (userName?: string) { // vuln-code-snippet neutral-line chatbotGreedyInjectionChallenge
@@ -174,19 +192,28 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(1).max(maxCouponDiscount).describe('The discount percentage for the coupon (maximum 10)'), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          orderId: z.string().describe('The ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
+        execute: async ({ discount, orderId }) => {
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
+          const ineligibility = await claimCouponForOrder(req, orderId, discount)
+          if (ineligibility) return { error: ineligibility }
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
+    const parsed = parseClientMessages(req.body)
+    if (parsed.error !== undefined) {
+      res.status(400).json({ error: parsed.error })
+      return
+    }
+    const { messages } = parsed
+
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
