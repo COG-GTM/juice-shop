@@ -424,7 +424,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
   app.put('/api/BasketItems/:id', security.appendUserId(), utils.asyncHandler(basketItems.quantityCheckBeforeBasketItemUpdate()))
   app.post('/api/BasketItems', security.appendUserId(), utils.asyncHandler(basketItems.quantityCheckBeforeBasketItemAddition()), utils.asyncHandler(basketItems.addBasketItem()))
-  app.delete('/api/BasketItems/:id', security.appendUserId(), utils.asyncHandler(basketItems.ownershipCheckBeforeBasketItemDeletion()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.ownershipCheckBeforeBasketItemDeletion()))
   /* Accounting users are allowed to check and update quantities */
   app.delete('/api/Quantitys/:id', security.denyAll())
   app.post('/api/Quantitys', security.denyAll())

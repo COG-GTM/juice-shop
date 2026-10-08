@@ -297,4 +297,17 @@ void describe('/api/BasketItems/:id', () => {
       .set(authHeader)
     assert.equal(res.status, 200)
   })
+
+  void it('DELETE own basket item without body or content type', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .delete('/api/BasketItems/' + createRes.body.data.id)
+      .set({ Authorization: authHeader.Authorization })
+    assert.equal(res.status, 200)
+  })
 })
