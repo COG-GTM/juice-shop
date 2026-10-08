@@ -31,6 +31,11 @@
           {{"AMOUNT_LIMIT" | translate}}
         </mat-error>
       }
+      @if (balanceControl.invalid && balanceControl.errors.pattern) {
+        <mat-error>
+          {{"AMOUNT_DECIMALS" | translate}}
+        </mat-error>
+      }
     </mat-form-field>
 
     <button type="submit" id="submitButton" (click)="continue()" [disabled]="balanceControl.invalid"

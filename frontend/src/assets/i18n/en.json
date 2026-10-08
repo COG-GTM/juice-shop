@@ -301,6 +301,7 @@
   "MANDATORY_AMOUNT": "Please enter an amount",
   "LABEL_AMOUNT": "Amount",
   "AMOUNT_LIMIT": "You can add a minimum of 10¤ and only up to 1000¤.",
+  "AMOUNT_DECIMALS": "You can enter at most two decimal places.",
   "LABEL_CHOOSE_A_DELIVERY_SPEED": "Choose a delivery speed",
   "CARD_ENDING_IN": "Card ending in",
   "CARD_HOLDER": "Card Holder",
