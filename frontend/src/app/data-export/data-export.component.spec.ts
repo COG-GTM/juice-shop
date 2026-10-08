@@ -83,7 +83,11 @@ describe('DataExportComponent', () => {
         expect(component.formatControl.valid).toBeFalsy()
     })
 
-    it('should be compulsory to answer the captcha when captcha is present', () => {
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
+    it('should be compulsory to answer the captcha', () => {
         component.captchaControl.setValue('')
         expect(component.captchaControl.valid).toBeFalsy()
         component.captchaControl.setValue('12345')
@@ -117,5 +121,15 @@ describe('DataExportComponent', () => {
         expect(component.confirmation).toBeNull()
         expect(component.error).toBe('Error')
         expect(component.resetFormError).toHaveBeenCalled()
+    })
+
+    it('should send the captcha answer and request a fresh captcha after a failed export', () => {
+        dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Wrong answer to CAPTCHA. Please try again.' }))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.captchaControl.setValue('abcde')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith({ answer: 'abcde', format: '1' })
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
     })
 })

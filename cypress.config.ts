@@ -4,6 +4,8 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import { ImageCaptchaModel } from './models/imageCaptcha'
+import './models/index'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -41,6 +43,10 @@ export default defineConfig({
               return memory[property]
             }
           }
+        },
+        async GetImageCaptchaAnswer () {
+          const captcha = await ImageCaptchaModel.findOne({ order: [['createdAt', 'DESC']] })
+          return captcha ? captcha.answer : null
         },
         GetFromConfig (variable: string) {
           return config.get(variable)
