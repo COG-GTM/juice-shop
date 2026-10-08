@@ -12,7 +12,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { angularClientCsp, applyFileCsp, contentSecurityPolicy, corsAllowedOrigins, cspHeaderName, fileCsp, corsOptions, exposeErrorDetails, genericErrorHandler, inlineScriptHashes } from '../../lib/httpHardening'
+import { angularClientCsp, applyFileCsp, contentSecurityPolicy, corsAllowedOrigins, cspHeaderName, fileCsp, notificationOrigins, corsOptions, exposeErrorDetails, genericErrorHandler, inlineScriptHashes } from '../../lib/httpHardening'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -144,6 +144,18 @@ describe('httpHardening', () => {
 
     it('falls back to the base policy when there is no frontend build', () => {
       expect(policyFor(angularClientCsp(path.join(dir, 'missing.html')))).to.equal(contentSecurityPolicy())
+    })
+  })
+
+  describe('notificationOrigins', () => {
+    it('allows connecting to the origin of a configured CTF notification endpoint', () => {
+      expect(notificationOrigins('https://ctf.example.org/notifications?x=1')).to.deep.equal(['https://ctf.example.org'])
+    })
+
+    it('adds nothing without a valid http(s) notification URL', () => {
+      expect(notificationOrigins(null)).to.deep.equal([])
+      expect(notificationOrigins('not a url')).to.deep.equal([])
+      expect(notificationOrigins('javascript:alert(1)')).to.deep.equal([])
     })
   })
 

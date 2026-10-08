@@ -70,6 +70,17 @@ export function cspHeaderName (env: NodeJS.ProcessEnv = process.env): string {
   return isProduction(env) || env.CSP_ENFORCE === 'true' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only'
 }
 
+const configuredNotificationUrl = () => config.has('ctf.systemWideNotifications.url') ? config.get<string | null>('ctf.systemWideNotifications.url') : null
+
+export function notificationOrigins (url: string | null = configuredNotificationUrl()): string[] {
+  try {
+    const { origin, protocol } = new URL(url ?? '')
+    return protocol === 'https:' || protocol === 'http:' ? [origin] : []
+  } catch {
+    return []
+  }
+}
+
 export function contentSecurityPolicy ({ scripts, handlers }: InlineScriptHashes = { scripts: [], handlers: [] }): string {
   const directives: Record<string, string[]> = {
     'default-src': ["'self'"],
@@ -78,7 +89,7 @@ export function contentSecurityPolicy ({ scripts, handlers }: InlineScriptHashes
     'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
     'img-src': ["'self'", 'data:', 'blob:', 'https:'],
     'media-src': ["'self'"],
-    'connect-src': ["'self'", 'https://ethereum-sepolia.blockpi.network', 'https://www.googleapis.com', 'https://binaries.soliditylang.org'],
+    'connect-src': ["'self'", 'https://ethereum-sepolia.blockpi.network', 'https://www.googleapis.com', 'https://binaries.soliditylang.org', ...notificationOrigins()],
     'worker-src': ["'self'", 'blob:'],
     'frame-src': ["'self'", 'https://w.soundcloud.com'],
     'object-src': ["'none'"],
