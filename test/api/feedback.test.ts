@@ -234,6 +234,14 @@ void describe('/api/Feedbacks', () => {
     assert.match(res.body.captcha, /^\d+[*+-]\d+[*+-]\d+$/)
   })
 
+  void it('GET captcha issues unpredictable ids', async () => {
+    const first = await request(app).get('/rest/captcha')
+    const second = await request(app).get('/rest/captcha')
+    assert.equal(first.status, 200)
+    assert.equal(second.status, 200)
+    assert.notEqual(second.body.captchaId - first.body.captchaId, 1)
+  })
+
   void it('POST feedback cannot be created by replaying an already solved CAPTCHA', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')

@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { randomInt } from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { Op } from 'sequelize'
 import { CaptchaModel } from '../models/captcha'
@@ -13,7 +14,8 @@ const expiryCutoff = () => new Date(Date.now() - CAPTCHA_TTL_MS)
 
 export function captchas () {
   return async (req: Request, res: Response) => {
-    const captchaId = req.app.locals.captchaId++
+    /* Unguessable ids, so nobody can burn another user's pending CAPTCHA by guessing its id */
+    const captchaId = randomInt(1, 2 ** 48)
     const operators = ['*', '+', '-']
 
     const firstTerm = Math.floor((Math.random() * 10) + 1)
