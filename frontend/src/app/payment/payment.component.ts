@@ -143,7 +143,9 @@ export class PaymentComponent implements OnInit {
       error: (err) => {
         this.couponConfirmation = undefined
         this.couponError = err
+        sessionStorage.removeItem('couponDiscount')
         this.resetCouponForm()
+        this.initTotal()
       }
     })
   }
