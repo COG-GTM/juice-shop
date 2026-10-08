@@ -9,6 +9,8 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +203,74 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  const forge = (alg: string, sign: (input: string) => string, data: object = { email: 'admin@juice-sh.op', role: 'admin' }) => {
+    const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data })).toString('base64url')
+    return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+  }
+  const unsigned = () => ''
+  const hmacWithPublicKey = (input: string) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')
+
+  describe('verify', () => {
+
+    it('accepts RS256 tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned "none" tokens', () => {
+      expect(security.verify(forge('none', unsigned))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(forge('HS256', hmacWithPublicKey))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with an arbitrary secret', () => {
+      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, 'this_surly_isnt_the_right_key'))).to.equal(false)
+    })
+
+    it('rejects empty and malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+  })
+
+  describe('role checks', () => {
+    const requestWith = (token: string) => ({ headers: { authorization: `Bearer ${token}` } }) as unknown as Request
+    const accountingDecision = (token: string) => {
+      let status = 200
+      let nextCalled = false
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } }
+      security.isAccounting()(requestWith(token), res as any, () => { nextCalled = true })
+      return { status, nextCalled }
+    }
+
+    it('isAccounting lets through an RS256 token with the accounting role', () => {
+      expect(accountingDecision(security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }))).to.deep.equal({ status: 200, nextCalled: true })
+    })
+
+    for (const [name, sign] of [['none', unsigned], ['HS256', hmacWithPublicKey]] as const) {
+      it(`isAccounting rejects a forged "${name}" token claiming the accounting role`, () => {
+        expect(accountingDecision(forge(name, sign, { email: 'accountant@juice-sh.op', role: security.roles.accounting }))).to.deep.equal({ status: 403, nextCalled: false })
+      })
+
+      it(`isCustomer rejects a forged "${name}" token claiming the customer role`, () => {
+        expect(security.isCustomer(requestWith(forge(name, sign, { email: 'jim@juice-sh.op', role: security.roles.customer })))).to.equal(false)
+      })
+
+      it(`isDeluxe rejects a forged "${name}" token with a valid deluxeToken`, () => {
+        const email = 'jim@juice-sh.op'
+        expect(security.isDeluxe(requestWith(forge(name, sign, { email, role: security.roles.deluxe, deluxeToken: security.deluxeToken(email) })))).to.equal(false)
+      })
+    }
+
+    it('isCustomer and isDeluxe accept genuine RS256 tokens', () => {
+      const email = 'jim@juice-sh.op'
+      expect(security.isCustomer(requestWith(security.authorize({ data: { email, role: security.roles.customer } })))).to.equal(true)
+      expect(security.isDeluxe(requestWith(security.authorize({ data: { email, role: security.roles.deluxe, deluxeToken: security.deluxeToken(email) } })))).to.equal(true)
     })
   })
 })
