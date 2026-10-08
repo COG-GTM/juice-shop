@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -76,12 +77,12 @@ void describe('/profile', () => {
     })
   }
 
-  void it('GET user profile never renders an HTML username unescaped', async () => {
+  void it('GET user profile renders the stored HTML username escaped', async () => {
     const update = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .type('form')
-      .send({ username: '<<a|ascript>alert(`xss`)</script>' })
+      .send({ username: '<<a|ascript>alert(`xss`)</script> a < b' })
       .redirects(0)
     assert.equal(update.status, 302)
 
@@ -89,8 +90,12 @@ void describe('/profile', () => {
       .get('/profile')
       .set(authHeader)
 
+    const stored = (await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } }))?.username ?? ''
+    assert.match(stored, /[<&]/)
+
     assert.equal(res.status, 200)
-    assert.ok(!res.text.includes('<script>alert'))
+    assert.ok(!res.text.includes(stored))
+    assert.ok(res.text.includes(escapeHtml(stored)))
   })
 })
 
