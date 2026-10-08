@@ -67,6 +67,7 @@ import locales from './data/static/locales.json'
 
 import { login } from './routes/login'
 import * as verify from './routes/verify'
+import { restrictRegistrationAttributes } from './routes/userRegistration'
 import * as address from './routes/address'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
@@ -474,6 +475,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Self-registration may only set credentials, never role, deluxeToken, totpSecret, isActive etc. */
+  app.post('/api/Users', restrictRegistrationAttributes())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
