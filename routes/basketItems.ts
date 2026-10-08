@@ -6,73 +6,110 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
-import * as challengeUtils from '../lib/challengeUtils'
 
 import * as utils from '../lib/utils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
 }
 
+const singleValuedKeys = ['ProductId', 'BasketId', 'quantity']
+
+function hasDuplicateKeys (rawBody: string | undefined) {
+  if (!rawBody) {
+    return false
+  }
+  const seen = new Set<string>()
+  for (const { key } of utils.parseJsonCustom(rawBody)) {
+    if (singleValuedKeys.includes(key)) {
+      if (seen.has(key)) {
+        return true
+      }
+      seen.add(key)
+    }
+  }
+  return false
+}
+
+function isValidQuantity (quantity: unknown): quantity is number {
+  return typeof quantity === 'number' && Number.isSafeInteger(quantity) && quantity >= 1
+}
+
+function sessionBasketId (req: Request) {
+  const user = security.authenticatedUsers.from(req)
+  return user?.bid != null ? Number(user.bid) : undefined
+}
+
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
-
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
+    const bid = sessionBasketId(req)
+    if (bid === undefined) {
+      res.status(401).json({ error: 'Invalid BasketId' })
+      return
     }
-
-    const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
-
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+    if (req.body.BasketId !== undefined && Number(req.body.BasketId) !== bid) {
+      res.status(401).json({ error: 'Invalid BasketId' })
+      return
+    }
+    const basketItemInstance = BasketItemModel.build({
+      ProductId: req.body.ProductId,
+      BasketId: bid,
+      quantity: req.body.quantity
+    })
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
 
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (hasDuplicateKeys((req as RequestWithRawBody).rawBody)) {
+        res.status(400).json({ error: 'Duplicate keys in request body' })
+        return
+      }
+    } catch (error) {
+      res.status(400).json({ error: 'Malformed request body' })
+      return
+    }
+    if (!isValidQuantity(req.body.quantity)) {
+      res.status(400).json({ error: 'Quantity must be a positive integer' })
+      return
+    }
     void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
       next(error)
     })
   }
 }
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const bid = sessionBasketId(req)
+      if (bid === undefined) {
+        res.status(401).json({ error: 'Invalid BasketId' })
+        return
+      }
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      const user = security.authenticatedUsers.from(req)
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
+      if (item == null) {
+        res.status(404).json({ error: 'No such item found!' })
+        return
+      }
+      if (item.BasketId == null || Number(item.BasketId) !== bid) {
+        res.status(403).json({ error: 'Not allowed to modify this basket item' })
+        return
+      }
+      if (req.body.quantity !== undefined) {
+        if (!isValidQuantity(req.body.quantity)) {
+          res.status(400).json({ error: 'Quantity must be a positive integer' })
+          return
         }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+        await quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
       }
