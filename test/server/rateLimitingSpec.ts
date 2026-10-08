@@ -86,5 +86,28 @@ describe('rateLimiting', () => {
       small.recordFailure('c')
       expect((small as any).records.size).to.equal(1)
     })
+
+    it('counts an attempt when it is admitted so parallel attempts cannot exceed the threshold', () => {
+      const admitted = [0, 1, 2, 3, 4].map(() => lockout.consumeAttempt('a')).filter(retryAfter => retryAfter === 0)
+      expect(admitted).to.have.length(3)
+      expect(lockout.retryAfterSeconds('a')).to.equal(300)
+    })
+
+    it('does not count attempts rejected while locked', () => {
+      for (let i = 0; i < 3; i++) lockout.consumeAttempt('a')
+      expect(lockout.consumeAttempt('a')).to.equal(300)
+      now += 300_000
+      expect(lockout.consumeAttempt('a')).to.equal(0)
+      expect(lockout.retryAfterSeconds('a')).to.equal(0)
+    })
+
+    it('never grows beyond its capacity, evicting unlocked entries before locked ones', () => {
+      const small = new FailedAttemptLockout(2, 60_000, 300_000, () => now, 3)
+      small.recordFailure('locked')
+      small.recordFailure('locked')
+      for (let i = 0; i < 10; i++) small.recordFailure(`fresh${i}`)
+      expect((small as any).records.size).to.equal(3)
+      expect(small.retryAfterSeconds('locked')).to.equal(300)
+    })
   })
 })
