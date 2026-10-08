@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -105,6 +105,38 @@ void describe('/api/Users registration with security answer', () => {
         repeat: '54321'
       })
     assert.equal(resetRes.status, 200)
+  })
+
+  void it('POST user is rolled back when storing the security answer fails', async () => {
+    const create = mock.method(SecurityAnswerModel, 'create', async () => { throw new Error('answer write failed') })
+    try {
+      const res = await request(app)
+        .post('/api/Users')
+        .set(jsonHeader)
+        .send({
+          email: 'rollback@te.st',
+          password: '12345',
+          passwordRepeat: '12345',
+          securityQuestion: { id: 1 },
+          securityAnswer: 'Horst'
+        })
+      assert.notEqual(res.status, 201)
+    } finally {
+      create.mock.restore()
+    }
+    assert.equal(await UserModel.count({ where: { email: 'rollback@te.st' }, paranoid: false }), 0)
+
+    const retry = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'rollback@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: 'Horst'
+      })
+    assert.equal(retry.status, 201)
   })
 
   void it('POST user with an unknown security question is rejected before the user is created', async () => {
