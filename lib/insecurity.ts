@@ -7,9 +7,8 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
+import { expressjwt } from 'express-jwt'
 import jwt from 'jsonwebtoken'
-import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
@@ -51,11 +50,21 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
+
+export const isAuthorized = () => expressjwt({ secret: publicKey, algorithms: jwtAlgorithms })
+export const denyAll = () => expressjwt({ secret: crypto.randomBytes(32).toString('hex'), algorithms: ['HS256'] })
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
-export const decode = (token: string) => { return jws.decode(token)?.payload }
+export const verify = (token: string) => {
+  if (!token) return false
+  try {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+    return true
+  } catch {
+    return false
+  }
+}
+export const decode = (token: string): any => jwt.decode(token)
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')

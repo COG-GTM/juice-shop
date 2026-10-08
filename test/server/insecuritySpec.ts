@@ -111,6 +111,42 @@ describe('insecurity', () => {
     })
   })
 
+  describe('verify', () => {
+    it('accepts a token signed with the private RSA key', () => {
+      const token = security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('jim@juice-sh.op')
+    })
+
+    it('rejects an unsigned token with alg "none"', () => {
+      const token = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg'
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects an empty token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('isAccounting', () => {
+    it('rejects an unsigned token claiming the accounting role', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'attacker@juice-sh.op', role: 'accounting' } })).toString('base64url')
+      let status = 0
+      let nextCalled = false
+      const req = { headers: { authorization: `Bearer ${header}.${payload}.` }, cookies: {}, query: {} } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as any
+      security.isAccounting()(req, res, () => { nextCalled = true })
+      expect(nextCalled).to.equal(false)
+      expect(status).to.equal(403)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
