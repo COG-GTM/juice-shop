@@ -131,6 +131,14 @@ export const verifyPassword = async (password: string, storedHash?: string | nul
 }
 export const hmac = (data: string) => crypto.createHmac('sha256', hmacSecret).update(data).digest('hex')
 
+/**
+ * Security answers are peppered with the HMAC_SECRET key and then stored as a salted scrypt hash,
+ * so a leaked SecurityAnswers table can neither be matched against precomputed tables nor brute-forced offline.
+ */
+export const hashSecurityAnswer = async (answer: string) => await hashPassword(hmac(String(answer)))
+
+export const verifySecurityAnswer = async (answer: string, storedHash?: string | null) => await verifyPassword(hmac(String(answer)), storedHash)
+
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
   if (utils.contains(str, nullByte)) {

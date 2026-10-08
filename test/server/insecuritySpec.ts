@@ -256,6 +256,32 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashSecurityAnswer', () => {
+    it('stores security answers as salted scrypt hashes instead of a plain HMAC', async () => {
+      const storedHash = await security.hashSecurityAnswer('Samuel')
+      expect(storedHash).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+      expect(storedHash).to.not.contain(security.hmac('Samuel'))
+    })
+
+    it('uses a random salt for each answer', async () => {
+      expect(await security.hashSecurityAnswer('Samuel')).to.not.equal(await security.hashSecurityAnswer('Samuel'))
+    })
+  })
+
+  describe('verifySecurityAnswer', () => {
+    it('accepts the correct answer', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(true)
+    })
+
+    it('rejects a wrong answer', async () => {
+      expect(await security.verifySecurityAnswer('samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    })
+
+    it('rejects legacy unsalted HMAC values', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', security.hmac('Samuel'))).to.equal(false)
+    })
+  })
+
   describe('runtimeSecret', () => {
     const name = 'TEST_RUNTIME_SECRET'
     let secretDir: string
