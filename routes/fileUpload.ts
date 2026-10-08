@@ -109,20 +109,28 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 const MAX_YAML_UPLOAD_BYTES = 100000
 const MAX_YAML_JSON_LENGTH = 1000000
 
-// Lower bound for the length of JSON.stringify(value). Aliased nodes are shared references in the
-// parsed document, so each object's size is computed once and reused at every reference; the walk
-// stays linear in the parsed graph while still accounting for the exponential expansion that
-// serialization would materialize (including aliased long scalars). Cyclic aliases count as infinite.
-function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes = new Map<object, number>()): number {
-  if (typeof value === 'string') { return value.length + 2 }
-  if (value === null || typeof value !== 'object') { return String(value).length }
+// Estimates the length of JSON.stringify(value) without building the string. Aliased nodes are
+// shared references in the parsed document, so each object's (and string's) size is computed once and
+// reused at every reference; the walk stays linear in the parsed graph while still accounting for the
+// exponential expansion that serialization would materialize. Cyclic aliases count as infinite.
+function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes = new Map<unknown, number>()): number {
+  if (value === null || (typeof value !== 'object' && typeof value !== 'string')) { return String(value).length }
   const known = sizes.get(value)
   if (known !== undefined) { return known }
+  if (typeof value === 'string') {
+    const length = JSON.stringify(value).length
+    sizes.set(value, length)
+    return length
+  }
   sizes.set(value, Number.POSITIVE_INFINITY)
   let length = 2
-  for (const [key, child] of Object.entries(value)) {
-    length += (Array.isArray(value) ? 1 : key.length + 4) + estimateJsonLength(child, limit, sizes)
-    if (length > limit) { break }
+  if (typeof (value as { toJSON?: unknown }).toJSON === 'function') {
+    length = estimateJsonLength((value as { toJSON: () => unknown }).toJSON(), limit, sizes)
+  } else {
+    for (const [key, child] of Object.entries(value)) {
+      length += (Array.isArray(value) ? 1 : JSON.stringify(key).length + 2) + estimateJsonLength(child, limit, sizes)
+      if (length > limit) { break }
+    }
   }
   sizes.set(value, length)
   return length
