@@ -8,6 +8,7 @@
             (keydown.enter)="onEnterKey($event)"
             [placeholder]="'ASK_ME_ANYTHING_PLACEHOLDER' | translate"
             [disabled]="disabled()"
+            maxlength="4000"
             class="chat-textarea"></textarea>
   <button mat-icon-button
           color="primary"
