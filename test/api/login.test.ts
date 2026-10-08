@@ -236,7 +236,7 @@ void describe('/rest/user/login', () => {
 })
 
 void describe('/rest/saveLoginIp', () => {
-  async function saveLoginIpWithTrueClientIp (trueClientIp: string) {
+  async function saveLoginIpWithTrueClientIp (trueClientIp?: string) {
     const loginRes = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -247,13 +247,21 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(loginRes.status, 200)
 
+    const headers: Record<string, string> = { Authorization: 'Bearer ' + loginRes.body.authentication.token }
+    if (trueClientIp !== undefined) {
+      headers['true-client-ip'] = trueClientIp
+    }
     return await request(app)
       .get('/rest/saveLoginIp')
-      .set({
-        Authorization: 'Bearer ' + loginRes.body.authentication.token,
-        'true-client-ip': trueClientIp
-      })
+      .set(headers)
   }
+
+  void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', async () => {
+    const res = await saveLoginIpWithTrueClientIp()
+
+    assert.equal(res.status, 200)
+    assert.match(res.body.lastLoginIp, /^(127\.\d{1,3}\.\d{1,3}\.\d{1,3}|::1)$/)
+  })
 
   void it('GET last login IP will be saved as remote IP instead of spoofable True-Client-IP header value', async () => {
     const res = await saveLoginIpWithTrueClientIp('1.2.3.4')
