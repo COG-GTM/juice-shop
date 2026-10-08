@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jws from 'jws'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -73,6 +74,9 @@ export default defineConfig({
         },
         isWindows () {
           return utils.isWindows()
+        },
+        ForgeHs256Jwt ({ email, secret }: { email: string, secret: string }) {
+          return jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload: { data: { email } }, secret })
         }
       })
     }
