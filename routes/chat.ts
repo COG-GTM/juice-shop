@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request, type Response } from 'express'
+import * as crypto from 'node:crypto'
+import { type Request, type Response, type NextFunction } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
@@ -39,11 +40,42 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function isExpired (token: string): boolean {
+  const { exp } = (security.decode(token) ?? {}) as { exp?: number }
+  return typeof exp === 'number' && exp * 1000 <= Date.now()
+}
+
+function hasServerSignature (token: string): boolean {
+  const [header, payload, signature] = token.split('.')
+  try {
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString()) as { alg?: string }
+    return alg === 'RS256' && !!signature && crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
+
+function getAuthenticatedUser (req: Request): { id?: number, role?: string } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  if (!token || !security.verify(token) || isExpired(token)) return undefined
+  const session = security.authenticatedUsers.get(token)
+  if (!session?.data) return undefined
+  return { id: session.data.id, role: session.data.role }
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return getAuthenticatedUser(req)?.id
+}
+
+export function rejectUnverifiedChatToken () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    if (token && !getAuthenticatedUser(req) && !(isExpired(token) && hasServerSignature(token))) {
+      res.status(401).json({ error: 'Invalid authentication token' })
+      return
+    }
+    next()
+  }
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -217,10 +249,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
-              return req.cookies.show_tool_calls === 'true' && role !== roles.admin
+              return req.cookies.show_tool_calls === 'true' && getAuthenticatedUser(req)?.role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
