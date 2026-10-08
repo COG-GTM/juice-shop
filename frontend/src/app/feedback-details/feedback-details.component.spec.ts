@@ -43,4 +43,13 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should render the feedback comment as text', () => {
+        component.feedback = '<iframe src="javascript:alert(`xss`)">'
+        fixture.detectChanges()
+
+        const cite = fixture.nativeElement.querySelector('cite')
+        expect(cite.textContent).toBe('<iframe src="javascript:alert(`xss`)">')
+        expect(cite.querySelector('iframe')).toBeNull()
+    })
 })
