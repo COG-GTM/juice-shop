@@ -35,9 +35,6 @@ ctf:
     localXssChallenge:
       name: Germany
       code: DE
-    reflectedXssChallenge:
-      name: Uruguay
-      code: UY
     persistedXssUserChallenge:
       name: Myanmar
       code: MM
@@ -158,9 +155,6 @@ ctf:
     noSqlReviewsChallenge:
       name: United Arab Emirates
       code: AE
-    noSqlOrdersChallenge:
-      name: Estonia
-      code: EE
     retrieveBlueprintChallenge:
       name: Venezuela
       code: VE

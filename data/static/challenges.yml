@@ -780,24 +780,6 @@
     - Heroku
     - Gitpod
 -
-  name: 'NoSQL Exfiltration'
-  category: 'Injection'
-  tags:
-    - Danger Zone
-  description: 'All your orders are belong to us! Even the ones which don''t.'
-  difficulty: 5
-  hints:
-    - 'Take a close look on how the $where query operator works in MongoDB.'
-    - 'This challenge requires a classic Injection attack.'
-    - 'Find an API endpoint with the intent of delivering a single order to the user and work with that.'
-    - 'Reading up on how MongoDB queries work is really helpful here.'
-  mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Injection_Prevention_Cheat_Sheet.html'
-  key: noSqlOrdersChallenge
-  disabledEnv:
-    - Docker
-    - Heroku
-    - Gitpod
--
   name: 'NoSQL Manipulation'
   category: 'Injection'
   description: 'Update multiple product reviews at the same time.'
@@ -905,26 +887,6 @@
     - 'In practice two of these three ways should turn out to be dead ends.'
   mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/REST_Security_Cheat_Sheet.html'
   key: changeProductChallenge
--
-  name: 'Reflected XSS'
-  category: 'XSS'
-  tags:
-    - Tutorial
-    - Danger Zone
-    - Good for Demos
-  description: 'Perform a <i>reflected</i> XSS attack with <code>&lt;iframe src="javascript:alert(`xss`)"&gt;</code>.'
-  difficulty: 2
-  hints:
-    - 'Look for a url parameter where its value appears in the page it is leading to.'
-    - 'Try probing for XSS vulnerabilities by submitting text wrapped in an HTML tag which is easy to spot on screen, e.g. <h1> or <strike>.'
-  mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html'
-  key: reflectedXssChallenge
-  tutorial:
-    order: 5
-  disabledEnv:
-    - Docker
-    - Heroku
-    - Gitpod
 -
   name: 'Repetitive Registration'
   category: 'Improper Input Validation'

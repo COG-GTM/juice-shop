@@ -18,7 +18,6 @@ import { LoginBenderInstruction } from './challenges/loginBender'
 import { TutorialUnavailableInstruction } from './tutorialUnavailable'
 import { CodingChallengesInstruction } from './challenges/codingChallenges'
 import { AdminSectionInstruction } from './challenges/adminSection'
-import { ReflectedXssInstruction } from './challenges/reflectedXss'
 import { ExposedCredentialsInstruction } from './challenges/exposedCredentials'
 
 const challengeInstructions: ChallengeInstruction[] = [
@@ -34,7 +33,6 @@ const challengeInstructions: ChallengeInstruction[] = [
   LoginBenderInstruction,
   CodingChallengesInstruction,
   AdminSectionInstruction,
-  ReflectedXssInstruction,
   ExposedCredentialsInstruction
 ]
 
