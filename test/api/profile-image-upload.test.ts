@@ -9,8 +9,11 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -98,6 +101,44 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL does not fetch internal addresses or store the raw URL', async () => {
+    const hits: string[] = []
+    const internalService = http.createServer((req, res) => {
+      hits.push(req.url ?? '')
+      res.writeHead(200, { 'content-type': 'image/png' }).end('AKIA-INTERNAL-SECRET')
+    })
+    await new Promise<void>(resolve => internalService.listen(0, '127.0.0.1', resolve))
+    const port = (internalService.address() as AddressInfo).port
+
+    try {
+      const email = `jim@${config.get<string>('application.domain')}`
+      const { token } = await login(app, { email, password: 'ncc-1701' })
+      const before = await UserModel.findOne({ where: { email } })
+
+      for (const imageUrl of [
+        `http://127.0.0.1:${port}/latest/meta-data/iam/security-credentials/role.png`,
+        `http://localhost:${port}/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3`,
+        "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
+      ]) {
+        const res = await request(app)
+          .post('/profile/image/url')
+          .set('Cookie', `token=${token}`)
+          .type('form')
+          .send({ imageUrl })
+          .redirects(0)
+
+        assert.equal(res.status, 302)
+      }
+
+      assert.deepEqual(hits, [])
+      assert.notEqual(app.locals.abused_ssrf_bug, true)
+      const after = await UserModel.findOne({ where: { email } })
+      assert.equal(after?.profileImage, before?.profileImage)
+    } finally {
+      internalService.close()
+    }
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
