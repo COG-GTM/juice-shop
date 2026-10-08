@@ -61,6 +61,11 @@ describe('httpHardening', () => {
   describe('inlineScriptHashes', () => {
     const hash = (text: string) => `'sha256-${crypto.createHash('sha256').update(text).digest('base64')}'`
 
+    it('does not end a script at tags that merely start with script', () => {
+      const body = 'const tag = "</script-foo></script!>"; init()'
+      expect(inlineScriptHashes(`<script>${body}</script>`).scripts).to.deep.equal([`'sha256-${crypto.createHash('sha256').update(body).digest('base64')}'`])
+    })
+
     it('recognizes script end tags with whitespace and junk attributes', () => {
       const { scripts } = inlineScriptHashes('<script>a()</script\t\n bar><script>b()</script >')
       expect(scripts).to.deep.equal(inlineScriptHashes('<script>a()</script><script>b()</script>').scripts)

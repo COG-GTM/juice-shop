@@ -50,7 +50,7 @@ const attribute = (attributes: string, name: string) => new RegExp(`\\s${name}\\
 export function inlineScriptHashes (html: string): InlineScriptHashes {
   const scripts = new Set<string>()
   const handlers = new Set<string>()
-  const markup = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\b[^>]*>/gi, (_match, attributes: string, body: string) => {
+  const markup = html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script(?=[\s/>])[^>]*>/gi, (_match, attributes: string, body: string) => {
     const type = attribute(attributes, 'type')
     const isJavaScript = JAVASCRIPT_TYPES.includes((type?.[1] ?? type?.[2] ?? type?.[3] ?? '').trim().toLowerCase())
     if (isJavaScript && attribute(attributes, 'src') === null) {
