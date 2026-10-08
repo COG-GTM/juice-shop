@@ -59,12 +59,16 @@ describe('TrackResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should consider order number as trusted HTML', () => {
-        component.orderId = '<a src="link">Link</a>'
-        trackOrderService.find.mockReturnValue(of({ data: [{ orderId: component.orderId }] }))
-        component.ngOnInit()
+    it('should render a server-echoed order number as text instead of HTML', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        trackOrderService.find.mockReturnValue(of({ data: [{ orderId: payload }] }))
+        fixture = TestBed.createComponent(TrackResultComponent)
+        fixture.detectChanges()
 
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<code><a src="link">Link</a></code>')
+        const orderNo = fixture.nativeElement.querySelector('h1 code')
+        expect(orderNo.textContent).toBe(payload)
+        expect(fixture.nativeElement.querySelector('h1 iframe')).toBeNull()
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
     })
 
     it('should set "delivered" status for delivered orders', () => {
