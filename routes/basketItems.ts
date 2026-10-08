@@ -16,34 +16,47 @@ interface RequestWithRawBody extends Request {
   rawBody: string
 }
 
+interface BasketItemFields {
+  ProductId?: any
+  BasketId?: any
+  quantity?: any
+}
+
+const basketItemKeys = ['ProductId', 'BasketId', 'quantity'] as const
+
+function parseBasketItemBody (req: Request): { fields: BasketItemFields, duplicateKeys: boolean } {
+  const rawBody = (req as RequestWithRawBody).rawBody
+  const fields: BasketItemFields = {}
+  let duplicateKeys = false
+  for (const { key, value } of utils.parseJsonCustom(typeof rawBody === 'string' ? rawBody : JSON.stringify(req.body ?? {}))) {
+    if ((basketItemKeys as readonly string[]).includes(key)) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        duplicateKeys = true
+      }
+      fields[key as keyof BasketItemFields] = value
+    }
+  }
+  return { fields, duplicateKeys }
+}
+
+function hasForeignBasketId (basketId: any, userBid: any) {
+  return basketId != null && basketId !== 'undefined' && Number(basketId) !== Number(userBid)
+}
+
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
-
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
-    }
-
+    const { fields, duplicateKeys } = parseBasketItemBody(req)
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    if (duplicateKeys) {
+      res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
+    } else if (user?.bid == null || hasForeignBasketId(fields.BasketId, user.bid)) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
+        ProductId: fields.ProductId,
+        BasketId: user.bid,
+        quantity: fields.quantity
       }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
-
       const basketItemInstance = BasketItemModel.build(basketItem)
       try {
         const addedBasketItem = await basketItemInstance.save()
@@ -57,7 +70,18 @@ export function addBasketItem () {
 
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
-    void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
+    let parsed
+    try {
+      parsed = parseBasketItemBody(req)
+    } catch (error) {
+      next(error)
+      return
+    }
+    if (parsed.duplicateKeys) {
+      res.status(400).json({ status: 'error', message: 'Duplicate keys are not allowed' })
+      return
+    }
+    void quantityCheck(req, res, next, parsed.fields.ProductId, parsed.fields.quantity).catch((error: Error) => {
       next(error)
     })
   }
