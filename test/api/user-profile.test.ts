@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -51,4 +52,53 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of [
+    "#{'ssti'+'-'+'proof'}",
+    "#{global.process.mainModule.require('child_process').execSync('echo ssti'+'-'+'proof').toString()}",
+    "x!{'ssti'+'-'+'proof'}"
+  ]) {
+    void it(`GET user profile renders username ${payload} as escaped text`, async () => {
+      const update = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+      assert.equal(update.status, 302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('ssti-proof'))
+      assert.ok(res.text.includes(escapeHtml(payload)))
+    })
+  }
+
+  void it('GET user profile renders the stored HTML username escaped', async () => {
+    const update = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '<<a|ascript>alert(`xss`)</script> a < b' })
+      .redirects(0)
+    assert.equal(update.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    const stored = (await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } }))?.username ?? ''
+    assert.match(stored, /[<&]/)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes(stored))
+    assert.ok(res.text.includes(escapeHtml(stored)))
+  })
 })
+
+function escapeHtml (text: string) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
