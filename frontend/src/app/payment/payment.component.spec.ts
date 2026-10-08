@@ -228,6 +228,18 @@ describe('PaymentComponent', () => {
         expect(component.couponError).toBeUndefined()
     })
 
+    it('should validate campaign coupon codes on the server', () => {
+        basketService.applyCoupon.mockReturnValue(throwError('Invalid coupon.'))
+        sessionStorage.setItem('bid', '4')
+
+        component.couponControl.setValue('WMNSDY2019')
+        component.applyCoupon()
+
+        expect(basketService.applyCoupon).toHaveBeenCalledWith(4, 'WMNSDY2019')
+        expect(component.couponConfirmation).toBeUndefined()
+        expect(component.couponError).toBe('Invalid coupon.')
+    })
+
     it('should translate DISCOUNT_APPLIED message', () => {
         basketService.applyCoupon.mockReturnValue(of(42))
         translateService.get.mockReturnValue(of('Translation of DISCOUNT_APPLIED'))
