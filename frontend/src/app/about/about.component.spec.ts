@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -20,9 +21,14 @@ describe('AboutComponent', () => {
     let component: AboutComponent
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
+    let feedbackService
     let translateService
 
     beforeEach(async () => {
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
         configurationService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
@@ -43,6 +49,7 @@ describe('AboutComponent', () => {
                 TranslateModule.forRoot()],
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
+                { provide: FeedbackService, useValue: feedbackService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -115,5 +122,30 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the gallery as plain text along with the rating', () => {
+        const comment = '<iframe src="javascript:alert(`xss`)">'
+        feedbackService.find.mockReturnValue(of([{ comment, rating: 3 }]))
+        const addImage = vi.fn()
+        component.galleryRef = { addImage } as any
+
+        component.populateSlideshowFromFeedbacks()
+
+        expect(addImage).toHaveBeenCalledWith({
+            src: 'assets/public/images/carousel/1.jpg',
+            args: { comment, stars: [true, true, true, false, false] }
+        })
+    })
+
+    it('should clamp out-of-range ratings when deriving the stars', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: 'ok', rating: 42 }, { comment: 'meh', rating: -1 }]))
+        const addImage = vi.fn()
+        component.galleryRef = { addImage } as any
+
+        component.populateSlideshowFromFeedbacks()
+
+        expect(addImage.mock.calls[0][0].args.stars).toEqual([true, true, true, true, true])
+        expect(addImage.mock.calls[1][0].args.stars).toEqual([false, false, false, false, false])
     })
 })
