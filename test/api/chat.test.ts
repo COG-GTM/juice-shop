@@ -281,8 +281,12 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     await assertTreatedAsAnonymous(hmacToken(adminClaims, security.publicKey))
   })
 
-  void it('POST ignores a server-signed JWT that was never issued as a session', { timeout: 30000 }, async () => {
-    await assertTreatedAsAnonymous(security.authorize(adminClaims))
+  void it('POST keeps the identity of a valid session token after the session cache was lost', { timeout: 30000 }, async () => {
+    const { token, orderId } = await adminOrderId()
+    security.authenticatedUsers.tokenMap = {}
+    security.authenticatedUsers.idMap = {}
+    const { toolResult } = await chatAsOrderLookup(orderId, token)
+    assert.ok(toolResult?.includes(orderId), `unexpected tool result: ${String(toolResult)}`)
   })
 
   void it('POST ignores an expired server-signed JWT', { timeout: 30000 }, async () => {

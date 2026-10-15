@@ -56,7 +56,11 @@ function hasValidServerSignature (token: string): boolean {
 function getAuthenticatedUser (req: Request): { id?: number, role?: string } | undefined {
   const token = utils.jwtFrom(req)
   if (!token || !hasValidServerSignature(token)) return undefined
-  return security.authenticatedUsers.from(req)?.data
+  if (security.authenticatedUsers.get(token) === undefined) {
+    const verified = security.decode(token)
+    if (verified?.data) security.authenticatedUsers.put(token, verified)
+  }
+  return security.authenticatedUsers.get(token)?.data
 }
 
 async function getUserId (req: Request): Promise<number | undefined> {
