@@ -103,8 +103,8 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "forgedCoupon"', () => {
-      it('should be able to access file /ftp/coupons_2013.md.bak with poison null byte attack', () => {
-        cy.request(`${Cypress.config('baseUrl')}/ftp/coupons_2013.md.bak%2500.md`)
+      it('should not be able to access file /ftp/coupons_2013.md.bak with poison null byte attack', () => {
+        cy.request({ url: `${Cypress.config('baseUrl')}/ftp/coupons_2013.md.bak%2500.md`, failOnStatusCode: false }).its('status').should('eq', 403)
       })
 
       it('should be possible to add a product in the basket', () => {
