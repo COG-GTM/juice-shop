@@ -203,4 +203,28 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('cookieSecret', () => {
+    it('is not the publicly known hardcoded secret', () => {
+      expect(security.cookieSecret).to.not.equal('kekse')
+      expect(security.cookieSecret.length).to.be.at.least(32)
+    })
+
+    it('generates a random 256-bit secret when none is configured', () => {
+      const first = security.resolveCookieSecret(undefined)
+      const second = security.resolveCookieSecret('')
+      expect(first).to.match(/^[0-9a-f]{64}$/)
+      expect(second).to.match(/^[0-9a-f]{64}$/)
+      expect(first).to.not.equal(second)
+    })
+
+    it('uses the configured secret when it is long enough', () => {
+      const configured = 'x'.repeat(32)
+      expect(security.resolveCookieSecret(configured)).to.equal(configured)
+    })
+
+    it('rejects a configured secret that is too short', () => {
+      expect(() => security.resolveCookieSecret('kekse')).to.throw('COOKIE_SECRET must be at least 32 characters long')
+    })
+  })
 })
