@@ -71,11 +71,12 @@ describe('/', () => {
     })
   })
 
-  describe('challenge "emailLeak"', () => {
-    it('should be able to request the callback on /rest/user/whoami', () => {
-      // cy.visit requires a text/html response and this is a text/javascript hence cy.request has been used
-      cy.request('/rest/user/whoami?callback=func')
-      cy.expectChallengeSolved({ challenge: 'Email Leak' })
+  describe('/rest/user/whoami JSONP', () => {
+    it('should not wrap the response in a JSONP callback', () => {
+      cy.request('/rest/user/whoami?callback=func').then((res) => {
+        expect(res.headers['content-type']).to.include('application/json')
+        expect(res.body).to.not.be.a('string')
+      })
     })
   })
 
