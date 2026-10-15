@@ -187,17 +187,21 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
+    const couponCode = Buffer.from(req.body.couponData, 'base64').toString().split('-')[0]
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
+    if (campaign && isCampaignDay(campaign.validOn, Date.now())) {
       return campaign.discount
     }
   }
   return 0
+}
+
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+// Campaign codes are only honored on their campaign day according to the server clock; the client-supplied date is ignored.
+function isCampaignDay (validOn: number, now: number) {
+  return now >= validOn && now < validOn + ONE_DAY_IN_MS
 }
 
 const campaigns = {
