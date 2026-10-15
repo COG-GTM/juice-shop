@@ -79,12 +79,25 @@ void describe('/rest/user/security-question', () => {
     assert.equal(res.body.question.question, 'Your eldest siblings middle name?')
   })
 
-  void it('GET security question returns nothing for an unknown email address', async () => {
-    const res = await request(app)
+  void it('GET security question for an unknown email address is indistinguishable from an existing one', async () => {
+    const known = await request(app)
+      .get(`/rest/user/security-question?email=jim@${config.get<string>('application.domain')}`)
+    const unknown = await request(app)
       .get('/rest/user/security-question?email=horst@unknown-us.er')
 
-    assert.equal(res.status, 200)
-    assert.deepEqual(res.body, {})
+    assert.equal(unknown.status, 200)
+    assert.deepEqual(Object.keys(unknown.body), Object.keys(known.body))
+    assert.deepEqual(Object.keys(unknown.body.question).sort(), Object.keys(known.body.question).sort())
+    assert.ok(unknown.body.question.question)
+  })
+
+  void it('GET security question for an unknown email address is stable across requests', async () => {
+    const first = await request(app)
+      .get('/rest/user/security-question?email=horst@unknown-us.er')
+    const second = await request(app)
+      .get('/rest/user/security-question?email=horst@unknown-us.er')
+
+    assert.deepEqual(second.body, first.body)
   })
 
   void it('GET security question throws error for missing email address', async () => {
@@ -102,5 +115,16 @@ void describe('/rest/user/security-question', () => {
       .get("/rest/user/security-question?email=';")
 
     assert.equal(res.status, 200)
+  })
+
+  void it('GET security question is rate limited per client regardless of X-Forwarded-For', async () => {
+    let res
+    for (let i = 0; i <= 100; i++) {
+      res = await request(app)
+        .get('/rest/user/security-question?email=horst@unknown-us.er')
+        .set('X-Forwarded-For', `10.0.0.${i % 255}`)
+    }
+
+    assert.equal(res?.status, 429)
   })
 })
