@@ -153,6 +153,27 @@ void describe('/file-upload', () => {
     }
   })
 
+  void it('POST zip file entry is not written through a symlink inside uploads/complaints', async () => {
+    const target = path.resolve('zipSlipSymlinkTarget.txt')
+    const link = path.resolve('uploads/complaints/zipSlipSymlinkEntry.txt')
+    fs.rmSync(link, { force: true })
+    fs.writeFileSync(target, 'untouched')
+    fs.symlinkSync(target, link)
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipSymlink.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      assert.equal(fs.readFileSync(target, 'utf8'), 'untouched', 'symlinked entry must not be followed out of uploads/complaints')
+    } finally {
+      fs.rmSync(link, { force: true })
+      fs.rmSync(target, { force: true })
+    }
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)

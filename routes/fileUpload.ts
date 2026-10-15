@@ -29,7 +29,12 @@ function isSafeComplaintEntryPath (entryPath: string) {
     return false
   }
   const complaintsDir = path.resolve('uploads/complaints')
-  return path.resolve(complaintsDir, entryPath).startsWith(complaintsDir + path.sep)
+  const absolutePath = path.resolve(complaintsDir, entryPath)
+  if (!absolutePath.startsWith(complaintsDir + path.sep)) {
+    return false
+  }
+  // a pre-existing symlink in the target directory would redirect the write outside of it
+  return fs.lstatSync(absolutePath, { throwIfNoEntry: false })?.isSymbolicLink() !== true
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
