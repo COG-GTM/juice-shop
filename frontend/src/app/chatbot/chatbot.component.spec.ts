@@ -15,7 +15,7 @@ describe('ChatbotComponent', () => {
 
     beforeEach(() => {
         loginGuard = {
-            canActivate: vi.fn().mockName('LoginGuard.canActivate')
+            canActivate: vi.fn().mockName('LoginGuard.canActivate').mockReturnValue(true)
         }
 
         TestBed.configureTestingModule({
@@ -28,26 +28,40 @@ describe('ChatbotComponent', () => {
             ]
         }).compileComponents()
 
+    })
+
+    function createComponent () {
         fixture = TestBed.createComponent(ChatbotComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
-    })
+    }
 
     it('should create', () => {
+        createComponent()
         expect(component).toBeTruthy()
     })
 
     it('should require a logged-in user', () => {
+        createComponent()
         expect(loginGuard.canActivate).toHaveBeenCalled()
     })
 
     it('should render the chatbot container', () => {
+        createComponent()
         const container = fixture.nativeElement.querySelector('.chatbot-container')
         expect(container).toBeTruthy()
     })
 
     it('should contain a router-outlet', () => {
+        createComponent()
         const outlet = fixture.nativeElement.querySelector('router-outlet')
         expect(outlet).toBeTruthy()
+    })
+
+    it('should not render the router-outlet for logged-out users', () => {
+        loginGuard.canActivate.mockReturnValue(false)
+        createComponent()
+        const outlet = fixture.nativeElement.querySelector('router-outlet')
+        expect(outlet).toBeFalsy()
     })
 })

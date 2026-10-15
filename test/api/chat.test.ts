@@ -387,4 +387,22 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     assert.equal(lastStatus, 429)
   })
+
+  void it('POST rate limit cannot be bypassed by spoofing X-Forwarded-For', { timeout: 60000 }, async () => {
+    onLlmRequest = (_req, _body, res) => {
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const { token: benderToken } = await login(app, { email: 'bender@' + config.get<string>('application.domain'), password: 'OhG0dPlease1nsertLiquor!' })
+
+    let lastStatus = 0
+    for (let i = 0; i < 25 && lastStatus !== 429; i++) {
+      const res = await request(app)
+        .post('/rest/chat')
+        .set({ 'content-type': 'application/json', Authorization: `Bearer ${benderToken}`, 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ messages: [{ role: 'user', content: 'Hi' }] })
+      lastStatus = res.status
+    }
+
+    assert.equal(lastStatus, 429)
+  })
 })
