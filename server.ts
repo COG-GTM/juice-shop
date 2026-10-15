@@ -477,19 +477,22 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
-  const isOwnedBy: Record<string, (instance: any, userId: number) => boolean | Promise<boolean>> = {
-    User: (user, userId) => user.id === userId,
-    Complaint: (complaint, userId) => complaint.UserId === userId,
-    Feedback: (feedback, userId) => feedback.UserId === userId,
-    Address: (address, userId) => address.UserId === userId,
-    BasketItem: async (basketItem, userId) => await BasketModel.count({ where: { id: basketItem.BasketId, UserId: userId } }) > 0
+  const ownedBy: Record<string, (userId: number) => Promise<(instance: any) => boolean>> = {
+    User: async (userId) => (user) => user.id === userId,
+    Complaint: async (userId) => (complaint) => complaint.UserId === userId,
+    Feedback: async (userId) => (feedback) => feedback.UserId === userId,
+    Address: async (userId) => (address) => address.UserId === userId,
+    BasketItem: async (userId) => {
+      const basketIds = new Set((await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })).map(({ id }) => id))
+      return (basketItem) => basketIds.has(basketItem.BasketId)
+    }
   }
   const publiclyListed = ['Feedback']
 
-  const mayAccess = async (req: Request, instance: any, owns: (instance: any, userId: number) => boolean | Promise<boolean>) => {
-    if (security.isAdmin(req)) return true
+  const accessFilter = async (req: Request, owner: (userId: number) => Promise<(instance: any) => boolean>) => {
+    if (security.isAdmin(req)) return () => true
     const userId = security.userIdFrom(req)
-    return userId !== undefined && await owns(instance, userId)
+    return userId === undefined ? () => false : await owner(userId)
   }
 
   // vuln-code-snippet start registerAdminChallenge
@@ -534,11 +537,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     // vuln-code-snippet end registerAdminChallenge
 
     // object-level authorization: non-admins only see and change their own records
-    const owns = isOwnedBy[name]
-    if (owns) {
+    const owner = ownedBy[name]
+    if (owner) {
       for (const action of ['read', 'update', 'delete']) {
         resource[action].fetch.after(async (req: Request, res: Response, context: { instance: any, error: any, continue: any }) => {
-          if (!(await mayAccess(req, context.instance, owns))) {
+          const mayAccess = await accessFilter(req, owner)
+          if (!mayAccess(context.instance)) {
             return context.error(403, 'Forbidden')
           }
           return context.continue
@@ -546,8 +550,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }
       if (!publiclyListed.includes(name)) {
         resource.list.fetch.after(async (req: Request, res: Response, context: { instance: any[], continue: any }) => {
-          const accessible = await Promise.all(context.instance.map(async (instance) => await mayAccess(req, instance, owns)))
-          context.instance = context.instance.filter((_instance, i) => accessible[i])
+          context.instance = context.instance.filter(await accessFilter(req, owner))
           return context.continue
         })
       }
