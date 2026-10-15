@@ -67,6 +67,7 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('[fonts]'))
     })
 
     void it('POST file type XML with XXE attack against Linux', async () => {
@@ -75,15 +76,17 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(!/root:.*:0:0:/.test(res.text))
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST file type XML with Billion Laughs attack is not expanded or echoed', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(!res.text.includes('lol'))
+      assert.ok(!res.text.includes('entity'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
@@ -104,12 +107,13 @@ void describe('/file-upload', () => {
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
-    void it('POST file type YAML with Billion Laughs-style attack', async () => {
+    void it('POST file type YAML with Billion Laughs-style attack is rejected', async () => {
       const file = path.resolve(__dirname, '../files/yamlBomb.yml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
-      assert.ok(res.status >= 410)
+      assert.equal(res.status, 413)
+      assert.ok(!res.text.includes('lol'))
     })
   }
 

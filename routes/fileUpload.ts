@@ -72,6 +72,16 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+// Finds an unresolved reference to a sensitive SYSTEM entity in the parsed document, so the challenge stays solvable without ever resolving the entity
+const sensitiveSystemEntity = /^<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+
+function referencesSensitiveSystemEntity (node: any): boolean {
+  if (node.type() === 'entity_ref') {
+    return node.childNodes().some((decl: any) => decl.name() === node.name() && sensitiveSystemEntity.test(decl.toString()))
+  }
+  return node.type() === 'element' && node.childNodes().some(referencesSensitiveSystemEntity)
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -80,11 +90,10 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesSensitiveSystemEntity(xmlDoc.root()) })
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
@@ -95,7 +104,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {
@@ -106,6 +115,31 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+// Aliases are shared references after loading, so count nodes as if every alias were expanded and stop at the limit
+const MAX_YAML_NODES = 10000
+
+function measureYamlDocument (doc: unknown, limit: number) {
+  const stack: unknown[] = [doc]
+  const seen = new Set<object>()
+  let count = 0
+  let aliased = false
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (++count > limit) return { exceedsLimit: true, aliased }
+    if (node !== null && typeof node === 'object') {
+      for (const value of Object.values(node)) {
+        if (count + stack.length > limit) return { exceedsLimit: true, aliased }
+        if (value !== null && typeof value === 'object') {
+          if (seen.has(value)) aliased = true
+          seen.add(value)
+        }
+        stack.push(value)
+      }
+    }
+  }
+  return { exceedsLimit: false, aliased }
+}
+
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -114,9 +148,18 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
       try {
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        const yamlDoc = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
+        const { exceedsLimit, aliased } = measureYamlDocument(yamlDoc, MAX_YAML_NODES)
+        if (exceedsLimit) {
+          if (aliased && challengeUtils.notSolved(challenges.yamlBombChallenge)) {
+            challengeUtils.solve(challenges.yamlBombChallenge)
+          }
+          res.status(413)
+          next(new Error('Uploaded YAML document is too large (' + file.originalname + ')'))
+          return
+        }
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
@@ -127,7 +170,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {

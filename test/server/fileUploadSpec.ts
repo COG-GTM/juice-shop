@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,122 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('XML and YAML complaint uploads', () => {
+    let errors: Error[]
+    let status: number | undefined
+
+    const upload = (handler: typeof handleXmlUpload, fixture: string, content?: string) => {
+      errors = []
+      status = undefined
+      req.file = { originalname: fixture, buffer: content !== undefined ? Buffer.from(content) : fs.readFileSync(path.resolve(__dirname, '../files', fixture)) }
+      res = {
+        status (code: number) { status = status ?? code; return res },
+        end () {}
+      }
+      handler(req, res, (err?: any) => { if (err != null) errors.push(err) })
+      return errors.map(e => e.message).join('\n')
+    }
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.xxeFileDisclosureChallenge = { solved: false, save } as unknown as Challenge
+      challenges.xxeDosChallenge = { solved: false, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    it('should not resolve external entities or echo file contents for XXE uploads', () => {
+      const message = upload(handleXmlUpload, 'xxeForLinux.xml')
+
+      expect(status).to.equal(410)
+      expect(message).to.not.match(/root:.*:0:0:/)
+      expect(message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (xxeForLinux.xml)')
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve the XXE challenge for XML without a sensitive external entity', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><complaint>hello</complaint>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the XXE challenge for an entity declared in a comment only', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><!-- <!ENTITY xxe SYSTEM "file:///etc/passwd"> --><foo/>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the XXE challenge for a declared but unreferenced entity', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><!DOCTYPE foo [<!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>hello</foo>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the XXE challenge for an entity reference inside CDATA', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><foo><![CDATA[&xxe;]]></foo>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the XXE challenge for a reference to a different entity with a similar name', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<!DOCTYPE foo [<!ENTITY a.b SYSTEM "file:///etc/passwd"><!ENTITY aXb "hi">]><foo>&aXb;</foo>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not expand internal entities or echo parser errors for Billion Laughs XML uploads', () => {
+      const message = upload(handleXmlUpload, 'xxeBillionLaughs.xml')
+
+      expect(status).to.equal(410)
+      expect(message).to.not.include('lol')
+      expect(message).to.not.include('entity')
+      expect(challenges.xxeDosChallenge.solved).to.equal(false)
+    })
+
+    it('should reject YAML alias bombs without expanding them', () => {
+      const started = Date.now()
+      const message = upload(handleYamlUpload, 'yamlBomb.yml')
+
+      expect(Date.now() - started).to.be.below(1000)
+      expect(status).to.equal(413)
+      expect(message).to.equal('Uploaded YAML document is too large (yamlBomb.yml)')
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should reject oversized alias-free YAML without solving the bomb challenge', () => {
+      upload(handleYamlUpload, 'wide.yml', 'a: [' + Array(10001).fill('x').join(', ') + ']\n')
+
+      expect(status).to.equal(413)
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the bomb challenge for alias syntax that only appears in a comment', () => {
+      upload(handleYamlUpload, 'wide.yml', '# *a\nvalues: [' + Array(10001).fill('x').join(', ') + ']\n')
+
+      expect(status).to.equal(413)
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should stop counting wide aliased YAML documents at the node limit', () => {
+      const wide = 'a: &a [' + Array(5000).fill('x').join(', ') + ']\nb: [' + Array(5000).fill('*a').join(', ') + ']\n'
+      const started = Date.now()
+      upload(handleYamlUpload, 'wide.yml', wide)
+
+      expect(Date.now() - started).to.be.below(1000)
+      expect(status).to.equal(413)
+    })
+
+    it('should not echo YAML document contents', () => {
+      const message = upload(handleYamlUpload, 'complaint.yml', 'secret: s3cr3t-value\n')
+
+      expect(status).to.equal(410)
+      expect(message).to.not.include('s3cr3t-value')
+    })
   })
 })
