@@ -213,6 +213,14 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPasswordAsync', () => {
+    it('produces the same hash as hashPassword for the same salt', async () => {
+      const stored = security.hashPassword('admin123')
+      expect(await security.hashPasswordAsync('admin123', security.passwordSalt(stored))).to.equal(stored)
+      expect(await security.hashPasswordAsync('admin123')).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+    })
+  })
+
   describe('passwordSalt', () => {
     it('extracts the salt of a scrypt hash', () => {
       expect(security.passwordSalt(`scrypt$${'ab'.repeat(16)}$${'cd'.repeat(64)}`)).to.equal('ab'.repeat(16))

@@ -86,5 +86,5 @@ export function login () {
 
 async function saltedPasswordHash (email: unknown, password: unknown) {
   const user = await UserModel.findOne({ where: { email: String(email ?? '') }, attributes: ['password'] }).catch(() => null)
-  return security.hashPassword(String(password ?? ''), security.passwordSalt(user?.password))
+  return await security.hashPasswordAsync(password, security.passwordSalt(user?.password))
 }
