@@ -150,12 +150,14 @@ export function placeOrder () {
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const [debitedWallets] = Number.isFinite(totalPrice) && totalPrice > 0
-                ? await WalletModel.update(
-                  { balance: literal(`balance - ${totalPrice}`) },
-                  { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
-                )
-                : [0]
+              const [debitedWallets] = totalPrice === 0
+                ? [1]
+                : Number.isFinite(totalPrice) && totalPrice > 0
+                  ? await WalletModel.update(
+                    { balance: literal(`balance - ${totalPrice}`) },
+                    { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
+                  )
+                  : [0]
               if (debitedWallets === 0) {
                 next(new Error('Insufficient wallet balance.'))
                 return

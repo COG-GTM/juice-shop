@@ -194,6 +194,15 @@ void describe('/rest/basket/:id/checkout with wallet payment', () => {
     assert.equal(await walletBalance(userId), 10)
   })
 
+  void it('POST wallet checkout of an order totalling zero succeeds without a debit', async () => {
+    const { header, bid, userId } = await newCustomerWithWallet(0)
+
+    const res = await request(app).post(`/rest/basket/${bid}/checkout`).set(header).send(walletOrder)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(await walletBalance(userId), 0)
+  })
+
   void it('POST concurrent wallet checkouts cannot overspend the wallet', async () => {
     const { header, bid, userId } = await newCustomerWithWallet(3)
     const itemRes = await request(app)
