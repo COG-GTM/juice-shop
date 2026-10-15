@@ -134,6 +134,8 @@ challenges:
     enum: ['enabled', 'disabled','auto']
   csafHashValue:
     type: string
+  nftUnlockPrivateKeyHash:
+    type: string
   metricsIgnoredUserAgents:
     - type: string
 hackingInstructor:
