@@ -6,11 +6,10 @@ import { type Request, type Response, type NextFunction } from 'express'
 import { UserModel } from '../models/user'
 import { decode } from 'jsonwebtoken'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
-function isAdminRequest (req: Request) {
-  const token = utils.jwtFrom(req)
-  return Boolean(token && security.verify(token) && security.decode(token)?.data?.role === security.roles.admin)
+// req.user is the payload that security.isAuthorized() (express-jwt) has already signature-verified for this route
+function isAdminRequest (req: Request & { user?: { data?: { role?: string } } }) {
+  return req.user?.data?.role === security.roles.admin
 }
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
