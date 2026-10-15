@@ -1,24 +1,15 @@
 describe('/#/track-order', () => {
-  describe('challenge "reflectedXss"', () => {
-    // Cypress alert bug
-    xit('Order Id should be susceptible to reflected XSS attacks', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.on('uncaught:exception', (_err, _runnable) => {
-            return false
-          })
-
-          cy.visit('/#/track-result')
-          cy.visit('/#/track-result?id=<iframe src="javascript:alert(`xss`)">')
-          cy.reload()
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.expectChallengeSolved({ challenge: 'Reflected XSS' })
-        }
+  describe('order id', () => {
+    it('should render a reflected order id as text instead of HTML', () => {
+      cy.on('window:alert', () => {
+        throw new Error('Order id must not be rendered as HTML')
       })
+
+      const payload = encodeURIComponent('<iframe src="javascript:alert(`xss`)">')
+      cy.visit('/#/track-result?id=' + payload)
+
+      cy.get('app-track-result h1 code').should('contain.text', 'iframesrcjavascriptalertxss')
+      cy.get('app-track-result iframe').should('not.exist')
     })
   })
 })
