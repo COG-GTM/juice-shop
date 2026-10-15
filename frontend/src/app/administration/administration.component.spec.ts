@@ -91,6 +91,28 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as text instead of HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+
+        const emailCells: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('mat-cell.mat-column-email'))
+        expect(emailCells.length).toBeGreaterThan(0)
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+        for (const cell of emailCells) {
+            expect(cell.textContent?.trim()).toBe('<iframe src="javascript:alert(`xss`)">')
+        }
+    })
+
+    it('should mark the email of users with an active session as confirmed', () => {
+        userService.find.mockReturnValue(of([{ email: 'active@juice-sh.op', lastLoginTime: Date.now() / 1000 }, { email: 'inactive@juice-sh.op' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+
+        const spans: HTMLElement[] = Array.from(fixture.nativeElement.querySelectorAll('.user-table mat-cell.mat-column-email span'))
+        expect(spans.map(span => span.className)).toEqual(['confirmation', 'error'])
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
