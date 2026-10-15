@@ -205,8 +205,8 @@ describe('insecurity', () => {
   })
 
   describe('corsAllowedOrigins', () => {
-    it('defaults to the configured base URL and the Angular dev server', () => {
-      expect(security.corsAllowedOrigins({})).to.deep.equal(['http://localhost:3000', 'http://localhost:4200'])
+    it('defaults to the configured base URL and the Angular dev server on both loopback addresses', () => {
+      expect(security.corsAllowedOrigins({})).to.deep.equal(['http://localhost:3000', 'http://localhost:4200', 'http://127.0.0.1:4200'])
     })
 
     it('uses comma-separated CORS_ALLOWED_ORIGINS reduced to their origins', () => {

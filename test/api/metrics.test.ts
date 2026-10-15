@@ -114,6 +114,13 @@ void describe('/metrics access control', () => {
     }
   })
 
+  void it('GET metrics accepts a case-insensitive bearer scheme', async () => {
+    await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', `bearer ${metricsToken}`)
+      .expect(200)
+  })
+
   void it('GET metrics with valid bearer token', async () => {
     const res = await request(metricsApp)
       .get('/metrics')

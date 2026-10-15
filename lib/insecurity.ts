@@ -204,7 +204,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   next()
 }
 
-const ANGULAR_DEV_SERVER_ORIGIN = 'http://localhost:4200'
+const ANGULAR_DEV_SERVER_ORIGINS = ['http://localhost:4200', 'http://127.0.0.1:4200']
 
 const toOrigin = (url: string) => {
   try {
@@ -216,7 +216,7 @@ const toOrigin = (url: string) => {
 }
 
 export const corsAllowedOrigins = (env: NodeJS.ProcessEnv = process.env): string[] => {
-  const configured = env.CORS_ALLOWED_ORIGINS?.split(',') ?? [config.get<string>('server.baseUrl'), ANGULAR_DEV_SERVER_ORIGIN]
+  const configured = env.CORS_ALLOWED_ORIGINS?.split(',') ?? [config.get<string>('server.baseUrl'), ...ANGULAR_DEV_SERVER_ORIGINS]
   return [...new Set(configured.map(toOrigin).filter((origin): origin is string => origin !== undefined))]
 }
 
@@ -226,7 +226,7 @@ const sha256 = (value: string) => crypto.createHash('sha256').update(value).dige
 
 export const isMetricsAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
   const expectedToken = process.env.METRICS_TOKEN
-  const presentedToken = /^Bearer (.+)$/.exec(req.headers.authorization ?? '')?.[1]
+  const presentedToken = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1]
   if (expectedToken && presentedToken && crypto.timingSafeEqual(sha256(presentedToken), sha256(expectedToken))) {
     next()
   } else {
