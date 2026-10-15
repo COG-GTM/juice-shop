@@ -416,6 +416,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Only allowlisted registration fields pass on; role is always forced to customer */
+  app.post('/api/Users', security.sanitizeUserRegistration())
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())

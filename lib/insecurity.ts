@@ -185,6 +185,21 @@ export const appendUserId = () => {
   }
 }
 
+const userRegistrationFields = ['email', 'password', 'passwordRepeat', 'username']
+
+export const sanitizeUserRegistration = () => (req: Request, res: Response, next: NextFunction) => {
+  const body = req.body ?? {}
+  const sanitized: Record<string, unknown> = {}
+  for (const field of userRegistrationFields) {
+    if (Object.prototype.hasOwnProperty.call(body, field)) {
+      sanitized[field] = body[field]
+    }
+  }
+  sanitized.role = roles.customer
+  req.body = sanitized
+  next()
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
