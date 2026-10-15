@@ -142,6 +142,19 @@ void describe('/rest/products/reviews', () => {
     assert.equal(liked.likedBy.filter((email: string) => email === 'bjoern.kimminich@gmail.com').length, 1)
   })
 
+  void it('POST like with a query object as review id is rejected', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: { $ne: -1 } })
+    assert.equal(res.status, 400)
+  })
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 

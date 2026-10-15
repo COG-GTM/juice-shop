@@ -27,6 +27,10 @@ export function likeProductReviews () {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
+    const email = user.data.email
+    if (typeof id !== 'string' || typeof email !== 'string') {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
 
     try {
       const review = await db.reviewsCollection.findOne({ _id: id })
@@ -34,7 +38,6 @@ export function likeProductReviews () {
         return res.status(404).json({ error: 'Not found' })
       }
 
-      const email = user.data.email
       const result = await serializeLike(async () => await db.reviewsCollection.update(
         { _id: id, likedBy: { $ne: email } },
         { $inc: { likesCount: 1 }, $addToSet: { likedBy: email } }
