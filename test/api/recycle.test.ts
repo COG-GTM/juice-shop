@@ -65,6 +65,17 @@ void describe('/api/Recycles', () => {
     }
   })
 
+  void it('GET own recycle works with only an Authorization header', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1')
+      .set('Authorization', jimAuthHeader.Authorization)
+    assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    for (const item of res.body.data) {
+      assert.equal(item.UserId, jimUserId)
+    }
+  })
+
   void it('Will GET only own existing recycles from this endpoint', async () => {
     let ownItems = 0
     for (let id = 1; id <= 9; id++) {
