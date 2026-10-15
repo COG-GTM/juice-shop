@@ -4,15 +4,23 @@
  */
 
 import crypto from 'node:crypto'
+import logger from './logger'
 
 export type ContinueCodeScope = 'hacking' | 'findIt' | 'fixIt'
 
 const SIGNATURE_LENGTH = 64
+const MIN_SECRET_LENGTH = 32
 
-// Set CONTINUE_CODE_SECRET to keep continue codes valid across server restarts
-const secret = process.env.CONTINUE_CODE_SECRET !== undefined && process.env.CONTINUE_CODE_SECRET !== ''
-  ? process.env.CONTINUE_CODE_SECRET
-  : crypto.randomBytes(32).toString('hex')
+// Set CONTINUE_CODE_SECRET (min. 32 chars) to keep continue codes valid across server restarts
+const resolveSecret = (configured: string | undefined) => {
+  if (configured !== undefined && configured.length >= MIN_SECRET_LENGTH) return configured
+  if (configured !== undefined && configured !== '') {
+    logger.warn(`CONTINUE_CODE_SECRET is shorter than ${MIN_SECRET_LENGTH} characters and will be ignored; using a random per-process secret instead`)
+  }
+  return crypto.randomBytes(32).toString('hex')
+}
+
+const secret = resolveSecret(process.env.CONTINUE_CODE_SECRET)
 
 const signatureOf = (code: string, scope: ContinueCodeScope) =>
   crypto.createHmac('sha256', secret).update(`${scope}:${code}`).digest('hex')
