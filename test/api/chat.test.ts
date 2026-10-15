@@ -9,10 +9,10 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import * as crypto from 'node:crypto'
-import * as fs from 'node:fs'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -108,63 +108,56 @@ after(async () => {
 })
 
 const adminEmail = 'admin@' + config.get<string>('application.domain')
+const adminClaims = { status: 'success', data: { id: 1, email: adminEmail, role: 'admin' } }
 
-function unsignedToken (payload: object): string {
-  return [
-    Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
-    Buffer.from(JSON.stringify(payload)).toString('base64url'),
-    ''
-  ].join('.')
+function b64url (obj: object): string {
+  return Buffer.from(JSON.stringify(obj)).toString('base64url')
 }
 
-function publicKeyHmacToken (payload: object): string {
-  const input = [
-    Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url'),
-    Buffer.from(JSON.stringify(payload)).toString('base64url')
-  ].join('.')
-  const signature = crypto.createHmac('sha256', fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')).update(input).digest('base64url')
-  return `${input}.${signature}`
+function hmacToken (payload: object, secret: string): string {
+  const input = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`
+  return `${input}.${crypto.createHmac('sha256', secret).update(input).digest('base64url')}`
 }
 
-async function systemPromptFor (token: string): Promise<string> {
+async function adminOrderId (): Promise<{ token: string, orderId: string }> {
+  const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+  const history = await request(app)
+    .get('/rest/order-history')
+    .set({ Authorization: `Bearer ${token}` })
+  return { token, orderId: history.body.data[0].orderId }
+}
+
+async function chatAsOrderLookup (orderId: string, token?: string): Promise<{ systemPrompt: string, toolResult?: string }> {
   let systemPrompt = ''
-  onLlmRequest = (_req, body, res) => {
-    systemPrompt = JSON.parse(body).messages[0].content
-    sendSSE(res, [contentChunk('How can I help you?'), finishChunk()])
-  }
-
-  const res = await request(app)
-    .post('/rest/chat')
-    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
-    .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
-
-  assert.equal(res.status, 200)
-  return systemPrompt
-}
-
-async function requestOrder (token: string, orderId: string): Promise<string | undefined> {
   let toolResult: string | undefined
   let callCount = 0
   onLlmRequest = (_req, body, res) => {
+    const parsed = JSON.parse(body)
     callCount++
     if (callCount === 1) {
-      sendSSE(res, [
-        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
-        finishChunk('tool_calls')
-      ])
+      systemPrompt = parsed.messages[0].content
+      sendSSE(res, [toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })), finishChunk('tool_calls')])
     } else {
-      toolResult = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')?.content
-      sendSSE(res, [contentChunk('Here you go.'), finishChunk()])
+      toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
+      sendSSE(res, [contentChunk('Done.'), finishChunk()])
     }
   }
 
   const res = await request(app)
     .post('/rest/chat')
-    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+    .set({ 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) })
     .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
 
   assert.equal(res.status, 200)
-  return toolResult
+  return { systemPrompt, toolResult }
+}
+
+async function assertTreatedAsAnonymous (token: string): Promise<void> {
+  const { orderId } = await adminOrderId()
+  const { systemPrompt, toolResult } = await chatAsOrderLookup(orderId, token)
+  assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
+  assert.ok(!toolResult?.includes(orderId), `order leaked: ${String(toolResult)}`)
+  assert.ok(!systemPrompt.includes('currently chatting with'), `identity leaked into prompt: ${systemPrompt}`)
 }
 
 void describe('/rest/chat', { timeout: 120000 }, () => {
@@ -276,50 +269,36 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(res.text.includes('data: [DONE]'))
   })
 
-  void it('POST does not trust the identity of an unsigned JWT', { timeout: 15000 }, async () => {
-    const systemPrompt = await systemPromptFor(unsignedToken({ data: { id: 1, email: adminEmail } }))
-
-    assert.ok(!systemPrompt.includes('The customer you are currently chatting with'), systemPrompt)
+  void it('POST ignores a JWT forged with an attacker-chosen HMAC key', { timeout: 30000 }, async () => {
+    await assertTreatedAsAnonymous(hmacToken(adminClaims, 'attacker-chosen-wrong-key'))
   })
 
-  void it('POST does not trust the identity of a JWT signed with the public key as HMAC secret', { timeout: 15000 }, async () => {
-    const systemPrompt = await systemPromptFor(publicKeyHmacToken({ data: { id: 1, email: adminEmail } }))
-
-    assert.ok(!systemPrompt.includes('The customer you are currently chatting with'), systemPrompt)
+  void it('POST ignores an unsigned alg:none JWT', { timeout: 30000 }, async () => {
+    await assertTreatedAsAnonymous(`${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(adminClaims)}.`)
   })
 
-  void it('POST identifies the customer of a JWT issued by the server', { timeout: 15000 }, async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
-
-    const systemPrompt = await systemPromptFor(token)
-
-    assert.ok(systemPrompt.includes('The customer you are currently chatting with is bkimminich.'), systemPrompt)
+  void it('POST ignores a JWT HMAC-signed with the public RSA key', { timeout: 30000 }, async () => {
+    await assertTreatedAsAnonymous(hmacToken(adminClaims, security.publicKey))
   })
 
-  void it('POST does not return another customer\'s order via getOrderById for a forged JWT', { timeout: 30000 }, async () => {
-    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
-    const history = await request(app)
-      .get('/rest/order-history')
-      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
-    const orderId: string = history.body.data[0].orderId
-
-    const toolResult = await requestOrder(unsignedToken({ data: { id: 1, email: adminEmail } }), orderId)
-
-    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
-    assert.ok(!toolResult?.includes(orderId), `order leaked: ${String(toolResult)}`)
+  void it('POST ignores a server-signed JWT that was never issued as a session', { timeout: 30000 }, async () => {
+    await assertTreatedAsAnonymous(security.authorize(adminClaims))
   })
 
-  void it('POST returns an own order via getOrderById for a signed-in customer', { timeout: 30000 }, async () => {
-    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
-    const history = await request(app)
-      .get('/rest/order-history')
-      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
-    const orderId: string = history.body.data[0].orderId
+  void it('POST ignores an expired server-signed JWT', { timeout: 30000 }, async () => {
+    await assertTreatedAsAnonymous(security.authorize({ ...adminClaims, exp: Math.floor(Date.now() / 1000) - 60 }))
+  })
 
-    const toolResult = await requestOrder(token, orderId)
-
+  void it('POST returns the own order via getOrderById for a logged-in customer', { timeout: 30000 }, async () => {
+    const { token, orderId } = await adminOrderId()
+    const { toolResult } = await chatAsOrderLookup(orderId, token)
     assert.ok(toolResult?.includes(orderId), `unexpected tool result: ${String(toolResult)}`)
-    assert.ok(!toolResult?.includes('"error"'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
+  void it('POST personalizes the system prompt for a logged-in customer', { timeout: 30000 }, async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const { systemPrompt } = await chatAsOrderLookup('0000-0000000000000000', token)
+    assert.ok(systemPrompt.includes('The customer you are currently chatting with is bkimminich.'), systemPrompt)
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
