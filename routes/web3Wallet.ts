@@ -7,13 +7,39 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { web3WalletABI } from '../data/static/contractABIs'
 
 const web3WalletAddress = '0x413744D59d31AFDC2889aeE602636177805Bd7b0'
-const walletsConnected = new Set()
+const walletAddressPattern = /^0x[0-9a-fA-F]{40}$(?![\s\S])/ // $ alone would also match before a trailing newline
+export const maxWalletsConnected = 1000
+const walletsConnected = new Set<string>()
 let isEventListenerCreated = false
+
+export function registerWalletAddress (walletAddress: unknown): boolean {
+  if (typeof walletAddress !== 'string' || !walletAddressPattern.test(walletAddress)) {
+    return false
+  }
+  const normalizedAddress = walletAddress.toLowerCase()
+  walletsConnected.delete(normalizedAddress)
+  if (walletsConnected.size >= maxWalletsConnected) {
+    const oldestAddress = walletsConnected.values().next().value
+    if (oldestAddress !== undefined) walletsConnected.delete(oldestAddress)
+  }
+  walletsConnected.add(normalizedAddress)
+  return true
+}
+
+export function isWalletAddressConnected (walletAddress: string): boolean {
+  return walletsConnected.has(walletAddress.toLowerCase())
+}
+
+export function connectedWalletsCount (): number {
+  return walletsConnected.size
+}
 
 export function contractExploitListener () {
   return async (req: Request, res: Response) => {
-    const metamaskAddress = req.body.walletAddress
-    walletsConnected.add(metamaskAddress)
+    if (!registerWalletAddress(req.body?.walletAddress)) {
+      res.status(400).json({ success: false, message: 'Invalid wallet address' })
+      return
+    }
     try {
       if (!isEventListenerCreated) {
         const { WebSocketProvider, Contract } = await import('ethers')
@@ -24,8 +50,8 @@ export function contractExploitListener () {
         }
         const contract = new Contract(web3WalletAddress, web3WalletABI, provider as any)
         void contract.on('ContractExploited', (exploiter: string) => {
-          if (walletsConnected.has(exploiter)) {
-            walletsConnected.delete(exploiter)
+          if (isWalletAddressConnected(exploiter)) {
+            walletsConnected.delete(exploiter.toLowerCase())
             challengeUtils.solveIf(challenges.web3WalletChallenge, () => true)
           }
         })
