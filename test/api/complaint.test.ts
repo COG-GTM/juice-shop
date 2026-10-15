@@ -9,9 +9,11 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -39,11 +41,32 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints as admin', async () => {
     const res = await request(app)
       .get('/api/Complaints')
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+  })
+
+  void it('GET all complaints only returns own complaints for non-admin', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const jimId = security.decode(token).data.id
+    const createRes = await request(app)
+      .post('/api/Complaints')
+      .set(jimHeader)
+      .send({ UserId: jimId, message: 'My order never arrived' })
+    assert.equal(createRes.status, 201)
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(jimHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimId)
+    }
   })
 })
 

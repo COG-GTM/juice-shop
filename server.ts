@@ -46,6 +46,7 @@ import { ComplaintModel } from './models/complaint'
 import { ChallengeModel } from './models/challenge'
 import { ChallengeDependencyModel } from './models/challengeDependency'
 import { BasketItemModel } from './models/basketitem'
+import { BasketModel } from './models/basket'
 import { SecurityAnswerModel } from './models/securityAnswer'
 import { PrivacyRequestModel } from './models/privacyRequests'
 import { SecurityQuestionModel } from './models/securityQuestion'
@@ -452,6 +453,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.put('/api/Hints/:id', security.isAuthorized())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -474,6 +476,24 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+
+  const ownedBy: Record<string, (userId: number) => Promise<(instance: any) => boolean>> = {
+    User: async (userId) => (user) => user.id === userId,
+    Complaint: async (userId) => (complaint) => complaint.UserId === userId,
+    Feedback: async (userId) => (feedback) => feedback.UserId === userId,
+    Address: async (userId) => (address) => address.UserId === userId,
+    BasketItem: async (userId) => {
+      const basketIds = new Set((await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })).map(({ id }) => id))
+      return (basketItem) => basketIds.has(basketItem.BasketId)
+    }
+  }
+  const publiclyListed = ['Feedback']
+
+  const accessFilter = async (req: Request, owner: (userId: number) => Promise<(instance: any) => boolean>) => {
+    if (security.isAdmin(req)) return () => true
+    const userId = security.userIdFrom(req)
+    return userId === undefined ? () => false : await owner(userId)
+  }
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -516,6 +536,26 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
 
+    // object-level authorization: non-admins only see and change their own records
+    const owner = ownedBy[name]
+    if (owner) {
+      for (const action of ['read', 'update', 'delete']) {
+        resource[action].fetch.after(async (req: Request, res: Response, context: { instance: any, error: any, continue: any }) => {
+          const mayAccess = await accessFilter(req, owner)
+          if (!mayAccess(context.instance)) {
+            return context.error(403, 'Forbidden')
+          }
+          return context.continue
+        })
+      }
+      if (!publiclyListed.includes(name)) {
+        resource.list.fetch.after(async (req: Request, res: Response, context: { instance: any[], continue: any }) => {
+          context.instance = context.instance.filter(await accessFilter(req, owner))
+          return context.continue
+        })
+      }
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
@@ -553,6 +593,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // translate hints on-the-fly
     if (name === 'Hint') {
+      resource.update.write.before((req: Request, res: Response, context: { error: any, continue: any }) => {
+        if (typeof req.body.unlocked !== 'boolean') {
+          return context.error(400, 'Only the unlocked state of a hint can be changed')
+        }
+        req.body = { unlocked: req.body.unlocked }
+        return context.continue
+      })
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
         for (let i = 0; i < context.instance.length; i++) {
           context.instance[i].text = req.__(context.instance[i].text)
