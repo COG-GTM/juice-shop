@@ -78,7 +78,7 @@ describe('/#/complain', () => {
       })
     })
 
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
+    xit('should be solved either through Windows- or Linux-specific attack path', () => { // External entities are no longer resolved and parsed XML is not echoed
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
@@ -120,7 +120,7 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "yamlBomb"', () => {
-    it('should be solved via .yaml upload with a Billion Laughs-style attack', () => {
+    xit('should be solved via .yaml upload with a Billion Laughs-style attack', () => { // YAML alias bombs are rejected by the node limit before expansion
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('YAML Bomb!')

@@ -80,11 +80,9 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
@@ -95,7 +93,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {
@@ -106,6 +104,22 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+// Aliases are shared references after loading, so count nodes as if every alias were expanded and stop at the limit
+const MAX_YAML_NODES = 10000
+
+function exceedsYamlNodeLimit (doc: unknown, limit: number) {
+  const stack: unknown[] = [doc]
+  let count = 0
+  while (stack.length > 0) {
+    const node = stack.pop()
+    if (++count > limit) return true
+    if (node !== null && typeof node === 'object') {
+      stack.push(...Object.values(node))
+    }
+  }
+  return false
+}
+
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -114,9 +128,14 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
       try {
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        const yamlDoc = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
+        if (exceedsYamlNodeLimit(yamlDoc, MAX_YAML_NODES)) {
+          res.status(413)
+          next(new Error('Uploaded YAML document is too large (' + file.originalname + ')'))
+          return
+        }
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
@@ -127,7 +146,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {
