@@ -21,14 +21,9 @@ export function captchas () {
     const expression = firstTerm.toString() + firstOperator + secondTerm.toString() + secondOperator + thirdTerm.toString()
     const answer = eval(expression).toString() // eslint-disable-line no-eval
 
-    const captcha = {
-      captchaId,
-      captcha: expression,
-      answer
-    }
-    const captchaInstance = CaptchaModel.build(captcha)
+    const captchaInstance = CaptchaModel.build({ captchaId, captcha: expression, answer })
     await captchaInstance.save()
-    res.json(captcha)
+    res.json({ captchaId, captcha: expression })
   }
 }
 
