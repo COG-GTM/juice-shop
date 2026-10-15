@@ -12,8 +12,7 @@ import { SecurityQuestionModel } from '../models/securityQuestion'
 const decoyKey = crypto.randomBytes(32)
 
 // Unknown emails get a stable, unpredictable question so the response does not reveal whether an account exists
-async function decoyQuestionFor (email: string) {
-  const questions = await SecurityQuestionModel.findAll({ order: [['id', 'ASC']] })
+function decoyQuestionFor<T> (email: string, questions: T[]) {
   if (questions.length === 0) return null
   const digest = crypto.createHmac('sha256', decoyKey).update(email).digest()
   return questions[digest.readUInt32BE(0) % questions.length]
@@ -29,9 +28,10 @@ export function securityQuestion () {
           where: { email: email?.toString() }
         }]
       })
+      const questions = await SecurityQuestionModel.findAll({ order: [['id', 'ASC']] })
       const question = answer != null
-        ? await SecurityQuestionModel.findByPk(answer.SecurityQuestionId)
-        : await decoyQuestionFor(String(email))
+        ? questions.find(({ id }) => id === answer.SecurityQuestionId) ?? null
+        : decoyQuestionFor(String(email), questions)
       res.json({ question })
     } catch (error) {
       next(error)
