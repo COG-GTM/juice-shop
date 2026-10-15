@@ -72,8 +72,13 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
-// Matches the XXE attack pattern in the raw document, so the challenge stays solvable without ever resolving the entity
-const sensitiveSystemEntity = /<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+// Recognizes the XXE attack pattern in a parsed document, so the challenge stays solvable without ever resolving the entity
+function referencesSensitiveSystemEntity (xml: string) {
+  const document = xml.replace(/<!--[\s\S]*?-->/g, '')
+  const declaration = document.match(/<!ENTITY\s+(\S+)\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i)
+  if (declaration === null) return false
+  return new RegExp('&' + declaration[1] + ';').test(document.replace(/<!DOCTYPE[\s\S]*?\]>/i, ''))
+}
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
@@ -81,10 +86,10 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       try {
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return sensitiveSystemEntity.test(data) })
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
         vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesSensitiveSystemEntity(data) })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
@@ -110,6 +115,9 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 
 // Aliases are shared references after loading, so count nodes as if every alias were expanded and stop at the limit
 const MAX_YAML_NODES = 10000
+
+// Only an alias-expanded document is a Memory Bomb, an oversized alias-free upload is just rejected
+const reusesAliases = /(^|[\s,[{])\*[\w-]+/m
 
 function exceedsYamlNodeLimit (doc: unknown, limit: number) {
   const stack: unknown[] = [doc]
@@ -137,7 +145,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
         vm.createContext(sandbox)
         const yamlDoc = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
         if (exceedsYamlNodeLimit(yamlDoc, MAX_YAML_NODES)) {
-          if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
+          if (reusesAliases.test(data) && challengeUtils.notSolved(challenges.yamlBombChallenge)) {
             challengeUtils.solve(challenges.yamlBombChallenge)
           }
           res.status(413)

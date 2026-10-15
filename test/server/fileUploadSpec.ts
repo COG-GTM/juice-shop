@@ -105,6 +105,20 @@ describe('fileUpload', () => {
       expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
     })
 
+    it('should not solve the XXE challenge for an entity declared in a comment only', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><!-- <!ENTITY xxe SYSTEM "file:///etc/passwd"> --><foo/>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve the XXE challenge for a declared but unreferenced entity', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><!DOCTYPE foo [<!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>hello</foo>')
+
+      expect(status).to.equal(410)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
     it('should not expand internal entities or echo parser errors for Billion Laughs XML uploads', () => {
       const message = upload(handleXmlUpload, 'xxeBillionLaughs.xml')
 
@@ -122,6 +136,13 @@ describe('fileUpload', () => {
       expect(status).to.equal(413)
       expect(message).to.equal('Uploaded YAML document is too large (yamlBomb.yml)')
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should reject oversized alias-free YAML without solving the bomb challenge', () => {
+      upload(handleYamlUpload, 'wide.yml', 'a: [' + Array(10001).fill('x').join(', ') + ']\n')
+
+      expect(status).to.equal(413)
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
     })
 
     it('should stop counting wide aliased YAML documents at the node limit', () => {
