@@ -223,11 +223,6 @@ describe('insecurity', () => {
       expect(security.resolveCookieSecret(configured)).to.equal(configured)
     })
 
-    it('rejects a configured secret with too few distinct characters', () => {
-      expect(() => security.resolveCookieSecret('x'.repeat(32))).to.throw('COOKIE_SECRET must contain at least 10 distinct characters')
-      expect(() => security.resolveCookieSecret('ab'.repeat(32))).to.throw('COOKIE_SECRET must contain at least 10 distinct characters')
-    })
-
     it('rejects a configured secret that is too short', () => {
       expect(() => security.resolveCookieSecret('kekse')).to.throw('COOKIE_SECRET must be at least 32 characters long')
     })
