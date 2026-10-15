@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import config from 'config'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -35,5 +36,33 @@ describe('appConfiguration', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     expect(returnedConfig.application.chatBot).to.exist
     expect(returnedConfig.application.chatBot).to.not.have.property('llmApiUrl')
+  })
+
+  it('should only expose allowlisted client settings', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+    expect(returnedConfig).to.have.all.keys('application', 'challenges', 'hackingInstructor', 'ctf')
+    expect(returnedConfig).to.not.have.any.keys('server', 'products', 'memories')
+    expect(returnedConfig.application).to.not.have.any.keys('customMetricsPrefix', 'cookieConsent', 'securityTxt', 'promotion', 'easterEggPlanet')
+    expect(returnedConfig.application.chatBot).to.have.all.keys('name', 'avatar', 'sampleQuestions')
+    expect(returnedConfig.challenges).to.not.have.any.keys('csafHashValue', 'xssBonusPayload', 'overwriteUrlForProductTamperingChallenge', 'safetyMode', 'metricsIgnoredUserAgents')
+    expect(returnedConfig.ctf).to.not.have.property('countryMapping')
+  })
+
+  it('should expose settings the client relies on', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+    expect(returnedConfig.application.name).to.equal(config.get('application.name'))
+    expect(returnedConfig.application.domain).to.equal(config.get('application.domain'))
+    expect(returnedConfig.application.social).to.have.property('twitterUrl')
+    expect(returnedConfig.application.googleOauth).to.have.all.keys('clientId', 'authorizedRedirects')
+    expect(returnedConfig.hackingInstructor).to.have.all.keys('isEnabled', 'hintPlaybackSpeed')
+    expect(returnedConfig.ctf).to.have.property('showFlagsInNotifications')
   })
 })
