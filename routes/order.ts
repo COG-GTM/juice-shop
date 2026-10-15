@@ -151,7 +151,7 @@ export function placeOrder () {
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const [debitedWallets] = totalPrice === 0
-                ? [1]
+                ? [await WalletModel.count({ where: { UserId: req.body.UserId } })]
                 : Number.isFinite(totalPrice) && totalPrice > 0
                   ? await WalletModel.update(
                     { balance: literal(`balance - ${totalPrice}`) },
