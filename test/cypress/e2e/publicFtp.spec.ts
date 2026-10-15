@@ -7,13 +7,12 @@ describe('/ftp', () => {
   })
 
   describe('challenge "errorHandling"', () => {
-    it('should leak information through error message accessing /ftp/easter.egg due to wrong file suffix', () => {
+    it('should provoke an error accessing /ftp/easter.egg due to wrong file suffix without leaking its details', () => {
       cy.visit('/ftp/easter.egg', { failOnStatusCode: false })
 
-      cy.get('#stacktrace').then((elements) => {
-        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-        expect(!!elements.length).to.be.true
-      })
+      cy.contains('403 Forbidden')
+      cy.get('#stacktrace').should('not.exist')
+      cy.contains('Only .md and .pdf files are allowed!').should('not.exist')
       cy.expectChallengeSolved({ challenge: 'Error Handling' })
     })
   })

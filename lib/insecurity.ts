@@ -246,6 +246,7 @@ export const genericErrorHandler = () => (err: any, req: Request, res: Response,
   if (status >= 500) {
     logger.error(`${req.method} ${req.path.replace(/[\r\n]/g, '')} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
   }
-  res.status(status).type('text/plain')
-  res.end(STATUS_CODES[status] ?? 'Error')
+  const statusText = STATUS_CODES[status] ?? 'Error'
+  res.status(status).type('html')
+  res.end(`<!DOCTYPE html><html><head><title>${statusText}</title></head><body><h1>${status} ${statusText}</h1></body></html>`)
 }

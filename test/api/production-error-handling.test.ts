@@ -26,8 +26,8 @@ void describe('Error handling outside development and test', () => {
   void it('unexpected path returns a generic error without stack trace or framework version', async () => {
     const res = await request(app).get('/rest/unrecognized')
     assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('text/plain'))
-    assert.equal(res.text, 'Internal Server Error')
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('<h1>500 Internal Server Error</h1>'))
     assert.ok(!res.text.includes('Unexpected path'))
     assert.ok(!res.text.includes('(Express'))
     assert.ok(!res.text.includes('.ts:'))
@@ -36,6 +36,7 @@ void describe('Error handling outside development and test', () => {
   void it('status code of handled errors is preserved', async () => {
     const res = await request(app).get('/ftp/package.json.bak')
     assert.equal(res.status, 403)
-    assert.equal(res.text, 'Forbidden')
+    assert.ok(res.text.includes('<h1>403 Forbidden</h1>'))
+    assert.ok(!res.text.includes('Only .md and .pdf files are allowed'))
   })
 })
