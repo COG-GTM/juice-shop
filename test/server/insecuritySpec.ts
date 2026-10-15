@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -196,11 +197,35 @@ describe('insecurity', () => {
     })
   })
 
-  describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+  describe('hashSecurityAnswer', () => {
+    it('does not produce the legacy HMAC with the formerly hardcoded key', () => {
+      const legacy = crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex')
+      const stored = security.hashSecurityAnswer('Samuel')
+      expect(stored).to.not.equal(legacy)
+      expect(stored).to.not.contain(legacy)
+    })
+
+    it('uses a random salt per answer', () => {
+      const first = security.hashSecurityAnswer('Samuel')
+      const second = security.hashSecurityAnswer('Samuel')
+      expect(first).to.match(/^[0-9a-f]{32}:[0-9a-f]{64}$/)
+      expect(first).to.not.equal(second)
+    })
+  })
+
+  describe('verifySecurityAnswer', () => {
+    it('accepts the correct answer', () => {
+      expect(security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
+    })
+
+    it('rejects a wrong answer', () => {
+      expect(security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    })
+
+    it('rejects malformed or missing stored values', () => {
+      expect(security.verifySecurityAnswer('Samuel', undefined)).to.equal(false)
+      expect(security.verifySecurityAnswer('Samuel', '')).to.equal(false)
+      expect(security.verifySecurityAnswer('Samuel', crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex'))).to.equal(false)
     })
   })
 })
