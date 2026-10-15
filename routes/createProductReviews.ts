@@ -11,7 +11,7 @@ import * as utils from '../lib/utils'
 
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
-    const user = security.authenticatedUsers.from(req)
+    const user = security.authenticatedUsers.from(req) ?? (req as Request & { user?: { data?: { email?: string } } }).user
     if (!user?.data?.email) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized' })
     }
