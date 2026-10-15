@@ -21,7 +21,7 @@ describe('web3Wallet', () => {
       res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
     })
 
-    for (const walletAddress of [undefined, '', 'lalalalala', '0x' + 'a'.repeat(39), '0x' + 'g'.repeat(40), 'A'.repeat(50000), { toLowerCase: '' }, ['0x413744D59d31AFDC2889aeE602636177805Bd7b0']]) {
+    for (const walletAddress of [undefined, '', 'lalalalala', '0x' + 'a'.repeat(39), '0x' + 'g'.repeat(40), '0x413744D59d31AFDC2889aeE602636177805Bd7b0\n', 'A'.repeat(50000), { toLowerCase: '' }, ['0x413744D59d31AFDC2889aeE602636177805Bd7b0']]) {
       it(`rejects invalid wallet address ${JSON.stringify(walletAddress)?.substring(0, 50)} without storing it`, async () => {
         const before = connectedWalletsCount()
 

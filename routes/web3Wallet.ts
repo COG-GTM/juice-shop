@@ -7,7 +7,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { web3WalletABI } from '../data/static/contractABIs'
 
 const web3WalletAddress = '0x413744D59d31AFDC2889aeE602636177805Bd7b0'
-const walletAddressPattern = /^0x[0-9a-fA-F]{40}$/
+const walletAddressPattern = /^0x[0-9a-fA-F]{40}$(?![\s\S])/ // $ alone would also match before a trailing newline
 export const maxWalletsConnected = 1000
 const walletsConnected = new Set<string>()
 let isEventListenerCreated = false
