@@ -285,4 +285,20 @@ void describe('/rest/deluxe-membership', () => {
     const wallet = await WalletModel.findOne({ where: { UserId: user?.id } })
     assert.equal(wallet?.balance, 0)
   })
+  void it('POST upgrade deluxe membership with concurrent wallet payments only charges once', async () => {
+    const email = `emma@${config.get<string>('application.domain')}`
+    const { token } = await login(app, { email, password: 'y&x5Z#f6W532ZUf$q3DsdgfgfgxxUsvoCUaDzFU' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const user = await UserModel.findOne({ where: { email } })
+    await WalletModel.update({ balance: 98 }, { where: { UserId: user?.id } })
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'wallet' })))
+
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    const wallet = await WalletModel.findOne({ where: { UserId: user?.id } })
+    assert.equal(wallet?.balance, 49)
+  })
 })

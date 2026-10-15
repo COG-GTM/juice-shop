@@ -47,7 +47,14 @@ export function upgradeToDeluxe () {
       }
 
       try {
-        const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })
+        const [upgradedCount] = await UserModel.update(
+          { role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) },
+          { where: { id: user.id, role: security.roles.customer } }
+        )
+        if (upgradedCount === 0) {
+          throw new Error('User is no longer eligible for deluxe membership')
+        }
+        const updatedUser = await user.reload()
         challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
           return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
         })
