@@ -48,15 +48,60 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is attributed to the authenticated user', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const message = 'Lorem Ipsum ' + Date.now()
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message,
+        author: 'admin@' + config.get<string>('application.domain')
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviewsRes.body.data.find((r: { message: string }) => r.message === message)
+    assert.ok(review)
+    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT single product review is attributed from the verified token when it is not in the token cache', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    delete security.authenticatedUsers.tokenMap[token]
+    const message = 'Lorem Ipsum uncached ' + Date.now()
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message,
+        author: 'admin@' + config.get<string>('application.domain')
+      })
+    assert.equal(res.status, 201)
+
+    const reviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviewsRes.body.data.find((r: { message: string }) => r.message === message)
+    assert.ok(review)
+    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT single product review creation needs an authenticated user', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        author: 'admin@' + config.get<string>('application.domain')
       })
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 401)
   })
 })
 
@@ -124,7 +169,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 2)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
