@@ -196,6 +196,22 @@ describe('insecurity', () => {
     })
   })
 
+  describe('sanitizeUserRegistration', () => {
+    it('keeps only allowlisted registration fields and forces customer role', () => {
+      const req = { body: { email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', role: 'admin', deluxeToken: 'x', totpSecret: 'y', isActive: false } } as unknown as Request
+      let called = false
+      security.sanitizeUserRegistration()(req, {} as any, () => { called = true })
+      expect(called).to.equal(true)
+      expect(req.body).to.deep.equal({ email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', role: 'customer' })
+    })
+
+    it('forces customer role even when body is missing', () => {
+      const req = {} as unknown as Request
+      security.sanitizeUserRegistration()(req, {} as any, () => {})
+      expect(req.body).to.deep.equal({ role: 'customer' })
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
