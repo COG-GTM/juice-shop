@@ -101,6 +101,24 @@ describe('redirect', () => {
     }
   })
 
+  describe('should not solve "redirectChallenge" for normalized forms of allowlisted URLs', () => {
+    for (const url of [
+      'https://github.com:443/juice-shop/juice-shop',
+      'https://GITHUB.COM/juice-shop/juice-shop',
+      'http://leanpub.com:80/juice-shop'
+    ]) {
+      it(url, () => {
+        req.query.to = url
+        challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+
+        performRedirect()(req, res, next)
+
+        expect(res.redirect).to.have.been.calledWith(url)
+        expect(challenges.redirectChallenge.solved).to.equal(false)
+      })
+    }
+  })
+
   it('should raise error for missing target URL', () => {
     performRedirect()(req, res, next)
 

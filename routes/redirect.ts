@@ -8,7 +8,6 @@ import { type Request, type Response, type NextFunction } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 export function performRedirect () {
   return ({ query }: Request, res: Response, next: NextFunction) => {
@@ -25,9 +24,11 @@ export function performRedirect () {
 }
 
 function isUnintendedRedirect (toUrl: string) {
+  const target = new URL(toUrl)
   let unintended = true
   for (const allowedUrl of security.redirectAllowlist) {
-    unintended = unintended && !utils.startsWith(toUrl, allowedUrl)
+    const allowedTarget = new URL(allowedUrl)
+    unintended = unintended && !(target.origin === allowedTarget.origin && target.pathname === allowedTarget.pathname)
   }
   return unintended
 }
