@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -127,6 +128,90 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with directory traversal entry does not write outside uploads/complaints', async () => {
+    const marker = path.resolve('zipSlipRegressionMarker.txt')
+    const benign = path.resolve('uploads/complaints/zipSlipRegressionBenign.txt')
+    fs.rmSync(marker, { force: true })
+    fs.rmSync(benign, { force: true })
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipTraversal.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      for (let i = 0; i < 50 && !fs.existsSync(benign); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.ok(fs.existsSync(benign), 'benign entry should be extracted into uploads/complaints')
+      assert.equal(fs.existsSync(marker), false, 'traversal entry must not be written outside uploads/complaints')
+    } finally {
+      fs.rmSync(marker, { force: true })
+      fs.rmSync(benign, { force: true })
+    }
+  })
+
+  void it('POST zip file entry is not written through a symlink inside uploads/complaints', async () => {
+    const target = path.resolve('zipSlipSymlinkTarget.txt')
+    const link = path.resolve('uploads/complaints/zipSlipSymlinkEntry.txt')
+    fs.rmSync(link, { force: true })
+    fs.writeFileSync(target, 'untouched')
+    fs.symlinkSync(target, link)
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipSymlink.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      assert.equal(fs.readFileSync(target, 'utf8'), 'untouched', 'symlinked entry must not be followed out of uploads/complaints')
+    } finally {
+      fs.rmSync(link, { force: true })
+      fs.rmSync(target, { force: true })
+    }
+  })
+
+  void it('POST zip file entry is not written through a symlinked directory inside uploads/complaints', async () => {
+    const outsideDir = path.resolve('zipSlipLinkedTarget')
+    const link = path.resolve('uploads/complaints/zipSlipLinkedDir')
+    fs.rmSync(link, { force: true })
+    fs.mkdirSync(outsideDir, { recursive: true })
+    fs.symlinkSync(outsideDir, link, 'dir')
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipSymlinkDir.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      assert.equal(fs.existsSync(path.join(outsideDir, 'zipSlipEscaped.txt')), false, 'entry must not be written through a symlinked directory')
+    } finally {
+      fs.rmSync(link, { force: true })
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  void it('POST zip file with an overlong entry name skips it without crashing the server', async () => {
+    const benign = path.resolve('uploads/complaints/zipSlipLongNameBenign.txt')
+    fs.rmSync(benign, { force: true })
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipLongName.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      for (let i = 0; i < 50 && !fs.existsSync(benign); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.ok(fs.existsSync(benign), 'entries after an overlong one should still be extracted')
+    } finally {
+      fs.rmSync(benign, { force: true })
+    }
   })
 
   void it('POST zip file with password protection', async () => {
