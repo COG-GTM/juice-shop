@@ -95,6 +95,13 @@ describe('fileUpload', () => {
       expect(status).to.equal(410)
       expect(message).to.not.match(/root:.*:0:0:/)
       expect(message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (xxeForLinux.xml)')
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve the XXE challenge for XML without a sensitive external entity', () => {
+      upload(handleXmlUpload, 'complaint.xml', '<?xml version="1.0"?><complaint>hello</complaint>')
+
+      expect(status).to.equal(410)
       expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
     })
 
@@ -114,7 +121,16 @@ describe('fileUpload', () => {
       expect(Date.now() - started).to.be.below(1000)
       expect(status).to.equal(413)
       expect(message).to.equal('Uploaded YAML document is too large (yamlBomb.yml)')
-      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should stop counting wide aliased YAML documents at the node limit', () => {
+      const wide = 'a: &a [' + Array(5000).fill('x').join(', ') + ']\nb: [' + Array(5000).fill('*a').join(', ') + ']\n'
+      const started = Date.now()
+      upload(handleYamlUpload, 'wide.yml', wide)
+
+      expect(Date.now() - started).to.be.below(1000)
+      expect(status).to.equal(413)
     })
 
     it('should not echo YAML document contents', () => {

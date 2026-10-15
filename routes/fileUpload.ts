@@ -72,12 +72,16 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+// Matches the XXE attack pattern in the raw document, so the challenge stays solvable without ever resolving the entity
+const sensitiveSystemEntity = /<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       try {
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return sensitiveSystemEntity.test(data) })
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
         vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
@@ -114,7 +118,10 @@ function exceedsYamlNodeLimit (doc: unknown, limit: number) {
     const node = stack.pop()
     if (++count > limit) return true
     if (node !== null && typeof node === 'object') {
-      stack.push(...Object.values(node))
+      for (const value of Object.values(node)) {
+        if (count + stack.length > limit) return true
+        stack.push(value)
+      }
     }
   }
   return false
@@ -130,6 +137,9 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
         vm.createContext(sandbox)
         const yamlDoc = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
         if (exceedsYamlNodeLimit(yamlDoc, MAX_YAML_NODES)) {
+          if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
+            challengeUtils.solve(challenges.yamlBombChallenge)
+          }
           res.status(413)
           next(new Error('Uploaded YAML document is too large (' + file.originalname + ')'))
           return
