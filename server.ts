@@ -145,6 +145,19 @@ const startupGauge = new Prometheus.Gauge({
   labelNames: ['task']
 })
 
+// Rate limiters key on the TCP peer address so a spoofed X-Forwarded-For header cannot reset the counter
+const socketAddressKey = ({ socket }: Request) => socket.remoteAddress ?? ''
+
+// A correct password for a 2FA user is answered with 401 totp_token_required, which must not count as a failed login
+const flagTotpChallengeResponse = (_req: Request, res: Response, next: NextFunction) => {
+  const json = res.json.bind(res)
+  res.json = (body: any) => {
+    if (body?.status === 'totp_token_required') res.locals.totpTokenRequired = true
+    return json(body)
+  }
+  next()
+}
+
 // Wraps the function and measures its (async) execution time
 const collectDurationPromise = (name: string, func: (...args: any) => Promise<any>) => {
   return async (...args: any) => {
@@ -339,11 +352,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
-  app.enable('trust proxy')
+  app.set('trust proxy', 'loopback')
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    keyGenerator: socketAddressKey // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
@@ -455,20 +468,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, keyGenerator: socketAddressKey, validate: false }),
     utils.asyncHandler(twoFactorAuth.verify)
   )
   /* Check 2FA Status for the current User */
   app.get('/rest/2fa/status', security.isAuthorized(), utils.asyncHandler(twoFactorAuth.status))
   /* Enable 2FA for the current User */
   app.post('/rest/2fa/setup',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, keyGenerator: socketAddressKey, validate: false }),
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.setup)
   )
   /* Disable 2FA Status for the current User */
   app.post('/rest/2fa/disable',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, keyGenerator: socketAddressKey, validate: false }),
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.disable)
   )
@@ -592,7 +605,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }
 
   /* Custom Restful API */
-  app.post('/rest/user/login', login())
+  app.post('/rest/user/login',
+    flagTotpChallengeResponse,
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 10, skipSuccessfulRequests: true, requestWasSuccessful: (_req, res) => res.statusCode < 400 || res.locals.totpTokenRequired === true, keyGenerator: socketAddressKey, validate: false }),
+    login()
+  )
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
   app.post('/rest/user/reset-password', utils.asyncHandler(resetPassword()))
   app.get('/rest/user/security-question', utils.asyncHandler(securityQuestion()))
