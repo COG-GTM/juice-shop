@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 
@@ -211,5 +213,76 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Something went wrong. Please try again!')
+  })
+
+  void it('POST upgrade deluxe membership without paymentMode is rejected', async () => {
+    const { token } = await login(app, {
+      email: `uvogin@${config.get<string>('application.domain')}`,
+      password: 'muda-muda > ora-ora'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({})
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+    const user = await UserModel.findOne({ where: { email: `uvogin@${config.get<string>('application.domain')}` } })
+    assert.equal(user?.role, 'customer')
+  })
+
+  void it('POST upgrade deluxe membership with unknown paymentMode is rejected', async () => {
+    const { token } = await login(app, {
+      email: `basil@${config.get<string>('application.domain')}`,
+      password: 'my little nest of vipers'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'free' })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+    const user = await UserModel.findOne({ where: { email: `basil@${config.get<string>('application.domain')}` } })
+    assert.equal(user?.role, 'customer')
+  })
+
+  void it('POST upgrade deluxe membership with wallet payment fails for customers without a wallet', async () => {
+    const email = `morty@${config.get<string>('application.domain')}`
+    const { token } = await login(app, { email, password: 'focusOnScienceMorty!focusOnScience' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const user = await UserModel.findOne({ where: { email } })
+    await WalletModel.destroy({ where: { UserId: user?.id } })
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'wallet' })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+    await user?.reload()
+    assert.equal(user?.role, 'customer')
+  })
+
+  void it('POST upgrade deluxe membership with concurrent wallet payments never overdraws the wallet', async () => {
+    const email = `john@${config.get<string>('application.domain')}`
+    const { token } = await login(app, { email, password: 'y&x5Z#f6W532Z4445#Ae2HkwZVyDb7&oCUaDzFU' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const user = await UserModel.findOne({ where: { email } })
+    await WalletModel.update({ balance: 49 }, { where: { UserId: user?.id } })
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'wallet' })))
+
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    const wallet = await WalletModel.findOne({ where: { UserId: user?.id } })
+    assert.equal(wallet?.balance, 0)
   })
 })
