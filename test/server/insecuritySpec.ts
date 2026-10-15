@@ -111,6 +111,31 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isBasketOwner', () => {
+    const req = { headers: { authorization: 'Bearer 22222' } } as unknown as Request
+
+    beforeEach(() => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+    })
+
+    it('returns true for a basket of the authenticated user', () => {
+      expect(security.isBasketOwner(req, { UserId: 2 })).to.equal(true)
+    })
+
+    it('returns false for a basket of another user', () => {
+      expect(security.isBasketOwner(req, { UserId: 1 })).to.equal(false)
+    })
+
+    it('returns false for a basket without owner', () => {
+      expect(security.isBasketOwner(req, { UserId: null })).to.equal(false)
+      expect(security.isBasketOwner(req, {})).to.equal(false)
+    })
+
+    it('returns false if the request is not authenticated', () => {
+      expect(security.isBasketOwner({ headers: {} } as unknown as Request, { UserId: 2 })).to.equal(false)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
