@@ -15,6 +15,7 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -247,7 +248,7 @@ void describe('/api/Feedbacks/:id', () => {
   void it('GET existing feedback by id', async () => {
     const res = await request(app)
       .get('/api/Feedbacks/1')
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
   })
 
@@ -298,7 +299,20 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden for non-admin', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 403)
+
+    const stillThere = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(adminHeader)
+    assert.equal(stillThere.status, 200)
   })
 })

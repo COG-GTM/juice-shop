@@ -46,6 +46,7 @@ import { ComplaintModel } from './models/complaint'
 import { ChallengeModel } from './models/challenge'
 import { ChallengeDependencyModel } from './models/challengeDependency'
 import { BasketItemModel } from './models/basketitem'
+import { BasketModel } from './models/basket'
 import { SecurityAnswerModel } from './models/securityAnswer'
 import { PrivacyRequestModel } from './models/privacyRequests'
 import { SecurityQuestionModel } from './models/securityQuestion'
@@ -452,6 +453,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.put('/api/Hints/:id', security.isAuthorized())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -474,6 +476,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+
+  const isOwnedBy: Record<string, (instance: any, userId: number) => boolean | Promise<boolean>> = {
+    User: (user, userId) => user.id === userId,
+    Complaint: (complaint, userId) => complaint.UserId === userId,
+    Feedback: (feedback, userId) => feedback.UserId === userId,
+    Address: (address, userId) => address.UserId === userId,
+    BasketItem: async (basketItem, userId) => await BasketModel.count({ where: { id: basketItem.BasketId, UserId: userId } }) > 0
+  }
+  const publiclyListed = ['Feedback']
+
+  const mayAccess = async (req: Request, instance: any, owns: (instance: any, userId: number) => boolean | Promise<boolean>) => {
+    if (security.isAdmin(req)) return true
+    const userId = security.userIdFrom(req)
+    return userId !== undefined && await owns(instance, userId)
+  }
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -516,6 +533,26 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
 
+    // object-level authorization: non-admins only see and change their own records
+    const owns = isOwnedBy[name]
+    if (owns) {
+      for (const action of ['read', 'update', 'delete']) {
+        resource[action].fetch.after(async (req: Request, res: Response, context: { instance: any, error: any, continue: any }) => {
+          if (!(await mayAccess(req, context.instance, owns))) {
+            return context.error(403, 'Forbidden')
+          }
+          return context.continue
+        })
+      }
+      if (!publiclyListed.includes(name)) {
+        resource.list.fetch.after(async (req: Request, res: Response, context: { instance: any[], continue: any }) => {
+          const accessible = await Promise.all(context.instance.map(async (instance) => await mayAccess(req, instance, owns)))
+          context.instance = context.instance.filter((_instance, i) => accessible[i])
+          return context.continue
+        })
+      }
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
@@ -553,6 +590,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // translate hints on-the-fly
     if (name === 'Hint') {
+      resource.update.write.before((req: Request, res: Response, context: { error: any, continue: any }) => {
+        if (typeof req.body.unlocked !== 'boolean') {
+          return context.error(400, 'Only the unlocked state of a hint can be changed')
+        }
+        req.body = { unlocked: req.body.unlocked }
+        return context.continue
+      })
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
         for (let i = 0; i < context.instance.length; i++) {
           context.instance[i].text = req.__(context.instance[i].text)
