@@ -11,8 +11,9 @@ export function login () {
       })
   }
 
-  return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const passwordHash = await saltedPasswordHash(req.body.email, req.body.password)
+    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = '${passwordHash}' AND deletedAt IS NULL`,
       { bind: [ req.body.email ], model: models.User, plain: true })
       .then((authenticatedUser) => {
         const user = utils.queryResultToJson(authenticatedUser)
