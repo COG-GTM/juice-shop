@@ -453,6 +453,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Only accept registration fields so privileged attributes like role, deluxeToken or totpSecret cannot be mass-assigned */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const { email, password, passwordRepeat, securityQuestion, securityAnswer } = req.body ?? {}
+    req.body = { email, password, passwordRepeat, securityQuestion, securityAnswer, role: security.roles.customer }
+    next()
+  })
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
