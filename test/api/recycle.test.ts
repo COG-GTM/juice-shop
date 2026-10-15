@@ -9,13 +9,19 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let jimAuthHeader: { Authorization: string, 'content-type': string }
+const jimUserId = 2
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  jimAuthHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Recycles', () => {
@@ -44,34 +50,57 @@ void describe('/api/Recycles', () => {
     assert.equal(res.body.data.err, 'Sorry, this endpoint is not supported.')
   })
 
-  void it('Will GET existing recycle from this endpoint', async () => {
-    // First create a recycle so we can GET it
-    await request(app)
-      .post('/api/Recycles')
-      .set(authHeader)
-      .send({
-        quantity: 100,
-        AddressId: '1',
-        isPickup: false,
-        date: '2017-06-01'
-      })
-
+  void it('GET existing recycle is forbidden without authentication', async () => {
     const res = await request(app)
       .get('/api/Recycles/1')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    const items = res.body.data
-    assert.ok(Array.isArray(items))
-    for (const item of items) {
-      assert.equal(typeof item.id, 'number')
-      assert.equal(typeof item.UserId, 'number')
-      assert.equal(typeof item.AddressId, 'number')
-      assert.equal(typeof item.quantity, 'number')
-      assert.equal(typeof item.isPickup, 'boolean')
-      assert.ok(item.date !== undefined)
-      assert.equal(typeof item.createdAt, 'string')
-      assert.equal(typeof item.updatedAt, 'string')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET recycle rejects non-integer ids such as JSON arrays', async () => {
+    for (const id of ['[1,2,3,4,5,6,7,8,9]', '1.5', '{"gt":0}', 'abc']) {
+      const res = await request(app)
+        .get('/api/Recycles/' + encodeURIComponent(id))
+        .set(jimAuthHeader)
+      assert.equal(res.status, 400, `expected 400 for id ${id}`)
     }
+  })
+
+  void it('GET own recycle works with only an Authorization header', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1')
+      .set('Authorization', jimAuthHeader.Authorization)
+    assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    for (const item of res.body.data) {
+      assert.equal(item.UserId, jimUserId)
+    }
+  })
+
+  void it('Will GET only own existing recycles from this endpoint', async () => {
+    let ownItems = 0
+    for (let id = 1; id <= 9; id++) {
+      const res = await request(app)
+        .get('/api/Recycles/' + id)
+        .set(jimAuthHeader)
+      assert.equal(res.status, 200)
+      assert.ok(res.headers['content-type']?.includes('application/json'))
+      const items = res.body.data
+      assert.ok(Array.isArray(items))
+      assert.ok(items.length <= 1)
+      for (const item of items) {
+        assert.equal(item.id, id)
+        assert.equal(item.UserId, jimUserId)
+        assert.equal(typeof item.AddressId, 'number')
+        assert.equal(typeof item.quantity, 'number')
+        assert.equal(typeof item.isPickup, 'boolean')
+        assert.ok(item.date !== undefined)
+        assert.equal(typeof item.createdAt, 'string')
+        assert.equal(typeof item.updatedAt, 'string')
+        ownItems++
+      }
+    }
+    assert.ok(ownItems > 0)
+    assert.ok(ownItems < 9)
   })
 
   void it('PUT update existing recycle is forbidden', async () => {
