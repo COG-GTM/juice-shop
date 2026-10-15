@@ -193,3 +193,36 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 500)
   })
 })
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number) {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ couponData: expiredCampaignCouponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(authHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its campaign date is not honored after the campaign day', async () => {
+    const order = await checkoutWithCampaignCoupon(1)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored on its campaign day according to the server clock', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2)
+    assert.notEqual(order.promotionalAmount, '0')
+  })
+})
