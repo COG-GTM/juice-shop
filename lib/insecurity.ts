@@ -199,3 +199,17 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   }
   next()
 }
+
+const MIN_COOKIE_SECRET_LENGTH = 32
+
+export const resolveCookieSecret = (configured?: string) => {
+  if (configured === undefined || configured === '') {
+    return crypto.randomBytes(32).toString('hex')
+  }
+  if (configured.length < MIN_COOKIE_SECRET_LENGTH) {
+    throw new Error(`COOKIE_SECRET must be at least ${MIN_COOKIE_SECRET_LENGTH} characters long`)
+  }
+  return configured
+}
+
+export const cookieSecret = resolveCookieSecret(process.env.COOKIE_SECRET)
