@@ -72,7 +72,7 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
-const sensitiveSystemEntity = /^<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+const sensitiveSystemEntity = /^<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/(?:localhost)?\/(?:etc\/passwd|[a-z]:[\\/]windows[\\/](?:system|win)\.ini)["']\s*>/i
 
 // Entities are never resolved, so detect an attempted file disclosure from the unresolved entity_ref and its declaration
 function referencesSensitiveSystemEntity (node: any): boolean {

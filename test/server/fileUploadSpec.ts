@@ -104,6 +104,20 @@ describe('fileUpload', () => {
       expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(true)
     })
 
+    it('should solve "xxeFileDisclosureChallenge" for the Windows system.ini path', () => {
+      uploadXml('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///C:/Windows/system.ini" >]><foo>&xxe;</foo>')
+
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve "xxeFileDisclosureChallenge" for unrelated files sharing the target basenames', () => {
+      for (const path of ['file:///tmp/system.ini', 'file:///home/user/etc/passwd', 'file:///D:/temp/win.ini']) {
+        uploadXml(`<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "${path}" >]><foo>&xxe;</foo>`)
+
+        expect(challenges.xxeFileDisclosureChallenge.solved, path).to.equal(false)
+      }
+    })
+
     it('should not solve "xxeFileDisclosureChallenge" for benign XML', () => {
       uploadXml('<?xml version="1.0"?><foo>bar</foo>')
 
