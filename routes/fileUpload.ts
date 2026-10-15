@@ -24,17 +24,29 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
-function isSafeComplaintEntryPath (entryPath: string) {
+function resolveSafeComplaintPath (entryPath: string) {
   if (path.isAbsolute(entryPath) || path.win32.isAbsolute(entryPath) || entryPath.split(/[\\/]/).includes('..')) {
-    return false
+    return null
   }
   const complaintsDir = path.resolve('uploads/complaints')
   const absolutePath = path.resolve(complaintsDir, entryPath)
   if (!absolutePath.startsWith(complaintsDir + path.sep)) {
-    return false
+    return null
   }
-  // a pre-existing symlink in the target directory would redirect the write outside of it
-  return fs.lstatSync(absolutePath, { throwIfNoEntry: false })?.isSymbolicLink() !== true
+  try {
+    // a pre-existing symlink on the target or one of its parent directories would redirect the write out of complaintsDir
+    const realComplaintsDir = fs.realpathSync(complaintsDir)
+    const realParentDir = fs.realpathSync(path.dirname(absolutePath))
+    if (realParentDir !== realComplaintsDir && !realParentDir.startsWith(realComplaintsDir + path.sep)) {
+      return null
+    }
+    if (fs.lstatSync(absolutePath, { throwIfNoEntry: false })?.isSymbolicLink() === true) {
+      return null
+    }
+  } catch {
+    return null
+  }
+  return absolutePath
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -54,8 +66,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (isSafeComplaintEntryPath(fileName)) {
-                  entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
+                const safePath = resolveSafeComplaintPath(fileName)
+                if (safePath !== null) {
+                  entry.pipe(fs.createWriteStream(safePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }

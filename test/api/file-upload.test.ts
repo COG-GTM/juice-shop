@@ -174,6 +174,46 @@ void describe('/file-upload', () => {
     }
   })
 
+  void it('POST zip file entry is not written through a symlinked directory inside uploads/complaints', async () => {
+    const outsideDir = path.resolve('zipSlipLinkedTarget')
+    const link = path.resolve('uploads/complaints/zipSlipLinkedDir')
+    fs.rmSync(link, { force: true })
+    fs.mkdirSync(outsideDir, { recursive: true })
+    fs.symlinkSync(outsideDir, link, 'dir')
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipSymlinkDir.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      assert.equal(fs.existsSync(path.join(outsideDir, 'zipSlipEscaped.txt')), false, 'entry must not be written through a symlinked directory')
+    } finally {
+      fs.rmSync(link, { force: true })
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  void it('POST zip file with an overlong entry name skips it without crashing the server', async () => {
+    const benign = path.resolve('uploads/complaints/zipSlipLongNameBenign.txt')
+    fs.rmSync(benign, { force: true })
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipLongName.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      for (let i = 0; i < 50 && !fs.existsSync(benign); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.ok(fs.existsSync(benign), 'entries after an overlong one should still be extracted')
+    } finally {
+      fs.rmSync(benign, { force: true })
+    }
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
