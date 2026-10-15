@@ -6,10 +6,12 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
-import type { Express } from 'express'
+import express, { type Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
+import * as metrics from '../../routes/metrics'
 
 let app: Express
 
@@ -70,5 +72,54 @@ void describe('/metrics', () => {
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
     assert.match(res.text, /^file_upload_errors{file_type=".*",app=".*"} [0-9]*$/gm)
+  })
+})
+
+void describe('/metrics access control', () => {
+  const metricsToken = 'test-metrics-token'
+  const metricsApp = express()
+  metricsApp.get('/metrics', security.isMetricsAuthorized(), metrics.serveMetrics())
+
+  before(() => {
+    process.env.METRICS_TOKEN = metricsToken
+  })
+
+  void it('GET metrics is denied without bearer token', async () => {
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .expect(401)
+
+    assert.equal(res.headers['www-authenticate'], 'Bearer')
+    assert.ok(!res.text.includes('_version_info'))
+  })
+
+  void it('GET metrics is denied with wrong bearer token', async () => {
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', 'Bearer wrong-token')
+      .expect(401)
+
+    assert.ok(!res.text.includes('_version_info'))
+  })
+
+  void it('GET metrics is denied when no METRICS_TOKEN is configured', async () => {
+    delete process.env.METRICS_TOKEN
+    try {
+      await request(metricsApp)
+        .get('/metrics')
+        .set('Authorization', 'Bearer undefined')
+        .expect(401)
+    } finally {
+      process.env.METRICS_TOKEN = metricsToken
+    }
+  })
+
+  void it('GET metrics with valid bearer token', async () => {
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${metricsToken}`)
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
   })
 })

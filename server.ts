@@ -178,9 +178,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to server.baseUrl and the Angular dev server, or the comma-separated CORS_ALLOWED_ORIGINS */
+  const trustedOriginsCors = cors(security.corsOptions())
+  app.options('*', trustedOriginsCors)
+  app.use(trustedOriginsCors)
 
   /* Security middleware */
   app.use(helmet.noSniff())
@@ -675,7 +676,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use(security.exposeErrorDetails() ? errorhandler() : security.genericErrorHandler())
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
@@ -722,7 +723,7 @@ logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.to
 /* Serve metrics */
 let metricsUpdateLoop: any
 const Metrics = metrics.observeMetrics() // vuln-code-snippet neutral-line exposedMetricsChallenge
-app.get('/metrics', utils.asyncHandler(metrics.serveMetrics())) // vuln-code-snippet vuln-line exposedMetricsChallenge
+app.get('/metrics', security.isMetricsAuthorized(), utils.asyncHandler(metrics.serveMetrics())) // vuln-code-snippet vuln-line exposedMetricsChallenge
 errorhandler.title = `${config.get<string>('application.name')} (Express ${utils.version('express')})`
 
 export async function start (readyCallback?: () => void) {
