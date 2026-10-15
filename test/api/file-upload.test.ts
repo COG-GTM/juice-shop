@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -127,6 +128,29 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with directory traversal entry does not write outside uploads/complaints', async () => {
+    const marker = path.resolve('zipSlipRegressionMarker.txt')
+    const benign = path.resolve('uploads/complaints/zipSlipRegressionBenign.txt')
+    fs.rmSync(marker, { force: true })
+    fs.rmSync(benign, { force: true })
+    try {
+      const file = path.resolve(__dirname, '../files/zipSlipTraversal.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+
+      for (let i = 0; i < 50 && !fs.existsSync(benign); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.ok(fs.existsSync(benign), 'benign entry should be extracted into uploads/complaints')
+      assert.equal(fs.existsSync(marker), false, 'traversal entry must not be written outside uploads/complaints')
+    } finally {
+      fs.rmSync(marker, { force: true })
+      fs.rmSync(benign, { force: true })
+    }
   })
 
   void it('POST zip file with password protection', async () => {
