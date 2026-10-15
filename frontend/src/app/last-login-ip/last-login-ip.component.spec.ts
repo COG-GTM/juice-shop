@@ -67,13 +67,13 @@ describe('LastLoginIpComponent', () => {
         expect(fixture.nativeElement.querySelector('dd small').textContent).toBe('1.2.3.4')
     })
 
-    it('should render HTML markup in Last-Login IP from JWT as inert text', () => {
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7Imxhc3RMb2dpbklwIjoiPGlmcmFtZSBzcmM9XCJqYXZhc2NyaXB0OmFsZXJ0KGB4c3NgKVwiPiJ9fQ.c2lnbmF0dXJl')
+    it('should render HTML in Last-Login IP from JWT as literal text', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' + btoa(JSON.stringify({ data: { lastLoginIp: payload } })).replace(/=+$/, '') + '.c2lnbmF0dXJl')
         component.ngOnInit()
         fixture.detectChanges()
-        const dd = fixture.nativeElement.querySelector('dd')
-        expect(dd.querySelector('iframe')).toBeNull()
-        expect(dd.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('dd small').textContent).toBe(payload)
     })
 
     it('should not set Last-Login IP if none is present in JWT', () => {

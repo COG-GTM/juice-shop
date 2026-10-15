@@ -16,19 +16,18 @@ export function saveLoginIp () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.from(req)
     if (loggedInUser !== undefined) {
-      let lastLoginIp = req.headers['true-client-ip']
-      if (Array.isArray(lastLoginIp)) {
-        lastLoginIp = lastLoginIp[0]
-      }
       if (utils.isChallengeEnabled(challenges.httpHeaderXssChallenge)) {
-        challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return lastLoginIp === '<iframe src="javascript:alert(`xss`)">' })
+        let trueClientIp = req.headers['true-client-ip']
+        if (Array.isArray(trueClientIp)) {
+          trueClientIp = trueClientIp[0]
+        }
+        challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return trueClientIp === '<iframe src="javascript:alert(`xss`)">' })
       }
-      if (lastLoginIp === undefined || isIP(lastLoginIp) === 0) {
-        lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
-      }
+      const remoteIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
+      const lastLoginIp = isIP(remoteIp) !== 0 ? remoteIp : ''
       try {
         const user = await UserModel.findByPk(loggedInUser.data.id)
-        const updatedUser = await user?.update({ lastLoginIp: lastLoginIp?.toString() })
+        const updatedUser = await user?.update({ lastLoginIp })
         res.json(updatedUser)
       } catch (error) {
         next(error)
