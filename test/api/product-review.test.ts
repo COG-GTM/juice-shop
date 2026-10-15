@@ -123,6 +123,25 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST concurrent likes by the same user count only once', async () => {
+    const { _id: id, likesCount } = (await request(app).get('/rest/products/3/reviews')).body.data[0]
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const responses = await Promise.all(Array.from({ length: 10 }, async () => await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 403, 403, 403, 403, 403, 403, 403, 403, 403])
+
+    const liked = (await request(app).get('/rest/products/3/reviews')).body.data
+      .find((review: { _id: string }) => review._id === id)
+    assert.equal(liked.likesCount, likesCount + 1)
+    assert.equal(liked.likedBy.filter((email: string) => email === 'bjoern.kimminich@gmail.com').length, 1)
+  })
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 

@@ -11,7 +11,14 @@ import * as security from '../lib/insecurity'
 import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
 
-const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
+// MarsDB runs find, modify and persist of an update as separate async steps,
+// so likes are serialized to make the conditional update below atomic.
+let likeQueue: Promise<unknown> = Promise.resolve()
+const serializeLike = async <T>(task: () => Promise<T>): Promise<T> => {
+  const run = likeQueue.then(task, task)
+  likeQueue = run.catch(() => {})
+  return await run
+}
 
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -27,34 +34,20 @@ export function likeProductReviews () {
         return res.status(404).json({ error: 'Not found' })
       }
 
-      const likedBy = review.likedBy
-      if (likedBy.includes(user.data.email)) {
+      const email = user.data.email
+      const result = await serializeLike(async () => await db.reviewsCollection.update(
+        { _id: id, likedBy: { $ne: email } },
+        { $inc: { likesCount: 1 }, $addToSet: { likedBy: email } }
+      ))
+      if (result.modified === 0) {
         return res.status(403).json({ error: 'Not allowed' })
       }
 
-      await db.reviewsCollection.update(
-        { _id: id },
-        { $inc: { likesCount: 1 } }
-      )
+      const updatedReview: Review = result.updated[0]
+      const count = updatedReview.likedBy.filter(likedByEmail => likedByEmail === email).length
+      challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
 
-      // Artificial wait for timing attack challenge
-      await sleep(150)
-      try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
-        const updatedLikedBy = updatedReview.likedBy
-        updatedLikedBy.push(user.data.email)
-
-        const count = updatedLikedBy.filter(email => email === user.data.email).length
-        challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
-
-        const result = await db.reviewsCollection.update(
-          { _id: id },
-          { $set: { likedBy: updatedLikedBy } }
-        )
-        res.json(result)
-      } catch (err) {
-        res.status(500).json(err)
-      }
+      res.json(result)
     } catch (err) {
       res.status(400).json({ error: 'Wrong Params' })
     }
