@@ -1,3 +1,5 @@
 <div class="chatbot-container">
-  <router-outlet />
+  @if (isLoggedIn) {
+    <router-outlet />
+  }
 </div>
