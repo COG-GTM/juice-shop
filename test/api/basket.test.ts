@@ -8,8 +8,11 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
+import { WalletModel } from '../../models/wallet'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -136,16 +139,12 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a basket item with a negative quantity is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
-
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(itemRes.status, 400)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
@@ -159,6 +158,55 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+})
+
+void describe('/rest/basket/:id/checkout with wallet payment', () => {
+  const walletOrder = { orderDetails: { paymentId: 'wallet', addressId: 1 } }
+  let customerCount = 0
+
+  async function newCustomerWithWallet (balance: number) {
+    const email = `wallet-customer-${++customerCount}@juice-sh.op`
+    await register(app, { email, password: 'wallet-pass' })
+    const { token, bid } = await login(app, { email, password: 'wallet-pass' })
+    const header = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    const userId = user.id
+    for (let attempt = 0; attempt < 50 && (await WalletModel.count({ where: { UserId: userId } })) === 0; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    await WalletModel.update({ balance }, { where: { UserId: userId } })
+    return { header, bid, userId }
+  }
+
+  async function walletBalance (userId: number) {
+    return (await WalletModel.findOne({ where: { UserId: userId } }))?.balance
+  }
+
+  void it('POST checkout of a basket containing a negative quantity does not credit the wallet', async () => {
+    const { header, bid, userId } = await newCustomerWithWallet(10)
+    await BasketItemModel.create({ BasketId: bid, ProductId: 1, quantity: -100 }, { validate: false })
+
+    const res = await request(app).post(`/rest/basket/${bid}/checkout`).set(header).send(walletOrder)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Basket contains items with an invalid quantity.'))
+    assert.equal(await walletBalance(userId), 10)
+  })
+
+  void it('POST concurrent wallet checkouts cannot overspend the wallet', async () => {
+    const { header, bid, userId } = await newCustomerWithWallet(3)
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(header)
+      .send({ BasketId: bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const responses = await Promise.all(Array.from({ length: 5 }, async () =>
+      await request(app).post(`/rest/basket/${bid}/checkout`).set(header).send(walletOrder)
+    ))
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    assert.ok((await walletBalance(userId) ?? -1) >= 0)
   })
 })
 

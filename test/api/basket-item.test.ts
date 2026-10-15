@@ -198,6 +198,39 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
+  void it('POST new basket item with negative quantity is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 2, quantity: -1 })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+  })
+
+  void it('POST new basket item with fractional quantity is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 2, quantity: 1.5 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT update basket item to negative or zero quantity is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    for (const quantity of [-100000, 0]) {
+      const res = await request(app)
+        .put('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+        .send({ quantity })
+      assert.equal(res.status, 400)
+    }
+  })
+
   void it('DELETE newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
