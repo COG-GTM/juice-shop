@@ -145,10 +145,20 @@ const startupGauge = new Prometheus.Gauge({
   labelNames: ['task']
 })
 
-// Wraps the function and measures its (async) execution time
 // Rate limiters key on the TCP peer address so a spoofed X-Forwarded-For header cannot reset the counter
 const socketAddressKey = ({ socket }: Request) => socket.remoteAddress ?? ''
 
+// A correct password for a 2FA user is answered with 401 totp_token_required, which must not count as a failed login
+const flagTotpChallengeResponse = (_req: Request, res: Response, next: NextFunction) => {
+  const json = res.json.bind(res)
+  res.json = (body: any) => {
+    if (body?.status === 'totp_token_required') res.locals.totpTokenRequired = true
+    return json(body)
+  }
+  next()
+}
+
+// Wraps the function and measures its (async) execution time
 const collectDurationPromise = (name: string, func: (...args: any) => Promise<any>) => {
   return async (...args: any) => {
     const end = startupGauge.startTimer({ task: name })
@@ -596,7 +606,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Custom Restful API */
   app.post('/rest/user/login',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 10, skipSuccessfulRequests: true, keyGenerator: socketAddressKey, validate: false }),
+    flagTotpChallengeResponse,
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 10, skipSuccessfulRequests: true, requestWasSuccessful: (_req, res) => res.statusCode < 400 || res.locals.totpTokenRequired === true, keyGenerator: socketAddressKey, validate: false }),
     login()
   )
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))

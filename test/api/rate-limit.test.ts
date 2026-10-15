@@ -55,6 +55,17 @@ void describe('rate limiting with spoofed X-Forwarded-For', () => {
     }
   })
 
+  void it('POST login is not throttled for correct-password logins of 2FA users', async () => {
+    for (let i = 0; i < 12; i++) {
+      const res = await request(app)
+        .post('/rest/user/login')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: 'wurstbrot@' + config.get<string>('application.domain'), password: 'EinBelegtesBrotMitSchinkenSCHINKEN!' })
+        .expect(401)
+      assert.equal(res.body.status, 'totp_token_required')
+    }
+  })
+
   void it('POST login is throttled after 10 failed attempts despite rotating X-Forwarded-For', async () => {
     const statuses: number[] = []
     for (let i = 0; i < 11; i++) {
