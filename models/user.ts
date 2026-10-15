@@ -57,6 +57,13 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       email: {
         type: DataTypes.STRING,
         unique: true,
+        validate: {
+          isFreeOfMarkup (email: string) {
+            if (/[<>]/.test(email)) {
+              throw new Error('Email must not contain HTML markup')
+            }
+          }
+        },
         set (email: string) {
           if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
             challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
@@ -65,9 +72,6 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
-            if (/[<>]/.test(email)) {
-              email = security.sanitizeSecure(email)
-            }
           } else {
             email = security.sanitizeSecure(email)
           }

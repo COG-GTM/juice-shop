@@ -180,7 +180,7 @@ void describe('/api/Users', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-    void it('POST new user with XSS attack in email address', async () => {
+    void it('POST new user with XSS attack in email address is rejected', async () => {
       const res = await request(app)
         .post('/api/Users')
         .set(jsonHeader)
@@ -188,9 +188,10 @@ void describe('/api/Users', () => {
           email: '<iframe src="javascript:alert(`xss`)">',
           password: 'does.not.matter'
         })
-      assert.equal(res.status, 201)
+      assert.equal(res.status, 400)
       assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.email, '')
+      assert.equal(res.body.errors[0].field, 'email')
+      assert.equal(res.body.errors[0].message, 'Email must not contain HTML markup')
     })
   }
 
