@@ -41,6 +41,30 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const scryptParams = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
+const scryptKeyLength = 64
+
+export const hashPassword = (password: string, salt: string = crypto.randomBytes(16).toString('hex')) => {
+  const derivedKey = crypto.scryptSync(String(password ?? ''), Buffer.from(salt, 'hex'), scryptKeyLength, scryptParams)
+  return `scrypt$${salt}$${derivedKey.toString('hex')}`
+}
+
+export const passwordSalt = (storedHash?: string | null) => {
+  const [scheme, salt] = (storedHash ?? '').split('$')
+  return scheme === 'scrypt' && /^[0-9a-f]{32}$/.test(salt) ? salt : undefined
+}
+
+export const verifyPassword = async (password: unknown, storedHash?: string | null) => {
+  const [scheme, saltHex, keyHex] = (storedHash ?? '').split('$')
+  if (scheme !== 'scrypt' || !saltHex || !keyHex) return false
+  const expectedKey = Buffer.from(keyHex, 'hex')
+  if (expectedKey.length === 0) return false
+  const derivedKey = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(String(password ?? ''), Buffer.from(saltHex, 'hex'), expectedKey.length, scryptParams, (err, key) => { err ? reject(err) : resolve(key) })
+  })
+  return crypto.timingSafeEqual(derivedKey, expectedKey)
+}
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {

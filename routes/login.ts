@@ -29,9 +29,10 @@ export function login () {
       })
   }
 
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+    const passwordHash = await saltedPasswordHash(req.body.email, req.body.password)
+    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${passwordHash}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
@@ -81,4 +82,9 @@ export function login () {
       })
     }
   }
+}
+
+async function saltedPasswordHash (email: unknown, password: unknown) {
+  const user = await UserModel.findOne({ where: { email: String(email ?? '') }, attributes: ['password'] }).catch(() => null)
+  return security.hashPassword(String(password ?? ''), security.passwordSalt(user?.password))
 }

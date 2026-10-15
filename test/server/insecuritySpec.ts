@@ -196,6 +196,51 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('does not return an unsalted MD5 hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hash('admin123'))
+      expect(security.hashPassword('admin123')).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+    })
+
+    it('uses a random salt per hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+
+    it('reproduces the stored hash when given its salt', () => {
+      const stored = security.hashPassword('admin123')
+      expect(security.hashPassword('admin123', security.passwordSalt(stored))).to.equal(stored)
+      expect(security.hashPassword('admin1234', security.passwordSalt(stored))).to.not.equal(stored)
+    })
+  })
+
+  describe('passwordSalt', () => {
+    it('extracts the salt of a scrypt hash', () => {
+      expect(security.passwordSalt(`scrypt$${'ab'.repeat(16)}$${'cd'.repeat(64)}`)).to.equal('ab'.repeat(16))
+    })
+
+    it('returns undefined for legacy MD5, malformed or missing hashes', () => {
+      expect(security.passwordSalt(security.hash('admin123'))).to.equal(undefined)
+      expect(security.passwordSalt("scrypt$' OR 1=1--$00")).to.equal(undefined)
+      expect(security.passwordSalt(undefined)).to.equal(undefined)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password', async () => {
+      expect(await security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects legacy MD5 hashes and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
