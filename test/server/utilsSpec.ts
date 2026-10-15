@@ -227,7 +227,16 @@ describe('utils', () => {
     })
 
     it('keeps malformed percent-encoding intact without throwing', () => {
-      expect(utils.redactSensitiveQueryParams('/x?%E0%A4%A=1&new=2')).to.equal('/x?%E0%A4%A=1&new=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?%E0%A4%A=1&new=2')).to.equal('/x?[REDACTED]&new=[REDACTED]')
+    })
+
+    it('redacts fragments of passwords containing unencoded ampersands', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=ab&cd&new=ef&gh=ij&repeat=ef&gh=ij'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&[REDACTED]&new=[REDACTED]&[REDACTED]&repeat=[REDACTED]&[REDACTED]')
+    })
+
+    it('redacts token query parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
     })
   })
 })
