@@ -6,10 +6,20 @@ import { type Request, type Response, type NextFunction } from 'express'
 import { UserModel } from '../models/user'
 import { decode } from 'jsonwebtoken'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
+
+function isAdminRequest (req: Request) {
+  const token = utils.jwtFrom(req)
+  return Boolean(token && security.verify(token) && security.decode(token)?.data?.role === security.roles.admin)
+}
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
+  if (!isAdminRequest(req)) {
+    res.status(403).json({ error: 'Admin role required' })
+    return
+  }
   try {
-    const users = await UserModel.findAll()
+    const users = await UserModel.findAll({ attributes: ['id', 'email'] })
 
     res.json({
       status: 'success',
@@ -22,9 +32,8 @@ async function retrieveUserList (req: Request, res: Response, next: NextFunction
         }
 
         return {
-          ...user.dataValues,
-          password: user.password?.replace(/./g, '*'),
-          totpSecret: user.totpSecret?.replace(/./g, '*'),
+          id: user.id,
+          email: user.email,
           lastLoginTime
         }
       })
