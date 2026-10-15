@@ -179,6 +179,27 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST new basket item into own basket after deluxe upgrade refreshed the token', async () => {
+    const { token, bid } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const cards = await request(app).get('/api/Cards').set(benderHeader)
+    const upgrade = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(benderHeader)
+      .send({ paymentMode: 'card', paymentId: cards.body.data[0].id.toString() })
+    assert.equal(upgrade.status, 200)
+
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set({ ...benderHeader, Authorization: 'Bearer ' + upgrade.body.data.token })
+      .send({ BasketId: bid, ProductId: 9, quantity: 1 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, bid)
+  })
+
   void it('PUT update product ID of basket item is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
