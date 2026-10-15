@@ -198,11 +198,11 @@ describe('insecurity', () => {
 
   describe('sanitizeUserRegistration', () => {
     it('keeps only allowlisted registration fields and forces customer role', () => {
-      const req = { body: { email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', role: 'admin', deluxeToken: 'x', totpSecret: 'y', isActive: false } } as unknown as Request
+      const req = { body: { email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', username: 'u', role: 'admin', deluxeToken: 'x', totpSecret: 'y', isActive: false } } as unknown as Request
       let called = false
       security.sanitizeUserRegistration()(req, {} as any, () => { called = true })
       expect(called).to.equal(true)
-      expect(req.body).to.deep.equal({ email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', role: 'customer' })
+      expect(req.body).to.deep.equal({ email: 'a@b.c', password: 'pw', passwordRepeat: 'pw', username: 'u', role: 'customer' })
     })
 
     it('forces customer role even when body is missing', () => {

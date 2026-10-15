@@ -416,6 +416,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Only allowlisted registration fields pass on; role is always forced to customer */
+  app.post('/api/Users', security.sanitizeUserRegistration())
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
@@ -474,8 +476,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
-  /* Only allowlisted registration fields reach finale; role is always forced to customer (runs after the challenge verifications above) */
-  app.post('/api/Users', security.sanitizeUserRegistration())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */

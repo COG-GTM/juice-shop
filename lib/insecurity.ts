@@ -185,7 +185,7 @@ export const appendUserId = () => {
   }
 }
 
-const userRegistrationFields = ['email', 'password', 'passwordRepeat']
+const userRegistrationFields = ['email', 'password', 'passwordRepeat', 'username']
 
 export const sanitizeUserRegistration = () => (req: Request, res: Response, next: NextFunction) => {
   const body = req.body ?? {}

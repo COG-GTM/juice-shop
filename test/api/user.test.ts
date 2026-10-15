@@ -184,6 +184,7 @@ void describe('/api/Users', () => {
         email: 'horst6@horstma.nn',
         password: 'hooooorst',
         passwordRepeat: 'hooooorst',
+        username: 'horst6',
         role: 'admin',
         deluxeToken: 'forged',
         totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH',
@@ -195,6 +196,10 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.deluxeToken, '')
     assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
     assert.equal(res.body.data.isActive, true)
+    assert.equal(res.body.data.username, 'horst6')
+
+    const challenge = await request(app).get('/api/Challenges/?key=registerAdminChallenge')
+    assert.equal(challenge.body.data[0].solved, false)
 
     const { token } = await login(app, { email: 'horst6@horstma.nn', password: 'hooooorst' })
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
