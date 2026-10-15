@@ -636,7 +636,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Chat API endpoint */
   app.post('/rest/chat',
     security.isAuthorized(),
-    rateLimit({ windowMs: 60 * 1000, max: 20, validate: false, keyGenerator: (req: any) => String(req.user?.data?.id ?? req.ip) }),
+    (req: Request, res: Response, next: NextFunction) => { (req as any).user?.data?.id ? next() : res.status(401).json({ error: 'Unauthorized' }) },
+    rateLimit({ windowMs: 60 * 1000, max: 20, validate: false, keyGenerator: (req: any) => String(req.user.data.id) }),
     utils.asyncHandler(chat()))
 
   /* Web3 API endpoints */

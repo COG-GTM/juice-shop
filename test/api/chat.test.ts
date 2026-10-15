@@ -388,6 +388,23 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(lastStatus, 429)
   })
 
+  void it('POST with a token that does not identify a user is rejected and never reaches the LLM', async () => {
+    let llmCalled = false
+    onLlmRequest = (_req, _body, res) => {
+      llmCalled = true
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const setupToken = security.authorize({ secret: 'ABCDEFGHIJKLMNOP', type: 'totp_setup_secret' })
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${setupToken}` })
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+
+    assert.equal(res.status, 401)
+    assert.equal(llmCalled, false)
+  })
+
   void it('POST rate limit cannot be bypassed by spoofing X-Forwarded-For', { timeout: 60000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       sendSSE(res, [contentChunk('Hi'), finishChunk()])
