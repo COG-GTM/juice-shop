@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import config from 'config'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -57,8 +58,8 @@ describe('appConfiguration', () => {
 
     retrieveAppConfiguration()(req, res)
     const returnedConfig = res.json.firstCall.args[0].config
-    expect(returnedConfig.application.name).to.equal('OWASP Juice Shop')
-    expect(returnedConfig.application.domain).to.equal('juice-sh.op')
+    expect(returnedConfig.application.name).to.equal(config.get('application.name'))
+    expect(returnedConfig.application.domain).to.equal(config.get('application.domain'))
     expect(returnedConfig.application.social).to.have.property('twitterUrl')
     expect(returnedConfig.application.googleOauth).to.have.all.keys('clientId', 'authorizedRedirects')
     expect(returnedConfig.hackingInstructor).to.have.all.keys('isEnabled', 'hintPlaybackSpeed')
