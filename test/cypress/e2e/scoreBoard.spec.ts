@@ -8,21 +8,12 @@ describe('/#/score-board', () => {
   })
 
   describe('challenge "continueCode"', () => {
-    it('should be possible to solve the non-existent challenge #99', () => {
-      cy.window().then(async () => {
-        await fetch(
-          `${Cypress.config('baseUrl')}/rest/continue-code/apply/69OxrZ8aJEgxONZyWoz1Dw4BvXmRGkM6Ae9M7k2rK63YpqQLPjnlb5V5LvDj`,
-          {
-            method: 'PUT',
-            cache: 'no-cache',
-            headers: {
-              'Content-type': 'text/plain'
-            }
-          }
-        )
-      })
-      cy.visit('/#/score-board')
-      cy.expectChallengeSolved({ challenge: 'Imaginary Challenge' })
+    it('should not be possible to solve the non-existent challenge #999 with a forged continue code', () => {
+      cy.request({
+        method: 'PUT',
+        url: '/rest/continue-code/apply/69OxrZ8aJEgxONZyWoz1Dw4BvXmRGkM6Ae9M7k2rK63YpqQLPjnlb5V5LvDj',
+        failOnStatusCode: false
+      }).its('status').should('eq', 404)
     })
   })
 })

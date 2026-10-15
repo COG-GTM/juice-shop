@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { sign } from '../../lib/continueCodeSigner'
 import { ChallengeDependencyModelInit } from '../../models/challengeDependency'
 
 let app: Express
@@ -99,16 +100,22 @@ void describe('/rest/continue-code', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
     const res = await request(app)
-      .put('/rest/continue-code/apply/yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
+      .put('/rest/continue-code/apply/' + sign('yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY', 'hacking'))
     assert.equal(res.status, 200)
   })
 
-  void it('PUT continue code for non-existent challenge #999 is accepted', async () => {
+  void it('PUT unsigned continue code forged with the public Hashids salt is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code/apply/yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT unsigned continue code for non-existent challenge #999 is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code/apply/69OxrZ8aJEgxONZyWoz1Dw4BvXmRGkM6Ae9M7k2rK63YpqQLPjnlb5V5LvDj')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
   })
 })
 
@@ -131,10 +138,16 @@ void describe('/rest/continue-code-findIt', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-findIt/apply/' + sign('Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6', 'findIt'))
+    assert.equal(res.status, 200)
+  })
+
+  void it('PUT unsigned continue code forged with the public Hashids salt is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code-findIt/apply/Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
   })
 })
 
@@ -157,9 +170,15 @@ void describe('/rest/continue-code-fixIt', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT continue code for more than one challenge is accepted', async () => {
+  void it('PUT signed continue code for more than one challenge is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-fixIt/apply/' + sign('y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW', 'fixIt'))
+    assert.equal(res.status, 200)
+  })
+
+  void it('PUT unsigned continue code forged with the public Hashids salt is rejected', async () => {
     const res = await request(app)
       .put('/rest/continue-code-fixIt/apply/y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
   })
 })

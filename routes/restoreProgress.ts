@@ -8,6 +8,7 @@ import { type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
+import { verify } from '../lib/continueCodeSigner'
 
 const hashidsAlphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890'
 const hashidRegexp = /^[a-zA-Z0-9]+$/
@@ -20,7 +21,8 @@ export function restoreProgress () {
     if (!hashidRegexp.test(continueCode)) {
       return res.status(404).send(invalidContinueCode)
     }
-    const ids = hashids.decode(continueCode)
+    const verifiedCode = verify(continueCode, 'hacking')
+    const ids = verifiedCode !== null ? hashids.decode(verifiedCode) : []
     if (challengeUtils.notSolved(challenges.continueCodeChallenge) && ids.includes(999)) {
       challengeUtils.solve(challenges.continueCodeChallenge)
       res.end()
@@ -44,7 +46,8 @@ export function restoreProgressFindIt () {
     if (!hashidRegexp.test(continueCodeFindIt)) {
       return res.status(404).send(invalidContinueCode)
     }
-    const idsFindIt = hashids.decode(continueCodeFindIt)
+    const verifiedCode = verify(continueCodeFindIt, 'findIt')
+    const idsFindIt = verifiedCode !== null ? hashids.decode(verifiedCode) : []
     if (idsFindIt.length > 0) {
       for (const challenge of Object.values(challenges)) {
         if (idsFindIt.includes(challenge.id)) {
@@ -65,7 +68,8 @@ export function restoreProgressFixIt () {
     if (!hashidRegexp.test(continueCodeFixIt)) {
       return res.status(404).send(invalidContinueCode)
     }
-    const idsFixIt = hashids.decode(continueCodeFixIt)
+    const verifiedCode = verify(continueCodeFixIt, 'fixIt')
+    const idsFixIt = verifiedCode !== null ? hashids.decode(verifiedCode) : []
     if (idsFixIt.length > 0) {
       for (const challenge of Object.values(challenges)) {
         if (idsFixIt.includes(challenge.id)) {
