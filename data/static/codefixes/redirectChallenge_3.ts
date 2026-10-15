@@ -10,8 +10,12 @@ export const redirectAllowlist = new Set([
 ])
 
 export const isRedirectAllowed = (url: string) => {
+  if (typeof url !== 'string' || !URL.canParse(url)) return false
+  const target = new URL(url)
+  if (target.username !== '' || target.password !== '') return false
   let allowed = false
   for (const allowedUrl of redirectAllowlist) {
+    const allowedTarget = new URL(allowedUrl)
     allowed = allowed || url.includes(escapeHTML(allowedUrl))
   }
   return allowed
