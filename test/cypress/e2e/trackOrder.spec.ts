@@ -5,7 +5,8 @@ describe('/#/track-order', () => {
         throw new Error('Order id must not be rendered as HTML')
       })
 
-      cy.visit('/#/track-result?id=<iframe src="javascript:alert(`xss`)">')
+      const payload = encodeURIComponent('<iframe src="javascript:alert(`xss`)">')
+      cy.visit('/#/track-result?id=' + payload)
 
       cy.get('app-track-result h1 code').should('contain.text', 'iframesrcjavascriptalertxss')
       cy.get('app-track-result iframe').should('not.exist')
