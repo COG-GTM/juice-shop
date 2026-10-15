@@ -18,6 +18,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatButtonModule } from '@angular/material/button'
 import { CookieService } from 'ngy-cookie'
+import { NgClass } from '@angular/common'
 import { MatCheckboxModule } from '@angular/material/checkbox'
 
 import { TranslateModule } from '@ngx-translate/core'
@@ -29,7 +30,7 @@ library.add(faUser, faEye, faHome, faArchive, faTrashAlt)
   selector: 'app-administration',
   templateUrl: './administration.component.html',
   styleUrls: ['./administration.component.scss'],
-  imports: [MatCardModule, TranslateModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatButtonModule, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatTooltip, MatIconModule, MatCheckboxModule]
+  imports: [MatCardModule, TranslateModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatButtonModule, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatTooltip, MatIconModule, MatCheckboxModule, NgClass]
 })
 export class AdministrationComponent implements OnInit {
   private readonly dialog = inject(MatDialog)
