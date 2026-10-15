@@ -72,12 +72,14 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
-// Recognizes the XXE attack pattern in a parsed document, so the challenge stays solvable without ever resolving the entity
-function referencesSensitiveSystemEntity (xml: string) {
-  const document = xml.replace(/<!--[\s\S]*?-->/g, '')
-  const declaration = document.match(/<!ENTITY\s+(\S+)\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i)
-  if (declaration === null) return false
-  return new RegExp('&' + declaration[1] + ';').test(document.replace(/<!DOCTYPE[\s\S]*?\]>/i, ''))
+// Finds an unresolved reference to a sensitive SYSTEM entity in the parsed document, so the challenge stays solvable without ever resolving the entity
+const sensitiveSystemEntity = /^<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+
+function referencesSensitiveSystemEntity (node: any): boolean {
+  if (node.type() === 'entity_ref') {
+    return node.childNodes().some((decl: any) => decl.name() === node.name() && sensitiveSystemEntity.test(decl.toString()))
+  }
+  return node.type() === 'element' && node.childNodes().some(referencesSensitiveSystemEntity)
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -88,8 +90,8 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesSensitiveSystemEntity(data) })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesSensitiveSystemEntity(xmlDoc.root()) })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
@@ -116,23 +118,26 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 // Aliases are shared references after loading, so count nodes as if every alias were expanded and stop at the limit
 const MAX_YAML_NODES = 10000
 
-// Only an alias-expanded document is a Memory Bomb, an oversized alias-free upload is just rejected
-const reusesAliases = /(^|[\s,[{])\*[\w-]+/m
-
-function exceedsYamlNodeLimit (doc: unknown, limit: number) {
+function measureYamlDocument (doc: unknown, limit: number) {
   const stack: unknown[] = [doc]
+  const seen = new Set<object>()
   let count = 0
+  let aliased = false
   while (stack.length > 0) {
     const node = stack.pop()
-    if (++count > limit) return true
+    if (++count > limit) return { exceedsLimit: true, aliased }
     if (node !== null && typeof node === 'object') {
       for (const value of Object.values(node)) {
-        if (count + stack.length > limit) return true
+        if (count + stack.length > limit) return { exceedsLimit: true, aliased }
+        if (value !== null && typeof value === 'object') {
+          if (seen.has(value)) aliased = true
+          seen.add(value)
+        }
         stack.push(value)
       }
     }
   }
-  return false
+  return { exceedsLimit: false, aliased }
 }
 
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -144,8 +149,9 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
         const yamlDoc = vm.runInContext('yaml.safeLoad(data)', sandbox, { timeout: 2000 })
-        if (exceedsYamlNodeLimit(yamlDoc, MAX_YAML_NODES)) {
-          if (reusesAliases.test(data) && challengeUtils.notSolved(challenges.yamlBombChallenge)) {
+        const { exceedsLimit, aliased } = measureYamlDocument(yamlDoc, MAX_YAML_NODES)
+        if (exceedsLimit) {
+          if (aliased && challengeUtils.notSolved(challenges.yamlBombChallenge)) {
             challengeUtils.solve(challenges.yamlBombChallenge)
           }
           res.status(413)
