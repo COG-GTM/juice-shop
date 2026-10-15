@@ -96,28 +96,37 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+export const MAX_COUPON_DISCOUNT = 15
+const COUPON_TAG_BYTES = 7
+// Set JUICE_SHOP_COUPON_SECRET to keep issued coupons valid across restarts and instances
+const couponSecret = process.env.JUICE_SHOP_COUPON_SECRET ?? crypto.randomBytes(32).toString('hex')
+
+const couponTag = (discount: number, validity: string) =>
+  crypto.createHmac('sha256', couponSecret).update(`${validity}-${discount}`).digest().subarray(0, COUPON_TAG_BYTES)
+
+const isAllowedDiscount = (discount: number) => Number.isInteger(discount) && discount >= 1 && discount <= MAX_COUPON_DISCOUNT
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  if (!isAllowedDiscount(discount)) {
+    throw new RangeError(`Coupon discount must be an integer between 1 and ${MAX_COUPON_DISCOUNT}`)
+  }
+  return z85.encode(Buffer.concat([Buffer.from([discount]), couponTag(discount, utils.toMMMYY(date))])) as string
 }
 
 export const discountFromCoupon = (coupon?: string) => {
-  if (!coupon) {
+  if (coupon?.length !== 10) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (decoded?.length !== 1 + COUPON_TAG_BYTES) {
+    return undefined
   }
-}
-
-function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  const discount = decoded[0]
+  if (!isAllowedDiscount(discount)) {
+    return undefined
+  }
+  const expectedTag = couponTag(discount, utils.toMMMYY(new Date()))
+  return crypto.timingSafeEqual(decoded.subarray(1), expectedTag) ? discount : undefined
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

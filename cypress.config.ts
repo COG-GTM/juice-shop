@@ -1,9 +1,10 @@
 import { defineConfig } from 'cypress'
-import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -19,8 +20,8 @@ export default defineConfig({
     supportFile: 'test/cypress/support/e2e.ts',
     setupNodeEvents (on: any) {
       on('task', {
-        GenerateCoupon (discount: number) {
-          return security.generateCoupon(discount)
+        ForgeCoupon (discount: number) {
+          return z85.encode(`${utils.toMMMYY(new Date())}-${discount}`)
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {
