@@ -201,6 +201,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
 }
 
 const MIN_COOKIE_SECRET_LENGTH = 32
+const MIN_COOKIE_SECRET_DISTINCT_CHARS = 10
 
 export const resolveCookieSecret = (configured?: string) => {
   if (configured === undefined || configured === '') {
@@ -208,6 +209,9 @@ export const resolveCookieSecret = (configured?: string) => {
   }
   if (configured.length < MIN_COOKIE_SECRET_LENGTH) {
     throw new Error(`COOKIE_SECRET must be at least ${MIN_COOKIE_SECRET_LENGTH} characters long`)
+  }
+  if (new Set(configured).size < MIN_COOKIE_SECRET_DISTINCT_CHARS) {
+    throw new Error(`COOKIE_SECRET must contain at least ${MIN_COOKIE_SECRET_DISTINCT_CHARS} distinct characters`)
   }
   return configured
 }

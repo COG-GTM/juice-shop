@@ -219,8 +219,13 @@ describe('insecurity', () => {
     })
 
     it('uses the configured secret when it is long enough', () => {
-      const configured = 'x'.repeat(32)
+      const configured = 'f3a9c1e7b5d20486f3a9c1e7b5d20486'
       expect(security.resolveCookieSecret(configured)).to.equal(configured)
+    })
+
+    it('rejects a configured secret with too few distinct characters', () => {
+      expect(() => security.resolveCookieSecret('x'.repeat(32))).to.throw('COOKIE_SECRET must contain at least 10 distinct characters')
+      expect(() => security.resolveCookieSecret('ab'.repeat(32))).to.throw('COOKIE_SECRET must contain at least 10 distinct characters')
     })
 
     it('rejects a configured secret that is too short', () => {
