@@ -81,6 +81,7 @@ export interface ChallengesConfig {
   xssBonusPayload: string
   safetyOverride: boolean
   csafHashValue: string
+  nftUnlockPrivateKeyHash: string
 }
 
 export interface HackingInstructorConfig {
