@@ -72,6 +72,16 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+const sensitiveSystemEntity = /^<!ENTITY\s+\S+\s+SYSTEM\s+["']file:\/\/[^"']*(?:\/etc\/passwd|system\.ini|win\.ini)["']\s*>/i
+
+// Entities are never resolved, so detect an attempted file disclosure from the unresolved entity_ref and its declaration
+function referencesSensitiveSystemEntity (node: any): boolean {
+  if (node.type() === 'entity_ref') {
+    return node.childNodes().some((decl: any) => decl.name() === node.name() && sensitiveSystemEntity.test(decl.toString()))
+  }
+  return node.type() === 'element' && node.childNodes().some(referencesSensitiveSystemEntity)
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
@@ -80,11 +90,10 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, dtdload: false, dtdvalid: false, nonet: true, nocdata: true })', sandbox, { timeout: 2000 })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesSensitiveSystemEntity(xmlDoc.root()) })
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Script execution timed out')) {
@@ -95,7 +104,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {

@@ -6,7 +6,7 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleXmlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +62,58 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('handleXmlUpload', () => {
+    const passwdEntity = '<!DOCTYPE foo [<!ELEMENT foo ANY ><!ENTITY xxe SYSTEM "file:///etc/passwd" >]>'
+
+    function uploadXml (xml: string) {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.xxeFileDisclosureChallenge = { solved: false, save } as unknown as Challenge
+      req.file = { originalname: 'complaint.xml', buffer: Buffer.from(xml) }
+      res.status = () => res
+      const errors: Error[] = []
+      handleXmlUpload(req, res, (err?: any) => { if (err instanceof Error) errors.push(err) })
+      return errors.map(err => err.message).join('\n')
+    }
+
+    it('should not expand external entities into the error message', () => {
+      const message = uploadXml(`<?xml version="1.0"?>${passwdEntity}<foo>&xxe;</foo>`)
+
+      expect(message).to.not.match(/root:.*:0:0:/)
+      expect(message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (complaint.xml)')
+    })
+
+    it('should not echo external parameter entity content via parser errors', () => {
+      const message = uploadXml('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///etc/passwd"> %xxe;]><foo/>')
+
+      expect(message).to.not.match(/root:.*:0:0:/)
+      expect(message).to.not.include('/etc/passwd')
+    })
+
+    it('should not echo parser error details', () => {
+      const message = uploadXml('<foo><bar></foo>')
+
+      expect(message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (complaint.xml)')
+    })
+
+    it('should solve "xxeFileDisclosureChallenge" when a sensitive SYSTEM entity is referenced without resolving it', () => {
+      const message = uploadXml(`<?xml version="1.0"?>${passwdEntity}<foo>&xxe;</foo>`)
+
+      expect(message).to.not.match(/root:.*:0:0:/)
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve "xxeFileDisclosureChallenge" for benign XML', () => {
+      uploadXml('<?xml version="1.0"?><foo>bar</foo>')
+
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve "xxeFileDisclosureChallenge" when the entity reference is only CDATA text', () => {
+      uploadXml(`<?xml version="1.0"?>${passwdEntity}<foo><![CDATA[&xxe;]]></foo>`)
+
+      expect(challenges.xxeFileDisclosureChallenge.solved).to.equal(false)
+    })
   })
 })
