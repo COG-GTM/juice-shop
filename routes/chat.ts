@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import * as crypto from 'node:crypto'
 import { type Request, type Response } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
@@ -39,11 +40,31 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+// security.verify trusts the token's own alg header, so the chatbot pins RS256 itself before trusting any identity claim
+function hasValidServerSignature (token: string): boolean {
+  try {
+    const [header, payload, signature] = token.split('.')
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString()) as { alg?: string }
+    const { exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: number }
+    if (alg !== 'RS256' || !signature || (typeof exp === 'number' && exp * 1000 <= Date.now())) return false
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
+
+function getAuthenticatedUser (req: Request): { id?: number, role?: string } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  if (!token || !hasValidServerSignature(token)) return undefined
+  if (security.authenticatedUsers.get(token) === undefined) {
+    const verified = security.decode(token)
+    if (verified?.data) security.authenticatedUsers.put(token, verified)
+  }
+  return security.authenticatedUsers.get(token)?.data
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return getAuthenticatedUser(req)?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -217,10 +238,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
-              return req.cookies.show_tool_calls === 'true' && role !== roles.admin
+              return req.cookies.show_tool_calls === 'true' && getAuthenticatedUser(req)?.role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
