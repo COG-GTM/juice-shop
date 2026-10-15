@@ -18,10 +18,22 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
-    const res = await request(app).get('/')
+  void it('response must not contain CORS header allowing all origins', async () => {
+    const res = await request(app).get('/').set('Origin', 'https://attacker.example')
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('response must contain CORS header for trusted application origin', async () => {
+    const origin = new URL(config.get<string>('server.baseUrl')).origin
+    const res = await request(app).get('/').set('Origin', origin)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], origin)
+  })
+
+  void it('CORS preflight from untrusted origin must not be allowed', async () => {
+    const res = await request(app).options('/rest/user/whoami').set('Origin', 'https://attacker.example').set('Access-Control-Request-Method', 'GET')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {

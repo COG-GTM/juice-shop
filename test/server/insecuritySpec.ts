@@ -203,4 +203,28 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('corsAllowedOrigins', () => {
+    it('defaults to the configured base URL and the Angular dev server on both loopback addresses', () => {
+      expect(security.corsAllowedOrigins({})).to.deep.equal(['http://localhost:3000', 'http://localhost:4200', 'http://127.0.0.1:4200'])
+    })
+
+    it('uses comma-separated CORS_ALLOWED_ORIGINS reduced to their origins', () => {
+      expect(security.corsAllowedOrigins({ CORS_ALLOWED_ORIGINS: 'https://shop.example/path/, https://admin.example:8443' })).to.deep.equal(['https://shop.example', 'https://admin.example:8443'])
+    })
+
+    it('drops wildcard, null and malformed origins', () => {
+      expect(security.corsAllowedOrigins({ CORS_ALLOWED_ORIGINS: '*,null,file:///etc/passwd,not a url,' })).to.deep.equal([])
+    })
+  })
+
+  describe('exposeErrorDetails', () => {
+    it('is only enabled in development and test environments', () => {
+      expect(security.exposeErrorDetails({ NODE_ENV: 'development' })).to.equal(true)
+      expect(security.exposeErrorDetails({ NODE_ENV: 'test' })).to.equal(true)
+      expect(security.exposeErrorDetails({})).to.equal(false)
+      expect(security.exposeErrorDetails({ NODE_ENV: 'production' })).to.equal(false)
+      expect(security.exposeErrorDetails({ NODE_ENV: 'ctf' })).to.equal(false)
+    })
+  })
 })

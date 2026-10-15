@@ -5,6 +5,9 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
+import { STATUS_CODES } from 'node:http'
+import config from 'config'
+import { type CorsOptions } from 'cors'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
@@ -13,6 +16,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -198,4 +202,51 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
     })
   }
   next()
+}
+
+const ANGULAR_DEV_SERVER_ORIGINS = ['http://localhost:4200', 'http://127.0.0.1:4200']
+
+const toOrigin = (url: string) => {
+  try {
+    const { origin } = new URL(url.trim())
+    return origin === 'null' ? undefined : origin
+  } catch {
+    return undefined
+  }
+}
+
+export const corsAllowedOrigins = (env: NodeJS.ProcessEnv = process.env): string[] => {
+  const configured = env.CORS_ALLOWED_ORIGINS?.split(',') ?? [config.get<string>('server.baseUrl'), ...ANGULAR_DEV_SERVER_ORIGINS]
+  return [...new Set(configured.map(toOrigin).filter((origin): origin is string => origin !== undefined))]
+}
+
+export const corsOptions = (env: NodeJS.ProcessEnv = process.env): CorsOptions => ({ origin: corsAllowedOrigins(env) })
+
+const sha256 = (value: string) => crypto.createHash('sha256').update(value).digest()
+
+export const isMetricsAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
+  const expectedToken = process.env.METRICS_TOKEN
+  const presentedToken = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1]
+  if (expectedToken && presentedToken && crypto.timingSafeEqual(sha256(presentedToken), sha256(expectedToken))) {
+    next()
+  } else {
+    res.status(401).set('WWW-Authenticate', 'Bearer').json({ error: 'Unauthorized' })
+  }
+}
+
+export const exposeErrorDetails = (env: NodeJS.ProcessEnv = process.env) => env.NODE_ENV === 'development' || env.NODE_ENV === 'test'
+
+export const genericErrorHandler = () => (err: any, req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) {
+    next(err)
+    return
+  }
+  const errorStatus = Number(err?.status ?? err?.statusCode ?? res.statusCode)
+  const status = errorStatus >= 400 && errorStatus < 600 ? errorStatus : 500
+  if (status >= 500) {
+    logger.error(`${req.method} ${req.path.replace(/[\r\n]/g, '')} failed: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+  }
+  const statusText = STATUS_CODES[status] ?? 'Error'
+  res.status(status).type('html')
+  res.end(`<!DOCTYPE html><html><head><title>${statusText}</title></head><body><h1>${status} ${statusText}</h1></body></html>`)
 }
