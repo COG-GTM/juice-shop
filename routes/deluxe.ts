@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { WalletModel } from '../models/wallet'
@@ -21,14 +22,9 @@ export function upgradeToDeluxe () {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
         return
       }
-      if (req.body.paymentMode === 'wallet') {
-        const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-        if ((wallet != null) && wallet.balance < 49) {
-          res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
-          return
-        } else {
-          await WalletModel.decrement({ balance: 49 }, { where: { UserId: req.body.UserId } })
-        }
+      if (req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card') {
+        res.status(400).json({ status: 'error', error: 'Invalid payment mode' })
+        return
       }
 
       if (req.body.paymentMode === 'card') {
@@ -39,8 +35,26 @@ export function upgradeToDeluxe () {
         }
       }
 
+      if (req.body.paymentMode === 'wallet') {
+        const [affectedCount] = await WalletModel.update(
+          { balance: literal('balance - 49') },
+          { where: { UserId: req.body.UserId, balance: { [Op.gte]: 49 } } }
+        )
+        if (affectedCount === 0) {
+          res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
+          return
+        }
+      }
+
       try {
-        const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })
+        const [upgradedCount] = await UserModel.update(
+          { role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) },
+          { where: { id: user.id, role: security.roles.customer } }
+        )
+        if (upgradedCount === 0) {
+          throw new Error('User is no longer eligible for deluxe membership')
+        }
+        const updatedUser = await user.reload()
         challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
           return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
         })
@@ -49,6 +63,9 @@ export function upgradeToDeluxe () {
         security.authenticatedUsers.put(updatedToken, userWithStatus)
         res.status(200).json({ status: 'success', data: { confirmation: 'Congratulations! You are now a deluxe member!', token: updatedToken } })
       } catch (error) {
+        if (req.body.paymentMode === 'wallet') {
+          await WalletModel.increment({ balance: 49 }, { where: { UserId: req.body.UserId } })
+        }
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
       }
     } catch (err: unknown) {
