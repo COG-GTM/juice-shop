@@ -52,11 +52,14 @@ export const hashSecurityAnswer = (answer: string, salt = crypto.randomBytes(16)
   return `${salt}:${crypto.scryptSync(peppered, salt, 32).toString('hex')}`
 }
 
-export const verifySecurityAnswer = (answer: string, stored?: string | null) => {
+export const verifySecurityAnswer = async (answer: string, stored?: string | null) => {
   const [salt, hash] = (stored ?? '').split(':')
   if (!salt || !hash) return false
   const expected = Buffer.from(hash, 'hex')
-  const actual = Buffer.from(hashSecurityAnswer(answer, salt).split(':')[1], 'hex')
+  const peppered = crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
+  const actual = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(peppered, salt, 32, (err, key) => { err ? reject(err) : resolve(key) })
+  })
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
 }
 

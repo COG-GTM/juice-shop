@@ -214,18 +214,18 @@ describe('insecurity', () => {
   })
 
   describe('verifySecurityAnswer', () => {
-    it('accepts the correct answer', () => {
-      expect(security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
+    it('accepts the correct answer', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
     })
 
-    it('rejects a wrong answer', () => {
-      expect(security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    it('rejects a wrong answer', async () => {
+      expect(await security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
     })
 
-    it('rejects malformed or missing stored values', () => {
-      expect(security.verifySecurityAnswer('Samuel', undefined)).to.equal(false)
-      expect(security.verifySecurityAnswer('Samuel', '')).to.equal(false)
-      expect(security.verifySecurityAnswer('Samuel', crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex'))).to.equal(false)
+    it('rejects malformed or missing stored values', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', undefined)).to.equal(false)
+      expect(await security.verifySecurityAnswer('Samuel', '')).to.equal(false)
+      expect(await security.verifySecurityAnswer('Samuel', crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex'))).to.equal(false)
     })
   })
 })
