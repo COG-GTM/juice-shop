@@ -131,23 +131,18 @@ describe('/#/basket', () => {
         })
       })
 
-      it('should be possible to enter a coupon that gives an 80% discount', () => {
+      it('should not be possible to enter a forged coupon that gives an 80% discount', () => {
         cy.window().then(() => {
           window.localStorage.couponPanelExpanded = false
         })
 
         cy.visit('/#/payment/shop')
         cy.get('#collapseCouponElement').click()
-        cy.task<string>('GenerateCoupon', 90).then((coupon: string) => {
+        cy.task<string>('ForgeCoupon', 90).then((coupon: string) => {
           cy.get('#coupon').type(coupon)
           cy.get('#applyCouponButton').click()
         })
-      })
-
-      it('should be possible to place an order with a forged coupon', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Forged Coupon' })
+        cy.get('.error').should('contain.text', 'Invalid coupon.')
       })
     })
   })
