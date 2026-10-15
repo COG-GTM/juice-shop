@@ -42,13 +42,71 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
   })
 
+  void it('GET user profile embeds a CSRF token in the username form', async () => {
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.match(res.text, /name="csrf" value="[0-9a-f]{64}"/)
+  })
+
   void it('POST update username of authenticated user', async () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst', csrf: await csrfTokenFrom(authHeader) })
       .redirects(0)
 
     assert.equal(res.status, 302)
+    assert.ok(res.headers['set-cookie']?.[0].includes('SameSite=Strict'))
+  })
+
+  void it('POST update username is rejected without CSRF token', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    assert.ok(!(await profileOf(authHeader)).includes('value="CSRF"'))
+  })
+
+  void it('POST update username is rejected with CSRF token of another session', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'CSRF', csrf: await csrfTokenFrom({ Cookie: `token=${token}` }) })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected from a cross-site origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF', csrf: await csrfTokenFrom(authHeader) })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    assert.ok(!(await profileOf(authHeader)).includes('value="CSRF"'))
   })
 })
+
+async function profileOf (header: { Cookie: string }) {
+  const res = await request(app).get('/profile').set(header)
+  return res.text
+}
+
+async function csrfTokenFrom (header: { Cookie: string }) {
+  const match = (await profileOf(header)).match(/name="csrf" value="([0-9a-f]{64})"/)
+  assert.ok(match)
+  return match[1]
+}

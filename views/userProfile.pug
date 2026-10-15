@@ -68,4 +68,5 @@ html(lang='en')
                    .profile-field
                      label(for='username') Username:
                      input#username(type='text', name='username', value=username, placeholder='e.g. SuperUser', aria-label='Text field for the username')
+                   input(type='hidden', name='csrf', value='_csrfToken_')
                    button#submit.fill(type='submit', style='margin-top: 8px; text-transform: capitalize;', aria-label='Button to save/set the username') Set Username
