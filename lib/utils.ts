@@ -138,6 +138,24 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
+const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password'])
+
+export const redactSensitiveQueryParams = (url?: string) => {
+  if (!url) return url
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const query = url.substring(queryStart + 1).split('&').map((param) => {
+    const separator = param.indexOf('=')
+    const rawKey = separator === -1 ? param : param.substring(0, separator)
+    let key = rawKey
+    try {
+      key = decodeURIComponent(rawKey.replace(/\+/g, ' '))
+    } catch {}
+    return sensitiveQueryParams.has(key.replace(/\[.*$/, '').trim().toLowerCase()) ? `${rawKey}=[REDACTED]` : param
+  })
+  return url.substring(0, queryStart + 1) + query.join('&')
+}
+
 export const randomHexString = (length: number): string => {
   return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
 }
