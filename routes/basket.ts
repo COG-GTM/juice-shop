@@ -17,15 +17,15 @@ export function retrieveBasket () {
     try {
       const id = req.params.id
       const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
-      if (basket != null && !security.isBasketOwner(req, basket)) {
-        res.status(403).json({ status: 'error', message: 'Not allowed to access this basket' })
-        return
-      }
       /* jshint eqeqeq:false */
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
         const user = security.authenticatedUsers.from(req)
         return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
       })
+      if (basket != null && !security.isBasketOwner(req, basket)) {
+        res.status(403).json({ status: 'error', message: 'Not allowed to access this basket' })
+        return
+      }
       if (((basket?.Products) != null) && basket.Products.length > 0) {
         for (let i = 0; i < basket.Products.length; i++) {
           basket.Products[i].name = req.__(basket.Products[i].name)
