@@ -197,10 +197,70 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+
+    it('no longer uses the publicly known hard-coded key', () => {
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+      expect(security.hmac('')).to.not.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash instead of an unsalted MD5 hash', () => {
+      const passwordHash = security.hashPassword('admin123')
+      expect(passwordHash).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+      expect(passwordHash).to.not.contain('0192023a7bbd73250516f069df18b500')
+    })
+
+    it('uses a fresh salt for every hash of the same password', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password', async () => {
+      expect(await security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects legacy MD5 and malformed hashes', async () => {
+      expect(await security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+      expect(await security.verifyPassword('admin123', 'scrypt$00$00')).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces the stored hash for the correct password', async () => {
+      const storedHash = security.hashPassword('ncc-1701')
+      expect(await security.rehashPassword('ncc-1701', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('ncc-1702', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('uses a fresh salt when there is no stored hash', async () => {
+      expect(await security.rehashPassword('ncc-1701', undefined)).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+    })
+  })
+
+  describe('security answers', () => {
+    it('are stored as salted hashes that do not reveal the HMAC of the answer', () => {
+      const answerHash = security.hashSecurityAnswer('Samuel')
+      expect(answerHash).to.match(/^scrypt\$/)
+      expect(answerHash).to.not.contain(security.hmac('Samuel'))
+      expect(security.hashSecurityAnswer('Samuel')).to.not.equal(answerHash)
+    })
+
+    it('can be verified against the stored hash', async () => {
+      const answerHash = security.hashSecurityAnswer('Samuel')
+      expect(await security.verifySecurityAnswer('Samuel', answerHash)).to.equal(true)
+      expect(await security.verifySecurityAnswer('samuel', answerHash)).to.equal(false)
     })
   })
 })

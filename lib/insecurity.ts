@@ -41,7 +41,53 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const loadSecurityAnswerKey = () => {
+  const key = process.env.SECURITY_ANSWER_HMAC_KEY
+  if (key === undefined) return crypto.randomBytes(32).toString('hex')
+  if (!key.trim()) throw new Error('SECURITY_ANSWER_HMAC_KEY is set but empty')
+  return key
+}
+const securityAnswerKey = loadSecurityAnswerKey()
+
+export const hmac = (data: string) => crypto.createHmac('sha256', securityAnswerKey).update(data).digest('hex')
+
+const PASSWORD_SALT_BYTES = 16
+const PASSWORD_KEY_BYTES = 64
+const SCRYPT_OPTIONS = { N: 16384, r: 8, p: 1 }
+const PASSWORD_HASH_FORMAT = /^scrypt\$([0-9a-f]{32})\$([0-9a-f]{128})$/
+
+const formatPasswordHash = (salt: Buffer, key: Buffer) => `scrypt$${salt.toString('hex')}$${key.toString('hex')}`
+
+const saltOf = (storedHash?: string | null) => {
+  const match = PASSWORD_HASH_FORMAT.exec(storedHash ?? '')
+  return match ? Buffer.from(match[1], 'hex') : undefined
+}
+
+const deriveKey = async (password: string, salt: Buffer) => await new Promise<Buffer>((resolve, reject) => {
+  crypto.scrypt(String(password), salt, PASSWORD_KEY_BYTES, SCRYPT_OPTIONS, (err, key) => { err ? reject(err) : resolve(key) })
+})
+
+/** Salted scrypt hash (`scrypt$<salt>$<key>`) with a fresh random salt for storing passwords. */
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(PASSWORD_SALT_BYTES)
+  return formatPasswordHash(salt, crypto.scryptSync(String(password), salt, PASSWORD_KEY_BYTES, SCRYPT_OPTIONS))
+}
+
+/** Hashes a password with the salt of a stored hash (or a fresh one if there is none), so it can be compared with that hash. */
+export const rehashPassword = async (password: string, storedHash?: string | null) => {
+  const salt = saltOf(storedHash) ?? crypto.randomBytes(PASSWORD_SALT_BYTES)
+  return formatPasswordHash(salt, await deriveKey(password, salt))
+}
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
+  const salt = saltOf(storedHash)
+  if (!salt || storedHash == null) return false
+  return crypto.timingSafeEqual(Buffer.from(await rehashPassword(password, storedHash)), Buffer.from(storedHash))
+}
+
+export const hashSecurityAnswer = (answer: string) => hashPassword(hmac(answer))
+export const verifySecurityAnswer = async (answer: string, storedHash?: string | null) => await verifyPassword(hmac(answer), storedHash)
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
