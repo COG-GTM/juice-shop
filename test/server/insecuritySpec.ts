@@ -5,11 +5,23 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
+import sinon from 'sinon'
 import chai from 'chai'
+import sinonChai from 'sinon-chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
+chai.use(sinonChai)
+
+const base64url = (data: string) => Buffer.from(data).toString('base64url')
+const forgeToken = (alg: string, sign: (input: string) => string) => {
+  const input = `${base64url(JSON.stringify({ typ: 'JWT', alg }))}.${base64url(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } }))}`
+  return `${input}.${sign(input)}`
+}
+const hs256WithPublicKey = () => forgeToken('HS256', input => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url'))
+const unsigned = () => forgeToken('none', () => '')
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -201,6 +213,52 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    it('accepts RS256 tokens issued by authorize', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects HS256 tokens signed with the public key as HMAC secret', () => {
+      expect(security.verify(hs256WithPublicKey())).to.equal(false)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(unsigned())).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    it('rejects HS256 tokens signed with the public key as HMAC secret', () => {
+      const req = { headers: { authorization: 'Bearer ' + hs256WithPublicKey() } } as unknown as Request
+      const res = { status: sinon.spy() } as any
+      const next = sinon.spy()
+
+      security.isAuthorized()(req, res, next)
+
+      expect(res.status).to.have.been.calledWith(401)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    it('does not register users from HS256 tokens signed with the public key as HMAC secret', () => {
+      const token = hs256WithPublicKey()
+      const req = { cookies: {}, headers: { authorization: 'Bearer ' + token } } as unknown as Request
+      const res = { cookie: sinon.spy() } as any
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req, res, next)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(res.cookie).to.have.not.been.calledWith(sinon.match.any)
+      expect(next).to.have.been.calledWith()
     })
   })
 })
