@@ -23,6 +23,7 @@ before(async () => {
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
+const nonExpiringToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
 
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
@@ -281,6 +282,30 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i request returns nothing for a signed token without expiry', async () => {
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set('Cookie', `token=${nonExpiringToken}`)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET protected API with a signed token without expiry is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: `Bearer ${nonExpiringToken}` })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST login issues a token that expires after 6 hours', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const { iat, exp } = security.decode(token)
+    assert.equal(exp - iat, 6 * 60 * 60)
   })
 
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {
