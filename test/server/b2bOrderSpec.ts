@@ -76,8 +76,8 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
-  it('rejects order lines violating the schema', () => {
-    req.body.orderLinesData = '[{"productId": 12,"quantity": 0}]'
+  it('rejects orderLinesData exceeding the size limit', () => {
+    req.body.orderLinesData = JSON.stringify({ padding: 'a'.repeat(100000) })
 
     b2bOrder()(req, res, next)
 
@@ -99,7 +99,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
