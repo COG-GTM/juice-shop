@@ -55,6 +55,9 @@ export const isPasswordHash = (value?: string | null) => passwordSaltOf(value) !
 export const strengthenPasswordDigest = async (digest: string, salt = crypto.randomBytes(16).toString('hex')) =>
   `scrypt$${salt}$${(await scrypt(digest, salt)).toString('hex')}`
 
+export const strengthenPasswordDigestSync = (digest: string, salt = crypto.randomBytes(16).toString('hex')) =>
+  `scrypt$${salt}$${crypto.scryptSync(digest, salt, 32).toString('hex')}`
+
 export const passwordHashFor = async (password: string, storedHash?: string | null) =>
   await strengthenPasswordDigest(hash(String(password)), passwordSaltOf(storedHash))
 
@@ -235,8 +238,10 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       return
     }
     sessionFromToken(decoded).then((user) => {
-      authenticatedUsers.put(token, user)
-      res.cookie('token', token)
+      if (user) {
+        authenticatedUsers.put(token, user)
+        res.cookie('token', token)
+      }
     }).catch(() => {}).finally(() => { next() })
   })
 }
@@ -245,5 +250,5 @@ const sessionFromToken = async (decoded: any) => {
   if (!decoded?.data?.id) return decoded
   const { UserModel } = await import('../models/user')
   const user = await UserModel.findByPk(decoded.data.id)
-  return user ? utils.queryResultToJson(user) : decoded
+  return user && user.email === decoded.data.email ? utils.queryResultToJson(user) : undefined
 }
