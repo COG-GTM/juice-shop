@@ -19,7 +19,7 @@ describe('adminSeedCredentials', () => {
     })
 
     it('should replace the published password and security answer of every admin', () => {
-      expect(admins).to.not.be.empty
+      expect(admins).to.have.length.above(0)
       for (const admin of admins) {
         const seeded = withGeneratedCredentials(admin)
         expect(seeded.password).to.not.equal(admin.password)
@@ -33,7 +33,7 @@ describe('adminSeedCredentials', () => {
 
     it('should replace a published TOTP secret with a fresh base32 secret', () => {
       const wurstbrot = admins.find(({ username }) => username === 'wurstbrot')
-      expect(wurstbrot?.totpSecret).to.be.a('string').that.is.not.empty
+      expect(wurstbrot?.totpSecret).to.be.a('string').with.length.above(0)
       const seeded = withGeneratedCredentials(wurstbrot!)
       expect(seeded.totpSecret).to.match(/^[A-Z2-7]{16,}$/)
       expect(seeded.totpSecret).to.not.equal(wurstbrot!.totpSecret)
