@@ -11,6 +11,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import * as security from './insecurity'
 
 export const MEMORY_IMAGE_MAX_BYTES = 200000
+const MAX_NAME_BYTES = 200
 
 const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
 
@@ -23,6 +24,17 @@ const mimeTypeMap: Record<string, string> = {
 const imageSignatures: Record<string, number[]> = {
   png: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
   jpg: [0xFF, 0xD8, 0xFF]
+}
+
+function truncateToBytes (value: string, maxBytes: number) {
+  let result = ''
+  let bytes = 0
+  for (const char of value) {
+    bytes += Buffer.byteLength(char)
+    if (bytes > maxBytes) break
+    result += char
+  }
+  return result
 }
 
 export function hasImageSignature (filePath: string, ext: string) {
@@ -49,10 +61,10 @@ const uploadToDisk = multer({
       cb(error, uploadsDir)
     },
     filename: (req: Request, file: any, cb: any) => {
-      const name = security.sanitizeFilename(file.originalname)
+      const name = truncateToBytes(security.sanitizeFilename(file.originalname)
         .toLowerCase()
         .split(' ')
-        .join('-')
+        .join('-'), MAX_NAME_BYTES)
       const ext = mimeTypeMap[file.mimetype]
       cb(null, name + '-' + Date.now() + '-' + crypto.randomBytes(8).toString('hex') + '.' + ext)
     }

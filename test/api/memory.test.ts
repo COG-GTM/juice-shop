@@ -173,6 +173,17 @@ void describe('/rest/memories', () => {
     assert.equal(res.body.data.UserId, 2)
   })
 
+  void it('POST new memory with a near-limit original filename is stored', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + await jimToken())
+      .attach('image', file, { filename: 'a'.repeat(240) + '.jpg', contentType: 'image/jpeg' })
+      .field('caption', 'Long name')
+    assert.equal(res.status, 200)
+    assert.ok(path.basename(res.body.data.imagePath).length <= 255)
+  })
+
   void it('Should not crash the node-js server when sending invalid content like described in CVE-2022-24434', async () => {
     const token = await jimToken()
     const res = await request(app)
