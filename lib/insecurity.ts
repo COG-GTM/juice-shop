@@ -33,8 +33,11 @@ interface ResponseWithUser {
 interface IAuthenticatedUsers {
   tokenMap: Record<string, ResponseWithUser>
   idMap: Record<string, string>
+  expiries: Map<string, number>
+  userTokens: Map<number, Set<string>>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
+  remove: (token: string) => void
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
@@ -69,18 +72,89 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+export const sessionLimits = {
+  maxSessions: 10000,
+  maxSessionsPerUser: 10,
+  defaultTtlMs: 6 * 60 * 60 * 1000
+}
+
+const expiryOf = (token: string, user: ResponseWithUser) => {
+  let exp = user.exp
+  if (typeof exp !== 'number') {
+    try {
+      exp = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).exp
+    } catch {
+      exp = undefined
+    }
+  }
+  return typeof exp === 'number' ? exp * 1000 : Date.now() + sessionLimits.defaultTtlMs
+}
+
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
+  expiries: new Map(),
+  userTokens: new Map(),
   put: function (token: string, user: ResponseWithUser) {
+    const now = Date.now()
+    this.remove(token)
+    for (const [storedToken, expiry] of this.expiries) {
+      if (expiry <= now) this.remove(storedToken)
+    }
+    const userId = user.data?.id
+    if (userId !== undefined) {
+      const tokensOfUser = [...(this.userTokens.get(userId) ?? [])]
+      while (tokensOfUser.length >= sessionLimits.maxSessionsPerUser) {
+        this.remove(tokensOfUser.shift() as string)
+      }
+    }
+    while (this.expiries.size >= sessionLimits.maxSessions) {
+      this.remove(this.expiries.keys().next().value as string)
+    }
     this.tokenMap[token] = user
-    this.idMap[user.data.id] = token
+    this.expiries.set(token, expiryOf(token, user))
+    if (userId !== undefined) {
+      const tokensOfUser = this.userTokens.get(userId) ?? new Set<string>()
+      tokensOfUser.add(token)
+      this.userTokens.set(userId, tokensOfUser)
+      this.idMap[userId] = token
+    }
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    if (!token) return undefined
+    const key = utils.unquote(token)
+    const expiry = this.expiries.get(key)
+    if (expiry !== undefined && expiry <= Date.now()) {
+      this.remove(key)
+      return undefined
+    }
+    return this.tokenMap[key]
+  },
+  remove: function (token: string) {
+    const userId = this.tokenMap[token]?.data?.id
+    delete this.tokenMap[token]
+    this.expiries.delete(token)
+    if (userId === undefined) return
+    const tokensOfUser = this.userTokens.get(userId)
+    tokensOfUser?.delete(token)
+    if (tokensOfUser?.size === 0) this.userTokens.delete(userId)
+    if (this.idMap[userId] === token) {
+      const now = Date.now()
+      const live = [...(tokensOfUser ?? [])].filter(storedToken => (this.expiries.get(storedToken) ?? 0) > now)
+      if (live.length > 0) {
+        this.idMap[userId] = live[live.length - 1]
+      } else {
+        delete this.idMap[userId]
+      }
+    }
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    if (!user) return undefined
+    const token = this.idMap[user.id]
+    if (token !== undefined && this.get(token) === undefined) {
+      return this.idMap[user.id]
+    }
+    return token
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
@@ -177,7 +251,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
