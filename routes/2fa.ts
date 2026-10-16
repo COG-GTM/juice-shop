@@ -43,6 +43,7 @@ export async function verify (req: Request, res: Response) {
     // @ts-expect-error FIXME set new property for original basket
     plainUser.bid = basket.id // keep track of original basket for challenge solution check
     security.authenticatedUsers.put(token, plainUser)
+    security.setSessionCookie(res, token)
 
     res.json({ authentication: { token, bid: basket.id, umail: user.email } })
   } catch (error) {

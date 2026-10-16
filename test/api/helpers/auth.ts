@@ -10,6 +10,19 @@ import * as security from '../../../lib/insecurity'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
+export function sessionCookie (res: request.Response) {
+  const cookies: string[] = [res.headers['set-cookie'] ?? []].flat()
+  return cookies.find((cookie) => cookie.startsWith('token='))
+}
+
+export function assertSessionCookieFlags (cookie: string | undefined, { secure }: { secure: boolean }) {
+  if (!cookie) throw new Error('No token cookie was set')
+  const attributes = cookie.split(';').map((attribute) => attribute.trim().toLowerCase())
+  if (!attributes.includes('httponly')) throw new Error(`token cookie is missing HttpOnly: ${cookie}`)
+  if (!attributes.includes('samesite=strict')) throw new Error(`token cookie is missing SameSite=Strict: ${cookie}`)
+  if (attributes.includes('secure') !== secure) throw new Error(`token cookie Secure flag should be ${secure}: ${cookie}`)
+}
+
 export async function login (app: Express, { email, password, totpSecret }: { email: string, password: string, totpSecret?: string }) {
   const loginRes = await request(app)
     .post('/rest/user/login')
