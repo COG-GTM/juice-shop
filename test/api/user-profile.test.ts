@@ -51,4 +51,23 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders Pug syntax in username as escaped text', async () => {
+    const payload = 'x!{7*191} #[b injected]'
+    const updated = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', payload)
+      .redirects(0)
+    assert.equal(updated.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x!{7*191} #[b injected]</p>'))
+    assert.ok(!res.text.includes('x1337'))
+    assert.ok(!res.text.includes('<b>injected</b>'))
+  })
 })
