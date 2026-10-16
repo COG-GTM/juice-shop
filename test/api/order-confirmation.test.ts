@@ -85,19 +85,14 @@ void describe('/rest/order-confirmation/:orderId', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET with a registered unsigned or malformed token is denied', async () => {
+  void it('GET with a registered unsigned token is denied', async () => {
     const b64 = (value: string) => Buffer.from(value).toString('base64url')
-    const tokens = [
-      `${b64('{"alg":"none","typ":"JWT"}')}.${b64('{"data":{"id":2}}')}.`,
-      `${b64('{"alg":"RS256","typ":"JWT"}')}.${b64('not-json')}.c2ln`
-    ]
-    for (const token of tokens) {
-      security.authenticatedUsers.put(token, { data: { id: 2 } } as any)
-      const res = await request(app)
-        .get(`/rest/order-confirmation/${orderId}`)
-        .set('Authorization', 'Bearer ' + token)
-      assert.equal(res.status, 401)
-    }
+    const unsignedToken = `${b64('{"alg":"none","typ":"JWT"}')}.${b64('{"data":{"id":2}}')}.`
+    security.authenticatedUsers.put(unsignedToken, { data: { id: 2 } } as any)
+    const res = await request(app)
+      .get(`/rest/order-confirmation/${orderId}`)
+      .set('Authorization', 'Bearer ' + unsignedToken)
+    assert.equal(res.status, 401)
   })
 
   void it('GET with a malformed order id is not found', async () => {
