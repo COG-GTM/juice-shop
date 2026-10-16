@@ -68,6 +68,7 @@ import locales from './data/static/locales.json'
 import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
+import * as feedback from './routes/feedback'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
@@ -453,6 +454,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  app.get('/api/Users', security.isAdmin())
+  app.get('/api/Users/:id', security.isAdminOrSelf())
+  app.get('/api/Complaints', security.isAdmin())
+  app.get('/rest/user/authentication-details', security.isAdmin())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.authorizeFeedbackDeletion()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
@@ -515,6 +522,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      const omitInternalUserAttributes = (user: any) => {
+        const { deluxeToken, lastLoginIp, ...visible } = typeof user?.toJSON === 'function' ? user.toJSON() : user
+        return visible
+      }
+      resource.list.send.before((req: Request, res: Response, context: { instance: any[], continue: any }) => {
+        context.instance = context.instance.map(omitInternalUserAttributes)
+        return context.continue
+      })
+      resource.read.send.before((req: Request, res: Response, context: { instance: any, continue: any }) => {
+        context.instance = omitInternalUserAttributes(context.instance)
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {

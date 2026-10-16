@@ -39,10 +39,17 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints is forbidden for non-admin users', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all complaints as admin', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}` })
     assert.equal(res.status, 200)
   })
 })

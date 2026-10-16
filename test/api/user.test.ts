@@ -15,6 +15,8 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
+const adminAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
+const jimAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -30,16 +32,25 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+  void it('GET all users is forbidden for non-admin users', async () => {
+    const res = await request(app).get('/api/Users').set(jimAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users as admin', async () => {
+    const res = await request(app).get('/api/Users').set(adminAuthHeader)
     assert.equal(res.status, 200)
   })
 
-  void it('GET all users doesnt include passwords', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+  void it('GET all users doesnt include passwords, deluxe tokens or login IPs', async () => {
+    const res = await request(app).get('/api/Users').set(adminAuthHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
+      assert.equal(user.totpSecret, undefined)
+      assert.equal(user.deluxeToken, undefined)
+      assert.equal(user.lastLoginIp, undefined)
     }
   })
 
@@ -214,9 +225,24 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing user by id', async () => {
-    const res = await request(app).get('/api/Users/1').set(authHeader)
+  void it('GET existing user by id is forbidden for other non-admin users', async () => {
+    const res = await request(app).get('/api/Users/1').set(jimAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET own user by id', async () => {
+    const res = await request(app).get('/api/Users/2').set(jimAuthHeader)
     assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
+  })
+
+  void it('GET existing user by id as admin doesnt include deluxe token or login IP', async () => {
+    const res = await request(app).get('/api/Users/2').set(adminAuthHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.email, 'jim@juice-sh.op')
+    assert.equal(res.body.data.password, undefined)
+    assert.equal(res.body.data.deluxeToken, undefined)
+    assert.equal(res.body.data.lastLoginIp, undefined)
   })
 
   void it('PUT update existing user is forbidden via API even when authenticated', async () => {
