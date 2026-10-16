@@ -160,6 +160,30 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
+
+  void it('POST concurrent wallet checkouts of one basket charge the wallet and stock only once', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const walletBalance = async () => (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const stockOf = async (ProductId: number) => (await request(app).get('/api/Quantitys').set(uvoginHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+
+    const balanceBefore = await walletBalance()
+    const stockBefore = [await stockOf(3), await stockOf(4)]
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.ok(responses.some(res => res.status === 200 && res.body.orderConfirmation !== undefined))
+    assert.ok(responses.every(res => res.status === 200 || res.status === 409))
+
+    assert.ok(Math.abs(await walletBalance() - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+    assert.deepEqual([await stockOf(3), await stockOf(4)], [stockBefore[0] - 5, stockBefore[1] - 2])
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {

@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -19,6 +20,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import { sequelize } from '../models'
 
 interface Product {
   quantity: number
@@ -29,9 +31,20 @@ interface Product {
   bonus: number
 }
 
+const basketsInCheckout = new Set<string>()
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id
+    const id = String(req.params.id)
+    if (basketsInCheckout.has(id)) {
+      res.status(409).json({ error: 'Checkout for this basket is already in progress.' })
+      return
+    }
+    basketsInCheckout.add(id)
+    const fail = (error: unknown) => {
+      basketsInCheckout.delete(id)
+      next(error)
+    }
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
@@ -46,10 +59,14 @@ export function placeOrder () {
 
           fileWriter.on('finish', () => {
             void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              try {
+                void basket.update({ coupon: null })
+                await BasketItemModel.destroy({ where: { BasketId: id } })
+              } finally {
+                basketsInCheckout.delete(id)
+              }
               res.json({ orderConfirmation: orderId })
-            })()
+            })().catch(fail)
           })
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
@@ -67,19 +84,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +148,22 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
+          try {
+            if (req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+              if (!await debitWallet(req.body.UserId, totalPrice)) {
+                fail(new Error('Insufficient wallet balance.'))
                 return
               }
             }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
-              return
+            for (const { ProductId, quantity } of stockUpdates) {
+              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
             }
+            if (req.body.UserId) {
+              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+            }
+          } catch (error: unknown) {
+            fail(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -171,14 +180,23 @@ export function placeOrder () {
             eta: deliveryMethod.eta.toString()
           }).then(() => {
             doc.end()
-          })
+          }).catch(fail)
         } else {
-          next(new Error(`Basket with id=${id} does not exist.`))
+          fail(new Error(`Basket with id=${id} does not exist.`))
         }
-      }).catch((error: unknown) => {
-        next(error)
-      })
+      }).catch(fail)
   }
+}
+
+async function debitWallet (UserId: number, amount: number) {
+  if (!Number.isFinite(amount)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${sequelize.escape(amount)})`) },
+    { where: { UserId, balance: { [Op.gte]: amount } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
