@@ -17,6 +17,8 @@ import * as utils from '../lib/utils'
 
 const entities = new Entities()
 
+const CSP = "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'"
+
 function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
@@ -85,8 +87,6 @@ export function getUserProfile () {
     try {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
-      const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
-
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
         return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
       })

@@ -13,6 +13,18 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 
+export function isSafeProfileImageUrl (url: unknown) {
+  if (typeof url !== 'string' || url.length > 2048 || /[\s;,'"`<>\\]/.test(url)) {
+    return false
+  }
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -31,6 +43,11 @@ export function profileImageUrlUpload () {
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
+          if (!isSafeProfileImageUrl(url)) {
+            res.status(400)
+            next(new Error('Profile image URL must be a valid http(s) URL'))
+            return
+          }
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
             await user?.update({ profileImage: url })

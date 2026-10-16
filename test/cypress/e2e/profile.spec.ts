@@ -16,31 +16,29 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
+    it('should not be possible to disarm the CSP via profile image URL', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
+          cy.on('window:alert', (t) => {
+            throw new Error(`username payload executed: ${t}`)
+          })
+          cy.request({
+            method: 'POST',
+            url: '/profile/image/url',
+            form: true,
+            body: { imageUrl: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" },
+            followRedirect: false,
+            failOnStatusCode: false
+          }).its('status').should('eq', 400)
+
           cy.visit('/profile')
-          cy.get('#url').type(
-            "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
-          )
-          cy.get('#submitUrl').click()
           cy.get('#username').type('<<a|ascript>alert(`xss`)</script>')
           cy.get('#submit').click()
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
+          cy.request('/profile').its('headers').its('content-security-policy').should('eq', "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'")
 
           cy.get('#username').clear()
           cy.get('#username').type('αδмιη')
           cy.get('#submit').click()
-
-          cy.get('#url').type(
-            `${Cypress.config('baseUrl')}/assets/public/images/uploads/default.svg`
-          )
-          cy.get('#submitUrl').click()
-          cy.visit('/#/')
-          cy.expectChallengeSolved({ challenge: 'CSP Bypass' })
         }
       })
     })
