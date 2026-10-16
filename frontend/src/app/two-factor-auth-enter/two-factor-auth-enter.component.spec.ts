@@ -101,11 +101,12 @@ describe('TwoFactorAuthEnterComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should store authentication token in cookie', () => {
+    it('should leave the session cookie to the server', () => {
+        const putSpy = vi.spyOn(cookieService, 'put')
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(cookieService.get('token')).toBe('TOKEN')
+        expect(putSpy).not.toHaveBeenCalledWith('token', expect.anything(), expect.anything())
     })
 
     it('should store authentication token in local storage', () => {
