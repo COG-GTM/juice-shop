@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
@@ -116,14 +117,26 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
       return
     }
 
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
+    challengeUtils.solveIf(challenge, () => {
+      return hasAlgorithm(token, algorithm) && hasForgedSignature(token, algorithm) && !isExpired(decoded) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
+}
+
+// Detects forgery attempts for the JWT challenges only; such tokens are rejected by every verifier in lib/insecurity.
+function hasForgedSignature (token: string, algorithm: string) {
+  const [header, payload, signature = ''] = token.split('.')
+  if (algorithm === 'none') {
+    return signature === ''
+  }
+  if (algorithm === 'HS256') {
+    return signature === crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+  }
+  return false
+}
+
+function isExpired (payload: { exp?: unknown }) {
+  return payload.exp !== undefined && (typeof payload.exp !== 'number' || payload.exp <= Date.now() / 1000)
 }
 
 function hasAlgorithm (token: string, algorithm: string) {
