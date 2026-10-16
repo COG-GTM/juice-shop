@@ -24,6 +24,30 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDirectory = path.resolve('uploads/complaints')
+
+function resolveComplaintUploadPath (entryPath: string): string | null {
+  const targetPath = path.resolve(complaintsDirectory, entryPath)
+  if (!targetPath.startsWith(complaintsDirectory + path.sep)) return null
+  try {
+    const realRoot = fs.realpathSync(complaintsDirectory)
+    const realParent = fs.realpathSync(path.dirname(targetPath))
+    if (realParent !== realRoot && !realParent.startsWith(realRoot + path.sep)) return null
+  } catch {
+    return null
+  }
+  return targetPath
+}
+
+function openWithoutFollowingSymlinks (targetPath: string): number | null {
+  try {
+    return fs.openSync(targetPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW)
+  } catch (err: any) {
+    if (err?.code === 'ELOOP') return null
+    throw err
+  }
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -41,8 +65,19 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetPath = entry.type === 'Directory' ? null : resolveComplaintUploadPath(fileName)
+                let fd: number | null = null
+                if (targetPath !== null) {
+                  try {
+                    fd = openWithoutFollowingSymlinks(targetPath)
+                  } catch (err) {
+                    entry.autodrain()
+                    next(err)
+                    return
+                  }
+                }
+                if (targetPath !== null && fd !== null) {
+                  entry.pipe(fs.createWriteStream(targetPath, { fd }).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
@@ -144,5 +179,6 @@ export {
   checkUploadSize,
   checkFileType,
   handleXmlUpload,
-  handleYamlUpload
+  handleYamlUpload,
+  resolveComplaintUploadPath
 }

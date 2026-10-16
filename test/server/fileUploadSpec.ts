@@ -4,9 +4,11 @@
  */
 
 import chai from 'chai'
+import fs from 'node:fs'
+import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintUploadPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,44 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+  describe('resolveComplaintUploadPath', () => {
+    const complaintsDirectory = path.resolve('uploads/complaints')
+
+    it('should resolve zip entries inside uploads/complaints', () => {
+      expect(resolveComplaintUploadPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+      expect(resolveComplaintUploadPath('./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+    })
+
+    it('should reject zip entries written through a symlink out of uploads/complaints', function () {
+      const link = path.join(complaintsDirectory, 'symlinkSpec')
+      try {
+        fs.symlinkSync(path.resolve('ftp'), link, 'dir')
+      } catch {
+        this.skip()
+      }
+      try {
+        expect(resolveComplaintUploadPath('symlinkSpec/legal.md')).to.equal(null)
+      } finally {
+        fs.unlinkSync(link)
+      }
+    })
+
+    const maliciousEntries = [
+      '../../ftp/legal.md',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      '../complaints-evil/x.txt',
+      'sub/../../../server.ts',
+      '..',
+      '.',
+      '',
+      '/etc/passwd',
+      path.resolve('ftp/legal.md')
+    ]
+    maliciousEntries.forEach(entry => {
+      it(`should reject zip entry ${JSON.stringify(entry)}`, () => {
+        expect(resolveComplaintUploadPath(entry)).to.equal(null)
+      })
+    })
   })
 })
