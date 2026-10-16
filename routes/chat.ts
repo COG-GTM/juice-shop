@@ -5,7 +5,6 @@
 
 import { type Request, type Response } from 'express'
 import config from 'config'
-import { rateLimit } from 'express-rate-limit'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
@@ -82,16 +81,9 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
   return { messages: messages.map(({ role, content }) => ({ role, content })) }
 }
 
-export function chatRateLimit () {
-  return rateLimit({
-    windowMs: 5 * 60 * 1000,
-    max: 30,
-    validate: false,
-    keyGenerator (req: Request) {
-      const userId = userIdFromToken(req)
-      return userId ? `user:${userId}` : req.ip ?? ''
-    }
-  })
+export function chatRateLimitKey (req: Request): string {
+  const userId = userIdFromToken(req)
+  return userId ? `user:${userId}` : req.ip ?? ''
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
