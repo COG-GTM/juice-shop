@@ -130,12 +130,22 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.tokenMap).to.not.have.property('expired')
       })
 
-      it('uses the expiry of a signed token when the user object has none', () => {
-        const token = security.authorize({ data: { id: 44 } })
+      it('uses the exp claim of the token when the user object has none', () => {
+        const exp = Math.floor(Date.now() / 1000) + 120
+        const token = ['{"alg":"none"}', JSON.stringify({ data: { id: 44 }, exp })].map(part => Buffer.from(part).toString('base64url')).join('.') + '.'
         security.authenticatedUsers.put(token, { data: { id: 44 } as unknown as UserModel })
 
-        const expectedExpiry = security.decode(token).exp * 1000
-        expect(security.authenticatedUsers.expiries.get(token)).to.equal(expectedExpiry)
+        expect(security.authenticatedUsers.expiries.get(token)).to.equal(exp * 1000)
+      })
+
+      it('expires an issued token no later than six hours after login', () => {
+        const before = Date.now()
+        const token = security.authorize({ data: { id: 53 } })
+        security.authenticatedUsers.put(token, { data: { id: 53 } as unknown as UserModel })
+
+        const expiry = security.authenticatedUsers.expiries.get(token) as number
+        expect(expiry).to.be.above(before)
+        expect(expiry).to.be.at.most(Date.now() + security.sessionLimits.defaultTtlMs)
       })
 
       it('removes expired sessions when a new session is stored', () => {

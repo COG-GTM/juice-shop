@@ -82,7 +82,7 @@ const expiryOf = (token: string, user: ResponseWithUser) => {
   let exp = user.exp
   if (typeof exp !== 'number') {
     try {
-      exp = decode(token)?.exp
+      exp = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).exp
     } catch {
       exp = undefined
     }
@@ -103,9 +103,9 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     }
     const userId = user.data?.id
     if (userId !== undefined) {
-      const tokensOfUser = this.userTokens.get(userId)
-      while (tokensOfUser !== undefined && tokensOfUser.size >= sessionLimits.maxSessionsPerUser) {
-        this.remove(tokensOfUser.values().next().value as string)
+      const tokensOfUser = [...(this.userTokens.get(userId) ?? [])]
+      while (tokensOfUser.length >= sessionLimits.maxSessionsPerUser) {
+        this.remove(tokensOfUser.shift() as string)
       }
     }
     while (this.expiries.size >= sessionLimits.maxSessions) {
