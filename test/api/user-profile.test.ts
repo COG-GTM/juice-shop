@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,21 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile sends a static CSP that does not embed the stored profile image', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = user?.profileImage
+    await user?.update({ profileImage: "https://a.png; script-src 'unsafe-inline'" })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user?.update({ profileImage: originalProfileImage })
+    }
   })
 })

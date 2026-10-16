@@ -13,6 +13,18 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 
+export function isSafeProfileImageUrl (url: unknown) {
+  if (typeof url !== 'string' || url.length > 2048 || /[\s;,'"`<>\\]/.test(url)) {
+    return false
+  }
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -20,6 +32,11 @@ export function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
+        if (!isSafeProfileImageUrl(url)) {
+          res.status(400)
+          next(new Error('Profile image URL must be a valid http(s) URL'))
+          return
+        }
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {

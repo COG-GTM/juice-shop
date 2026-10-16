@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -79,7 +80,7 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'cataas.com/cat')
+      .field('imageUrl', 'https://cataas.com/cat')
       .redirects(0)
 
     assert.equal(res.status, 302)
@@ -98,6 +99,53 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL with CSP directive injection is rejected and not stored', async () => {
+    const email = `jim@${config.get<string>('application.domain')}`
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const before = await UserModel.findOne({ where: { email } })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'")
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+    assert.ok(res.text.includes('Error: Profile image URL must be a valid http(s) URL'))
+    const after = await UserModel.findOne({ where: { email } })
+    assert.equal(after?.profileImage, before?.profileImage)
+  })
+
+  void it('POST profile image URL without http(s) scheme is rejected', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'javascript:alert(1)')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST profile image data URL is rejected even though it could be fetched', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
