@@ -915,20 +915,36 @@
 		"removed": []
 	},
 	"redirectCryptoCurrencyChallenge_1.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			15
+		],
+		"removed": [
+			15
+		]
 	},
 	"redirectCryptoCurrencyChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			15
+		],
+		"removed": [
+			15
+		]
 	},
 	"redirectCryptoCurrencyChallenge_3_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			15
+		],
+		"removed": [
+			13
+		]
 	},
 	"redirectCryptoCurrencyChallenge_4.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			15
+		],
+		"removed": [
+			15
+		]
 	},
 	"registerAdminChallenge_1.ts": {
 		"added": [],
