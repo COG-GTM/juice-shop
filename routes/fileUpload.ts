@@ -65,7 +65,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                const targetPath = resolveComplaintUploadPath(fileName)
+                const targetPath = entry.type === 'Directory' ? null : resolveComplaintUploadPath(fileName)
                 let fd: number | null = null
                 if (targetPath !== null) {
                   try {
