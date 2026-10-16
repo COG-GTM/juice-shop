@@ -34,6 +34,7 @@ interface IAuthenticatedUsers {
   tokenMap: Record<string, ResponseWithUser>
   idMap: Record<string, string>
   expiries: Map<string, number>
+  userTokens: Map<number, Set<string>>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
   remove: (token: string) => void
@@ -93,23 +94,31 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   expiries: new Map(),
+  userTokens: new Map(),
   put: function (token: string, user: ResponseWithUser) {
     const now = Date.now()
-    this.expiries.delete(token)
+    this.remove(token)
     for (const [storedToken, expiry] of this.expiries) {
       if (expiry <= now) this.remove(storedToken)
     }
     const userId = user.data?.id
-    const tokensOfUser = [...this.expiries.keys()].filter(storedToken => this.tokenMap[storedToken]?.data?.id === userId)
-    while (tokensOfUser.length >= sessionLimits.maxSessionsPerUser) {
-      this.remove(tokensOfUser.shift() as string)
+    if (userId !== undefined) {
+      const tokensOfUser = this.userTokens.get(userId)
+      while (tokensOfUser !== undefined && tokensOfUser.size >= sessionLimits.maxSessionsPerUser) {
+        this.remove(tokensOfUser.values().next().value as string)
+      }
     }
     while (this.expiries.size >= sessionLimits.maxSessions) {
       this.remove(this.expiries.keys().next().value as string)
     }
     this.tokenMap[token] = user
-    if (userId !== undefined) this.idMap[userId] = token
     this.expiries.set(token, expiryOf(token, user))
+    if (userId !== undefined) {
+      const tokensOfUser = this.userTokens.get(userId) ?? new Set<string>()
+      tokensOfUser.add(token)
+      this.userTokens.set(userId, tokensOfUser)
+      this.idMap[userId] = token
+    }
   },
   get: function (token?: string) {
     if (!token) return undefined
@@ -122,16 +131,20 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     return this.tokenMap[key]
   },
   remove: function (token: string) {
-    const user = this.tokenMap[token]
+    const userId = this.tokenMap[token]?.data?.id
     delete this.tokenMap[token]
     this.expiries.delete(token)
-    if (user?.data && this.idMap[user.data.id] === token) {
+    if (userId === undefined) return
+    const tokensOfUser = this.userTokens.get(userId)
+    tokensOfUser?.delete(token)
+    if (tokensOfUser?.size === 0) this.userTokens.delete(userId)
+    if (this.idMap[userId] === token) {
       const now = Date.now()
-      const remaining = [...this.expiries].filter(([storedToken, expiry]) => expiry > now && this.tokenMap[storedToken]?.data?.id === user.data.id)
-      if (remaining.length > 0) {
-        this.idMap[user.data.id] = remaining[remaining.length - 1][0]
+      const live = [...(tokensOfUser ?? [])].filter(storedToken => (this.expiries.get(storedToken) ?? 0) > now)
+      if (live.length > 0) {
+        this.idMap[userId] = live[live.length - 1]
       } else {
-        delete this.idMap[user.data.id]
+        delete this.idMap[userId]
       }
     }
   },

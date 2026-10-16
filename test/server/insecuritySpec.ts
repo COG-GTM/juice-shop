@@ -193,6 +193,15 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.tokenOf({ id: 51 } as unknown as UserModel)).to.equal(undefined)
         expect(security.authenticatedUsers.tokenMap.expiredOnlyToken).to.equal(undefined)
       })
+
+      it('drops the per-user token index once a user has no sessions left', () => {
+        security.authenticatedUsers.put('indexedToken', { data: { id: 52 } as unknown as UserModel })
+        expect(security.authenticatedUsers.userTokens.get(52)?.has('indexedToken')).to.equal(true)
+
+        security.authenticatedUsers.remove('indexedToken')
+
+        expect(security.authenticatedUsers.userTokens.has(52)).to.equal(false)
+      })
     })
   })
 
