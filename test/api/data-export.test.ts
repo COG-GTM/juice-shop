@@ -136,6 +136,34 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.reviews[1].likedBy[0], undefined)
   })
 
+  void it('Export data does not include reviews submitted by others with the user as author', async () => {
+    const domain = config.get<string>('application.domain')
+    const anonymousPayload = '<img src=x onerror=alert(localStorage.token)>'
+    const anonymousRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({ message: anonymousPayload, author: 'admin@' + domain })
+    assert.equal(anonymousRes.status, 201)
+
+    const attacker = await login(app, { email: 'bender@' + domain, password: 'OhG0dPlease1nsertLiquor!' })
+    const authenticatedPayload = '<script>alert(localStorage.token)</script>'
+    const authenticatedRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + attacker.token, 'content-type': 'application/json' })
+      .send({ message: authenticatedPayload, author: 'admin@' + domain })
+    assert.equal(authenticatedRes.status, 201)
+
+    const victim = await login(app, { email: 'admin@' + domain, password: 'admin123' })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + victim.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const messages = JSON.parse(res.body.userData).reviews.map((review: { message: string }) => review.message)
+    assert.ok(!messages.includes(anonymousPayload))
+    assert.ok(!messages.includes(authenticatedPayload))
+  })
+
   void it('Export data including memories without use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

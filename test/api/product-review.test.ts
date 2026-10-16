@@ -48,15 +48,24 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created with the logged-in user as author regardless of the author sent', async () => {
+    const domain = config.get<string>('application.domain')
+    const { token } = await login(app, { email: 'bender@' + domain, password: 'OhG0dPlease1nsertLiquor!' })
+    const message = 'Lorem Ipsum ' + Date.now()
     const res = await request(app)
       .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
       .send({
-        message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        message,
+        author: 'jim@' + domain
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === message)
+    assert.equal(review.author, 'bender@' + domain)
   })
 })
 
