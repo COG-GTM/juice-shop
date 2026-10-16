@@ -35,6 +35,7 @@ import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
+import { staticAdminCredentialsEnabled, withGeneratedCredentials } from '../lib/adminSeedCredentials'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
@@ -183,12 +184,18 @@ async function createChallenges () {
 }
 
 async function createUsers () {
-  const users = await loadStaticUserData()
+  const generateAdminCredentials = !staticAdminCredentialsEnabled()
+  const users = (await loadStaticUserData()).map((user: StaticUser) =>
+    generateAdminCredentials && user.role === security.roles.admin ? withGeneratedCredentials(user) : user
+  )
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        if (generateAdminCredentials && role === security.roles.admin && !deletedFlag) {
+          logger.info(`Generated credentials for admin ${completeEmail}: password ${password}${totpSecret ? `, TOTP secret ${totpSecret}` : ''}`)
+        }
         const user = await UserModel.create({
           username,
           email: completeEmail,

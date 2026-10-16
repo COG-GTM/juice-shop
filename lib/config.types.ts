@@ -20,6 +20,7 @@ export interface ApplicationConfig {
   altcoinName: string
   privacyContactEmail: string
   customMetricsPrefix: string
+  staticAdminCredentials: boolean
   chatBot: {
     name: string
     avatar: string
