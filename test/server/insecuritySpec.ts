@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -108,6 +109,64 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const run = (token?: string) => {
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.stub() }
+      const next = sinon.spy()
+      security.isAdmin()({ headers: token ? { authorization: `Bearer ${token}` } : {} } as unknown as Request, res, next)
+      return { res, next }
+    }
+
+    it('allows a signed admin token', () => {
+      const { next } = run(security.authorize({ data: { id: 1, role: 'admin' } }))
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('rejects a signed customer token', () => {
+      const { res, next } = run(security.authorize({ data: { id: 2, role: 'customer' } }))
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects an unsigned admin token', () => {
+      const unsigned = `${Buffer.from('{"alg":"none","typ":"JWT"}').toString('base64url')}.${Buffer.from('{"data":{"id":1,"role":"admin"}}').toString('base64url')}.`
+      const { res, next } = run(unsigned)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects a missing token', () => {
+      const { res, next } = run()
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+  })
+
+  describe('isAdminOrSelf', () => {
+    const run = (token: string, id: string) => {
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.stub() }
+      const next = sinon.spy()
+      security.isAdminOrSelf()({ headers: { authorization: `Bearer ${token}` }, params: { id } } as unknown as Request, res, next)
+      return { res, next }
+    }
+
+    it('allows users to access their own record', () => {
+      const { next } = run(security.authorize({ data: { id: 2, role: 'customer' } }), '2')
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('rejects access to records of other users', () => {
+      const { res, next } = run(security.authorize({ data: { id: 2, role: 'customer' } }), '1')
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('allows admins to access any record', () => {
+      const { next } = run(security.authorize({ data: { id: 1, role: 'admin' } }), '2')
+      expect(next.calledOnce).to.equal(true)
     })
   })
 

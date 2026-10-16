@@ -16,6 +16,28 @@ import * as utils from '../../lib/utils'
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
+const adminAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
+const jimAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }), 'content-type': 'application/json' }
+const userIdOf: Record<string, number | undefined> = { [adminAuthHeader.Authorization]: 1, [jimAuthHeader.Authorization]: 2 }
+
+async function createFeedback (headers: Record<string, string>, comment: string) {
+  const captchaRes = await request(app).get('/rest/captcha')
+  assert.equal(captchaRes.status, 200)
+
+  const res = await request(app)
+    .post('/api/Feedbacks')
+    .set(headers)
+    .send({
+      comment,
+      rating: 1,
+      UserId: userIdOf[headers.Authorization],
+      captchaId: captchaRes.body.captchaId,
+      captcha: captchaRes.body.answer
+    })
+  assert.equal(res.status, 201)
+  assert.equal(typeof res.body.data.id, 'number')
+  return res.body.data.id
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -278,27 +300,39 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
-    const captchaRes = await request(app)
-      .get('/rest/captcha')
-    assert.equal(captchaRes.status, 200)
-    assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
-
-    const createRes = await request(app)
-      .post('/api/Feedbacks')
-      .set(jsonHeader)
-      .send({
-        comment: 'I will be gone soon!',
-        rating: 1,
-        captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
-      })
-    assert.equal(createRes.status, 201)
-    assert.equal(typeof createRes.body.data.id, 'number')
+  void it('DELETE own feedback', async () => {
+    const feedbackId = await createFeedback(jimAuthHeader, 'I will be gone soon!')
 
     const res = await request(app)
-      .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(jimAuthHeader)
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const feedbackId = await createFeedback(adminAuthHeader, 'Not yours to delete!')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(jimAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE anonymous feedback is forbidden for non-admin users', async () => {
+    const feedbackId = await createFeedback(jsonHeader, 'Anonymous and here to stay!')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(jimAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE feedback of any user as admin', async () => {
+    const feedbackId = await createFeedback(jsonHeader, 'Admins can delete me!')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(adminAuthHeader)
     assert.equal(res.status, 200)
   })
 })

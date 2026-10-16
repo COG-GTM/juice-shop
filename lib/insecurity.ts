@@ -164,6 +164,36 @@ export const isAccounting = () => {
   }
 }
 
+export const rs256VerifiedPayload = (token?: string) => {
+  const parts = token?.split('.') ?? []
+  if (parts.length !== 3) return undefined
+  const valid = crypto.createVerify('RSA-SHA256').update(`${parts[0]}.${parts[1]}`).verify(publicKey, parts[2], 'base64url')
+  return valid ? decode(token as string) : undefined
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = rs256VerifiedPayload(utils.jwtFrom(req))
+    if (decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const isAdminOrSelf = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = rs256VerifiedPayload(utils.jwtFrom(req))
+    const userId = decodedToken?.data?.id
+    if (decodedToken?.data?.role === roles.admin || (userId !== undefined && userId !== null && String(userId) === req.params.id)) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
