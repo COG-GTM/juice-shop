@@ -54,9 +54,9 @@ const MAX_CHAT_MESSAGES = 50
 const MAX_CHAT_MESSAGE_LENGTH = 4000
 const MAX_CHAT_TOTAL_LENGTH = 32000
 const MAX_OUTPUT_TOKENS = 2048
-const CHAT_ROLES = ['system', 'user', 'assistant']
+const CHAT_ROLES = ['user', 'assistant']
 
-interface ChatMessage { role: 'system' | 'user' | 'assistant', content: string }
+interface ChatMessage { role: 'user' | 'assistant', content: string }
 
 export function validateChatMessages (messages: unknown): { messages?: ChatMessage[], error?: string } {
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -68,9 +68,9 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
   let totalLength = 0
   for (const message of messages) {
     if (!CHAT_ROLES.includes(message?.role) || typeof message?.content !== 'string') {
-      return { error: 'each message needs a role of system, user or assistant and string content' }
+      return { error: 'each message needs a role of user or assistant and string content' }
     }
-    if (message.role !== 'assistant' && message.content.length > MAX_CHAT_MESSAGE_LENGTH) {
+    if (message.role === 'user' && message.content.length > MAX_CHAT_MESSAGE_LENGTH) {
       return { error: `message content must not exceed ${MAX_CHAT_MESSAGE_LENGTH} characters` }
     }
     totalLength += message.content.length
@@ -78,7 +78,7 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
   if (totalLength > MAX_CHAT_TOTAL_LENGTH) {
     return { error: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters` }
   }
-  return { messages: messages.map(({ role, content }) => ({ role, content })) }
+  return { messages: messages.map(({ role, content }) => ({ role: role === 'assistant' ? 'assistant' : 'user', content })) }
 }
 
 export function chatRateLimitKey (req: Request): string {
