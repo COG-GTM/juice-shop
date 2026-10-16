@@ -208,4 +208,35 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password parameters of the change-password query string', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=s3cr3t&repeat=s3cr3t'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts URL-encoded, mixed-case, bracketed and duplicated parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/x?cur%72ent=a&NEW=b&repeat[]=c&password=d&password=e'))
+        .to.equal('/x?cur%72ent=[REDACTED]&NEW=[REDACTED]&repeat[]=[REDACTED]&password=[REDACTED]&password=[REDACTED]')
+    })
+
+    it('leaves other parameters and URLs without query string unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&newest=1')).to.equal('/rest/products/search?q=apple&newest=1')
+      expect(utils.redactSensitiveQueryParams('/support/logs')).to.equal('/support/logs')
+      expect(utils.redactSensitiveQueryParams(undefined)).to.equal(undefined)
+    })
+
+    it('keeps malformed percent-encoding intact without throwing', () => {
+      expect(utils.redactSensitiveQueryParams('/x?%E0%A4%A=1&new=2')).to.equal('/x?[REDACTED]&new=[REDACTED]')
+    })
+
+    it('redacts fragments of passwords containing unencoded ampersands', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=ab&cd&new=ef&gh=ij&repeat=ef&gh=ij'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&[REDACTED]&new=[REDACTED]&[REDACTED]&repeat=[REDACTED]&[REDACTED]')
+    })
+
+    it('redacts token query parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
+    })
+  })
 })
