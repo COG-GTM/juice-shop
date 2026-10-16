@@ -150,7 +150,8 @@ const isSensitiveQueryParam = (param: string) => {
   try {
     key = decodeURIComponent(key.replace(/\+/g, ' '))
   } catch {}
-  return sensitiveQueryParams.has(key.replace(/\[.*$/, '').trim().toLowerCase())
+  const bracket = key.indexOf('[')
+  return sensitiveQueryParams.has((bracket === -1 ? key : key.substring(0, bracket)).trim().toLowerCase())
 }
 
 // An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too
