@@ -177,6 +177,22 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.get('toRemove')).to.equal(undefined)
         expect(security.authenticatedUsers.tokenOf({ id: 49 } as unknown as UserModel)).to.equal(undefined)
       })
+
+      it('maps the user to a remaining session when the newest one is removed', () => {
+        security.authenticatedUsers.put('olderToken', { data: { id: 50 } as unknown as UserModel })
+        security.authenticatedUsers.put('newerToken', { data: { id: 50 } as unknown as UserModel })
+        security.authenticatedUsers.remove('newerToken')
+
+        expect(security.authenticatedUsers.tokenOf({ id: 50 } as unknown as UserModel)).to.equal('olderToken')
+      })
+
+      it('does not report an expired session from tokenOf', () => {
+        const expiredUser = { data: { id: 51 } as unknown as UserModel, exp: Math.floor(Date.now() / 1000) - 1 }
+        security.authenticatedUsers.put('expiredOnlyToken', expiredUser)
+
+        expect(security.authenticatedUsers.tokenOf({ id: 51 } as unknown as UserModel)).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap.expiredOnlyToken).to.equal(undefined)
+      })
     })
   })
 

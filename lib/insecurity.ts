@@ -126,11 +126,22 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     delete this.tokenMap[token]
     this.expiries.delete(token)
     if (user?.data && this.idMap[user.data.id] === token) {
-      delete this.idMap[user.data.id]
+      const now = Date.now()
+      const remaining = [...this.expiries].filter(([storedToken, expiry]) => expiry > now && this.tokenMap[storedToken]?.data?.id === user.data.id)
+      if (remaining.length > 0) {
+        this.idMap[user.data.id] = remaining[remaining.length - 1][0]
+      } else {
+        delete this.idMap[user.data.id]
+      }
     }
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    if (!user) return undefined
+    const token = this.idMap[user.id]
+    if (token !== undefined && this.get(token) === undefined) {
+      return this.idMap[user.id]
+    }
+    return token
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
