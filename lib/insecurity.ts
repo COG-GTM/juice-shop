@@ -51,10 +51,31 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const tokenLifetimeInMinutes = 6 * 60
+
+export const isUnexpired = (payload?: { exp?: unknown } | null) => typeof payload?.exp === 'number' && payload.exp > Math.floor(Date.now() / 1000)
+
+export const isAuthorized = () => {
+  const checkJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    checkJwt(req, res, (err?: unknown) => {
+      if (err) {
+        next(err)
+        return
+      }
+      const user = (req as Request & { user?: { exp?: unknown } }).user
+      if (user !== undefined && !isUnexpired(user)) {
+        next(Object.assign(new Error('jwt expired or missing expiry'), { name: 'UnauthorizedError', code: 'invalid_token', status: 401 }))
+        return
+      }
+      next()
+    })
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+// jsonwebtoken 0.4.0 only honours expiresInMinutes (expiresIn is silently ignored)
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresInMinutes: tokenLifetimeInMinutes, algorithm: 'RS256' } as jwt.SignOptions)
+export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) && isUnexpired(decode(token)) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -77,7 +98,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    const user = token ? this.tokenMap[utils.unquote(token)] : undefined
+    return user?.exp !== undefined && !isUnexpired(user) ? undefined : user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -189,7 +211,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && isUnexpired(decoded)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
