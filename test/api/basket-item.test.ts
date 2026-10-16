@@ -72,6 +72,26 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
+
+  void it('POST new basket item stores the validated quantity, ignoring nested quantity keys', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1, x: { quantity: 5000 } })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.ProductId, 1)
+    assert.equal(res.body.data.quantity, 1)
+  })
+
+  void it('POST new basket item stores the validated product, ignoring nested ProductId keys', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 4, quantity: 6, x: { ProductId: 7 } })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.ProductId, 4)
+    assert.equal(res.body.data.quantity, 6)
+  })
 })
 
 void describe('/api/BasketItems/:id', () => {
