@@ -12,7 +12,7 @@ import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
-import { login, register } from './helpers/auth'
+import { assertSessionCookieFlags, login, register, sessionCookie } from './helpers/auth'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -60,6 +60,7 @@ void describe('/rest/2fa/verify', () => {
     assert.equal(data.id, 10)
     assert.equal(data.password, undefined)
     assert.equal(data.totpSecret, undefined)
+    assertSessionCookieFlags(sessionCookie(res), { secure: false })
   })
 
   void it('POST should fail if a invalid totp token is used', async () => {
