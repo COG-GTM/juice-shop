@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +203,61 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const accountingPayload = { data: { email: 'accountant@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 }
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+
+    it('accepts RS256 tokens issued by the server', () => {
+      expect(security.verify(security.authorize(accountingPayload))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with "none" algorithm', () => {
+      expect(security.verify(`${encode({ alg: 'none', typ: 'JWT' })}.${encode(accountingPayload)}.`)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public RSA key', () => {
+      const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(accountingPayload)}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(`${unsigned}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+  })
+
+  describe('isAccounting', () => {
+    const accountingPayload = { data: { email: 'accountant@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 }
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const check = (token: string) => {
+      const req = { headers: { authorization: 'Bearer ' + token } } as unknown as Request
+      const json = sinon.spy()
+      const res = { status: sinon.stub().returns({ json }) } as any
+      const next = sinon.spy()
+      security.isAccounting()(req, res, next)
+      return { res, next }
+    }
+
+    it('allows server-issued accounting tokens', () => {
+      const { next } = check(security.authorize(accountingPayload))
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('forbids forged unsigned accounting tokens', () => {
+      const { res, next } = check(`${encode({ alg: 'none', typ: 'JWT' })}.${encode(accountingPayload)}.`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('forbids accounting tokens HMAC-signed with the public RSA key', () => {
+      const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(accountingPayload)}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      const { res, next } = check(`${unsigned}.${signature}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 })
