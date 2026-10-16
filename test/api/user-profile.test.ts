@@ -104,6 +104,19 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('POST update username is accepted when Host carries an explicit default port', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:80')
+      .set('Origin', 'http://localhost:80')
+      .type('form')
+      .send('username=DefaultPort')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
   void it('POST update username is rejected when X-Forwarded-Host is forged to match a cross-site Origin', async () => {
     const res = await request(app)
       .post('/profile')

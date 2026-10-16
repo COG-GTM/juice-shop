@@ -21,7 +21,8 @@ function isCrossSiteRequest (req: Request) {
     return false
   }
   try {
-    return new URL(source).host !== req.headers.host
+    const sourceUrl = new URL(source)
+    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${req.headers.host}`).host
   } catch {
     return true
   }
