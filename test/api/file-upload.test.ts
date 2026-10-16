@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -127,6 +128,26 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file does not extract entries outside of complaints directory', async () => {
+    const canary = path.resolve('uploads/complaints/zipSlipCanary.txt')
+    fs.rmSync(canary, { force: true })
+    const file = path.resolve(__dirname, '../files/zipSlipWithCanary.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+
+    for (let i = 0; i < 50 && !fs.existsSync(canary); i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.ok(fs.existsSync(canary))
+    fs.rmSync(canary, { force: true })
+
+    const legalFile = path.resolve('ftp/legal.md')
+    const legalContent = fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : ''
+    assert.ok(!legalContent.includes('Overwritten via zip slip'))
   })
 
   void it('POST zip file with password protection', async () => {
