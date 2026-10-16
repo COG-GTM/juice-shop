@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+import jwt from 'jsonwebtoken'
 
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
@@ -17,10 +18,19 @@ export function orderConfirmationPath (userId: number | undefined, orderId: stri
   return path.resolve(orderConfirmationsDirectory, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
 }
 
+function isValidToken (token: string) {
+  try {
+    jwt.verify(token, security.publicKey)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function retrieveOrderConfirmation () {
   return (req: Request, res: Response, next: NextFunction) => {
-    const loggedInUser = security.authenticatedUsers.get(utils.jwtFrom(req) ?? req.cookies?.token)
-    const userId = loggedInUser?.data?.id
+    const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
+    const userId = isValidToken(token) ? security.authenticatedUsers.get(token)?.data?.id : undefined
     if (!userId) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
       return

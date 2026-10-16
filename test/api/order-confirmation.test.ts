@@ -6,9 +6,11 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let jimToken: string
@@ -72,6 +74,15 @@ void describe('/rest/order-confirmation/:orderId', () => {
       .set('Cookie', 'token=' + jimToken)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET with a registered but unverifiable token is denied', async () => {
+    const forgedToken = jwt.sign({ data: { id: 2 } }, 'not-the-server-key', { expiresIn: -60 })
+    security.authenticatedUsers.put(forgedToken, { data: { id: 2 } } as any)
+    const res = await request(app)
+      .get(`/rest/order-confirmation/${orderId}`)
+      .set('Authorization', 'Bearer ' + forgedToken)
+    assert.equal(res.status, 401)
   })
 
   void it('GET with a malformed order id is not found', async () => {
