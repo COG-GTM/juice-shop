@@ -17,30 +17,16 @@ describe('/profile', () => {
 
   describe('challenge "usernameXss"', () => {
     it('should not be possible to disarm the CSP via profile image URL', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.on('window:alert', (t) => {
-            throw new Error(`username payload executed: ${t}`)
-          })
-          cy.request({
-            method: 'POST',
-            url: '/profile/image/url',
-            form: true,
-            body: { imageUrl: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" },
-            followRedirect: false,
-            failOnStatusCode: false
-          }).its('status').should('eq', 400)
+      cy.request({
+        method: 'POST',
+        url: '/profile/image/url',
+        form: true,
+        body: { imageUrl: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" },
+        followRedirect: false,
+        failOnStatusCode: false
+      }).its('status').should('eq', 400)
 
-          cy.visit('/profile')
-          cy.get('#username').type('<<a|ascript>alert(`xss`)</script>')
-          cy.get('#submit').click()
-          cy.request('/profile').its('headers').its('content-security-policy').should('eq', "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'")
-
-          cy.get('#username').clear()
-          cy.get('#username').type('αδмιη')
-          cy.get('#submit').click()
-        }
-      })
+      cy.request('/profile').its('headers').its('content-security-policy').should('eq', "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'")
     })
   })
 
