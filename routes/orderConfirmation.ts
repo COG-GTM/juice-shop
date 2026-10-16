@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+import jws from 'jws'
 
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
@@ -18,8 +19,13 @@ export function orderConfirmationPath (userId: number | undefined, orderId: stri
 }
 
 function isValidToken (token: string) {
-  const exp = security.decode(token)?.exp
-  return security.verify(token) && (typeof exp !== 'number' || exp * 1000 > Date.now())
+  try {
+    const decoded = jws.decode(token)
+    const exp = decoded?.payload?.exp
+    return decoded?.header?.alg === 'RS256' && security.verify(token) && (typeof exp !== 'number' || exp * 1000 > Date.now())
+  } catch {
+    return false
+  }
 }
 
 export function retrieveOrderConfirmation () {
