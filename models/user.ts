@@ -126,6 +126,13 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     }
   )
 
+  User.addHook('beforeSave', (user: User) => {
+    const digest = user.getDataValue('password')
+    if (user.changed('password') && digest && !security.isPasswordHash(digest)) {
+      user.setDataValue('password', security.strengthenPasswordDigestSync(digest))
+    }
+  })
+
   User.addHook('afterValidate', async (user: User) => {
     if (
       user.email &&

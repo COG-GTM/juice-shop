@@ -196,6 +196,45 @@ describe('insecurity', () => {
     })
   })
 
+  describe('password hashing', () => {
+    it('stores a salted scrypt hash instead of the plain MD5 digest', async () => {
+      const first = await security.passwordHashFor('admin123')
+      const second = await security.passwordHashFor('admin123')
+      expect(first).to.match(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{64}$/)
+      expect(first).to.not.contain(security.hash('admin123'))
+      expect(first).to.not.equal(second)
+    })
+
+    it('verifies only the correct password against a stored hash', async () => {
+      const stored = await security.passwordHashFor('admin123')
+      expect(await security.verifyPassword('admin123', stored)).to.equal(true)
+      expect(await security.verifyPassword('admin1234', stored)).to.equal(false)
+    })
+
+    it('rejects legacy unsalted MD5 hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+    })
+
+    it('reuses the salt of a stored hash so the result is comparable', async () => {
+      const stored = await security.passwordHashFor('admin123')
+      expect(await security.passwordHashFor('admin123', stored)).to.equal(stored)
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs only non-sensitive user claims into the token', () => {
+      const token = security.authorize({
+        status: 'success',
+        bid: 1,
+        data: { id: 1, email: 'admin@juice-sh.op', role: 'admin', lastLoginIp: '1.2.3.4', password: 'scrypt$hash', totpSecret: 'SECRET', deluxeToken: 'DELUXE' }
+      })
+      const payload = security.decode(token)
+      expect(payload.status).to.equal('success')
+      expect(payload.data).to.deep.equal({ id: 1, email: 'admin@juice-sh.op', role: 'admin', lastLoginIp: '1.2.3.4' })
+      expect(payload).to.not.have.property('bid')
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
