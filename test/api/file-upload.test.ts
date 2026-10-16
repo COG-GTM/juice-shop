@@ -120,7 +120,7 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(!res.text.includes('RCE:'))
+      assert.ok(!res.text.includes('RCE42'))
       assert.ok(res.text.includes('unknown tag'))
     })
   }

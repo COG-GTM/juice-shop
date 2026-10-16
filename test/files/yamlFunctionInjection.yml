@@ -1,1 +1,1 @@
-toJSON: !!js/function "function () { return 'RCE:' + process.version }"
+toJSON: !!js/function "function () { return 'RCE' + (6 * 7) }"
