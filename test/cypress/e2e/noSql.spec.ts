@@ -120,11 +120,11 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'mc.safesearch', password: 'Mr. N00dles' })
     })
 
-    it('should be possible to like reviews multiple times', () => {
+    it('should count concurrent likes of the same review by one user only once', () => {
       cy.visit('/')
       cy.window().then(async () => {
         async function sendPostRequest (reviewId: string) {
-          const anotherResponse = await fetch(
+          const response = await fetch(
             `${Cypress.config('baseUrl')}/rest/products/reviews`,
             {
               method: 'POST',
@@ -135,30 +135,31 @@ describe('/rest/products/reviews', () => {
               body: JSON.stringify({ id: reviewId })
             }
           )
-          if (anotherResponse.status === 200) {
-            console.log('Success')
-          }
+          return response.status
         }
 
-        const response = await fetch(
-          `${Cypress.config('baseUrl')}/rest/products/1/reviews`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-type': 'text/plain'
-            }
-          }
-        )
-        if (response.status === 200) {
+        async function getReview (reviewId: string) {
+          const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
           const responseJson = await response.json()
-          const reviewId = responseJson.data[0]._id
-
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
+          return responseJson.data.find((review: { _id: string }) => review._id === reviewId)
         }
+
+        const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`)
+        const reviewId = (await response.json()).data[0]._id
+        const before = await getReview(reviewId)
+
+        const statuses = await Promise.all([
+          sendPostRequest(reviewId),
+          sendPostRequest(reviewId),
+          sendPostRequest(reviewId)
+        ])
+        const after = await getReview(reviewId)
+
+        expect(statuses.filter(status => status === 200)).to.have.length(before.liked ? 0 : 1)
+        expect(after.likesCount).to.equal(before.likesCount + (before.liked ? 0 : 1))
       })
-      cy.expectChallengeSolved({ challenge: 'Multiple Likes' })
     })
   })
 })
