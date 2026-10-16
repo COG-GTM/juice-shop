@@ -58,7 +58,7 @@ export const verify = (token: string) => token ? (jws.verify as ((token: string,
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sessionCookieOptions = (req: Request): CookieOptions => ({ httpOnly: true, secure: req.secure, sameSite: 'strict' })
-export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, sessionCookieOptions(res.req))
+export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, { ...sessionCookieOptions(res.req), maxAge: 6 * 60 * 60 * 1000 })
 export const clearSessionCookie = (res: Response) => res.clearCookie('token', sessionCookieOptions(res.req))
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)

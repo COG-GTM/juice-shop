@@ -54,6 +54,7 @@ void describe('/rest/user/login', () => {
     const cookie = sessionCookie(res)
     assert.equal(cookie?.split(';')[0], `token=${res.body.authentication.token}`)
     assertSessionCookieFlags(cookie, { secure: false })
+    assert.ok(cookie?.includes('Max-Age=21600'))
   })
 
   void it('POST login over HTTPS sets the session token cookie as Secure', async () => {
