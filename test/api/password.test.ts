@@ -116,6 +116,8 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+    assert.equal(res.body.user.email, 'jim@' + config.get<string>('application.domain'))
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {
