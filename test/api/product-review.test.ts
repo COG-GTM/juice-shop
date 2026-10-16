@@ -103,6 +103,33 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 401)
   })
+
+  void it('PUT single product review rejects missing, blank, non-string and overlong messages', async () => {
+    const reviewerAuth = { Authorization: `Bearer ${security.authorize({ data: { email: 'review.validation@' + config.get<string>('application.domain') } })}` }
+    for (const body of [{}, { message: '   ' }, { message: { $gt: '' } }, { message: 'x'.repeat(161) }]) {
+      const res = await request(app)
+        .put('/rest/products/1/reviews')
+        .set(reviewerAuth)
+        .send(body)
+      assert.equal(res.status, 400)
+    }
+  })
+
+  void it('PUT single product review creation is rate limited per user', async () => {
+    const reviewerAuth = { Authorization: `Bearer ${security.authorize({ data: { email: 'review.ratelimit@' + config.get<string>('application.domain') } })}` }
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .put('/rest/products/1/reviews')
+        .set(reviewerAuth)
+        .send({ message: '' })
+      assert.equal(res.status, 400)
+    }
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set(reviewerAuth)
+      .send({ message: 'Lorem Ipsum' })
+    assert.equal(res.status, 429)
+  })
 })
 
 void describe('/rest/products/reviews', () => {
