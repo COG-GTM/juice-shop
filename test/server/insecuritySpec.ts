@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
@@ -70,6 +71,13 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon(z85.encode('DEC18-999'))).to.equal(undefined)
       expect(security.discountFromCoupon(z85.encode('DEC18-1'))).to.equal(undefined)
       expect(security.discountFromCoupon(z85.encode('DEC2018-10'))).to.equal(undefined)
+    })
+
+    it('returns undefined for current coupon code with more than two discount digits or trailing characters', () => {
+      const currentMonth = utils.toMMMYY(new Date())
+      expect(security.discountFromCoupon(z85.encode(currentMonth + '-999999'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(currentMonth + '-99abcd'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode('x' + currentMonth + '-99' + 'xxx'))).to.equal(undefined)
     })
 
     it('returns undefined for expired coupon code', () => {
