@@ -69,13 +69,14 @@ describe('fileUpload', () => {
   describe('resolveComplaintEntryPath', () => {
     const complaintsDirectory = path.resolve('uploads/complaints')
 
-    it('should resolve plain entry names inside uploads/complaints', () => {
+    it('should resolve top-level entry names inside uploads/complaints', () => {
       expect(resolveComplaintEntryPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
-      expect(resolveComplaintEntryPath('nested/./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'nested', 'complaint.pdf'))
+      expect(resolveComplaintEntryPath('./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
     })
 
     const maliciousEntries = [
       '../../ftp/legal.md',
+      'nested/complaint.pdf',
       '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
       '../complaints/../../server.ts',
       'nested/../../complaints-evil/x.txt',

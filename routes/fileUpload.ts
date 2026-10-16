@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { Transform } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
@@ -36,24 +37,15 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
     return null
   }
   const targetPath = path.resolve(complaintsDirectory, ...segments)
-  return targetPath.startsWith(complaintsDirectory + path.sep) ? targetPath : null
+  return path.dirname(targetPath) === complaintsDirectory ? targetPath : null
 }
 
-function isRealPathWithinComplaintsDirectory (targetPath: string): boolean {
-  try {
-    const realRoot = fs.realpathSync(complaintsDirectory)
-    const realParent = fs.realpathSync(path.dirname(targetPath))
-    return realParent === realRoot || realParent.startsWith(realRoot + path.sep)
-  } catch {
-    return false
-  }
-}
+const tempFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW ?? 0)
 
-const noFollowWriteFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
-
-function openComplaintFile (targetPath: string): number | null {
+function openComplaintTempFile (): { tempPath: string, fd: number } | null {
+  const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
-    return fs.openSync(targetPath, noFollowWriteFlags)
+    return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
   } catch {
     return null
   }
@@ -101,12 +93,15 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-                const outputFd = targetPath !== null && budget.takeEntry() && isRealPathWithinComplaintsDirectory(targetPath) ? openComplaintFile(targetPath) : null
-                if (targetPath !== null && outputFd !== null) {
+                const temp = targetPath !== null && budget.takeEntry() ? openComplaintTempFile() : null
+                if (targetPath !== null && temp !== null) {
                   const limiter = budget.limiter()
-                  const output = fs.createWriteStream(targetPath, { fd: outputFd })
-                  const discard = () => { fs.rm(targetPath, { force: true }, () => {}) }
+                  const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
+                  const discard = () => { fs.rm(temp.tempPath, { force: true }, () => {}) }
                   output.on('error', () => { limiter.unpipe(output); limiter.resume(); discard() })
+                  output.on('close', () => {
+                    if (output.writableFinished) fs.rename(temp.tempPath, targetPath, (err) => { if (err != null) discard() })
+                  })
                   limiter.on('error', () => { output.destroy(); discard() })
                   entry.pipe(limiter).pipe(output)
                 } else {
