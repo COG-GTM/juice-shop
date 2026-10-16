@@ -326,4 +326,18 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.email, 'string')
     assert.equal(typeof res.body.user.password, 'string')
   })
+
+  void it('GET who-am-i password field only reveals a salted scrypt hash instead of unsalted MD5', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .get('/rest/user/whoami?fields=password')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.match(res.body.user.password, /^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+    assert.notEqual(res.body.user.password, security.hash('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='))
+    assert.ok(await security.verifyPassword('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=', res.body.user.password))
+  })
 })
