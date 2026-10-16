@@ -42,8 +42,9 @@ function resolveComplaintUploadPath (entryPath: string): string | null {
 function openWithoutFollowingSymlinks (targetPath: string): number | null {
   try {
     return fs.openSync(targetPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW)
-  } catch {
-    return null
+  } catch (err: any) {
+    if (err?.code === 'ELOOP') return null
+    throw err
   }
 }
 
@@ -65,7 +66,16 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
                 const targetPath = resolveComplaintUploadPath(fileName)
-                const fd = targetPath !== null ? openWithoutFollowingSymlinks(targetPath) : null
+                let fd: number | null = null
+                if (targetPath !== null) {
+                  try {
+                    fd = openWithoutFollowingSymlinks(targetPath)
+                  } catch (err) {
+                    entry.autodrain()
+                    next(err)
+                    return
+                  }
+                }
                 if (targetPath !== null && fd !== null) {
                   entry.pipe(fs.createWriteStream(targetPath, { fd }).on('error', function (err) { next(err) }))
                 } else {
