@@ -160,6 +160,49 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(resetRes.status, 200)
   })
 
+  void it('POST user registration with unknown security question is rejected without creating the user', async () => {
+    const invalidRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'invalid.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 999999 },
+        securityAnswer: 'blue'
+      })
+
+    assert.equal(invalidRes.status, 400)
+
+    const validRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'invalid.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: 'blue'
+      })
+
+    assert.equal(validRes.status, 201)
+  })
+
+  void it('POST user registration with security question but empty answer is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'empty.answer@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: ''
+      })
+
+    assert.equal(res.status, 400)
+  })
+
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .put('/api/SecurityAnswers/1')
