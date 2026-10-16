@@ -32,6 +32,11 @@ export function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
+        if (!isSafeProfileImageUrl(url)) {
+          res.status(400)
+          next(new Error('Profile image URL must be a valid http(s) URL'))
+          return
+        }
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {
@@ -43,11 +48,6 @@ export function profileImageUrlUpload () {
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
-          if (!isSafeProfileImageUrl(url)) {
-            res.status(400)
-            next(new Error('Profile image URL must be a valid http(s) URL'))
-            return
-          }
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
             await user?.update({ profileImage: url })
