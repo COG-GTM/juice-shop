@@ -6,10 +6,19 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
+
+const base64url = (input: string | Buffer) => Buffer.from(input).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+const unsignedToken = () => `${base64url(JSON.stringify({ alg: 'none', typ: 'JWT' }))}.${base64url(JSON.stringify(forgedPayload))}.`
+const hmacSignedWithPublicKeyToken = () => {
+  const signingInput = `${base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${base64url(JSON.stringify(forgedPayload))}`
+  return `${signingInput}.${base64url(crypto.createHmac('sha256', security.publicKey).update(signingInput).digest())}`
+}
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -185,6 +194,68 @@ describe('insecurity', () => {
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+    })
+  })
+
+  describe('verify', () => {
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: forgedPayload.data }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with algorithm "none"', () => {
+      expect(security.verify(unsignedToken())).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacSignedWithPublicKeyToken())).to.equal(false)
+    })
+
+    it('rejects a malformed token', () => {
+      expect(security.verify('not-a-jwt')).to.equal(false)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    const runMiddleware = async (middleware: any, token: string) => await new Promise<any>((resolve) => {
+      middleware({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as unknown as Response, resolve)
+    })
+
+    it('rejects an unsigned token with algorithm "none"', async () => {
+      const err = await runMiddleware(security.isAuthorized(), unsignedToken())
+      expect(err?.status).to.equal(401)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', async () => {
+      const err = await runMiddleware(security.isAuthorized(), hmacSignedWithPublicKeyToken())
+      expect(err?.status).to.equal(401)
+    })
+
+    it('accepts a token signed with the private RSA key', async () => {
+      const err = await runMiddleware(security.isAuthorized(), security.authorize({ data: forgedPayload.data }))
+      expect(err).to.equal(undefined)
+    })
+
+    it('denyAll rejects an unsigned token with algorithm "none"', async () => {
+      const err = await runMiddleware(security.denyAll(), unsignedToken())
+      expect(err?.status).to.equal(401)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    const register = (token: string) => {
+      security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, { cookie: () => {} } as unknown as Response, () => {})
+    }
+
+    it('does not register an unsigned token with algorithm "none"', () => {
+      const token = unsignedToken()
+      register(token)
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+
+    it('does not register a token HMAC-signed with the public RSA key', () => {
+      const token = hmacSignedWithPublicKeyToken()
+      register(token)
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
     })
   })
 
