@@ -5,7 +5,7 @@
 
 import chai from 'chai'
 import * as challengeUtils from '../../lib/challengeUtils'
-import { challenges } from '../../data/datacache'
+import { challenges, notifications } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 
 const expect = chai.expect
@@ -32,6 +32,37 @@ describe('challengeUtils', () => {
 
     it('returns existing challenge', () => {
       expect(challengeUtils.findChallengeById(42)).to.deep.equal({ id: 42, name: 'scoreBoardChallenge' })
+    })
+  })
+
+  describe('sendNotification', () => {
+    beforeEach(() => {
+      notifications.length = 0
+    })
+
+    it('queues one notification per solved challenge', () => {
+      challengeUtils.sendNotification({ key: 'scoreBoardChallenge', name: 'Score Board', description: 'Find the score board.', solved: true } as any, false)
+      challengeUtils.sendNotification({ key: 'adminSectionChallenge', name: 'Admin Section', description: 'Find the admin section.', solved: true } as any, false)
+
+      expect(notifications.map(({ key }) => key)).to.deep.equal(['scoreBoardChallenge', 'adminSectionChallenge'])
+    })
+
+    it('does not append repeated notifications for the same challenge', () => {
+      const challenge = { key: 'scoreBoardChallenge', name: 'Score Board', description: 'Find the score board.', solved: true } as any
+      challengeUtils.sendNotification(challenge, false)
+      for (let i = 0; i < 100; i++) {
+        challengeUtils.sendNotification(challenge, true)
+      }
+
+      expect(notifications).to.have.lengthOf(1)
+      expect(notifications[0].key).to.equal('scoreBoardChallenge')
+      expect(notifications[0].isRestore).to.equal(false)
+    })
+
+    it('does not queue notifications for unsolved challenges', () => {
+      challengeUtils.sendNotification({ key: 'scoreBoardChallenge', name: 'Score Board', description: 'Find the score board.', solved: false } as any, false)
+
+      expect(notifications).to.have.lengthOf(0)
     })
   })
 })

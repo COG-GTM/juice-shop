@@ -26,9 +26,7 @@ export function restoreProgress () {
       res.end()
     } else if (ids.length > 0) {
       for (const challenge of Object.values(challenges)) {
-        if (ids.includes(challenge.id)) {
-          challengeUtils.solve(challenge, true)
-        }
+        challengeUtils.solveIf(challenge, () => ids.includes(challenge.id), true)
       }
       res.json({ data: ids.length + ' solved challenges have been restored.' })
     } else {
