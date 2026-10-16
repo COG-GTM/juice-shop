@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -284,6 +285,36 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     assert.equal(res.status, 401)
     assert.equal(llmCalled, false)
+  })
+
+  void it('POST with a 2FA temporary token is rejected without calling the LLM', { timeout: 15000 }, async () => {
+    let llmCalled = false
+    onLlmRequest = (_req, _body, res) => {
+      llmCalled = true
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const tmpToken = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ Authorization: `Bearer ${tmpToken}`, 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+
+    assert.equal(res.status, 401)
+    assert.equal(llmCalled, false)
+  })
+
+  void it('POST accepts a long assistant reply in the history', { timeout: 15000 }, async () => {
+    onLlmRequest = (_req, _body, res) => {
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: [{ role: 'user', content: 'Hi' }, { role: 'assistant', content: 'a'.repeat(6000) }, { role: 'user', content: 'More' }] })
+
+    assert.equal(res.status, 200)
   })
 
   void it('POST with too many messages is rejected', { timeout: 15000 }, async () => {

@@ -70,7 +70,7 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
     if (!CHAT_ROLES.includes(message?.role) || typeof message?.content !== 'string') {
       return { error: 'each message needs a role of system, user or assistant and string content' }
     }
-    if (message.content.length > MAX_CHAT_MESSAGE_LENGTH) {
+    if (message.role !== 'assistant' && message.content.length > MAX_CHAT_MESSAGE_LENGTH) {
       return { error: `message content must not exceed ${MAX_CHAT_MESSAGE_LENGTH} characters` }
     }
     totalLength += message.content.length
@@ -224,6 +224,11 @@ export function chat () {
         }
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
+
+    if (!userIdFromToken(req)) {
+      res.status(401).json({ error: 'a logged-in user is required' })
+      return
+    }
 
     const { messages, error: validationError } = validateChatMessages(req.body?.messages)
     if (!messages) {
