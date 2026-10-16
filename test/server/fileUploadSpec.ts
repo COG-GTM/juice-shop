@@ -4,11 +4,15 @@
  */
 
 import chai from 'chai'
+import config from 'config'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('fileUpload', () => {
   let req: any
@@ -62,5 +66,69 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('deprecated B2B interface', () => {
+    const yamlBomb = 'a: &a ["x","x","x","x","x","x","x","x","x"]\n' +
+      'b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]\n' +
+      'c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]\n' +
+      'd: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c]\n'
+    const xmlEntityExpansion = '<?xml version="1.0"?><!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;&lol;">]><lolz>&lol2;</lolz>'
+    let configStub: sinon.SinonStub
+    let errors: Error[]
+
+    function upload (handler: typeof handleYamlUpload, originalname: string, content: string) {
+      req.file = { originalname, buffer: Buffer.from(content) }
+      res = { status: sinon.stub().returnsThis(), end: sinon.stub() }
+      handler(req, res, (err?: unknown) => { if (err instanceof Error) errors.push(err) })
+    }
+
+    function setSafetyMode (safetyMode: string) {
+      configStub = sinon.stub(config, 'get').callThrough()
+      configStub.withArgs('challenges.safetyMode').returns(safetyMode)
+    }
+
+    beforeEach(() => {
+      errors = []
+      challenges.deprecatedInterfaceChallenge = { solved: true, save } as unknown as Challenge
+      for (const key of ['yamlBombChallenge', 'xxeDosChallenge', 'xxeFileDisclosureChallenge'] as const) {
+        challenges[key] = { solved: false, save, disabledEnv: ['Docker', 'Heroku', 'Gitpod'] } as unknown as Challenge
+      }
+    })
+
+    afterEach(() => {
+      configStub?.restore()
+    })
+
+    it('should not parse YAML when "yamlBombChallenge" is disabled by safety mode', () => {
+      setSafetyMode('enabled')
+
+      upload(handleYamlUpload, 'bomb.yml', yamlBomb)
+
+      expect(res.status).to.have.been.calledWith(410)
+      expect(errors).to.have.lengthOf(1)
+      expect(errors[0].message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (bomb.yml)')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should not parse XML when "xxeDosChallenge" and "xxeFileDisclosureChallenge" are disabled by safety mode', () => {
+      setSafetyMode('enabled')
+
+      upload(handleXmlUpload, 'lolz.xml', xmlEntityExpansion)
+
+      expect(res.status).to.have.been.calledWith(410)
+      expect(errors).to.have.lengthOf(1)
+      expect(errors[0].message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (lolz.xml)')
+      expect(challenges.xxeDosChallenge.solved).to.equal(false)
+    })
+
+    it('should still parse YAML when "yamlBombChallenge" is enabled', () => {
+      setSafetyMode('disabled')
+
+      upload(handleYamlUpload, 'complaint.yml', 'complaint: broken juice')
+
+      expect(res.status).to.have.been.calledWith(410)
+      expect(errors[0].message).to.contain('{"complaint":"broken juice"}')
+    })
   })
 })
