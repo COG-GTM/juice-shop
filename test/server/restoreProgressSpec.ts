@@ -29,7 +29,7 @@ describe('restoreProgress', () => {
 
     restoreProgress()({ params: { continueCode: continueCodeFor(9001) } } as any, res)
 
-    expect(save).to.have.been.calledOnce
+    expect(save).to.have.callCount(1)
     expect(challenges.scoreBoardChallenge.solved).to.equal(true)
     expect(res.json).to.have.been.calledWith({ data: '1 solved challenges have been restored.' })
   })
