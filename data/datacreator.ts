@@ -778,20 +778,23 @@ async function createOrders () {
   ]
 
   return await Promise.all(
-    orders.map(async ({ orderId, ownerEmail, email, totalPrice, bonus, products, eta, delivered }) =>
-      await ordersCollection.insert({
-        orderId,
-        UserId: (await UserModel.findOne({ where: { email: ownerEmail }, attributes: ['id'] }))?.id,
-        email,
-        totalPrice,
-        bonus,
-        products,
-        eta,
-        delivered
-      }).catch((err: unknown) => {
+    orders.map(async ({ orderId, ownerEmail, email, totalPrice, bonus, products, eta, delivered }) => {
+      try {
+        const owner = await UserModel.findOne({ where: { email: ownerEmail }, attributes: ['id'] })
+        return await ordersCollection.insert({
+          orderId,
+          UserId: owner?.id,
+          email,
+          totalPrice,
+          bonus,
+          products,
+          eta,
+          delivered
+        })
+      } catch (err: unknown) {
         logger.error(`Could not insert Order ${orderId}: ${utils.getErrorMessage(err)}`)
-      })
-    )
+      }
+    })
   )
 }
 

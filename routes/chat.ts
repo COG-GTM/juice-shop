@@ -168,6 +168,9 @@ export function chat () {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
+          const user = await UserModel.findByPk(userId, { attributes: ['id'] })
+          if (!user) return { error: 'Customer not found' }
+
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
