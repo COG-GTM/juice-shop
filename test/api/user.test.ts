@@ -59,7 +59,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new admin', async () => {
+  void it('POST new user requesting admin role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -74,7 +74,7 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'admin')
+    assert.equal(res.body.data.role, 'customer')
   })
 
   void it('POST new blank user', async () => {
@@ -127,7 +127,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new deluxe user', async () => {
+  void it('POST new user requesting deluxe role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -142,10 +142,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'deluxe')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST new accounting user', async () => {
+  void it('POST new user requesting accounting role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -160,10 +160,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'accounting')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST user not belonging to customer, deluxe, accounting, admin is forbidden', async () => {
+  void it('POST new user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -172,6 +172,49 @@ void describe('/api/Users', () => {
         password: 'hooooorst',
         role: 'accountinguser'
       })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.role, 'customer')
+  })
+
+  void it('POST new user requesting accounting role cannot access accounting endpoints', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        passwordRepeat: 'hooooorst',
+        role: 'accounting'
+      })
+    assert.equal(res.status, 201)
+
+    const { token } = await login(app, { email: 'horst6@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+
+    const orders = await request(app)
+      .get('/rest/order-history/orders')
+      .set({ Authorization: `Bearer ${token}` })
+    assert.equal(orders.status, 403)
+  })
+
+  void it('POST new user requesting admin role gets no admin profile image or token', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst7@horstma.nn',
+        password: 'hooooorst',
+        passwordRepeat: 'hooooorst',
+        role: 'admin'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
+    assert.notEqual(res.body.data.profileImage, '/assets/public/images/uploads/defaultAdmin.png')
+
+    const { token } = await login(app, { email: 'horst7@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+  })
     assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
