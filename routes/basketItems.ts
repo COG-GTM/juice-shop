@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -52,6 +53,39 @@ export function addBasketItem () {
         next(error)
       }
     }
+  }
+}
+
+interface FinaleContext<T> {
+  instance: T
+  continue: unknown
+  error: (status: number, message: string) => unknown
+}
+
+async function ownBasketIds (req: Request) {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  if (userId === undefined || userId === null) {
+    return new Set<number>()
+  }
+  const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+  return new Set(baskets.map(({ id }) => id))
+}
+
+export function onlyOwnBasketItem () {
+  return async (req: Request, res: Response, context: FinaleContext<BasketItemModel | null>) => {
+    const basketIds = await ownBasketIds(req)
+    if (context.instance == null || !basketIds.has(context.instance.BasketId)) {
+      return context.error(403, 'Not allowed to access this basket item')
+    }
+    return context.continue
+  }
+}
+
+export function onlyOwnBasketItems () {
+  return async (req: Request, res: Response, context: FinaleContext<BasketItemModel[]>) => {
+    const basketIds = await ownBasketIds(req)
+    context.instance = context.instance.filter(({ BasketId }) => basketIds.has(BasketId))
+    return context.continue
   }
 }
 
