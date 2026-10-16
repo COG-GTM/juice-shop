@@ -139,7 +139,7 @@ describe('insecurity', () => {
     })
 
     it('rejects an expired admin token', () => {
-      const token = security.authorize({ data: { id: 1, role: 'admin' }, iat: Math.floor(Date.now() / 1000) - 7 * 60 * 60 })
+      const token = security.authorize({ data: { id: 1, role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
       const { res, next } = run(token)
       expect(next.called).to.equal(false)
       expect(res.status.calledWith(403)).to.equal(true)
