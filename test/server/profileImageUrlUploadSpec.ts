@@ -40,10 +40,10 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(Date.now() - start).to.be.below(1000)
-    expect(next).to.have.been.calledOnce
+    expect(next.calledOnce).to.equal(true)
     expect(next.firstCall.args[0].message).to.contain('Blocked illegal activity')
     expect(req.app.locals.abused_ssrf_bug).to.equal(false)
-    expect(fetchStub).to.not.have.been.called
+    expect(fetchStub.called).to.equal(false)
   })
 
   it('should reject an imageUrl longer than the maximum length', async () => {
@@ -53,8 +53,8 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(400)
-    expect(fetchStub).to.not.have.been.called
-    expect(next).to.not.have.been.called
+    expect(fetchStub.called).to.equal(false)
+    expect(next.called).to.equal(false)
   })
 
   it('should reject a non-string imageUrl', async () => {
@@ -64,7 +64,7 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(400)
-    expect(fetchStub).to.not.have.been.called
+    expect(fetchStub.called).to.equal(false)
   })
 
   it('should flag the SSRF challenge for a logged-in user requesting the server-side solve URL', async () => {
@@ -75,7 +75,7 @@ describe('profileImageUrlUpload', () => {
 
     expect(req.app.locals.abused_ssrf_bug).to.equal(true)
     expect(fetchStub).to.have.been.calledWith(req.body.imageUrl)
-    expect(res.redirect).to.have.been.called
+    expect(res.redirect.called).to.equal(true)
   })
 
   it('should not flag the SSRF challenge for an ordinary image URL', async () => {
@@ -85,6 +85,6 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(req.app.locals.abused_ssrf_bug).to.equal(false)
-    expect(res.redirect).to.have.been.called
+    expect(res.redirect.called).to.equal(true)
   })
 })
