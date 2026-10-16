@@ -12,7 +12,7 @@ import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
-import { login, register } from './helpers/auth'
+import { assertSessionCookieFlags, login, register, sessionCookie } from './helpers/auth'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -55,6 +55,7 @@ void describe('/rest/2fa/verify', () => {
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
     assert.equal(res.body.authentication.umail, `wurstbrot@${config.get<string>('application.domain')}`)
+    assertSessionCookieFlags(sessionCookie(res), { secure: false })
   })
 
   void it('POST should fail if a invalid totp token is used', async () => {

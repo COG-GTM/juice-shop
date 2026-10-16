@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { assertSessionCookieFlags, login, sessionCookie } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
@@ -249,6 +249,15 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.body.user.email, 'bjoern.kimminich@gmail.com')
   })
 
+  void it('GET who-am-i re-issues an unknown valid token as HttpOnly and SameSite=Strict cookie', async () => {
+    const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } })
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assertSessionCookieFlags(sessionCookie(res), { secure: false })
+  })
+
   void it('GET who-am-i request returns nothing on missing auth token', async () => {
     const res = await request(app).get('/rest/user/whoami')
     assert.equal(res.status, 200)
@@ -325,5 +334,18 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.id, 'number')
     assert.equal(typeof res.body.user.email, 'string')
     assert.equal(typeof res.body.user.password, 'string')
+  })
+})
+
+void describe('/rest/user/logout', () => {
+  void it('POST logout expires the session token cookie', async () => {
+    const res = await request(app)
+      .post('/rest/user/logout')
+      .set({ Cookie: 'token=whatever' })
+    assert.equal(res.status, 204)
+    const cookie = sessionCookie(res)
+    assert.ok(cookie?.startsWith('token=;'))
+    assert.ok(cookie?.includes('Expires=Thu, 01 Jan 1970 00:00:00 GMT'))
+    assertSessionCookieFlags(cookie, { secure: false })
   })
 })
