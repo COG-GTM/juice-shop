@@ -47,15 +47,16 @@ describe('challengeUtils', () => {
       expect(notifications.map(({ key }) => key)).to.deep.equal(['scoreBoardChallenge', 'adminSectionChallenge'])
     })
 
-    it('replaces instead of appending repeated notifications for the same challenge', () => {
+    it('does not append repeated notifications for the same challenge', () => {
       const challenge = { key: 'scoreBoardChallenge', name: 'Score Board', description: 'Find the score board.', solved: true } as any
+      challengeUtils.sendNotification(challenge, false)
       for (let i = 0; i < 100; i++) {
         challengeUtils.sendNotification(challenge, true)
       }
 
       expect(notifications).to.have.lengthOf(1)
       expect(notifications[0].key).to.equal('scoreBoardChallenge')
-      expect(notifications[0].isRestore).to.equal(true)
+      expect(notifications[0].isRestore).to.equal(false)
     })
 
     it('does not queue notifications for unsolved challenges', () => {

@@ -64,11 +64,8 @@ export const sendNotification = function (challenge: { difficulty?: number, key:
       isRestore,
       codingChallenge: config.get('challenges.codingChallengesEnabled') !== 'never' && hasCodingChallenge
     }
-    const previousIndex = notifications.findIndex(({ key }) => key === challenge.key)
-    const wasPreviouslyShown = previousIndex > -1
-    if (wasPreviouslyShown) {
-      notifications[previousIndex] = notification
-    } else {
+    const wasPreviouslyShown = notifications.some(({ key }) => key === challenge.key)
+    if (!wasPreviouslyShown) {
       notifications.push(notification)
     }
 
