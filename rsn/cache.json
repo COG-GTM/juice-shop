@@ -1291,7 +1291,8 @@
 	"weakPasswordChallenge_1_correct.ts": {
 		"added": [],
 		"removed": [
-			6
+			6,
+			7
 		]
 	},
 	"weakPasswordChallenge_2.ts": {
@@ -1301,7 +1302,8 @@
 			7,
 			8,
 			9,
-			10
+			10,
+			11
 		]
 	},
 	"weakPasswordChallenge_3.ts": {
@@ -1310,12 +1312,15 @@
 			6,
 			7,
 			8,
-			9
+			9,
+			10
 		]
 	},
 	"weakPasswordChallenge_4.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			6
+		]
 	},
 	"web3SandboxChallenge_1_correct.ts": {
 		"added": [
