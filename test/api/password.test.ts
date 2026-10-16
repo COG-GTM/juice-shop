@@ -38,6 +38,28 @@ void describe('/rest/user/change-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET password change response does not expose password hash, TOTP secret or other sensitive user fields', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'kuni2@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'kuni2@be.rt', password: 'kunigunde' })
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id', 'username'])
+    assert.equal(res.body.user.email, 'kuni2@be.rt')
+    assert.ok(!JSON.stringify(res.body).includes('totpSecret'))
+  })
+
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
