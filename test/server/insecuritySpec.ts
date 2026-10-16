@@ -6,10 +6,13 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
+
+const nonExpiringToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -82,6 +85,80 @@ describe('insecurity', () => {
     })
   })
 
+  describe('authorize', () => {
+    let clock: sinon.SinonFakeTimers
+
+    beforeEach(() => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+    })
+
+    afterEach(() => {
+      clock.restore()
+    })
+
+    it('issues tokens with an exp claim 6 hours after iat', () => {
+      const payload = security.decode(security.authorize({ data: { id: 1 } }))
+
+      expect(payload.exp - payload.iat).to.equal(6 * 60 * 60)
+    })
+
+    it('issues tokens that verify until they expire', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      expect(security.verify(token)).to.equal(true)
+
+      clock.tick((6 * 60 * 60 + 1) * 1000)
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('stops returning a cached session once its token has expired', () => {
+      const token = security.authorize({ data: { id: 3 } })
+      security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
+      expect(security.authenticatedUsers.get(token)).to.deep.equal({ data: { id: 3 } })
+
+      clock.tick((6 * 60 * 60 + 1) * 1000)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    it('rejects validly signed tokens without exp claim', () => {
+      expect(security.verify(nonExpiringToken)).to.equal(false)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    it('does not register a validly signed token without exp claim as session', () => {
+      const req = { cookies: { token: nonExpiringToken }, headers: {} } as unknown as Request
+      const res = { cookie: sinon.spy() } as unknown as Response
+      const next = sinon.spy()
+
+      security.updateAuthenticatedUsers()(req, res, next)
+
+      expect(security.authenticatedUsers.get(nonExpiringToken)).to.equal(undefined)
+      expect(next.calledOnce).to.equal(true)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    it('rejects a validly signed token without exp claim with 401', (done) => {
+      const req = { headers: { authorization: `Bearer ${nonExpiringToken}` } } as unknown as Request
+      security.isAuthorized()(req, {} as unknown as Response, (err?: any) => {
+        expect(err?.status).to.equal(401)
+        done()
+      })
+    })
+
+    it('accepts a freshly issued token', (done) => {
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { id: 1 } })}` } } as unknown as Request
+      security.isAuthorized()(req, {} as unknown as Response, (err?: any) => {
+        expect(err).to.equal(undefined)
+        done()
+      })
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
@@ -91,6 +168,12 @@ describe('insecurity', () => {
 
     it('returns undefined if no token is passed in', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
+    })
+
+    it('returns undefined for a cached session whose token has expired', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel, exp: Math.floor(Date.now() / 1000) - 1 })
+
+      expect(security.authenticatedUsers.get('22222')).to.equal(undefined)
     })
 
     it('returns token by associated user', () => {
