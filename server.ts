@@ -232,6 +232,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/assets/public/images/padding', verify.accessControlChallenges())
   app.use('/assets/public/images/products', verify.accessControlChallenges())
   app.use('/assets/public/images/uploads', verify.accessControlChallenges())
+  app.use('/assets/public/images/uploads', (req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
+    next()
+  })
   app.use('/assets/i18n', verify.accessControlChallenges())
 
   /* Checks for challenges solved by abusing SSTi and SSRF bugs */
