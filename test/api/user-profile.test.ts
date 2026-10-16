@@ -104,6 +104,20 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('POST update username is rejected when X-Forwarded-Host is forged to match a cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Host', 'attacker.example')
+      .set('Origin', 'http://attacker.example')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST update username is rejected for cross-site Sec-Fetch-Site', async () => {
     const res = await request(app)
       .post('/profile')

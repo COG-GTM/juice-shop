@@ -13,17 +13,15 @@ import * as utils from '../lib/utils'
 
 function isCrossSiteRequest (req: Request) {
   const fetchSite = req.get('sec-fetch-site')
-  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-    return true
+  if (fetchSite !== undefined) {
+    return fetchSite !== 'same-origin' && fetchSite !== 'none'
   }
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
     return false
   }
-  const forwardedHost = req.app.enabled('trust proxy') ? req.get('x-forwarded-host')?.split(',')[0].trim() : undefined
   try {
-    const sourceUrl = new URL(source)
-    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${forwardedHost ?? req.headers.host}`).host
+    return new URL(source).host !== req.headers.host
   } catch {
     return true
   }
