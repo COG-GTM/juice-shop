@@ -89,7 +89,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change for Bender without current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
@@ -99,7 +99,90 @@ void describe('/rest/user/change-password', () => {
       .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
+  void it('GET password change with an empty current password is rejected', async () => {
+    const { token } = await login(app, {
+      email: 'bender@' + config.get<string>('application.domain'),
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=&new=slurmCl4ssic&repeat=slurmCl4ssic')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
+  void it('GET password change twice in the same session rejects the superseded password', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'twice@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'twice@be.rt', password: 'kunigunde' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foo&repeat=foo')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
+  void it('GET password change revokes the user\'s other sessions', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'sessions@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token: otherToken } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    const { token } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
+    assert.notEqual(token, otherToken)
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foo&repeat=foo')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    const whoami = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: 'token=' + otherToken })
+      .expect(200)
+    assert.equal(whoami.body.user.id, undefined)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=foo&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + otherToken })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+
+    await request(app)
+      .get('/rest/basket/1')
+      .set({ Authorization: 'Bearer ' + otherToken })
+      .expect(401)
+
+    await request(app)
+      .get('/rest/user/change-password?current=foo&new=kunigunde&repeat=kunigunde')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
   })
 })
 
