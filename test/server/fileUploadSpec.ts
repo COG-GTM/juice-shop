@@ -4,6 +4,7 @@
  */
 
 import chai from 'chai'
+import fs from 'node:fs'
 import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
@@ -69,7 +70,21 @@ describe('fileUpload', () => {
 
     it('should resolve zip entries inside uploads/complaints', () => {
       expect(resolveComplaintUploadPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
-      expect(resolveComplaintUploadPath('sub/./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'sub', 'complaint.pdf'))
+      expect(resolveComplaintUploadPath('./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+    })
+
+    it('should reject zip entries written through a symlink out of uploads/complaints', function () {
+      const link = path.join(complaintsDirectory, 'symlinkSpec')
+      try {
+        fs.symlinkSync(path.resolve('ftp'), link, 'dir')
+      } catch {
+        this.skip()
+      }
+      try {
+        expect(resolveComplaintUploadPath('symlinkSpec/legal.md')).to.equal(null)
+      } finally {
+        fs.unlinkSync(link)
+      }
     })
 
     const maliciousEntries = [

@@ -28,7 +28,15 @@ const complaintsDirectory = path.resolve('uploads/complaints')
 
 function resolveComplaintUploadPath (entryPath: string): string | null {
   const targetPath = path.resolve(complaintsDirectory, entryPath)
-  return targetPath.startsWith(complaintsDirectory + path.sep) ? targetPath : null
+  if (!targetPath.startsWith(complaintsDirectory + path.sep)) return null
+  try {
+    const realRoot = fs.realpathSync(complaintsDirectory)
+    const realParent = fs.realpathSync(path.dirname(targetPath))
+    if (realParent !== realRoot && !realParent.startsWith(realRoot + path.sep)) return null
+  } catch {
+    return null
+  }
+  return targetPath
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -50,7 +58,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
                 const targetPath = resolveComplaintUploadPath(fileName)
                 if (targetPath !== null) {
-                  entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
+                  entry.pipe(fs.createWriteStream(targetPath, { flags: fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW }).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
