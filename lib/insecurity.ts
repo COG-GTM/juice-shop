@@ -164,6 +164,17 @@ export const isAccounting = () => {
   }
 }
 
+// Must run after isAuthorized(), which sets req.user to the signature-verified token payload
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if ((req as Request & { user?: { data?: { role?: string } } }).user?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Admin role required' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
