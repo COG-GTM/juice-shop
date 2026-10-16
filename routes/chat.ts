@@ -20,6 +20,7 @@ import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
 import { Counter } from 'prom-client'
+import jws from 'jws'
 
 function summarizeLlmError (error: unknown): string {
   if (!(error instanceof Error)) {
@@ -39,11 +40,21 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
+function isValidSessionToken (token: string) {
+  try {
+    const decoded = jws.decode(token)
+    if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return false
+    const exp = decoded.payload?.exp
+    return typeof exp !== 'number' || exp * 1000 > Date.now()
+  } catch {
+    return false
+  }
+}
+
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  if (!token || !isValidSessionToken(token)) return undefined
+  return security.authenticatedUsers.get(token)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -157,14 +168,10 @@ export function chat () {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
-          const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-          if (!user) return { error: 'Customer not found' }
-
-          const maskedEmail = user.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
-          if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
+          if (order.UserId !== userId) return { error: 'Order does not belong to the current customer' }
 
           return order
         }

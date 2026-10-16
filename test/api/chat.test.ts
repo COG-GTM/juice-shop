@@ -8,6 +8,11 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
+import config from 'config'
+import * as security from '../../lib/insecurity'
+import { ordersCollection } from '../../data/mongodb'
+import { login } from './helpers/auth'
 import { createTestApp } from './helpers/setup'
 
 const MOCK_LLM_PORT = 43210
@@ -70,6 +75,45 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+function orderLookupLlm (orderId: string, capture: { toolResult?: string }) {
+  let callCount = 0
+  return (_req: http.IncomingMessage, body: string, res: http.ServerResponse) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })), finishChunk('tool_calls')])
+    } else {
+      const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+      capture.toolResult = typeof toolMsg?.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg?.content)
+      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
+    }
+  }
+}
+
+async function lookupOrderVia (authorization: string | undefined, orderId: string) {
+  const capture: { toolResult?: string } = {}
+  onLlmRequest = orderLookupLlm(orderId, capture)
+  const headers: Record<string, string> = { 'content-type': 'application/json' }
+  if (authorization) headers.Authorization = authorization
+  const res = await request(app)
+    .post('/rest/chat')
+    .set(headers)
+    .send({ messages: [{ role: 'user', content: `Where is my order ${orderId}?` }] })
+  assert.equal(res.status, 200)
+  return capture.toolResult ?? ''
+}
+
+function base64url (value: object) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
+
+const adminEmail = 'admin@' + config.get<string>('application.domain')
+const adminPayload = { status: 'success', data: { id: 1, email: adminEmail, role: 'admin' }, iat: Math.floor(Date.now() / 1000) }
+
+async function adminOrderId () {
+  const order = await ordersCollection.findOne({ email: adminEmail.replace(/[aeiou]/gi, '*') })
+  return order.orderId as string
 }
 
 before(async () => {
@@ -265,5 +309,61 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void describe('getOrderById tool', () => {
+    void it('rejects requests without a token', { timeout: 15000 }, async () => {
+      const result = await lookupOrderVia(undefined, await adminOrderId())
+      assert.ok(result.includes('Customer not authenticated'))
+    })
+
+    void it('rejects an unsigned alg:none token claiming another user id', { timeout: 15000 }, async () => {
+      const forged = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(adminPayload)}.`
+      const result = await lookupOrderVia(`Bearer ${forged}`, await adminOrderId())
+      assert.ok(result.includes('Customer not authenticated'))
+      assert.ok(!result.includes('totalPrice'))
+    })
+
+    void it('rejects an HS256 token signed with the public key', { timeout: 15000 }, async () => {
+      const signingInput = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(adminPayload)}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')
+      const result = await lookupOrderVia(`Bearer ${signingInput}.${signature}`, await adminOrderId())
+      assert.ok(result.includes('Customer not authenticated'))
+      assert.ok(!result.includes('totalPrice'))
+    })
+
+    void it('rejects a correctly signed token that was never issued as a session', { timeout: 15000 }, async () => {
+      const result = await lookupOrderVia(`Bearer ${security.authorize({ data: { id: 1 } })}`, await adminOrderId())
+      assert.ok(result.includes('Customer not authenticated'))
+    })
+
+    void it('returns the order to its owner', { timeout: 15000 }, async () => {
+      const orderId = await adminOrderId()
+      const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+      const result = await lookupOrderVia(`Bearer ${token}`, orderId)
+      assert.ok(result.includes(orderId))
+      assert.ok(result.includes('totalPrice'))
+    })
+
+    void it('refuses an order owned by another customer', { timeout: 15000 }, async () => {
+      const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+      const result = await lookupOrderVia(`Bearer ${token}`, await adminOrderId())
+      assert.ok(result.includes('Order does not belong to the current customer'))
+      assert.ok(!result.includes('totalPrice'))
+    })
+
+    void it('refuses an order to a customer whose email only differs from the owner in vowels', { timeout: 15000 }, async () => {
+      const lookalikeEmail = 'edmin@' + config.get<string>('application.domain')
+      assert.equal(lookalikeEmail.replace(/[aeiou]/gi, '*'), adminEmail.replace(/[aeiou]/gi, '*'))
+      await request(app)
+        .post('/api/Users')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: lookalikeEmail, password: 'lookalike123', passwordRepeat: 'lookalike123' })
+        .expect(201)
+      const { token } = await login(app, { email: lookalikeEmail, password: 'lookalike123' })
+      const result = await lookupOrderVia(`Bearer ${token}`, await adminOrderId())
+      assert.ok(result.includes('Order does not belong to the current customer'))
+      assert.ok(!result.includes('totalPrice'))
+    })
   })
 })

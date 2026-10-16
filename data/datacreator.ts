@@ -747,6 +747,7 @@ async function createOrders () {
   const orders = [
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
+      ownerEmail: adminEmail,
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
       totalPrice: basket1Products[0].total + basket1Products[1].total,
       bonus: basket1Products[0].bonus + basket1Products[1].bonus,
@@ -756,6 +757,7 @@ async function createOrders () {
     },
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
+      ownerEmail: adminEmail,
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
       totalPrice: basket2Products[0].total,
       bonus: basket2Products[0].bonus,
@@ -765,6 +767,7 @@ async function createOrders () {
     },
     {
       orderId: security.hash('demo').slice(0, 4) + '-' + utils.randomHexString(16),
+      ownerEmail: 'demo',
       email: 'd*m*',
       totalPrice: basket3Products[0].total + basket3Products[1].total,
       bonus: basket3Products[0].bonus + basket3Products[1].bonus,
@@ -775,9 +778,10 @@ async function createOrders () {
   ]
 
   return await Promise.all(
-    orders.map(({ orderId, email, totalPrice, bonus, products, eta, delivered }) =>
-      ordersCollection.insert({
+    orders.map(async ({ orderId, ownerEmail, email, totalPrice, bonus, products, eta, delivered }) =>
+      await ordersCollection.insert({
         orderId,
+        UserId: (await UserModel.findOne({ where: { email: ownerEmail }, attributes: ['id'] }))?.id,
         email,
         totalPrice,
         bonus,
