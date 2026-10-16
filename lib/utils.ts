@@ -138,6 +138,8 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
+export const isPositiveInteger = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
+
 export const randomHexString = (length: number): string => {
   return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
 }
