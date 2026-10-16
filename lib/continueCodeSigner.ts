@@ -25,8 +25,10 @@ const readPersistedSecret = () => {
 const generatePersistedSecret = () => {
   const generated = crypto.randomBytes(32).toString('hex')
   try {
-    fs.writeFileSync(SECRET_FILE, generated, { mode: 0o600 })
-  } catch {
+    fs.writeFileSync(SECRET_FILE, generated, { mode: 0o600, flag: 'wx' })
+  } catch (error: unknown) {
+    const persisted = (error as NodeJS.ErrnoException).code === 'EEXIST' ? readPersistedSecret() : undefined
+    if (persisted !== undefined) return persisted
     logger.warn('Could not persist continue code secret; continue codes will not survive a server restart')
   }
   return generated
