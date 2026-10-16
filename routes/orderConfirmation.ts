@@ -39,7 +39,7 @@ export function retrieveOrderConfirmation () {
 
     const orderId = req.params.orderId
     const pdfPath = orderIdPattern.test(orderId) ? orderConfirmationPath(userId, orderId) : undefined
-    if (!pdfPath || !fs.existsSync(pdfPath)) {
+    if (!pdfPath?.startsWith(path.resolve(orderConfirmationsDirectory) + path.sep) || !fs.existsSync(pdfPath)) {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
       return
     }
