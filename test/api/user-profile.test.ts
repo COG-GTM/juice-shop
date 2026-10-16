@@ -56,7 +56,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', '#{7*7}')
+      .type('form')
+      .send({ username: '#{7*7}' })
       .redirects(0)
       .expect(302)
 
