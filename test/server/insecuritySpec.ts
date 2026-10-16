@@ -109,6 +109,75 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    describe('session store bounds', () => {
+      const originalLimits = { ...security.sessionLimits }
+
+      afterEach(() => {
+        Object.assign(security.sessionLimits, originalLimits)
+        for (const token of [...security.authenticatedUsers.expiries.keys()]) {
+          security.authenticatedUsers.remove(token)
+        }
+      })
+
+      it('forgets a session once its JWT has expired', () => {
+        const nowInSeconds = Math.floor(Date.now() / 1000)
+        security.authenticatedUsers.put('expired', { data: { id: 42 } as unknown as UserModel, exp: nowInSeconds - 1 })
+        security.authenticatedUsers.put('valid', { data: { id: 43 } as unknown as UserModel, exp: nowInSeconds + 60 })
+
+        expect(security.authenticatedUsers.get('expired')).to.equal(undefined)
+        expect(security.authenticatedUsers.get('valid')).to.deep.equal({ data: { id: 43 }, exp: nowInSeconds + 60 })
+        expect(security.authenticatedUsers.tokenMap).to.not.have.property('expired')
+      })
+
+      it('uses the expiry of a signed token when the user object has none', () => {
+        const token = security.authorize({ data: { id: 44 } })
+        security.authenticatedUsers.put(token, { data: { id: 44 } as unknown as UserModel })
+
+        const expectedExpiry = security.decode(token).exp * 1000
+        expect(security.authenticatedUsers.expiries.get(token)).to.equal(expectedExpiry)
+      })
+
+      it('removes expired sessions when a new session is stored', () => {
+        security.authenticatedUsers.put('stale', { data: { id: 45 } as unknown as UserModel, exp: Math.floor(Date.now() / 1000) - 1 })
+        security.authenticatedUsers.put('fresh', { data: { id: 46 } as unknown as UserModel })
+
+        expect(security.authenticatedUsers.tokenMap).to.not.have.property('stale')
+        expect(security.authenticatedUsers.idMap).to.not.have.property('45')
+      })
+
+      it('keeps only the newest sessions of a user who logs in repeatedly', () => {
+        security.sessionLimits.maxSessionsPerUser = 3
+        for (let i = 1; i <= 5; i++) {
+          security.authenticatedUsers.put(`login${i}`, { data: { id: 47 } as unknown as UserModel })
+        }
+        security.authenticatedUsers.put('otherUser', { data: { id: 48 } as unknown as UserModel })
+
+        expect(Object.keys(security.authenticatedUsers.tokenMap)).to.have.members(['login3', 'login4', 'login5', 'otherUser'])
+        expect(security.authenticatedUsers.tokenOf({ id: 47 } as unknown as UserModel)).to.equal('login5')
+      })
+
+      it('never stores more than the maximum number of sessions', () => {
+        security.sessionLimits.maxSessions = 100
+        for (let i = 0; i < 1000; i++) {
+          security.authenticatedUsers.put(`token${i}`, { data: { id: i } as unknown as UserModel })
+        }
+
+        expect(Object.keys(security.authenticatedUsers.tokenMap)).to.have.length(100)
+        expect(security.authenticatedUsers.expiries.size).to.equal(100)
+        expect(Object.keys(security.authenticatedUsers.idMap)).to.have.length(100)
+        expect(security.authenticatedUsers.get('token999')).to.deep.equal({ data: { id: 999 } })
+        expect(security.authenticatedUsers.get('token0')).to.equal(undefined)
+      })
+
+      it('removes a session and its user mapping', () => {
+        security.authenticatedUsers.put('toRemove', { data: { id: 49 } as unknown as UserModel })
+        security.authenticatedUsers.remove('toRemove')
+
+        expect(security.authenticatedUsers.get('toRemove')).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenOf({ id: 49 } as unknown as UserModel)).to.equal(undefined)
+      })
+    })
   })
 
   describe('sanitizeHtml', () => {
