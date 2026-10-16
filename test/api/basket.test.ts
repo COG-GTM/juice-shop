@@ -184,6 +184,20 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(Math.abs(await walletBalance() - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
     assert.deepEqual([await stockOf(3), await stockOf(4)], [stockBefore[0] - 5, stockBefore[1] - 2])
   })
+
+  void it('POST concurrent checkouts of one basket via equivalent ids place only one order', async () => {
+    const stockOf4 = async () => (await request(app).get('/api/Quantitys').set(authHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === 4).quantity
+    const stockBefore = await stockOf4()
+
+    const responses = await Promise.all(['4', '04', '004'].map(async (basketId) => await request(app)
+      .post(`/rest/basket/${basketId}/checkout`)
+      .set(authHeader)))
+    assert.ok(responses.some(res => res.status === 200 && res.body.orderConfirmation !== undefined))
+    assert.ok(responses.every(res => res.status === 200 || res.status === 409))
+
+    assert.equal(await stockOf4(), stockBefore - 2)
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
