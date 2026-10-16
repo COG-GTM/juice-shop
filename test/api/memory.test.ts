@@ -105,6 +105,18 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST new memory with an image whose content does not match its declared type is rejected and not kept on disk', async () => {
+    const token = await jimToken()
+    const before = uploadedFiles()
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', Buffer.from('<html><script>alert(1)</script></html>'), { filename: 'not-an-image.png', contentType: 'image/png' })
+      .field('caption', 'Not An Image')
+    assert.equal(res.status, 400)
+    assert.deepEqual(uploadedFiles(), before)
+  })
+
   void it('POST new memory image file invalid type', async () => {
     const file = path.resolve(__dirname, '../files/invalidProfileImageType.docx')
     const { token } = await login(app, {

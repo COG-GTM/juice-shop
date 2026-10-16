@@ -19,6 +19,24 @@ const mimeTypeMap: Record<string, string> = {
   'image/jpg': 'jpg'
 }
 
+const imageSignatures: Record<string, number[]> = {
+  png: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+  jpg: [0xFF, 0xD8, 0xFF]
+}
+
+export function hasImageSignature (filePath: string, ext: string) {
+  const signature = imageSignatures[ext]
+  if (signature === undefined) return false
+  const header = Buffer.alloc(signature.length)
+  const fd = fs.openSync(filePath, 'r')
+  try {
+    fs.readSync(fd, header, 0, signature.length, 0)
+  } finally {
+    fs.closeSync(fd)
+  }
+  return signature.every((byte, i) => header[i] === byte)
+}
+
 const uploadToDisk = multer({
   storage: multer.diskStorage({
     destination: (req: Request, file: any, cb: any) => {
@@ -55,6 +73,11 @@ export function uploadMemoryImage () {
       }
       const uploadedPath = req.file ? path.resolve(uploadsDir, path.basename(req.file.filename)) : undefined
       if (uploadedPath?.startsWith(uploadsDir + path.sep)) {
+        if (!hasImageSignature(uploadedPath, mimeTypeMap[req.file?.mimetype ?? ''])) {
+          fs.unlink(uploadedPath, () => {})
+          res.status(400).json({ status: 'error', message: 'File content does not match its image type' })
+          return
+        }
         res.on('finish', () => {
           if (res.statusCode >= 400) {
             fs.unlink(uploadedPath, () => {})
