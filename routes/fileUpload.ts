@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import { Transform } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -50,6 +51,38 @@ function isRealPathWithinComplaintsDirectory (targetPath: string): boolean {
 
 const noFollowWriteFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
 
+function openComplaintFile (targetPath: string): number | null {
+  try {
+    return fs.openSync(targetPath, noFollowWriteFlags)
+  } catch {
+    return null
+  }
+}
+
+const maxComplaintZipEntries = 100
+const maxComplaintZipUncompressedBytes = 10 * 1024 * 1024
+
+function createExtractionBudget () {
+  let remainingEntries = maxComplaintZipEntries
+  let remainingBytes = maxComplaintZipUncompressedBytes
+  return {
+    takeEntry: () => remainingEntries-- > 0 && remainingBytes > 0,
+    limiter: () => {
+      let exceeded = false
+      return new Transform({
+        transform (chunk: Buffer, _encoding, callback) {
+          remainingBytes -= chunk.length
+          if (remainingBytes < 0) exceeded = true
+          callback(null, exceeded ? undefined : chunk)
+        },
+        flush (callback) {
+          callback(exceeded ? new Error('Zip archive exceeds the uncompressed size limit') : null)
+        }
+      })
+    }
+  }
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -61,14 +94,21 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            const budget = createExtractionBudget()
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-                if (targetPath !== null && isRealPathWithinComplaintsDirectory(targetPath)) {
-                  entry.pipe(fs.createWriteStream(targetPath, { flags: noFollowWriteFlags }).on('error', function (err) { next(err) }))
+                const outputFd = targetPath !== null && budget.takeEntry() && isRealPathWithinComplaintsDirectory(targetPath) ? openComplaintFile(targetPath) : null
+                if (targetPath !== null && outputFd !== null) {
+                  const limiter = budget.limiter()
+                  const output = fs.createWriteStream(targetPath, { fd: outputFd })
+                  const discard = () => { fs.rm(targetPath, { force: true }, () => {}) }
+                  output.on('error', () => { limiter.unpipe(output); limiter.resume(); discard() })
+                  limiter.on('error', () => { output.destroy(); discard() })
+                  entry.pipe(limiter).pipe(output)
                 } else {
                   entry.autodrain()
                 }
@@ -171,5 +211,6 @@ export {
   checkFileType,
   handleXmlUpload,
   handleYamlUpload,
-  resolveComplaintEntryPath
+  resolveComplaintEntryPath,
+  createExtractionBudget
 }

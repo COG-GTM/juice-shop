@@ -7,7 +7,8 @@ import chai from 'chai'
 import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType, resolveComplaintEntryPath } from '../../routes/fileUpload'
+import { Readable, Writable } from 'node:stream'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -99,6 +100,27 @@ describe('fileUpload', () => {
     it('should reject non-string entry names', () => {
       expect(resolveComplaintEntryPath(undefined)).to.equal(null)
       expect(resolveComplaintEntryPath(42)).to.equal(null)
+    })
+  })
+
+  describe('createExtractionBudget', () => {
+    it('should allow at most 100 entries per archive', () => {
+      const budget = createExtractionBudget()
+      const taken = Array.from({ length: 150 }, () => budget.takeEntry()).filter(Boolean)
+      expect(taken.length).to.equal(100)
+    })
+
+    it('should stop writing and fail once the archive exceeds 10 MB uncompressed', (done) => {
+      const budget = createExtractionBudget()
+      let written = 0
+      const sink = new Writable({ write (chunk: Buffer, _encoding, callback) { written += chunk.length; callback() } })
+      const chunks = Array.from({ length: 12 }, () => Buffer.alloc(1024 * 1024))
+      Readable.from(chunks).pipe(budget.limiter()).on('error', (err: Error) => {
+        expect(err.message).to.match(/uncompressed size limit/)
+        expect(written).to.equal(10 * 1024 * 1024)
+        expect(budget.takeEntry()).to.equal(false)
+        done()
+      }).pipe(sink)
     })
   })
 })
