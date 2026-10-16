@@ -43,6 +43,20 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.bid, 'number')
   })
 
+  void it('POST login issues a token without password hash, TOTP secret or deluxe token', async () => {
+    const login = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'admin@' + config.get<string>('application.domain'),
+        password: 'admin123'
+      })
+    assert.equal(login.status, 200)
+    const payload = JSON.parse(Buffer.from(login.body.authentication.token.split('.')[1], 'base64url').toString())
+    assert.deepEqual(Object.keys(payload.data).sort(), ['email', 'id', 'lastLoginIp', 'role'])
+    assert.equal(payload.data.email, 'admin@' + config.get<string>('application.domain'))
+  })
+
   void it('POST login non-existing user', async () => {
     const res = await request(app)
       .post('/rest/user/login')

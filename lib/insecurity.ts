@@ -41,6 +41,29 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const PASSWORD_HASH_PATTERN = /^scrypt\$([0-9a-f]{32})\$[0-9a-f]{64}$/
+
+const scrypt = async (data: string, salt: string) => await new Promise<Buffer>((resolve, reject) => {
+  crypto.scrypt(data, salt, 32, (err, key) => { err ? reject(err) : resolve(key) })
+})
+
+const passwordSaltOf = (storedHash?: string | null) => PASSWORD_HASH_PATTERN.exec(storedHash ?? '')?.[1]
+
+export const isPasswordHash = (value?: string | null) => passwordSaltOf(value) !== undefined
+
+export const strengthenPasswordDigest = async (digest: string, salt = crypto.randomBytes(16).toString('hex')) =>
+  `scrypt$${salt}$${(await scrypt(digest, salt)).toString('hex')}`
+
+export const passwordHashFor = async (password: string, storedHash?: string | null) =>
+  await strengthenPasswordDigest(hash(String(password)), passwordSaltOf(storedHash))
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
+  if (!storedHash || !isPasswordHash(storedHash)) return false
+  const candidate = await passwordHashFor(password, storedHash)
+  return crypto.timingSafeEqual(Buffer.from(candidate), Buffer.from(storedHash))
+}
+
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
@@ -53,7 +76,20 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+
+const tokenUserClaims = ['id', 'email', 'role', 'lastLoginIp'] as const
+
+export const tokenPayload = (payload: any = {}) => {
+  if (payload?.data === null || typeof payload?.data !== 'object') return payload
+  const data: Record<string, unknown> = {}
+  for (const claim of tokenUserClaims) {
+    if (payload.data[claim] !== undefined) data[claim] = payload.data[claim]
+  }
+  const { bid, ...rest } = payload
+  return { ...rest, data }
+}
+
+export const authorize = (user = {}) => jwt.sign(tokenPayload(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -165,8 +201,10 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && decode(token)
+  const sessionUser = authenticatedUsers.get(token)?.data
+  return decodedToken?.data?.role === roles.deluxe && sessionUser?.id === decodedToken?.data?.id && !!sessionUser?.deluxeToken && sessionUser.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
@@ -187,15 +225,25 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  if (!token) {
+    next()
+    return
   }
-  next()
+  jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    if (err !== null || authenticatedUsers.get(token) !== undefined) {
+      next()
+      return
+    }
+    sessionFromToken(decoded).then((user) => {
+      authenticatedUsers.put(token, user)
+      res.cookie('token', token)
+    }).catch(() => {}).finally(() => { next() })
+  })
+}
+
+const sessionFromToken = async (decoded: any) => {
+  if (!decoded?.data?.id) return decoded
+  const { UserModel } = await import('../models/user')
+  const user = await UserModel.findByPk(decoded.data.id)
+  return user ? utils.queryResultToJson(user) : decoded
 }
