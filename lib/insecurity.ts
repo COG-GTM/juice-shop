@@ -185,14 +185,24 @@ export const appendUserId = () => {
   }
 }
 
-export const bindUserId = () => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    const user = authenticatedUsers.from(req) ?? authenticatedUsers.get(req.cookies?.token)
-    if (req.body) {
-      req.body.UserId = user?.data?.id ?? null
+export const bindUserId = () => (req: Request, res: Response, next: NextFunction) => {
+  const tokens = [utils.jwtFrom(req), req.cookies?.token].filter(Boolean)
+  const bindFrom = (i: number) => {
+    if (i >= tokens.length) {
+      if (req.body) req.body.UserId = null
+      next()
+      return
     }
-    next()
+    jwt.verify(tokens[i], publicKey, (err: Error | null, decoded: any) => {
+      if (err === null && decoded?.data?.id) {
+        if (req.body) req.body.UserId = decoded.data.id
+        next()
+      } else {
+        bindFrom(i + 1)
+      }
+    })
   }
+  bindFrom(0)
 }
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
