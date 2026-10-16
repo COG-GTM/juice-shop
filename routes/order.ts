@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -19,6 +20,8 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import logger from '../lib/logger'
+import { sequelize } from '../models'
 
 interface Product {
   quantity: number
@@ -29,10 +32,26 @@ interface Product {
   bonus: number
 }
 
+const basketsInCheckout = new Set<number>()
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const id = String(req.params.id)
+    if (!/^\d+$/.test(id) || !Number.isSafeInteger(Number(id))) {
+      next(new Error(`Basket with id=${id} does not exist.`))
+      return
+    }
+    const basketId = Number(id)
+    if (basketsInCheckout.has(basketId)) {
+      res.status(409).json({ error: 'Checkout for this basket is already in progress.' })
+      return
+    }
+    basketsInCheckout.add(basketId)
+    const fail = (error: unknown) => {
+      basketsInCheckout.delete(basketId)
+      next(error)
+    }
+    BasketModel.findOne({ where: { id: basketId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
@@ -46,10 +65,14 @@ export function placeOrder () {
 
           fileWriter.on('finish', () => {
             void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              try {
+                void basket.update({ coupon: null })
+                await BasketItemModel.destroy({ where: { BasketId: basketId } })
+              } finally {
+                basketsInCheckout.delete(basketId)
+              }
               res.json({ orderConfirmation: orderId })
-            })()
+            })().catch(fail)
           })
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
@@ -67,19 +90,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +154,34 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
+          const applied: AppliedCheckout = { UserId: req.body.UserId, debit: 0, bonus: 0, stock: [] }
+          const failAndUndo = async (error: unknown) => {
+            try {
+              await undoCheckout(applied)
+            } catch (undoError: unknown) {
+              logger.error(`Could not undo checkout of basket ${basketId}: ${utils.getErrorMessage(undoError)}`)
+            }
+            fail(error)
+          }
+          try {
+            if (req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+              if (!await debitWallet(req.body.UserId, totalPrice)) {
+                fail(new Error('Insufficient wallet balance.'))
                 return
               }
+              applied.debit = totalPrice
             }
-            try {
+            for (const update of stockUpdates) {
+              await QuantityModel.decrement({ quantity: update.quantity }, { where: { ProductId: update.ProductId } })
+              applied.stock.push(update)
+            }
+            if (req.body.UserId) {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
-              return
+              applied.bonus = totalPoints
             }
+          } catch (error: unknown) {
+            await failAndUndo(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -171,14 +198,39 @@ export function placeOrder () {
             eta: deliveryMethod.eta.toString()
           }).then(() => {
             doc.end()
-          })
+          }).catch(failAndUndo)
         } else {
-          next(new Error(`Basket with id=${id} does not exist.`))
+          fail(new Error(`Basket with id=${id} does not exist.`))
         }
-      }).catch((error: unknown) => {
-        next(error)
-      })
+      }).catch(fail)
   }
+}
+
+interface AppliedCheckout {
+  UserId?: number
+  debit: number
+  bonus: number
+  stock: Array<{ ProductId: number, quantity: number }>
+}
+
+async function undoCheckout ({ UserId, debit, bonus, stock }: AppliedCheckout) {
+  for (const { ProductId, quantity } of stock) {
+    await QuantityModel.increment({ quantity }, { where: { ProductId } })
+  }
+  if (UserId && (debit !== 0 || bonus !== 0)) {
+    await WalletModel.increment({ balance: debit - bonus }, { where: { UserId } })
+  }
+}
+
+async function debitWallet (UserId: number, amount: number) {
+  if (!Number.isFinite(amount)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${sequelize.escape(amount)})`) },
+    { where: { UserId, balance: { [Op.gte]: amount } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
