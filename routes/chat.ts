@@ -168,13 +168,15 @@ export function chat () {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
-          const user = await UserModel.findByPk(userId, { attributes: ['id'] })
+          const user = await UserModel.findByPk(userId, { attributes: ['email'] })
           if (!user) return { error: 'Customer not found' }
 
+          const maskedEmail = user.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
-          if (order.UserId !== userId) return { error: 'Order does not belong to the current customer' }
+          if (order.UserId !== userId) return { error: 'Order does not belong to the current customer' } // vuln-code-snippet hide-line
+          if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
 
           return order
         }
