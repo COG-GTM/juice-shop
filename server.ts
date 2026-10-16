@@ -419,18 +419,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
-  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    if (req.body.securityQuestion != null || req.body.securityAnswer != null) {
-      const securityQuestionId = req.body.securityQuestion?.id
-      const securityAnswer = req.body.securityAnswer
-      const securityQuestion = Number.isInteger(securityQuestionId) ? await SecurityQuestionModel.findByPk(securityQuestionId) : null
-      if (securityQuestion == null || typeof securityAnswer !== 'string' || securityAnswer.length === 0) {
-        res.status(400).json({ message: 'Validation error', errors: [{ field: 'securityQuestion', message: 'Invalid security question/answer' }] })
-        return
-      }
-    }
-    next()
-  }))
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
@@ -466,6 +454,19 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   // vuln-code-snippet end changeProductChallenge
   /* SecurityAnswers: POST only allowed for authenticated users and bound to their own account */
   app.post('/api/SecurityAnswers', security.isAuthorized(), security.appendUserId())
+  /* Validate security question and answer supplied during user registration */
+  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    if (req.body.securityQuestion != null || req.body.securityAnswer != null) {
+      const securityQuestionId = req.body.securityQuestion?.id
+      const securityAnswer = req.body.securityAnswer
+      const securityQuestion = Number.isInteger(securityQuestionId) ? await SecurityQuestionModel.findByPk(securityQuestionId) : null
+      if (securityQuestion == null || typeof securityAnswer !== 'string' || securityAnswer.length === 0) {
+        res.status(400).json({ message: 'Validation error', errors: [{ field: 'securityQuestion', message: 'Invalid security question/answer' }] })
+        return
+      }
+    }
+    next()
+  }))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
