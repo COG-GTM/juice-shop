@@ -106,9 +106,19 @@ describe('insecurity', () => {
       const token = security.authorize({ data: { id: 1 } })
       expect(security.verify(token)).to.equal(true)
 
-      clock.tick(6 * 60 * 60 * 1000)
+      clock.tick((6 * 60 * 60 + 1) * 1000)
 
       expect(security.verify(token)).to.equal(false)
+    })
+
+    it('stops returning a cached session once its token has expired', () => {
+      const token = security.authorize({ data: { id: 3 } })
+      security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
+      expect(security.authenticatedUsers.get(token)).to.deep.equal({ data: { id: 3 } })
+
+      clock.tick((6 * 60 * 60 + 1) * 1000)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
     })
   })
 

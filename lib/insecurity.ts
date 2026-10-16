@@ -77,6 +77,8 @@ export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresInMinutes: tokenLifetimeInMinutes, algorithm: 'RS256' } as jwt.SignOptions)
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) && isUnexpired(decode(token)) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+const decodeIfJwt = (token: string) => { try { return decode(token) } catch { return undefined } }
+const hasExpired = (payload?: { exp?: unknown } | null) => typeof payload?.exp === 'number' && !isUnexpired(payload)
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -98,8 +100,14 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    const user = token ? this.tokenMap[utils.unquote(token)] : undefined
-    return user?.exp !== undefined && !isUnexpired(user) ? undefined : user
+    if (!token) return undefined
+    const key = utils.unquote(token)
+    const user = this.tokenMap[key]
+    if (user !== undefined && (hasExpired(user) || hasExpired(decodeIfJwt(key)))) {
+      delete this.tokenMap[key]
+      return undefined
+    }
+    return user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
