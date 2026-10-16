@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { BasketItemModel } from '../../models/basketitem'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -43,9 +44,11 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all basket items', async () => {
+  void it('GET all basket items only returns items from own basket', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((item: { BasketId: number }) => item.BasketId === 2))
   })
 
   void it('POST new basket item', async () => {
@@ -91,6 +94,29 @@ void describe('/api/BasketItems/:id', () => {
   void it('DELETE basket item is forbidden via public API', async () => {
     const res = await request(app).delete('/api/BasketItems/1')
     assert.equal(res.status, 401)
+  })
+
+  void it('GET basket item from basket of another user is forbidden', async () => {
+    const res = await request(app).get('/api/BasketItems/1').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('PUT update basket item from basket of another user is forbidden', async () => {
+    const quantityBefore = (await BasketItemModel.findByPk(1))?.quantity
+
+    const res = await request(app)
+      .put('/api/BasketItems/1')
+      .set(authHeader)
+      .send({ quantity: 1 })
+    assert.equal(res.status, 403)
+    assert.equal((await BasketItemModel.findByPk(1))?.quantity, quantityBefore)
+  })
+
+  void it('DELETE basket item from basket of another user is forbidden', async () => {
+    const res = await request(app).delete('/api/BasketItems/1').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.ok(await BasketItemModel.findByPk(1) !== null)
   })
 
   void it('GET newly created basket item by id', async () => {
@@ -149,8 +175,7 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
