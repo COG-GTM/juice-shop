@@ -39,6 +39,14 @@ function resolveComplaintUploadPath (entryPath: string): string | null {
   return targetPath
 }
 
+function openWithoutFollowingSymlinks (targetPath: string): number | null {
+  try {
+    return fs.openSync(targetPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW)
+  } catch {
+    return null
+  }
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -57,8 +65,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
                 const targetPath = resolveComplaintUploadPath(fileName)
-                if (targetPath !== null) {
-                  entry.pipe(fs.createWriteStream(targetPath, { flags: fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW }).on('error', function (err) { next(err) }))
+                const fd = targetPath !== null ? openWithoutFollowingSymlinks(targetPath) : null
+                if (targetPath !== null && fd !== null) {
+                  entry.pipe(fs.createWriteStream(targetPath, { fd }).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
