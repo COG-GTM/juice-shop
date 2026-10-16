@@ -137,8 +137,6 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
-
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
@@ -156,6 +154,8 @@ export function placeOrder () {
               return
             }
           }
+
+          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           db.ordersCollection.insert({
             promotionalAmount: discountAmount,
