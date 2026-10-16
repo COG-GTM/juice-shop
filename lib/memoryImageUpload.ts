@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import multer from 'multer'
@@ -53,7 +54,7 @@ const uploadToDisk = multer({
         .split(' ')
         .join('-')
       const ext = mimeTypeMap[file.mimetype]
-      cb(null, name + '-' + Date.now() + '.' + ext)
+      cb(null, name + '-' + Date.now() + '-' + crypto.randomBytes(8).toString('hex') + '.' + ext)
     }
   }),
   limits: { fileSize: MEMORY_IMAGE_MAX_BYTES, files: 1, fields: 5, parts: 6 }
