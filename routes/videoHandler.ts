@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import config from 'config'
 import { type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -65,16 +66,23 @@ export const promotionVideo = () => {
       template = template.replace(/_navColor_/g, theme.navColor)
       template = template.replace(/_primLight_/g, theme.primLight)
       template = template.replace(/_primDark_/g, theme.primDark)
+      const nonce = crypto.randomBytes(16).toString('hex')
+      template = template.replace(/_nonce_/g, nonce)
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + encodeSubtitlesForScriptBlock(subs) + '</script>')
+      res.set('Content-Security-Policy', `script-src 'self' 'nonce-${nonce}'; object-src 'none'; base-uri 'self'`)
       res.send(compiledTemplate)
     })
   }
   function favicon () {
     return utils.extractFilename(config.get('application.favicon'))
   }
+}
+
+export function encodeSubtitlesForScriptBlock (subs: string) {
+  return JSON.stringify(subs).replace(/[<>&\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
 }
 
 function getSubsFromFile () {
