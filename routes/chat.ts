@@ -56,12 +56,10 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
 const MAX_COUPON_DISCOUNT = 10
 
 async function findOrderOfCustomer (req: Request, orderId: string) {
-  const userId = await getUserId(req)
-  if (!userId) return undefined
-  const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-  if (!user?.email) return undefined
+  const email = security.authenticatedUsers.from(req)?.data?.email
+  if (!email) return undefined
   const order = await db.ordersCollection.findOne({ orderId })
-  if (!order || order.email !== user.email.replace(/[aeiou]/gi, '*')) return undefined
+  if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return undefined
   return order
 }
 
@@ -199,6 +197,7 @@ export function chat () {
         execute: async ({ discount, orderId }) => {
           const order = await findOrderOfCustomer(req, orderId)
           if (!order) return { error: 'No order with this ID found for the current customer.' }
+          challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
@@ -244,7 +243,6 @@ export function chat () {
             })
             if (event.toolName === 'generateCoupon') {
               const requestedDiscount = Number((event.input as { discount?: unknown } | undefined)?.discount)
-              challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
               challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
             }
             metricToolCalls.labels({ tool: event.toolName }).inc()

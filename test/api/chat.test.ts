@@ -280,6 +280,14 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(!toolResult.includes('couponCode'))
   })
 
+  void it('POST generateCoupon rejects tokens with a forged signature', { timeout: 30000 }, async () => {
+    const { orderId, headers } = await adminOrderAndAuthHeader()
+    const forgedToken = headers.Authorization.replace(/\.[^.]+$/, '.forged')
+    const { toolResult } = await couponToolResult({ discount: 10, orderId }, { Authorization: forgedToken })
+    assert.ok(toolResult.includes('No order with this ID found'))
+    assert.ok(!toolResult.includes('couponCode'))
+  })
+
   void it('POST generateCoupon rejects orders of other customers', { timeout: 30000 }, async () => {
     const authentication = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const { orderId } = await adminOrderAndAuthHeader()
