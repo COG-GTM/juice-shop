@@ -235,6 +235,12 @@ describe('utils', () => {
         .to.equal('/rest/user/change-password?current=[REDACTED]&[REDACTED]&new=[REDACTED]&[REDACTED]&repeat=[REDACTED]&[REDACTED]')
     })
 
+    it('handles parameter names with many opening brackets in linear time', () => {
+      const start = Date.now()
+      expect(utils.redactSensitiveQueryParams('/x?new' + '['.repeat(50000) + '%0A=1')).to.equal('/x?new' + '['.repeat(50000) + '%0A=[REDACTED]')
+      expect(Date.now() - start).to.be.below(1000)
+    })
+
     it('redacts token query parameters', () => {
       expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
     })
