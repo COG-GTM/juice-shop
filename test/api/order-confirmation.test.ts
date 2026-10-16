@@ -77,7 +77,7 @@ void describe('/rest/order-confirmation/:orderId', () => {
   })
 
   void it('GET with a registered but unverifiable token is denied', async () => {
-    const forgedToken = jwt.sign({ data: { id: 2 } }, 'not-the-server-key', { expiresIn: -60 })
+    const forgedToken = jwt.sign({ data: { id: 2 } }, 'not-the-server-key')
     security.authenticatedUsers.put(forgedToken, { data: { id: 2 } } as any)
     const res = await request(app)
       .get(`/rest/order-confirmation/${orderId}`)
