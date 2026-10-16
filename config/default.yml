@@ -12,6 +12,7 @@ application:
   showGitHubLinks: true
   localBackupEnabled: true
   numberOfRandomFakeUsers: 0
+  staticAdminCredentials: false # seed admin accounts with the well-known passwords, TOTP secret and security answers from data/static/users.yml
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop
   customMetricsPrefix: juiceshop

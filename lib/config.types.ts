@@ -17,6 +17,7 @@ export interface ApplicationConfig {
   showGitHubLinks: boolean
   localBackupEnabled: boolean
   numberOfRandomFakeUsers: number
+  staticAdminCredentials: boolean
   altcoinName: string
   privacyContactEmail: string
   customMetricsPrefix: string
