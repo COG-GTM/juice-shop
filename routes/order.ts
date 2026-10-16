@@ -142,7 +142,7 @@ export function placeOrder () {
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
+              if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
               } else {
                 next(new Error('Insufficient wallet balance.'))
@@ -185,7 +185,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return capDiscount(discount)
   } else if (req.body.couponData) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]
@@ -194,10 +194,14 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
 
     if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
       challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+      return capDiscount(campaign.discount)
     }
   }
   return 0
+}
+
+function capDiscount (discount: number) {
+  return Math.min(Math.max(discount, 0), security.MAX_COUPON_DISCOUNT)
 }
 
 const campaigns = {
