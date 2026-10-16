@@ -107,6 +107,20 @@ void describe('/rest/products/search', () => {
     assert.ok(res.body.data.every((product: any) => /juice/i.test(product.name) || /juice/i.test(product.description)))
   })
 
+  void it('GET product search rejects an array search parameter', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?q=apple&q=banana')
+    assert.equal(res.status, 400)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
+  void it('GET product search rejects an object search parameter', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?q[length]=1')
+    assert.equal(res.status, 400)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
   void it('GET product search with empty search parameter returns all products', async () => {
     const productsRes = await request(app)
       .get('/api/Products')
