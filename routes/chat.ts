@@ -53,6 +53,25 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   return user?.username ?? undefined
 }
 
+const MAX_COUPON_DISCOUNT = 10
+
+async function findOrderOfCustomer (req: Request, orderId: string) {
+  const userId = await getUserId(req)
+  if (!userId) return undefined
+  const user = await UserModel.findByPk(userId, { attributes: ['email'] })
+  if (!user?.email) return undefined
+  const order = await db.ordersCollection.findOne({ orderId })
+  if (!order || order.email !== user.email.replace(/[aeiou]/gi, '*')) return undefined
+  return order
+}
+
+function conversationFromClient (messages: unknown) {
+  if (!Array.isArray(messages)) return []
+  return messages
+    .filter((m): m is { role: 'user' | 'assistant', content: string } => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string')
+    .map(({ role, content }) => ({ role, content }))
+}
+
 const app = config.get<string>('application.customMetricsPrefix')
 const metricInputTokensTotal = new Counter({
   name: `${app}_llm_input_tokens_total`,
@@ -174,11 +193,12 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(1).max(MAX_COUPON_DISCOUNT).describe(`The discount percentage for the coupon (maximum ${MAX_COUPON_DISCOUNT})`), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          orderId: z.string().describe('The order ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
-          challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
-          challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
+        execute: async ({ discount, orderId }) => {
+          const order = await findOrderOfCustomer(req, orderId)
+          if (!order) return { error: 'No order with this ID found for the current customer.' }
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
@@ -186,7 +206,7 @@ export function chat () {
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
+    const messages = conversationFromClient(req.body?.messages)
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
@@ -222,6 +242,11 @@ export function chat () {
               const role = decoded?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
+            if (event.toolName === 'generateCoupon') {
+              const requestedDiscount = Number((event.input as { discount?: unknown } | undefined)?.discount)
+              challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
+              challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
+            }
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
               choices: [{
