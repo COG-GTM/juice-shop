@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -132,32 +133,20 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.ok(!res.text.includes('listing directory /encryptionkeys'))
   })
 
-  void it('GET a non-existing file in will return a 404 error', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/doesnotexist.md')
-    assert.equal(res.status, 404)
-  })
-
-  void it('GET the Premium Content AES key', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/premium.key')
-    assert.equal(res.status, 200)
-  })
-
-  void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
-    assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
-  })
+  for (const keyFile of ['premium.key', 'jwt.pub']) {
+    void it(`GET does not serve the contents of ${keyFile}`, async () => {
+      const keyContent = fs.readFileSync(`encryptionkeys/${keyFile}`, 'utf8').trim()
+      const res = await request(app)
+        .get(`/encryptionkeys/${keyFile}`)
+      assert.ok(!res.text.includes(keyContent))
+    })
+  }
 })
 
 void describe('Hidden URL', () => {
