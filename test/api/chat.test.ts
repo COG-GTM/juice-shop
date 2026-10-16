@@ -81,6 +81,11 @@ before(async () => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
+        if (req.method !== 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end('{}')
+          return
+        }
         onLlmRequest(req, body, res)
       })
     })
