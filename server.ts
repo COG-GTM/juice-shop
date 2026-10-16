@@ -425,7 +425,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       const securityAnswer = req.body.securityAnswer
       const securityQuestion = Number.isInteger(securityQuestionId) ? await SecurityQuestionModel.findByPk(securityQuestionId) : null
       if (securityQuestion == null || typeof securityAnswer !== 'string' || securityAnswer.length === 0) {
-        res.status(400).send('Invalid security question/answer')
+        res.status(400).json({ message: 'Validation error', errors: [{ field: 'securityQuestion', message: 'Invalid security question/answer' }] })
         return
       }
     }

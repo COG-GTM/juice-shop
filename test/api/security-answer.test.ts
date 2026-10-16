@@ -173,6 +173,7 @@ void describe('/api/SecurityAnswers/:id', () => {
       })
 
     assert.equal(invalidRes.status, 400)
+    assert.equal(invalidRes.body.errors[0].message, 'Invalid security question/answer')
 
     const validRes = await request(app)
       .post('/api/Users')
