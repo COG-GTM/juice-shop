@@ -138,6 +138,18 @@ describe('insecurity', () => {
       expect(res.status.calledWith(403)).to.equal(true)
     })
 
+    it('rejects an expired admin token', () => {
+      const token = security.authorize({ data: { id: 1, role: 'admin' } })
+      const clock = sinon.useFakeTimers({ now: Date.now() + 7 * 60 * 60 * 1000, toFake: ['Date'] })
+      try {
+        const { res, next } = run(token)
+        expect(next.called).to.equal(false)
+        expect(res.status.calledWith(403)).to.equal(true)
+      } finally {
+        clock.restore()
+      }
+    })
+
     it('rejects a missing token', () => {
       const { res, next } = run()
       expect(next.called).to.equal(false)

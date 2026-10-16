@@ -457,6 +457,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Users', security.isAdmin())
   app.get('/api/Users/:id', security.isAdminOrSelf())
   app.get('/api/Complaints', security.isAdmin())
+  app.get('/rest/user/authentication-details', security.isAdmin())
   app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.authorizeFeedbackDeletion()))
 
   /* Verify the 2FA Token */

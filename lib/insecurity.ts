@@ -168,7 +168,10 @@ export const rs256VerifiedPayload = (token?: string) => {
   const parts = token?.split('.') ?? []
   if (parts.length !== 3) return undefined
   const valid = crypto.createVerify('RSA-SHA256').update(`${parts[0]}.${parts[1]}`).verify(publicKey, parts[2], 'base64url')
-  return valid ? decode(token as string) : undefined
+  if (!valid) return undefined
+  const payload = decode(token as string)
+  if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+  return payload
 }
 
 export const isAdmin = () => {
