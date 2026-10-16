@@ -65,20 +65,24 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
   if (messages.length > MAX_CHAT_MESSAGES) {
     return { error: `messages must not contain more than ${MAX_CHAT_MESSAGES} entries` }
   }
+  const validated: ChatMessage[] = []
   let totalLength = 0
   for (const message of messages) {
-    if (!CHAT_ROLES.includes(message?.role) || typeof message?.content !== 'string') {
+    const role = message?.role
+    const content = message?.content
+    if (!CHAT_ROLES.includes(role) || typeof content !== 'string') {
       return { error: 'each message needs a role of user or assistant and string content' }
     }
-    if (message.role === 'user' && message.content.length > MAX_CHAT_MESSAGE_LENGTH) {
+    if (role === 'user' && content.length > MAX_CHAT_MESSAGE_LENGTH) {
       return { error: `message content must not exceed ${MAX_CHAT_MESSAGE_LENGTH} characters` }
     }
-    totalLength += message.content.length
+    totalLength += content.length
+    validated.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
   }
   if (totalLength > MAX_CHAT_TOTAL_LENGTH) {
     return { error: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters` }
   }
-  return { messages: messages.map(({ role, content }) => ({ role: role === 'assistant' ? 'assistant' : 'user', content })) }
+  return { messages: validated }
 }
 
 export function chatRateLimitKey (req: Request): string {
