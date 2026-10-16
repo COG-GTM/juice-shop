@@ -452,6 +452,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* SecurityAnswers: POST only allowed for authenticated users and bound to their own account */
+  app.post('/api/SecurityAnswers', security.isAuthorized(), security.appendUserId())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +517,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer as part of the user registration
+    if (name === 'User') {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const securityQuestionId = req.body.securityQuestion?.id
+        const securityAnswer = req.body.securityAnswer
+        if (securityQuestionId != null && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer }).catch((err: unknown) => {
+            console.log(err)
+          })
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
