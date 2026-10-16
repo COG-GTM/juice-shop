@@ -51,4 +51,22 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template expressions in username as escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{7*7}')
+      .redirects(0)
+      .expect(302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+    assert.ok(!res.text.includes('>49<'))
+    assert.equal(app.locals.abused_ssti_bug, false)
+  })
 })
