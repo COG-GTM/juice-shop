@@ -16,8 +16,17 @@ const globalWithSocketIO = global as typeof globalThis & {
   io: SocketIOClientStatic & Server
 }
 
+const MAX_SVG_INJECTION_PAYLOAD_LENGTH = 2048
+
+export const isSvgInjectionPayload = (data: unknown) => {
+  if (typeof data !== 'string' || data.length > MAX_SVG_INJECTION_PAYLOAD_LENGTH) {
+    return false
+  }
+  return /\.\.\/\.\.\/\.\.[\w/-]*?\/redirect\?to=https?:\/\/placecats.com\/(g\/)?[\d]+\/[\d]+/.test(data) && security.isRedirectAllowed(data)
+}
+
 const registerWebsocketEvents = (server: any) => {
-  const io = new Server(server, { cors: { origin: 'http://localhost:4200' } })
+  const io = new Server(server, { cors: { origin: 'http://localhost:4200' }, maxHttpBufferSize: 1e5 })
   // @ts-expect-error FIXME Type safety issue when setting global socket-io object
   globalWithSocketIO.io = io
 
@@ -44,7 +53,7 @@ const registerWebsocketEvents = (server: any) => {
     })
 
     socket.on('verifySvgInjectionChallenge', (data: any) => {
-      challengeUtils.solveIf(challenges.svgInjectionChallenge, () => { return data?.match(/.*\.\.\/\.\.\/\.\.[\w/-]*?\/redirect\?to=https?:\/\/placecats.com\/(g\/)?[\d]+\/[\d]+.*/) && security.isRedirectAllowed(data) })
+      challengeUtils.solveIf(challenges.svgInjectionChallenge, () => isSvgInjectionPayload(data))
     })
 
     socket.on('verifyCloseNotificationsChallenge', (data: any) => {
