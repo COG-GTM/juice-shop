@@ -6,13 +6,20 @@
 import path from 'node:path'
 import * as utils from '../utils'
 import logger from '../logger'
-import { copyFile, access } from 'node:fs/promises'
+import { publicKey } from '../insecurity'
+import { copyFile, access, writeFile } from 'node:fs/promises'
 import { glob } from 'glob'
 
 const exists = async (path: string) => await access(path).then(() => true).catch(() => false)
 
 const restoreOverwrittenFilesWithOriginals = async () => {
   await copyFile(path.resolve('data/static/legal.md'), path.resolve('ftp/legal.md'))
+
+  try {
+    await writeFile(path.resolve('encryptionkeys/jwt.pub'), publicKey)
+  } catch (err) {
+    logger.warn('Error writing JWT public key to /encryptionkeys folder: ' + utils.getErrorMessage(err))
+  }
 
   if (await exists(path.resolve('frontend/dist'))) {
     await copyFile(
