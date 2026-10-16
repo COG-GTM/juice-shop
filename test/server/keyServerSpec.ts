@@ -18,7 +18,7 @@ describe('keyServer', () => {
 
   beforeEach(() => {
     req = { params: { } }
-    res = { sendFile: sinon.spy(), status: sinon.spy(), send: sinon.spy(), type: sinon.stub() }
+    res = { sendFile: sinon.spy(), status: sinon.spy(), end: sinon.spy(), type: sinon.stub() }
     res.type.returns(res)
     next = sinon.spy()
   })
@@ -37,7 +37,7 @@ describe('keyServer', () => {
     serveKeyFiles()(req, res, next)
 
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
-    expect(res.send).to.have.been.calledWith(publicKey)
+    expect(res.end).to.have.been.calledWith(publicKey)
   })
 
   it('should raise error for slashes in filename', () => {
