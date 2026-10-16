@@ -211,4 +211,23 @@ void describe('/ftp', () => {
       .get('/ftp/quarantine/juicy_malware_windows_64.exe.url')
     assert.equal(res.status, 200)
   })
+
+  void it('GET a quarantine file whose name contains a "/" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/%2fetc%2fos-release')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+  })
+
+  void it('GET a quarantine file via backslash traversal fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/..%5C..%5Cconfig%5Cdefault.yml')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET a quarantine file via absolute Windows path fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/C:%5CWindows%5Cwin.ini')
+    assert.equal(res.status, 403)
+  })
 })
