@@ -53,7 +53,7 @@ export function changePassword () {
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
       )
-      res.json({ user })
+      res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
     }
