@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -79,6 +80,36 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('verify', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64url({ data: { email: 'acc0unt4nt@juice-sh.op', role: 'accounting' } })
+
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { role: 'accounting' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with algorithm "none"', () => {
+      expect(security.verify(`${b64url({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const header = b64url({ alg: 'HS256', typ: 'JWT' })
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects an RS256 token whose payload was tampered with', () => {
+      const [header, , signature] = security.authorize({ data: { role: 'customer' } }).split('.')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing or malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not-a-jwt')).to.equal(false)
+      expect(security.verify('a.b.c')).to.equal(false)
     })
   })
 

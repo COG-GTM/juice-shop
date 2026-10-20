@@ -13,6 +13,10 @@ import { login } from './helpers/auth'
 
 let app: Express
 
+const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+const forgedAccountingPayload = b64url({ data: { email: 'accountant@' + config.get<string>('application.domain'), role: 'accounting' } })
+const unsignedAccountingToken = `${b64url({ alg: 'none', typ: 'JWT' })}.${forgedAccountingPayload}.`
+
 before(async () => {
   const result = await createTestApp()
   app = result.app
@@ -88,6 +92,14 @@ void describe('/rest/order-history/orders', () => {
 
     assert.equal(res.status, 200)
   })
+
+  void it('GET all orders is forbidden with unsigned token claiming accounting role', async () => {
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set({ Authorization: 'Bearer ' + unsignedAccountingToken, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 403)
+  })
 })
 
 void describe('/rest/order-history/:id/delivery-status', () => {
@@ -131,5 +143,14 @@ void describe('/rest/order-history/:id/delivery-status', () => {
       .send({ delivered: false })
 
     assert.equal(res.status, 200)
+  })
+
+  void it('PUT delivery status is forbidden with unsigned token claiming accounting role', async () => {
+    const res = await request(app)
+      .put('/rest/order-history/1/delivery-status')
+      .set({ Authorization: 'Bearer ' + unsignedAccountingToken, 'content-type': 'application/json' })
+      .send({ delivered: true })
+
+    assert.equal(res.status, 403)
   })
 })
