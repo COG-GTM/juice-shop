@@ -88,7 +88,7 @@ export function fetchImage (url: string, redirectsLeft = MAX_REDIRECTS): Promise
     const request = client.get(target, { lookup: safeLookup, timeout: REQUEST_TIMEOUT_MS }, (response) => {
       const status = response.statusCode ?? 0
       if (status >= 300 && status < 400 && response.headers.location) {
-        response.resume()
+        response.destroy()
         if (redirectsLeft <= 0) {
           reject(new Error('url exceeded the maximum number of redirects'))
           return
@@ -104,17 +104,17 @@ export function fetchImage (url: string, redirectsLeft = MAX_REDIRECTS): Promise
         return
       }
       if (status < 200 || status >= 300) {
-        response.resume()
+        response.destroy()
         reject(new Error('url returned a non-OK status code'))
         return
       }
       if (!/^image\//i.test(response.headers['content-type'] ?? '')) {
-        response.resume()
+        response.destroy()
         reject(new Error('url did not return an image content type'))
         return
       }
       if (Number(response.headers['content-length'] ?? 0) > MAX_IMAGE_BYTES) {
-        response.resume()
+        response.destroy()
         reject(new Error('url returned an image exceeding the maximum size'))
         return
       }
