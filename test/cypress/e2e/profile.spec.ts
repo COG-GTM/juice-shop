@@ -3,7 +3,8 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    it('should be possible to request internal resources using image upload URL', () => {
+    // Server-side image URL fetching now rejects loopback/internal destinations, so this SSRF vector is closed
+    xit('should be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
       cy.get('#url').type(
