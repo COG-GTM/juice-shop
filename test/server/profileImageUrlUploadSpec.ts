@@ -8,7 +8,9 @@ import { type AddressInfo } from 'node:net'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
-import { fetchImage, isBlockedAddress, profileImageUrlUpload } from '../../routes/profileImageUrlUpload'
+import { Readable, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { fetchImage, isBlockedAddress, limitSize, profileImageUrlUpload } from '../../routes/profileImageUrlUpload'
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
 
@@ -84,6 +86,19 @@ describe('profileImageUrlUpload', () => {
     it('rejects host names resolving to a loopback address without contacting the internal server', async () => {
       expect((await rejectionOf(fetchImage(`http://localhost:${port}/image.png`))).message).to.match(/non-public address/)
       expect(requests).to.equal(0)
+    })
+  })
+
+  describe('limitSize', () => {
+    const sink = () => new Writable({ write (_chunk, _encoding, callback) { callback() } })
+
+    it('passes through data within the limit', async () => {
+      await pipeline(Readable.from([Buffer.alloc(5), Buffer.alloc(5)]), limitSize(10), sink())
+    })
+
+    it('aborts once the limit is exceeded', async () => {
+      const error = await rejectionOf(pipeline(Readable.from([Buffer.alloc(6), Buffer.alloc(6)]), limitSize(10), sink()))
+      expect(error.message).to.match(/maximum size/)
     })
   })
 

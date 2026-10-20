@@ -8,7 +8,8 @@ import dns from 'node:dns'
 import http from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
-import { finished } from 'node:stream/promises'
+import { Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -18,6 +19,7 @@ import logger from '../lib/logger'
 
 const MAX_REDIRECTS = 3
 const REQUEST_TIMEOUT_MS = 10000
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 const blockedAddresses = new net.BlockList()
 for (const [network, prefix] of [
@@ -111,10 +113,25 @@ export function fetchImage (url: string, redirectsLeft = MAX_REDIRECTS): Promise
         reject(new Error('url did not return an image content type'))
         return
       }
+      if (Number(response.headers['content-length'] ?? 0) > MAX_IMAGE_BYTES) {
+        response.resume()
+        reject(new Error('url returned an image exceeding the maximum size'))
+        return
+      }
       resolve(response)
     })
     request.on('timeout', () => { request.destroy(new Error('url request timed out')) })
     request.on('error', reject)
+  })
+}
+
+export function limitSize (maxBytes = MAX_IMAGE_BYTES): Transform {
+  let received = 0
+  return new Transform({
+    transform (chunk: Buffer, _encoding, callback) {
+      received += chunk.length
+      callback(received > maxBytes ? new Error('url returned an image exceeding the maximum size') : null, chunk)
+    }
   })
 }
 
@@ -129,7 +146,7 @@ export function profileImageUrlUpload () {
           const response = await fetchImage(url)
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(response.pipe(fileStream))
+          await pipeline(response, limitSize(), fileStream)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
