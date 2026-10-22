@@ -11,9 +11,9 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
-function isFromHost (url: string | undefined, hostname: string) {
+function isFromHost (url: string | undefined, host: string) {
   try {
-    return url !== undefined && new URL(url).hostname === hostname
+    return url !== undefined && new URL(url).host === host
   } catch {
     return false
   }

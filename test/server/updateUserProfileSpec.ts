@@ -67,6 +67,7 @@ describe('updateUserProfile', () => {
       'http://attacker.com#://htmledit.squarefree.com',
       'http://htmledit.squarefree.com.attacker.com',
       'http://htmledit.squarefree.com@attacker.com',
+    'http://htmledit.squarefree.com:1234',
       'null',
       'htmledit.squarefree.com'
     ]) {
