@@ -161,9 +161,8 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with known email "admin@juice-sh.op" in SQL injection attack is rejected', async () => {
@@ -175,9 +174,8 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with known email "jim@juice-sh.op" in SQL injection attack is rejected', async () => {
@@ -189,9 +187,8 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with known email "bender@juice-sh.op" in SQL injection attack is rejected', async () => {
@@ -203,9 +200,8 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with non-existing email "acc0unt4nt@juice-sh.op" via UNION SELECT injection attack is rejected', async () => {
@@ -217,9 +213,8 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with query-breaking SQL Injection attack', async () => {
