@@ -72,30 +72,64 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+function containsDtd (data: string) {
+  return /<!(DOCTYPE|ENTITY)/i.test(data)
+}
+
+const externalFileEntity = (target: string) => new RegExp(`(<!--)[\\s\\S]*?(?:-->|$)|<!ENTITY\\s+(%\\s+)?([^\\s%>"']+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']|<![a-z][^>"'[]*(?:(?:"[^"]*(?:"|$)|'[^']*(?:'|$))[^>"'[]*)*`, 'gi')
+const fileDisclosureEntity = externalFileEntity('etc/passwd|[a-z]:/windows/system\\.ini')
+const devRandomEntity = externalFileEntity('dev/u?random')
+
+function usesExternalEntity (data: string, entity: RegExp) {
+  const references: string[] = []
+  let text = ''
+  let pos = 0
+  let lastDeclarationEnd = 0
+  for (const match of data.matchAll(entity)) {
+    const index = match.index ?? 0
+    if (match[1] != null) {
+      text += data.slice(pos, index) + ' '.repeat(match[0].length)
+      pos = index + match[0].length
+    } else {
+      lastDeclarationEnd = index + match[0].length
+      if (match[3] != null) references.push((match[2] != null ? '%' : '&') + match[3] + ';')
+    }
+  }
+  text += data.slice(pos)
+  const subsetEnd = text.indexOf(']', lastDeclarationEnd)
+  const dtd = subsetEnd === -1 ? text : text.slice(0, subsetEnd)
+  return references.some(reference => (reference.startsWith('%') ? dtd : text).includes(reference))
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
+    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
-      try {
-        const sandbox = { libxml, data }
-        vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Script execution timed out')) {
-          if (challengeUtils.notSolved(challenges.xxeDosChallenge)) {
-            challengeUtils.solve(challenges.xxeDosChallenge)
-          }
+      if (containsDtd(data)) {
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return usesExternalEntity(data, fileDisclosureEntity) })
+        if (usesExternalEntity(data, devRandomEntity)) {
+          challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML documents must not contain a DTD (' + file.originalname + ')'))
+        }
+      } else {
+        try {
+          const sandbox = { libxml, data }
+          vm.createContext(sandbox)
+          const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nonet: true, dtdload: false, dtdattr: false, dtdvalid: false, nocdata: true })', sandbox, { timeout: 2000 })
+          res.status(410)
+          if (xmlDoc.getDtd() != null) {
+            next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML documents must not contain a DTD (' + file.originalname + ')'))
+          } else {
+            next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
+          }
+        } catch {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: invalid XML document (' + file.originalname + ')'))
         }
       }
     } else {
