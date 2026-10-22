@@ -10,7 +10,7 @@ import os from 'node:os'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { Readable, Writable } from 'node:stream'
-import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget, isReachableWithoutSymlinks, publishAtomically } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget, isReachableWithoutSymlinks, publishAtomically, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -270,6 +270,35 @@ describe('fileUpload', () => {
       const successfulUpload = publishAtomically([{ tempPath: staged('b', 'B'), targetPath: existing }], () => false)
       expect(await Promise.all([failingUpload, successfulUpload])).to.deep.equal([false, true])
       expect(fs.readFileSync(existing, 'utf8')).to.equal('B')
+    })
+  })
+
+  describe('handleYamlUpload', () => {
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: true, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: true, save } as unknown as Challenge
+      res = { status: () => res, end: () => {} }
+    })
+
+    it('should not construct or invoke !!js/function values from uploaded YAML', () => {
+      (globalThis as any).yamlFunctionInvoked = false
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('toJSON: !!js/function "function () { globalThis.yamlFunctionInvoked = true; return \'pwned\' }"') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: Error) => { error = err })
+
+      expect((globalThis as any).yamlFunctionInvoked).to.equal(false)
+      expect(error?.message).to.contain('unknown tag')
+      delete (globalThis as any).yamlFunctionInvoked
+    })
+
+    it('should still echo plain YAML content in the deprecation error', () => {
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: Error) => { error = err })
+
+      expect(error?.message).to.contain('{"message":"hello"}')
     })
   })
 })
