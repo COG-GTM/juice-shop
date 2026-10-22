@@ -57,8 +57,7 @@ const COUPON_DISCOUNT = 10
 const couponClaimedOrderIds = new Set<string>()
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
-  const token = utils.jwtFrom(req)
-  const email = token && security.verify(token) ? security.authenticatedUsers.get(token)?.data?.email : undefined
+  const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
   if (!email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
