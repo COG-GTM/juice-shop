@@ -185,6 +185,23 @@ export const appendUserId = () => {
   }
 }
 
+export const denyCrossSiteRequests = () => (req: Request, res: Response, next: NextFunction) => {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source) {
+    let sourceHost: string | undefined
+    try {
+      sourceHost = new URL(source).host
+    } catch {
+      sourceHost = undefined
+    }
+    if (sourceHost !== req.headers.host) {
+      res.status(403).json({ status: 'error', message: 'Cross-site request blocked' })
+      return
+    }
+  }
+  next()
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {

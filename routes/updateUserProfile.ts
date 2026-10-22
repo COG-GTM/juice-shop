@@ -11,12 +11,22 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const usernamePattern = /^[\p{L}\p{M}\p{N} ._@=+-]{0,64}$/u
+
+export const isValidUsername = (username: unknown): username is string =>
+  typeof username === 'string' && usernamePattern.test(username)
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
+    }
+
+    if (!isValidUsername(req.body.username)) {
+      res.status(400).json({ status: 'error', message: 'Invalid username' })
       return
     }
 

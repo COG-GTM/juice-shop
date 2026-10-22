@@ -46,9 +46,55 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST username containing template code is rejected and never evaluated', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{global.process.mainModule.require(\'child_process\').execSync(\'id\')}' })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+
+    const profile = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(profile.status, 200)
+    assert.ok(!profile.text.includes('uid='))
+  })
+
+  void it('POST username from a cross-site origin is blocked', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET user profile renders username as escaped text', async () => {
+    const { UserModel } = await import('../../models/user')
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const user = await UserModel.findOne({ where: { email: 'bender@juice-sh.op' } })
+    await user?.update({ username: '#{7*7}' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set({ Cookie: `token=${token}` })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+    assert.ok(!res.text.includes('>49<'))
   })
 })
