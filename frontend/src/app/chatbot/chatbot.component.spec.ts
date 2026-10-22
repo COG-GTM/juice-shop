@@ -47,4 +47,23 @@ describe('ChatbotComponent', () => {
         const outlet = fixture.nativeElement.querySelector('router-outlet')
         expect(outlet).toBeTruthy()
     })
+
+    it('should not render the router-outlet for anonymous users', () => {
+        TestBed.resetTestingModule()
+        loginGuard = { canActivate: vi.fn().mockReturnValue(false) }
+        TestBed.configureTestingModule({
+            imports: [
+                RouterModule.forRoot([], { useHash: true }),
+                ChatbotComponent
+            ],
+            providers: [
+                { provide: LoginGuard, useValue: loginGuard }
+            ]
+        }).compileComponents()
+
+        fixture = TestBed.createComponent(ChatbotComponent)
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('router-outlet')).toBeNull()
+    })
 })

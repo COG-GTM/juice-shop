@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, ChangeDetectionStrategy, type OnInit, inject } from '@angular/core'
+import { Component, ChangeDetectionStrategy, inject } from '@angular/core'
 import { RouterOutlet } from '@angular/router'
 import { LoginGuard } from '../app.guard'
 
@@ -15,10 +15,6 @@ import { LoginGuard } from '../app.guard'
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterOutlet]
 })
-export class ChatbotComponent implements OnInit {
-  private readonly loginGuard = inject(LoginGuard)
-
-  ngOnInit (): void {
-    this.loginGuard.canActivate()
-  }
+export class ChatbotComponent {
+  readonly isLoggedIn = inject(LoginGuard).canActivate()
 }
