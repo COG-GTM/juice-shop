@@ -207,5 +207,4 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
     })
   })
-
 })
