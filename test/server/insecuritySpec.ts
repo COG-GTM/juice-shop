@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +108,23 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('rejects requests even when they carry a validly signed token', (done) => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.denyAll()({ method: 'GET', headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as unknown as Response, (err?: any) => {
+        expect(err).to.have.property('status', 401)
+        done()
+      })
+    })
+
+    it('rejects requests without a token', (done) => {
+      security.denyAll()({ method: 'GET', headers: {} } as unknown as Request, {} as unknown as Response, (err?: any) => {
+        expect(err).to.have.property('status', 401)
+        done()
+      })
     })
   })
 
