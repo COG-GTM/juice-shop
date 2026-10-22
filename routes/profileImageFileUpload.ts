@@ -21,6 +21,19 @@ export const allowedProfileImageTypes: Readonly<Record<string, string>> = {
   'image/webp': 'webp'
 }
 
+const uploadsInProgress = new Map<number, Promise<void>>()
+
+async function serializePerUser (userId: number, task: () => Promise<void>) {
+  const current = (uploadsInProgress.get(userId) ?? Promise.resolve()).then(task)
+  const settled = current.catch(() => {})
+  uploadsInProgress.set(userId, settled)
+  try {
+    await current
+  } finally {
+    if (uploadsInProgress.get(userId) === settled) uploadsInProgress.delete(userId)
+  }
+}
+
 async function removeStaleProfileImages (userId: number, keepExtension: string) {
   await Promise.all(Object.values(allowedProfileImageTypes)
     .filter(ext => ext !== keepExtension)
@@ -60,21 +73,25 @@ export function profileImageFileUpload () {
     }
 
     const fileName = `${userId}.${extension}`
-    try {
-      await fs.writeFile(path.join(uploadsDirectory, fileName), buffer, { mode: 0o644 })
-      await removeStaleProfileImages(userId, extension)
-    } catch (err) {
-      logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
-    }
-
-    try {
-      const user = await UserModel.findByPk(userId)
-      if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${fileName}` })
+    await serializePerUser(userId, async () => {
+      let written = false
+      try {
+        await fs.writeFile(path.join(uploadsDirectory, fileName), buffer, { mode: 0o644 })
+        written = true
+      } catch (err) {
+        logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
       }
-    } catch (error) {
-      next(error)
-    }
+
+      try {
+        const user = await UserModel.findByPk(userId)
+        if (user != null) {
+          await user.update({ profileImage: `assets/public/images/uploads/${fileName}` })
+          if (written) await removeStaleProfileImages(userId, extension)
+        }
+      } catch (error) {
+        next(error)
+      }
+    })
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
   }
