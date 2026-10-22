@@ -28,8 +28,7 @@ export function updateUserProfile () {
       }
 
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
-        return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
-          (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
+        return utils.hasHostname(req.headers.origin ?? req.headers.referer, 'htmledit.squarefree.com') &&
           req.body.username !== user.username
       })
 
