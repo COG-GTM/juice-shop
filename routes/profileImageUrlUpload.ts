@@ -8,7 +8,9 @@ import dns from 'node:dns'
 import http, { type IncomingMessage } from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
-import { finished } from 'node:stream/promises'
+import { type Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import zlib from 'node:zlib'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -23,7 +25,7 @@ const blockedAddresses = new net.BlockList()
 for (const [network, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]] as const) {
   blockedAddresses.addSubnet(network, prefix, 'ipv4')
 }
-for (const [network, prefix] of [['::', 128], ['::1', 128], ['64:ff9b::', 96], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]] as const) {
+for (const [network, prefix] of [['::', 128], ['::1', 128], ['64:ff9b::', 96], ['64:ff9b:1::', 48], ['2001::', 32], ['2002::', 16], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8]] as const) {
   blockedAddresses.addSubnet(network, prefix, 'ipv6')
 }
 
@@ -63,7 +65,7 @@ export async function fetchImage (rawUrl: string, redirectsLeft = MAX_REDIRECTS)
   }
   const client = url.protocol === 'https:' ? https : http
   return await new Promise<IncomingMessage>((resolve, reject) => {
-    const request = client.get(url, { lookup: safeLookup, timeout: REQUEST_TIMEOUT_MS }, (response) => {
+    const request = client.get(url, { lookup: safeLookup, timeout: REQUEST_TIMEOUT_MS, headers: { 'accept-encoding': 'gzip, deflate, br' } }, (response) => {
       const { statusCode = 0, headers } = response
       if (statusCode >= 300 && statusCode < 400 && headers.location) {
         response.resume()
@@ -71,7 +73,14 @@ export async function fetchImage (rawUrl: string, redirectsLeft = MAX_REDIRECTS)
           reject(new Error('Too many redirects'))
           return
         }
-        fetchImage(new URL(headers.location, url).toString(), redirectsLeft - 1).then(resolve, reject)
+        let redirectUrl: string
+        try {
+          redirectUrl = new URL(headers.location, url).toString()
+        } catch (err) {
+          reject(err)
+          return
+        }
+        fetchImage(redirectUrl, redirectsLeft - 1).then(resolve, reject)
         return
       }
       resolve(response)
@@ -79,6 +88,20 @@ export async function fetchImage (rawUrl: string, redirectsLeft = MAX_REDIRECTS)
     request.on('timeout', () => { request.destroy(new Error('Request timed out')) })
     request.on('error', reject)
   })
+}
+
+function contentDecoder (response: IncomingMessage): Transform[] {
+  switch (response.headers['content-encoding']?.trim().toLowerCase()) {
+    case 'gzip':
+    case 'x-gzip':
+      return [zlib.createGunzip()]
+    case 'deflate':
+      return [zlib.createInflate()]
+    case 'br':
+      return [zlib.createBrotliDecompress()]
+    default:
+      return []
+  }
 }
 
 export function profileImageUrlUpload () {
@@ -96,7 +119,7 @@ export function profileImageUrlUpload () {
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(response.pipe(fileStream))
+          await pipeline([response, ...contentDecoder(response), fileStream])
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {

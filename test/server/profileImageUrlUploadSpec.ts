@@ -24,7 +24,7 @@ async function expectBlocked (url: string) {
 describe('profileImageUrlUpload', () => {
   describe('isBlockedAddress', () => {
     it('should block loopback, private, link-local and reserved addresses', () => {
-      for (const address of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '255.255.255.255', '::', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:a9fe:a9fe']) {
+      for (const address of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '192.168.0.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '255.255.255.255', '::', '::1', 'fd00::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:a9fe:a9fe', '64:ff9b:1::a00:1', '2001:0:4136:e378::1', '2002:7f00:1::1']) {
         expect(isBlockedAddress(address), address).to.equal(true)
       }
     })
