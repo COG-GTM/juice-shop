@@ -92,28 +92,16 @@ describe('/profile', () => {
       // cy.expectChallengeSolved({ challenge: 'CSRF' })
     })
 
-    xit('should be possible to fake a CSRF attack against the user profile page', () => {
-      cy.visit('/')
-      cy.window().then(async () => {
-        const formData = new FormData()
-        formData.append('username', 'CSRF')
-
-        const response = await fetch(`${Cypress.config('baseUrl')}/profile`, {
-          method: 'POST',
-          cache: 'no-cache',
-          headers: {
-            'Content-type': 'application/x-www-form-urlencoded',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-            Origin: 'http://htmledit.squarefree.com', // FIXME Not allowed by browser due to "unsafe header not permitted"
-            Cookie: `token=${localStorage.getItem('token')}` // FIXME Not allowed by browser due to "unsafe header not permitted"
-          },
-          body: formData
-        })
-        if (response.status === 200) {
-          console.log('Success')
-        }
+    it('should be possible to fake a CSRF attack against the user profile page', () => {
+      cy.request({
+        method: 'POST',
+        url: '/profile',
+        form: true,
+        followRedirect: false,
+        headers: { Origin: 'http://htmledit.squarefree.com' },
+        body: { username: 'CSRF' }
       })
-      // cy.expectChallengeSolved({ challenge: 'CSRF' })
+      cy.expectChallengeSolved({ challenge: 'CSRF' })
     })
   })
 })
