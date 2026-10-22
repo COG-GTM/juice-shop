@@ -7,6 +7,8 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
+import { Transform, pipeline } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,31 +26,53 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const MAX_ZIP_ENTRIES = 100
+const MAX_ZIP_UNCOMPRESSED_BYTES = 10 * 1024 * 1024
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
-      fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
-        fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
-          fs.close(fd, function () {
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
-              .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+      const tempFile = path.join(os.tmpdir(), `${crypto.randomUUID()}.zip`)
+      const uploadDir = path.resolve('uploads/complaints')
+      let entryCount = 0
+      let extractedBytes = 0
+      const removeTempFile = () => { fs.unlink(tempFile, () => {}) }
+      fs.writeFile(tempFile, buffer, function (err) {
+        if (err != null) { removeTempFile(); return }
+        fs.createReadStream(tempFile)
+          .pipe(unzipper.Parse())
+          .on('entry', function (entry: any) {
+            const fileName: string = entry.path
+            const absolutePath = path.resolve(uploadDir, fileName)
+            challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
+            entryCount++
+            const isSafeEntry = entry.type === 'File' &&
+              !fileName.includes('\0') &&
+              !path.isAbsolute(fileName) &&
+              absolutePath.startsWith(uploadDir + path.sep)
+            if (!isSafeEntry || entryCount > MAX_ZIP_ENTRIES || extractedBytes >= MAX_ZIP_UNCOMPRESSED_BYTES) {
+              entry.autodrain()
+              return
+            }
+            let truncated = false
+            const sizeLimiter = new Transform({
+              transform (chunk: Buffer, _encoding, callback) {
+                extractedBytes += chunk.length
+                if (extractedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
+                  truncated = true
+                  callback()
                 } else {
-                  entry.autodrain()
+                  callback(null, chunk)
                 }
-              }).on('error', function (err: unknown) { next(err) })
+              }
+            })
+            pipeline(entry, sizeLimiter, fs.createWriteStream(absolutePath), function (err) {
+              if (err != null || truncated) { fs.unlink(absolutePath, () => {}) }
+            })
           })
-        })
+          .on('close', removeTempFile)
+          .on('error', removeTempFile)
       })
     }
     res.status(204).end()
