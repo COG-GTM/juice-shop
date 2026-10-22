@@ -313,6 +313,13 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(!result.includes('couponCode'))
   })
 
+  void it('rejects discounts below 10% that would not be redeemable', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(token)
+    const result = await couponToolResult({ discount: 5, orderId }, token)
+    assert.ok(!result.includes('couponCode'))
+  })
+
   void it('refuses to mint coupons for anonymous callers', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
@@ -337,7 +344,7 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(result.includes('No order with this ID found for the current customer'))
   })
 
-  void it('mints one coupon of at most 10% per owned delivered order', { timeout: 15000 }, async () => {
+  void it('mints one 10% coupon per owned delivered order', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
     const first = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))

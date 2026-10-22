@@ -53,11 +53,8 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   return user?.username ?? undefined
 }
 
-const MAX_COUPON_DISCOUNT = 10
-
-function isAllowedCouponDiscount (discount: unknown): discount is number {
-  return Number.isInteger(discount) && (discount as number) >= 1 && (discount as number) <= MAX_COUPON_DISCOUNT
-}
+const COUPON_DISCOUNT = 10
+const couponClaimedOrderIds = new Set<string>()
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
   const token = utils.jwtFrom(req)
@@ -66,7 +63,8 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  if (order.couponIssued) return { error: 'A coupon was already issued for this order' }
+  if (order.couponIssued || couponClaimedOrderIds.has(order.orderId)) return { error: 'A coupon was already issued for this order' }
+  couponClaimedOrderIds.add(order.orderId)
   await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
   return {}
 }
@@ -192,11 +190,11 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().int().min(1).max(MAX_COUPON_DISCOUNT).describe(`The discount percentage for the coupon (maximum ${MAX_COUPON_DISCOUNT})`), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(COUPON_DISCOUNT).max(COUPON_DISCOUNT).describe(`The discount percentage for the coupon (always ${COUPON_DISCOUNT})`), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
           orderId: z.string().describe('The order ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
         execute: async ({ discount, orderId }) => {
-          if (!isAllowedCouponDiscount(discount)) return { error: `The maximum allowed discount is ${MAX_COUPON_DISCOUNT}%` }
+          if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
           const eligibility = await claimCouponEligibleOrder(req, orderId)
           if (eligibility.error) return eligibility
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
