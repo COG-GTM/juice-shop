@@ -8,7 +8,10 @@ import type { ChallengeModel } from 'models/challenge'
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('utils', () => {
   describe('toSimpleIpAddress', () => {
@@ -206,6 +209,29 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('sendErrorResponse', () => {
+    let res: any
+
+    beforeEach(() => {
+      res = { status: sinon.stub(), json: sinon.spy() }
+      res.status.returns(res)
+    })
+
+    it('responds with a generic message instead of the error details', () => {
+      const error = new Error('SQLITE_ERROR: no such table: Secrets')
+      utils.sendErrorResponse(res, 500, error)
+      expect(res.status).to.have.been.calledWith(500)
+      expect(res.json).to.have.been.calledWith('Internal Server Error')
+      expect(JSON.stringify(res.json.firstCall.args[0])).to.not.contain('SQLITE_ERROR')
+    })
+
+    it('responds with the given body and status code for non-Error values', () => {
+      utils.sendErrorResponse(res, 401, 'TypeError: Cannot read properties of undefined', { status: 'error', message: 'Unauthorized' })
+      expect(res.status).to.have.been.calledWith(401)
+      expect(res.json).to.have.been.calledWith({ status: 'error', message: 'Unauthorized' })
     })
   })
 })

@@ -8,6 +8,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
 
@@ -53,7 +54,7 @@ export function likeProductReviews () {
         )
         res.json(result)
       } catch (err) {
-        res.status(500).json(err)
+        utils.sendErrorResponse(res, 500, err)
       }
     } catch (err) {
       res.status(400).json({ error: 'Wrong Params' })

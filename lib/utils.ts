@@ -12,6 +12,7 @@ import download from 'download'
 import crypto from 'node:crypto'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
+import type { Response } from 'express'
 
 import isHeroku from './is-heroku'
 import isDocker from './is-docker'
@@ -217,6 +218,11 @@ export const toSimpleIpAddress = (ipv6: string) => {
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+export const sendErrorResponse = (res: Response, statusCode: number, error: unknown, body: unknown = 'Internal Server Error') => {
+  logger.error(`Request failed with HTTP ${statusCode}: ${getErrorMessage(error)}`)
+  res.status(statusCode).json(body)
 }
 
 export const matchesSystemIniFile = (text: string) => {
