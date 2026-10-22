@@ -30,7 +30,8 @@ describe('challengeUtils', () => {
       const warn = sinon.stub(logger, 'warn')
       try {
         challengeUtils.findChallengeByName('blubb\r\nwarn: Solved 6-star forgedChallenge\n')
-        expect(warn.calledOnceWithExactly('Missing challenge with name: blubbwarn: Solved 6-star forgedChallenge')).to.equal(true)
+        expect(warn.callCount).to.equal(1)
+        expect(warn.firstCall.args).to.deep.equal(['Missing challenge with name: blubbwarn: Solved 6-star forgedChallenge'])
       } finally {
         warn.restore()
       }
