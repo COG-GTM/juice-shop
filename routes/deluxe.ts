@@ -12,6 +12,7 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import { CardModel } from '../models/card'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 export function upgradeToDeluxe () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -52,7 +53,8 @@ export function upgradeToDeluxe () {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
       }
     } catch (err: unknown) {
-      res.status(400).json({ status: 'error', error: 'Something went wrong: ' + utils.getErrorMessage(err) })
+      logger.error(`Error upgrading to deluxe membership: ${utils.getErrorMessage(err)}`)
+      res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
     }
   }
 }
