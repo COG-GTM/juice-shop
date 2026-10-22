@@ -84,17 +84,21 @@ function usesExternalEntity (data: string, entity: RegExp) {
   const references: string[] = []
   let text = ''
   let pos = 0
+  let lastDeclarationEnd = 0
   for (const match of data.matchAll(entity)) {
+    const index = match.index ?? 0
     if (match[1] != null) {
-      const index = match.index ?? 0
-      text += data.slice(pos, index)
+      text += data.slice(pos, index) + ' '.repeat(match[0].length)
       pos = index + match[0].length
-    } else if (match[3] != null) {
-      references.push((match[2] != null ? '%' : '&') + match[3] + ';')
+    } else {
+      lastDeclarationEnd = index + match[0].length
+      if (match[3] != null) references.push((match[2] != null ? '%' : '&') + match[3] + ';')
     }
   }
   text += data.slice(pos)
-  return references.some(reference => text.includes(reference))
+  const subsetEnd = text.indexOf(']', lastDeclarationEnd)
+  const dtd = subsetEnd === -1 ? text : text.slice(0, subsetEnd)
+  return references.some(reference => (reference.startsWith('%') ? dtd : text).includes(reference))
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
