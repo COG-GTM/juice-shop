@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -97,5 +98,36 @@ async function quantityCheck (req: Request, res: Response, next: NextFunction, i
     }
   } else {
     res.status(400).json({ error: res.__('You can order only up to {{quantity}} items of this product.', { quantity: product.limitPerUser.toString() }) })
+  }
+}
+
+async function basketIdsOfAuthenticatedUser (req: Request) {
+  const userId = security.verifiedTokenPayload(req)?.data?.id
+  if (userId == null) return []
+  const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+  return baskets.map(basket => basket.id)
+}
+
+export function getOwnBasketItems () {
+  return async (req: Request, res: Response) => {
+    const basketIds = await basketIdsOfAuthenticatedUser(req)
+    const basketItems = await BasketItemModel.findAll({ where: { BasketId: basketIds } })
+    res.json({ status: 'success', data: basketItems })
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (item == null) {
+      next()
+      return
+    }
+    const basketIds = await basketIdsOfAuthenticatedUser(req)
+    if (basketIds.includes(item.BasketId)) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
   }
 }

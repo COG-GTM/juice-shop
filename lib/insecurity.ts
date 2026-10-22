@@ -164,6 +164,22 @@ export const isAccounting = () => {
   }
 }
 
+export const verifiedTokenPayload = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  const decoded = token ? jws.decode(token) : null
+  return decoded?.header?.alg === 'RS256' && verify(token) ? decoded.payload : undefined
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedTokenPayload(req)?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)

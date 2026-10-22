@@ -82,6 +82,30 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    function run (token: string) {
+      let nextCalled = false
+      let status: number | undefined
+      const res = { status (code: number) { status = code; return { json () {} } } }
+      security.isAdmin()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, res as any, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+
+    it('allows a signed token with admin role', () => {
+      expect(run(security.authorize({ data: { role: 'admin' } }))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('forbids a signed token with customer role', () => {
+      expect(run(security.authorize({ data: { role: 'customer' } }))).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('forbids an unsigned token with admin role', () => {
+      const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+      const unsigned = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { role: 'admin' } })}.`
+      expect(run(unsigned)).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
