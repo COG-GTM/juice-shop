@@ -14,10 +14,10 @@ const USERNAME_PATTERN = /^[\p{L}\p{M}\p{N} ._-]{0,64}$/u
 function isSameOriginRequest (req: Request) {
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
-    return true
+    return false
   }
   try {
-    return new URL(source).host === req.headers.host
+    return new URL(source).origin === `${req.protocol}://${req.get('host')}`
   } catch {
     return false
   }

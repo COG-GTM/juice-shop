@@ -14,6 +14,7 @@ import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
+const sameOrigin = { Host: 'localhost:3000', Origin: 'http://localhost:3000' }
 
 before(async () => {
   const result = await createTestApp()
@@ -47,6 +48,7 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
+      .set(sameOrigin)
       .type('form')
       .send({ username: 'Localhorst' })
       .redirects(0)
@@ -59,6 +61,7 @@ void describe('/profile', () => {
       const res = await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
+        .set(sameOrigin)
         .type('form')
         .send({ username })
         .redirects(0)
@@ -79,12 +82,36 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('POST update username from the same origin is accepted', async () => {
+  void it('POST update username without Origin or Referer is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from the same host but another scheme is rejected', async () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .set('Host', 'localhost:3000')
-      .set('Origin', 'http://localhost:3000')
+      .set('Origin', 'https://localhost:3000')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from the same origin via Referer is accepted', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Referer', 'http://localhost:3000/profile')
       .type('form')
       .send({ username: 'Localhorst' })
       .redirects(0)
