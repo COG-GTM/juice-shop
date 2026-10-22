@@ -208,4 +208,16 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('concealError', () => {
+    it('returns a generic message instead of the error details', () => {
+      const message = utils.concealError(new TypeError("Cannot read properties of undefined (reading 'data')"), 'Test')
+      expect(message).to.equal(utils.genericErrorMessage)
+      expect(message).to.not.contain('Cannot read properties')
+    })
+
+    it('returns a generic message for non-Error values', () => {
+      expect(utils.concealError('SQLITE_ERROR: no such table: Users', 'Test')).to.equal(utils.genericErrorMessage)
+    })
+  })
 })

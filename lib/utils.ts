@@ -219,6 +219,13 @@ export const getErrorMessage = (error: unknown) => {
   return String(error)
 }
 
+export const genericErrorMessage = 'An unexpected error occurred. Please try again later.'
+
+export const concealError = (error: unknown, context: string) => {
+  logger.error(`${context}: ${getErrorMessage(error)}`)
+  return genericErrorMessage
+}
+
 export const matchesSystemIniFile = (text: string) => {
   const match = text.match(/; for 16-bit app support/gi)
   return match !== null && match.length >= 1
