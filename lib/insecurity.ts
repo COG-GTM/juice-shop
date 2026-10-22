@@ -186,18 +186,25 @@ export const appendUserId = () => {
 }
 
 export const denyCrossSiteRequests = () => (req: Request, res: Response, next: NextFunction) => {
+  const fetchSite = req.headers['sec-fetch-site']
+  if (fetchSite !== undefined && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    res.status(403).json({ status: 'error', message: 'Cross-site request blocked' })
+    return
+  }
   const source = req.headers.origin ?? req.headers.referer
-  if (source) {
-    let sourceHost: string | undefined
-    try {
-      sourceHost = new URL(source).host
-    } catch {
-      sourceHost = undefined
-    }
-    if (sourceHost !== req.headers.host) {
-      res.status(403).json({ status: 'error', message: 'Cross-site request blocked' })
-      return
-    }
+  if (source === undefined || source === '') {
+    res.status(403).json({ status: 'error', message: 'Cross-site request blocked' })
+    return
+  }
+  let sourceOrigin: string | undefined
+  try {
+    sourceOrigin = new URL(source).origin
+  } catch {
+    sourceOrigin = undefined
+  }
+  if (sourceOrigin !== `${req.protocol}://${req.headers.host}`) {
+    res.status(403).json({ status: 'error', message: 'Cross-site request blocked' })
+    return
   }
   next()
 }

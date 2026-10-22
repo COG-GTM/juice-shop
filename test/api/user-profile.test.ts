@@ -46,6 +46,8 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
       .type('form')
       .send({ username: 'Localhorst' })
       .redirects(0)
@@ -57,6 +59,8 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
       .type('form')
       .send({ username: '#{global.process.mainModule.require(\'child_process\').execSync(\'id\')}' })
       .redirects(0)
@@ -76,6 +80,44 @@ void describe('/profile', () => {
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST username without Origin or Referer is blocked', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST username from a different scheme on the same host is blocked', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'https://localhost:3000')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST username flagged as cross-site by Sec-Fetch-Site is blocked', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'same-site')
       .type('form')
       .send({ username: 'CSRF' })
       .redirects(0)
