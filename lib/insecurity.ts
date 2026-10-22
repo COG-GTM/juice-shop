@@ -54,7 +54,14 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: unknown) => {
+  try {
+    const [, signingInput, signature] = (token as string).match(/^([\w-]+\.[\w-]+)\.([\w-]+)$/) as RegExpMatchArray
+    return crypto.verify('RSA-SHA256', Buffer.from(signingInput), publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
