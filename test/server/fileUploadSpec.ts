@@ -274,6 +274,13 @@ describe('fileUpload', () => {
   })
 
   describe('handleYamlUpload', () => {
+    const { deprecatedInterfaceChallenge, yamlBombChallenge } = challenges
+
+    afterEach(() => {
+      challenges.deprecatedInterfaceChallenge = deprecatedInterfaceChallenge
+      challenges.yamlBombChallenge = yamlBombChallenge
+    })
+
     beforeEach(() => {
       challenges.deprecatedInterfaceChallenge = { solved: true, save } as unknown as Challenge
       challenges.yamlBombChallenge = { solved: true, save } as unknown as Challenge
