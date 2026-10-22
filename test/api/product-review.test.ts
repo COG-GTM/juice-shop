@@ -34,11 +34,19 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews does not evaluate an injected mongoDB sleep command', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('GET product reviews does not evaluate an injected JavaScript expression', async () => {
+    const res = await request(app)
+      .get('/rest/products/1%20%7C%7C%20true/reviews')
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
@@ -48,7 +56,7 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is listed for the product', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
@@ -57,6 +65,11 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const listed = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(listed.status, 200)
+    assert.ok(listed.body.data.some((review: { message: string, author: string }) => review.message === 'Lorem Ipsum' && review.author === 'Anonymous'))
   })
 })
 
