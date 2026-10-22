@@ -124,6 +124,14 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
+
+    void it('POST XML with dev/random entity declared only inside a comment is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!-- <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]> --><foo>&amp;xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'commented.xml')
+      assert.equal(res.status, 410)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {

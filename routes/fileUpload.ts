@@ -76,9 +76,30 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
-const externalFileEntity = (target: string) => new RegExp(`<!ENTITY\\s+(?:%\\s+)?[^\\s>]+\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']`, 'i')
+function stripComments (data: string) {
+  let result = ''
+  let pos = 0
+  let start = data.indexOf('<!--')
+  while (start !== -1) {
+    result += data.slice(pos, start)
+    const end = data.indexOf('-->', start + 4)
+    if (end === -1) return result
+    pos = end + 3
+    start = data.indexOf('<!--', pos)
+  }
+  return result + data.slice(pos)
+}
+
+const externalFileEntity = (target: string) => new RegExp(`<!ENTITY\\s+([^\\s%>]+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']`, 'gi')
 const fileDisclosureEntity = externalFileEntity('etc/passwd|[a-z]:/windows/system\\.ini')
 const devRandomEntity = externalFileEntity('dev/u?random')
+
+function usesExternalEntity (xml: string, entity: RegExp) {
+  for (const match of xml.matchAll(entity)) {
+    if (xml.includes('&' + match[1] + ';')) return true
+  }
+  return false
+}
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
@@ -86,8 +107,9 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       if (containsDtd(data)) {
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return fileDisclosureEntity.test(data) })
-        if (devRandomEntity.test(data)) {
+        const xml = stripComments(data)
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return usesExternalEntity(xml, fileDisclosureEntity) })
+        if (usesExternalEntity(xml, devRandomEntity)) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
