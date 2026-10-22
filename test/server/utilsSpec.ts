@@ -29,6 +29,27 @@ describe('utils', () => {
     })
   })
 
+  describe('hasHostname', () => {
+    it('returns true for http and https URLs on the exact host', () => {
+      expect(utils.hasHostname('http://htmledit.squarefree.com', 'htmledit.squarefree.com')).to.equal(true)
+      expect(utils.hasHostname('https://htmledit.squarefree.com/?x=1', 'htmledit.squarefree.com')).to.equal(true)
+    })
+
+    it('returns false when the host only appears as a substring of the URL', () => {
+      expect(utils.hasHostname('http://evil.com/?://htmledit.squarefree.com', 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('http://htmledit.squarefree.com.evil.com', 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('http://evil-htmledit.squarefree.com', 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('http://htmledit.squarefree.com@evil.com', 'htmledit.squarefree.com')).to.equal(false)
+    })
+
+    it('returns false for missing or unparsable values', () => {
+      expect(utils.hasHostname(undefined, 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('', 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('null', 'htmledit.squarefree.com')).to.equal(false)
+      expect(utils.hasHostname('htmledit.squarefree.com', 'htmledit.squarefree.com')).to.equal(false)
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')
