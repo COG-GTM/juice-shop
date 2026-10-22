@@ -100,13 +100,14 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         _logo_: utils.extractFilename(config.get('application.logo'))
       }
 
-      if (req.body.layout) {
-        const filePath: string = path.resolve(req.body.layout).toLowerCase()
+      const layout = typeof req.body.layout === 'string' ? req.body.layout : undefined
+      if (layout) {
+        const filePath: string = path.resolve(layout).toLowerCase()
         const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
         if (!isForbiddenFile) {
           res.render('dataErasureResult', {
-            ...req.body,
-            ...themeVars
+            ...themeVars,
+            layout
           }, (error, html) => {
             if (!html || error) {
               next(new Error(error.message))
@@ -120,10 +121,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
           next(new Error('File access not allowed'))
         }
       } else {
-        res.render('dataErasureResult', {
-          ...req.body,
-          ...themeVars
-        })
+        res.render('dataErasureResult', themeVars)
       }
     } catch (error) {
       next(error)
