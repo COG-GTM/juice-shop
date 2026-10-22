@@ -3,49 +3,17 @@ describe('/#/login', () => {
     cy.visit('/#/login')
   })
 
-  describe('challenge "loginAdmin"', () => {
-    it('should log in Admin with SQLI attack on email field using "\' or 1=1--"', () => {
-      cy.get('#email').type("' or 1=1--")
-      cy.get('#password').type('a')
-      cy.get('#loginButton').click()
-    })
-
-    it('should log in Admin with SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`admin@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Admin' })
-    })
-  })
-
-  describe('challenge "loginJim"', () => {
-    it('should log in Jim with SQLI attack on email field using "jim@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`jim@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Jim' })
-    })
-  })
-
-  describe('challenge "loginBender"', () => {
-    it('should log in Bender with SQLI attack on email field using "bender@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`bender@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Bender' })
-    })
+  describe('SQL injection on the email field', () => {
+    for (const payload of ["' or 1=1--", "admin@juice-sh.op'--", "jim@juice-sh.op'--", "bender@juice-sh.op'--"]) {
+      it(`should not log in with "${payload}"`, () => {
+        cy.request({
+          method: 'POST',
+          url: '/rest/user/login',
+          body: { email: payload, password: 'a' },
+          failOnStatusCode: false
+        }).its('status').should('eq', 401)
+      })
+    }
   })
 
   describe('challenge "adminCredentials"', () => {
