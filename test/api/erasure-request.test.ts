@@ -6,6 +6,7 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import fs from 'node:fs'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -110,5 +111,47 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('juice-shop'))
     assert.ok(res.text.includes('......'))
+  })
+
+  void it('POST erasure request does not pass other request body fields to the template', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ _title_: 'injected-title-marker', settings: { 'view options': { layout: '../package.json' } } })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('injected-title-marker'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
+
+  void it('POST erasure request cannot override view settings to bypass the forbidden file check', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const ctfKey = fs.readFileSync('ctf.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('settings[views]=.&settings[view options][layout]=ctf.key')
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(ctfKey))
+  })
+
+  void it('POST erasure request ignores a non-string layout parameter', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: ['../package.json'] })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
   })
 })
