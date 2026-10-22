@@ -8,7 +8,7 @@ import dns from 'node:dns'
 import http, { type IncomingMessage } from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
-import { type Transform } from 'node:stream'
+import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import zlib from 'node:zlib'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -20,6 +20,7 @@ import logger from '../lib/logger'
 
 const MAX_REDIRECTS = 5
 const REQUEST_TIMEOUT_MS = 10000
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 const blockedAddresses = new net.BlockList()
 for (const [network, prefix] of [['0.0.0.0', 8], ['10.0.0.0', 8], ['100.64.0.0', 10], ['127.0.0.0', 8], ['169.254.0.0', 16], ['172.16.0.0', 12], ['192.0.0.0', 24], ['192.168.0.0', 16], ['198.18.0.0', 15], ['224.0.0.0', 4], ['240.0.0.0', 4]] as const) {
@@ -104,6 +105,16 @@ function contentDecoder (response: IncomingMessage): Transform[] {
   }
 }
 
+function sizeLimit (maxBytes: number) {
+  let total = 0
+  return new Transform({
+    transform (chunk: Buffer, _encoding, callback) {
+      total += chunk.length
+      callback(total > maxBytes ? new Error(`Image exceeds ${maxBytes} bytes`) : null, chunk)
+    }
+  })
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -119,7 +130,7 @@ export function profileImageUrlUpload () {
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await pipeline([response, ...contentDecoder(response), fileStream])
+          await pipeline([response, ...contentDecoder(response), sizeLimit(MAX_IMAGE_BYTES), fileStream])
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
