@@ -11,8 +11,12 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+
+const adminToken = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+const customerToken = security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })
 
 let blueprint: string
 
@@ -201,10 +205,45 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file as admin for "Access Log" challenge', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${adminToken}`)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('GET access log directory listing as admin', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set('Authorization', `Bearer ${adminToken}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('<title>listing directory /support/logs</title>'))
+  })
+
+  for (const method of ['get', 'head', 'post', 'put', 'delete'] as const) {
+    void it(`${method.toUpperCase()} access log directory listing is forbidden for anonymous users`, async () => {
+      const res = await request(app)[method]('/support/logs')
+      assert.equal(res.status, 403)
+    })
+
+    void it(`${method.toUpperCase()} access log file is forbidden for anonymous users`, async () => {
+      const res = await request(app)[method]('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      assert.equal(res.status, 403)
+    })
+  }
+
+  void it('GET access log file is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${customerToken}`)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log directory listing is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set('Authorization', `Bearer ${customerToken}`)
+    assert.equal(res.status, 403)
   })
 })
