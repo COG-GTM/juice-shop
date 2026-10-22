@@ -70,9 +70,8 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
               if (output !== null) {
                 aborted = true
                 entry.unpipe(output)
-                output.destroy()
+                output.on('close', function () { fs.rm(tempPath, { force: true }, () => {}) }).destroy()
                 output = null
-                fs.rm(tempPath, { force: true }, () => {})
               }
               stopExtraction()
             }
