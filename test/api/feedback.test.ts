@@ -17,6 +17,21 @@ let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
+async function headerFor (email: string, password: string) {
+  const { token } = await login(app, { email, password })
+  return { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+}
+
+async function createFeedback (header: Record<string, string>, UserId: number | undefined, comment: string) {
+  const captchaRes = await request(app).get('/rest/captcha')
+  const res = await request(app)
+    .post('/api/Feedbacks')
+    .set(header)
+    .send({ UserId, comment, rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+  assert.equal(res.status, 201)
+  return res.body.data.id
+}
+
 before(async () => {
   const result = await createTestApp()
   app = result.app
@@ -244,11 +259,21 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing feedback by id', async () => {
+  void it('GET existing feedback by id as admin', async () => {
     const res = await request(app)
       .get('/api/Feedbacks/1')
-      .set(authHeader)
+      .set(await headerFor('admin@juice-sh.op', 'admin123'))
     assert.equal(res.status, 200)
+  })
+
+  void it('GET feedback of another user is forbidden', async () => {
+    const adminHeader = await headerFor('admin@juice-sh.op', 'admin123')
+    const feedbackId = await createFeedback(adminHeader, 1, 'Admin feedback')
+
+    const res = await request(app)
+      .get('/api/Feedbacks/' + feedbackId)
+      .set(await headerFor('jim@juice-sh.op', 'ncc-1701'))
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing feedback is forbidden via public API', async () => {
@@ -298,7 +323,41 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(await headerFor('admin@juice-sh.op', 'admin123'))
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE anonymous feedback is forbidden for non-admin users', async () => {
+    const feedbackId = await createFeedback(jsonHeader, undefined, 'Anonymous feedback')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const adminHeader = await headerFor('admin@juice-sh.op', 'admin123')
+    const feedbackId = await createFeedback(adminHeader, 1, 'Admin feedback to keep')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(await headerFor('jim@juice-sh.op', 'ncc-1701'))
+    assert.equal(res.status, 403)
+
+    const stillThere = await request(app)
+      .get('/api/Feedbacks/' + feedbackId)
+      .set(adminHeader)
+    assert.equal(stillThere.status, 200)
+  })
+
+  void it('DELETE own feedback', async () => {
+    const jimHeader = await headerFor('jim@juice-sh.op', 'ncc-1701')
+    const feedbackId = await createFeedback(jimHeader, 2, 'Jim feedback')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedbackId)
+      .set(jimHeader)
     assert.equal(res.status, 200)
   })
 })
