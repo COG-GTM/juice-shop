@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -108,6 +109,38 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+    const payload = base64url({ data: { email: 'jim@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 })
+
+    it('accepts a token signed by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'jim@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with algorithm "none"', () => {
+      expect(security.verify(`${base64url({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects an HS256 token signed with the public key as HMAC secret', () => {
+      const signingInput = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')
+      expect(security.verify(`${signingInput}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects a token whose payload was tampered with', () => {
+      const [header, , signature] = security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }).split('.')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing, malformed and non-string tokens', () => {
+      expect(security.verify(undefined)).to.equal(false)
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt.token')).to.equal(false)
+      expect(security.verify({ token: security.authorize({}) })).to.equal(false)
+      expect(security.verify([security.authorize({})])).to.equal(false)
     })
   })
 
