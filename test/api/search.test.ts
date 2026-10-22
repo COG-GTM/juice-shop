@@ -203,4 +203,20 @@ void describe('/rest/products/search', () => {
     assert.ok(searchRes.headers['content-type']?.includes('application/json'))
     assert.equal(searchRes.body.data.length, products.length)
   })
+
+  void it('GET product search coerces array-valued search parameter to a string', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?q[]=o-saft')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, 1)
+  })
+
+  void it('GET product search applies 200 character limit to array-valued search parameter', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?' + Array(201).fill('q=a').join('&'))
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, 0)
+  })
 })
