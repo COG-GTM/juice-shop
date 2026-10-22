@@ -3,59 +3,23 @@ describe('/rest/products/reviews', () => {
     cy.visit('/#/search')
   })
 
-  describe('challenge "NoSQL DoS"', () => {
-    beforeEach(() => {
-      cy.login({ email: 'admin', password: 'admin123' })
-    })
-    it('should be possible to inject a command into the get route', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(() => {
-            void fetch(
-              `${Cypress.config('baseUrl')}/rest/products/sleep(1000)/reviews`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
-          })
-          cy.expectChallengeSolved({ challenge: 'NoSQL DoS' })
-        }
+  describe('order tracking', () => {
+    it('should not be possible to inject into the order id to get all the orders', () => {
+      cy.request('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27').then((response) => {
+        expect(response.body.data).to.have.length(1)
+        expect(response.body.data[0]).to.not.have.property('email')
       })
     })
   })
 
-  describe('challenge "NoSQL Exfiltration"', () => {
-    it('should be possible to inject and get all the orders', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            await fetch(
-              `${Cypress.config('baseUrl')}/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27`,
-              {
-                method: 'GET',
-                headers: {
-                  'Content-type': 'text/plain'
-                }
-              }
-            )
-          })
-          cy.expectChallengeSolved({ challenge: 'NoSQL Exfiltration' })
-        }
-      })
-    })
-  })
-
-  describe('challenge "NoSQL Manipulation"', () => {
+  describe('review update', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
 
-    it('should be possible to inject a selector into the update route', () => {
+    it('should not be possible to inject a selector into the update route', () => {
       cy.window().then(async () => {
-        await fetch(`${Cypress.config('baseUrl')}/rest/products/reviews`, {
+        const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/reviews`, {
           method: 'PATCH',
           headers: {
             'Content-type': 'application/json',
@@ -66,8 +30,8 @@ describe('/rest/products/reviews', () => {
             message: 'NoSQL Injection!'
           })
         })
+        expect(response.status).to.equal(400)
       })
-      cy.expectChallengeSolved({ challenge: 'NoSQL Manipulation' })
     })
   })
 
