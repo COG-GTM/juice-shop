@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,43 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile renders the username escaped and keeps the CSP intact for injected profile images', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const { username, profileImage } = user
+    await user.update({ username: '<<a|ascript>alert(`xss`)</script>', profileImage: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" })
+
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
+      assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+      assert.ok(res.text.includes('&lt;script&gt;alert(`xss`)&lt;/script&gt;'))
+    } finally {
+      await user.update({ username, profileImage })
+    }
+  })
+
+  void it('GET user profile allows the origin of an absolute profile image URL in the CSP', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const { profileImage } = user
+    await user.update({ profileImage: 'https://www.gravatar.com/avatar/abc' })
+
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], "img-src 'self' https://www.gravatar.com; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user.update({ profileImage })
+    }
   })
 })
