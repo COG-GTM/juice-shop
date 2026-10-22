@@ -17,7 +17,8 @@ function isSameOriginRequest (req: Request) {
     return false
   }
   try {
-    return new URL(source).origin === `${req.protocol}://${req.get('host')}`
+    const { protocol, host } = new URL(source)
+    return host === req.get('host') && (protocol === `${req.protocol}:` || protocol === 'https:')
   } catch {
     return false
   }

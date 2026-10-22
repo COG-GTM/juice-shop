@@ -93,12 +93,26 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('POST update username from the same host but another scheme is rejected', async () => {
+  void it('POST update username from the HTTPS origin of a TLS-terminating proxy is accepted', async () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .set('Host', 'localhost:3000')
       .set('Origin', 'https://localhost:3000')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username from a plain-HTTP origin to an HTTPS request is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Proto', 'https')
+      .set('Origin', 'http://localhost:3000')
       .type('form')
       .send({ username: 'CSRF' })
       .redirects(0)
