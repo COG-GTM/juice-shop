@@ -89,6 +89,13 @@ void describe('/redirect', () => {
     assert.ok(res.text.includes('&#39;includes&#39;'))
   })
 
+  void it('GET error when passing multiple "to" parameters to bypass the allowlist via type confusion', async () => {
+    const res = await request(app)
+      .get('/redirect?to=https://evil.example&to=https://github.com/juice-shop/juice-shop')
+      .redirects(0)
+    assert.equal(res.status, 406)
+  })
+
   void it('GET error message hinting at allowlist validation when calling /redirect with an unrecognized "to" target', async () => {
     const res = await request(app)
       .get('/redirect?to=whatever')
