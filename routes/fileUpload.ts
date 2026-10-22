@@ -42,11 +42,12 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
 
 const tempFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW ?? 0)
 
-function openComplaintTempFile (): { tempPath: string, fd: number } | null {
+function openComplaintTempFile (onError: (err: unknown) => void): { tempPath: string, fd: number } | null {
   const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
     return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
-  } catch {
+  } catch (err) {
+    onError(err)
     return null
   }
 }
@@ -79,28 +80,29 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
-      fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
+      const tempFile = path.join(os.tmpdir(), `juice-shop-complaint-${crypto.randomUUID()}.zip`)
+      const removeTempFile = () => { fs.rm(tempFile, { force: true }, () => {}) }
+      fs.open(tempFile, 'wx', 0o600, function (err, fd) {
+        if (err != null) { next(err); return }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
+          if (err != null) { fs.close(fd, removeTempFile); next(err); return }
           fs.close(fd, function () {
             const budget = createExtractionBudget()
             fs.createReadStream(tempFile)
+              .on('close', removeTempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-                const temp = targetPath !== null && budget.takeEntry() ? openComplaintTempFile() : null
+                const temp = targetPath !== null && budget.takeEntry() ? openComplaintTempFile(next) : null
                 if (targetPath !== null && temp !== null) {
                   const limiter = budget.limiter()
                   const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
                   const discard = () => { fs.rm(temp.tempPath, { force: true }, () => {}) }
-                  output.on('error', () => { limiter.unpipe(output); limiter.resume(); discard() })
+                  output.on('error', (err) => { limiter.unpipe(output); limiter.resume(); discard(); next(err) })
                   output.on('close', () => {
-                    if (output.writableFinished) fs.rename(temp.tempPath, targetPath, (err) => { if (err != null) discard() })
+                    if (output.writableFinished) fs.rename(temp.tempPath, targetPath, (err) => { if (err != null) { discard(); next(err) } })
                   })
                   limiter.on('error', () => { output.destroy(); discard() })
                   entry.pipe(limiter).pipe(output)
