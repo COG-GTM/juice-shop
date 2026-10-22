@@ -35,8 +35,8 @@ describe('videoHandler', () => {
     let configGet: sinon.SinonStub
     let originalChallenge: Challenge
 
-    const render = async (): Promise<string> => await new Promise((resolve) => {
-      promotionVideo()({} as any, { send: resolve } as any)
+    const render = async (): Promise<string> => await new Promise((resolve, reject) => {
+      promotionVideo()({} as any, { send: resolve } as any, reject)
     })
 
     beforeEach(() => {
@@ -66,11 +66,35 @@ describe('videoHandler', () => {
     })
 
     it('should only read the configured subtitles file name from the videos folder', async () => {
-      configGet.withArgs('application.promotion.subtitles').returns('..%2F..%2F..%2F..%2Fetc%2Fpasswd')
+      configGet.withArgs('application.promotion.subtitles').returns('../../../../etc/passwd')
 
       await render()
 
       expect(readFileSync).to.have.been.calledWith('frontend/dist/frontend/assets/public/videos/passwd', 'utf8')
+    })
+
+    it('should read the downloaded file name for subtitles configured as URL', async () => {
+      configGet.withArgs('application.promotion.subtitles').returns('https://example.com/subs/..%2F..%2Fpasswd?x=1')
+
+      await render()
+
+      expect(readFileSync).to.have.been.calledWith('frontend/dist/frontend/assets/public/videos/passwd', 'utf8')
+    })
+
+    it('should not URL-decode local subtitles file names', async () => {
+      configGet.withArgs('application.promotion.subtitles').returns('promo%OFF.vtt')
+
+      await render()
+
+      expect(readFileSync).to.have.been.calledWith('frontend/dist/frontend/assets/public/videos/promo%OFF.vtt', 'utf8')
+    })
+
+    it('should pass subtitles read errors to the error handler', async () => {
+      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/missing.vtt').throws(new Error('ENOENT'))
+      configGet.withArgs('application.promotion.subtitles').returns('missing.vtt')
+
+      const error = await render().then(() => null, (e: Error) => e)
+      expect(error?.message).to.equal('ENOENT')
     })
   })
 })

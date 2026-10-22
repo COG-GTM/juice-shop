@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -49,11 +49,17 @@ export const getVideo = () => {
 }
 
 export const promotionVideo = () => {
-  return (req: Request, res: Response) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     fs.readFile('views/promotionVideo.pug', async function (err, buf) {
       if (err != null) throw err
       let template = buf.toString()
-      const subs = getSubsFromFile()
+      let subs: string
+      try {
+        subs = getSubsFromFile()
+      } catch (error) {
+        next(error)
+        return
+      }
 
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
 
@@ -83,7 +89,8 @@ export function serializeSubtitles (subs: string) {
 }
 
 function getSubsFromFile () {
-  const subtitles = path.basename(utils.extractFilename(config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'))
+  const configured = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  const subtitles = path.basename(utils.isUrl(configured) ? utils.extractFilename(configured) : configured)
   const data = fs.readFileSync('frontend/dist/frontend/assets/public/videos/' + subtitles, 'utf8')
   return data.toString()
 }
