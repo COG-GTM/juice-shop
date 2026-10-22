@@ -203,4 +203,18 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('appendUserId', () => {
+    it('responds with a generic 401 instead of the internal error for unknown tokens', () => {
+      const req: any = { headers: { authorization: 'Bearer not-a-logged-in-token' }, body: {} }
+      const res: any = {}
+      res.status = (code: number) => { res.statusCode = code; return res }
+      res.json = (body: unknown) => { res.body = body; return res }
+      let nextCalled = false
+      security.appendUserId()(req, res, () => { nextCalled = true })
+      expect(nextCalled).to.equal(false)
+      expect(res.statusCode).to.equal(401)
+      expect(res.body).to.deep.equal({ status: 'error', message: 'Unauthorized' })
+    })
+  })
 })
