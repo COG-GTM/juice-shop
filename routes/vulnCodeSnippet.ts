@@ -31,6 +31,11 @@ const setStatusCode = (error: any) => {
   }
 }
 
+const errorMessageFor = (error: any) => {
+  const maskedMessage = utils.logAndMaskError(error, 'Code snippet retrieval failed')
+  return error?.name === 'BrokenBoundary' ? 'Broken code snippet boundaries' : maskedMessage
+}
+
 export const retrieveCodeSnippet = async (challengeKey: string) => {
   const codeChallenges = await getCodeChallenges()
   if (codeChallenges.has(challengeKey)) {
@@ -49,7 +54,7 @@ export const serveCodeSnippet = () => async (req: Request<SnippetRequestBody, Re
     res.status(200).json({ snippet: snippetData.snippet })
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: errorMessageFor(error) })
   }
 }
 
@@ -78,7 +83,7 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
     }
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: errorMessageFor(error) })
     return
   }
   const vulnLines: number[] = snippetData.vulnLines

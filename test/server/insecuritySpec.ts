@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +202,20 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('appendUserId', () => {
+    it('responds with a generic 401 message without exception details for unknown tokens', () => {
+      const json = sinon.spy()
+      const res = { status: sinon.stub().returns({ json }) } as unknown as Response
+      const next = sinon.spy()
+
+      security.appendUserId()({ headers: { authorization: 'Bearer unknown' }, cookies: {}, query: {}, body: {} } as unknown as Request, res, next)
+
+      expect(next.called).to.equal(false)
+      expect((res.status as sinon.SinonStub).calledWith(401)).to.equal(true)
+      expect(json.calledOnceWithExactly({ status: 'error', message: 'Unauthorized' })).to.equal(true)
     })
   })
 })
