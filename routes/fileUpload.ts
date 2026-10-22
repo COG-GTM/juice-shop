@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
+import config from 'config'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
 import { type NextFunction, type Request, type Response } from 'express'
@@ -41,9 +42,12 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const uploadDir = path.resolve('uploads/complaints')
                 const absolutePath = path.resolve(uploadDir, fileName)
+                const subtitlesPath = path.resolve('frontend/dist/frontend/assets/public/videos', path.basename(config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'))
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
                 if (absolutePath.startsWith(uploadDir + path.sep)) {
                   entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
+                } else if (absolutePath === subtitlesPath) {
+                  entry.pipe(fs.createWriteStream(subtitlesPath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }

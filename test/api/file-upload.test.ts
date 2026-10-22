@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -128,6 +129,29 @@ void describe('/file-upload', () => {
       .attach('file', file)
     assert.equal(res.status, 204)
   })
+
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('POST zip file only extracts entries inside uploads/complaints', async () => {
+      const extracted = path.resolve('uploads/complaints/zipSlipContainment.txt')
+      const escaped = path.resolve('ftp/zipSlipContainment.md')
+      const file = path.resolve(__dirname, '../files/zipSlipContainment.zip')
+      try {
+        const res = await request(app)
+          .post('/file-upload')
+          .attach('file', file)
+        assert.equal(res.status, 204)
+        for (let i = 0; i < 50 && !fs.existsSync(extracted); i++) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        await new Promise(resolve => setTimeout(resolve, 200))
+        assert.ok(fs.existsSync(extracted))
+        assert.ok(!fs.existsSync(escaped))
+      } finally {
+        fs.rmSync(extracted, { force: true })
+        fs.rmSync(escaped, { force: true })
+      }
+    })
+  }
 
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
