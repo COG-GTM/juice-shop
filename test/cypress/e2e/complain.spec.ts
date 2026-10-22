@@ -24,6 +24,9 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
           body: data
         })
       })
@@ -41,6 +44,9 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
           body: data
         })
       })
@@ -147,7 +153,7 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "videoXssChallenge"', () => {
-    it('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
+    xit('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => { // FIXME Zip entries are now confined to uploads/complaints, so the subtitles file can no longer be overwritten
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('Here we go!')

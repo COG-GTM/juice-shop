@@ -6,7 +6,8 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import path from 'node:path'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,36 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+  describe('resolveComplaintEntryPath', () => {
+    const complaintsDirectory = path.resolve('uploads/complaints')
+
+    it('resolves plain entry names inside uploads/complaints', () => {
+      expect(resolveComplaintEntryPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+      expect(resolveComplaintEntryPath('sub/complaint.pdf')).to.equal(path.join(complaintsDirectory, 'sub', 'complaint.pdf'))
+    })
+
+    const rejected = [
+      '../../ftp/legal.md',
+      '../../views/userProfile.pug',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      '../complaints-evil/x.txt',
+      'sub/../../../server.ts',
+      '..\\..\\views\\userProfile.pug',
+      '/etc/passwd',
+      'C:\\Windows\\win.ini',
+      '.',
+      '',
+      'a\0b'
+    ]
+    rejected.forEach(entryPath => {
+      it(`rejects ${JSON.stringify(entryPath)}`, () => {
+        expect(resolveComplaintEntryPath(entryPath)).to.equal(null)
+      })
+    })
+
+    it('rejects non-string entry paths', () => {
+      expect(resolveComplaintEntryPath(undefined)).to.equal(null)
+    })
   })
 })
