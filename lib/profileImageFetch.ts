@@ -44,39 +44,49 @@ export function parseProfileImageUrl (rawUrl: unknown) {
   return url
 }
 
-export async function resolvePublicAddress (hostname: string, isAllowedAddress: (address: string) => boolean = isPublicAddress) {
-  const addresses = net.isIP(hostname) ? [{ address: hostname, family: net.isIP(hostname) }] : await dns.promises.lookup(hostname, { all: true, verbatim: true })
-  if (addresses.length === 0 || addresses.some(({ address }) => !isAllowedAddress(address))) {
-    throw new ProfileImageFetchError('profile image host resolves to a non-public address')
+function publicOnlyLookup (isAllowedAddress: (address: string) => boolean): net.LookupFunction {
+  return (hostname, options, callback) => {
+    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+      if (err) {
+        callback(err, '', 0)
+      } else if (addresses.length === 0 || addresses.some(({ address }) => !isAllowedAddress(address))) {
+        callback(new ProfileImageFetchError('profile image host resolves to a non-public address'), '', 0)
+      } else if (options.all) {
+        (callback as unknown as (err: null, addresses: dns.LookupAddress[]) => void)(null, addresses)
+      } else {
+        callback(null, addresses[0].address, addresses[0].family)
+      }
+    })
   }
-  return addresses[0].address
 }
 
-// Connects to the vetted IP itself (no second DNS lookup, so no rebinding) and never follows redirects.
+// Every address is vetted inside the socket's own DNS lookup (no rebinding window) and redirects are never followed.
 export async function fetchProfileImage (rawUrl: unknown, isAllowedAddress: (address: string) => boolean = isPublicAddress, timeoutMs = PROFILE_IMAGE_TIMEOUT_MS) {
   const url = parseProfileImageUrl(rawUrl)
   const hostname = url.hostname.replace(/^\[(.*)\]$/, '$1')
-  const address = await resolvePublicAddress(hostname, isAllowedAddress)
+  if (net.isIP(hostname) && !isAllowedAddress(hostname)) throw new ProfileImageFetchError('profile image host is a non-public address')
   const secure = url.protocol === 'https:'
-  const options: https.RequestOptions = {
-    hostname: address,
-    port: url.port || (secure ? 443 : 80),
-    path: `${url.pathname}${url.search}`,
-    headers: { host: url.host, accept: 'image/*' },
-    agent: false,
-    timeout: timeoutMs
-  }
-  if (secure && !net.isIP(hostname)) options.servername = hostname
   return await new Promise<http.IncomingMessage>((resolve, reject) => {
-    const req = (secure ? https : http).get(options, (res) => {
-      if (res.statusCode !== 200) {
+    const req = (secure ? https : http).get(url, {
+      headers: { accept: 'image/*', 'accept-encoding': 'identity' },
+      lookup: publicOnlyLookup(isAllowedAddress),
+      agent: false,
+      timeout: timeoutMs
+    }, (res) => {
+      clearTimeout(responseTimer)
+      const encoding = res.headers['content-encoding']
+      if (res.statusCode !== 200 || (encoding !== undefined && encoding !== 'identity')) {
         res.resume()
-        reject(new ProfileImageFetchError(`profile image URL returned status ${res.statusCode}`))
+        reject(new ProfileImageFetchError(`profile image URL returned status ${res.statusCode} with content encoding ${encoding ?? 'identity'}`))
         return
       }
       resolve(res)
     })
+    const responseTimer = setTimeout(() => req.destroy(new ProfileImageFetchError('profile image request timed out')), timeoutMs)
     req.on('timeout', () => req.destroy(new ProfileImageFetchError('profile image request timed out')))
-    req.on('error', reject)
+    req.on('error', (error) => {
+      clearTimeout(responseTimer)
+      reject(error)
+    })
   })
 }

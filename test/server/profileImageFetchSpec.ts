@@ -57,6 +57,15 @@ describe('profileImageFetch', () => {
         if (req.url === '/redirect') {
           res.writeHead(302, { location: '/image.png' })
           res.end()
+        } else if (req.url === '/gzip') {
+          res.writeHead(200, { 'content-type': 'image/svg+xml', 'content-encoding': 'gzip' })
+          res.end('gz')
+        } else if (req.url === '/no-response') {
+          setTimeout(() => res.destroy(), 1000)
+        } else if (req.url === '/stalled-body') {
+          res.writeHead(200, { 'content-type': 'image/png' })
+          res.write('pn')
+          setTimeout(() => res.destroy(), 1000)
         } else {
           res.writeHead(200, { 'content-type': 'image/png' })
           res.end('png')
@@ -90,6 +99,19 @@ describe('profileImageFetch', () => {
       const error = await rejectionOf(fetchProfileImage(`http://127.0.0.1:${port}/redirect`, () => true))
       expect(error).to.be.instanceOf(ProfileImageFetchError)
       expect(hits).to.deep.equal(['/redirect'])
+    })
+
+    it('rejects compressed responses', async () => {
+      expect(await rejectionOf(fetchProfileImage(`http://127.0.0.1:${port}/gzip`, () => true))).to.be.instanceOf(ProfileImageFetchError)
+    })
+
+    it('times out when no response arrives', async () => {
+      expect(await rejectionOf(fetchProfileImage(`http://127.0.0.1:${port}/no-response`, () => true, 100))).to.be.instanceOf(ProfileImageFetchError)
+    })
+
+    it('fails the image stream when the body stalls', async () => {
+      const response = await fetchProfileImage(`http://127.0.0.1:${port}/stalled-body`, () => true, 100)
+      expect(await rejectionOf((async () => { for await (const chunk of response) void chunk })())).to.be.instanceOf(Error)
     })
   })
 })

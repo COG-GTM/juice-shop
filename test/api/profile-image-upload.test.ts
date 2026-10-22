@@ -133,6 +133,23 @@ void describe('/profile/image/url', () => {
     assert.deepEqual(hits, [])
   })
 
+  void it('POST profile image URL with the challenge key on a foreign host does not solve the SSRF challenge', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .type('form')
+      .send({ imageUrl: 'http://juice-shop.invalid/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.equal(challenges.ssrfChallenge.solved, false)
+  })
+
   void it('POST profile image URL pointing at the server-side challenge endpoint still solves the SSRF challenge', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,

@@ -4,7 +4,7 @@
  */
 
 import fs from 'node:fs'
-import { finished } from 'node:stream/promises'
+import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -24,12 +24,12 @@ export function profileImageUrlUpload () {
       if (targetsServerSideChallenge) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
-        if (targetsServerSideChallenge) challengeUtils.solveIf(challenges.ssrfChallenge, () => isServerSideChallengeUrl(url))
+        if (targetsServerSideChallenge) challengeUtils.solveIf(challenges.ssrfChallenge, () => isServerSideChallengeUrl(url, req.hostname))
         try {
           const response = await fetchProfileImage(url)
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(response.pipe(fileStream))
+          await pipeline(response, fileStream)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
@@ -52,9 +52,12 @@ export function profileImageUrlUpload () {
   }
 }
 
-function isServerSideChallengeUrl (url: string) {
+function isServerSideChallengeUrl (url: string, ownHostname: string) {
   try {
-    return new URL(url).searchParams.get('key') === serverSideChallengeKey
+    const { hostname, pathname, searchParams } = new URL(url)
+    const host = hostname.replace(/^\[(.*)\]$/, '$1')
+    const targetsJuiceShop = host === ownHostname || ['localhost', '0.0.0.0', '::1', '::'].includes(host) || host.startsWith('127.')
+    return targetsJuiceShop && pathname.endsWith('/solve/challenges/server-side') && searchParams.get('key') === serverSideChallengeKey
   } catch {
     return false
   }
