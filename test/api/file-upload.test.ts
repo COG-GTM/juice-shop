@@ -132,6 +132,22 @@ void describe('/file-upload', () => {
         .attach('file', payload, 'commented.xml')
       assert.equal(res.status, 410)
     })
+
+    void it('POST XML with dev/random entity after a quoted comment opener in another entity value is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY decoy "<!--"><!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'quotedComment.xml')
+      assert.equal(res.status, 503)
+    })
+
+    void it('POST XML with dev/random parameter entity is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random"> %xxe;]><foo/>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'parameterEntity.xml')
+      assert.equal(res.status, 503)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {

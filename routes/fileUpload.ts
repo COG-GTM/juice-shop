@@ -76,29 +76,25 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
-function stripComments (data: string) {
-  let result = ''
-  let pos = 0
-  let start = data.indexOf('<!--')
-  while (start !== -1) {
-    result += data.slice(pos, start)
-    const end = data.indexOf('-->', start + 4)
-    if (end === -1) return result
-    pos = end + 3
-    start = data.indexOf('<!--', pos)
-  }
-  return result + data.slice(pos)
-}
-
-const externalFileEntity = (target: string) => new RegExp(`<!ENTITY\\s+([^\\s%>]+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']`, 'gi')
+const externalFileEntity = (target: string) => new RegExp(`(<!--)[\\s\\S]*?(?:-->|$)|<!ENTITY\\s+(%\\s+)?([^\\s%>"']+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']|<![a-z][^>"'[]*(?:(?:"[^"]*(?:"|$)|'[^']*(?:'|$))[^>"'[]*)*`, 'gi')
 const fileDisclosureEntity = externalFileEntity('etc/passwd|[a-z]:/windows/system\\.ini')
 const devRandomEntity = externalFileEntity('dev/u?random')
 
-function usesExternalEntity (xml: string, entity: RegExp) {
-  for (const match of xml.matchAll(entity)) {
-    if (xml.includes('&' + match[1] + ';')) return true
+function usesExternalEntity (data: string, entity: RegExp) {
+  const references: string[] = []
+  let text = ''
+  let pos = 0
+  for (const match of data.matchAll(entity)) {
+    if (match[1] != null) {
+      const index = match.index ?? 0
+      text += data.slice(pos, index)
+      pos = index + match[0].length
+    } else if (match[3] != null) {
+      references.push((match[2] != null ? '%' : '&') + match[3] + ';')
+    }
   }
-  return false
+  text += data.slice(pos)
+  return references.some(reference => text.includes(reference))
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -107,9 +103,8 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       if (containsDtd(data)) {
-        const xml = stripComments(data)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return usesExternalEntity(xml, fileDisclosureEntity) })
-        if (usesExternalEntity(xml, devRandomEntity)) {
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return usesExternalEntity(data, fileDisclosureEntity) })
+        if (usesExternalEntity(data, devRandomEntity)) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
