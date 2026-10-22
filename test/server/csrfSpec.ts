@@ -16,10 +16,14 @@ describe('csrfProtection', () => {
   let res: any
   let next: any
 
-  function withHeaders (method: string, headers: Record<string, string>, trustProxy = false) {
-    const lowerCased = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+  function withHeaders (method: string, headers: Record<string, string>, trustProxy = false, protocol = 'http', cookie: string | null = 'token=eyJ') {
+    const lowerCased: Record<string, string> = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
+    if (cookie !== null) {
+      lowerCased.cookie = cookie
+    }
     return {
       method,
+      protocol,
       app: { enabled: (setting: string) => setting === 'trust proxy' && trustProxy },
       get: (name: string) => lowerCased[name.toLowerCase()]
     }
@@ -34,7 +38,7 @@ describe('csrfProtection', () => {
     req = withHeaders('POST', { host: 'localhost:3000', origin: 'http://localhost:3000' })
     csrfProtection()(req, res, next)
     expect(next).to.have.been.calledWith()
-    expect(res.status).to.have.not.been.called
+    expect(res.status.called).to.equal(false)
   })
 
   it('passes same-origin POST with matching Referer', () => {
@@ -53,14 +57,14 @@ describe('csrfProtection', () => {
     req = withHeaders('POST', { host: 'localhost:3000', origin: 'http://htmledit.squarefree.com' })
     csrfProtection()(req, res, next)
     expect(res.status).to.have.been.calledWith(403)
-    expect(next).to.have.not.been.called
+    expect(next.called).to.equal(false)
   })
 
   it('rejects cross-site POST by Referer', () => {
     req = withHeaders('POST', { host: 'localhost:3000', referer: 'https://evil.example/csrf.html' })
     csrfProtection()(req, res, next)
     expect(res.status).to.have.been.calledWith(403)
-    expect(next).to.have.not.been.called
+    expect(next.called).to.equal(false)
   })
 
   it('rejects opaque "null" Origin', () => {
@@ -76,7 +80,7 @@ describe('csrfProtection', () => {
   })
 
   it('uses X-Forwarded-Host when trust proxy is enabled', () => {
-    req = withHeaders('POST', { host: 'juice-shop:3000', 'x-forwarded-host': 'shop.example', origin: 'https://shop.example' }, true)
+    req = withHeaders('POST', { host: 'juice-shop:3000', 'x-forwarded-host': 'shop.example', origin: 'https://shop.example' }, true, 'https')
     csrfProtection()(req, res, next)
     expect(next).to.have.been.calledWith()
   })
@@ -93,8 +97,21 @@ describe('csrfProtection', () => {
     expect(next).to.have.been.calledWith()
   })
 
-  it('passes cross-origin POST authenticated by Bearer token instead of cookies', () => {
-    req = withHeaders('POST', { host: 'localhost:3000', origin: 'http://localhost:4200', authorization: 'Bearer eyJ' })
+  it('rejects same host with a different scheme', () => {
+    req = withHeaders('POST', { host: 'shop.example', origin: 'http://shop.example' }, false, 'https')
+    csrfProtection()(req, res, next)
+    expect(res.status).to.have.been.calledWith(403)
+  })
+
+  it('rejects cross-site POST with cookie even when a Bearer header is present', () => {
+    req = withHeaders('POST', { host: 'localhost:3000', origin: 'https://evil.example', authorization: 'Bearer forged' })
+    csrfProtection()(req, res, next)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next.called).to.equal(false)
+  })
+
+  it('passes cross-origin POST without cookies from the Angular dev server', () => {
+    req = withHeaders('POST', { host: 'localhost:3000', origin: 'http://localhost:4200' }, false, 'http', null)
     csrfProtection()(req, res, next)
     expect(next).to.have.been.calledWith()
   })
