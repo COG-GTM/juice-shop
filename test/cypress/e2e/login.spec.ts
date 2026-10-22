@@ -9,7 +9,7 @@ describe('/#/login', () => {
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
 
     it('should reject SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
@@ -21,7 +21,7 @@ describe('/#/login', () => {
         }
       )
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
   })
 
@@ -35,7 +35,7 @@ describe('/#/login', () => {
         }
       )
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
   })
 
@@ -49,7 +49,7 @@ describe('/#/login', () => {
         }
       )
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
   })
 
@@ -154,7 +154,7 @@ describe('/#/login', () => {
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
 
     it('should reject SQLI attack on email field using "chris.pike@juice-sh.op\' --"', () => {
@@ -166,7 +166,7 @@ describe('/#/login', () => {
         }
       )
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
   })
 
@@ -178,7 +178,7 @@ describe('/#/login', () => {
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
       cy.get('.error').should('be.visible')
-      cy.url().should('match', /\/login/)
+      cy.url().should('include', '/login')
     })
   })
 
