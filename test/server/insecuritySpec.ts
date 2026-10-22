@@ -215,7 +215,7 @@ describe('insecurity', () => {
 
       security.appendUserId()(req, res, next)
 
-      expect(next).to.have.not.been.called
+      expect(next.called).to.equal(false)
       expect(res.status).to.have.been.calledWith(401)
       expect(res.json).to.have.been.calledWith({ status: 'error', message: 'Unauthorized' })
     })
