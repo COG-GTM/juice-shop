@@ -7,7 +7,9 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
 
@@ -23,25 +25,37 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET all orders by injecting into orderId', async () => {
+  void it('GET own order by its order id', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+    const history = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token })
+    const orderId = history.body.data[0].orderId
+
+    const res = await request(app)
+      .get(`/rest/track-order/${orderId}`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, orderId)
+    assert.equal(res.body.data[0].totalPrice, history.body.data[0].totalPrice)
+  })
+
+  void it('GET no orders when injecting into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(Array.isArray(res.body.data))
-    for (const item of res.body.data) {
-      assert.equal(typeof item.orderId, 'string')
-      assert.equal(typeof item.email, 'string')
-      assert.equal(typeof item.totalPrice, 'number')
-      assert.ok(Array.isArray(item.products))
-      for (const product of item.products) {
-        assert.equal(typeof product.quantity, 'number')
-        assert.equal(typeof product.name, 'string')
-        assert.equal(typeof product.price, 'number')
-        assert.equal(typeof product.total, 'number')
-      }
-      assert.equal(typeof item.eta, 'string')
-      assert.equal(typeof item._id, 'string')
-    }
+    assert.equal(res.body.data.length, 1)
+    assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
+  })
+
+  void it('GET no orders when injecting a $where expression that returns true', async () => {
+    const res = await request(app)
+      .get(`/rest/track-order/${encodeURIComponent("';return true;//")}`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
   })
 })
