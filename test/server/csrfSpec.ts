@@ -103,6 +103,12 @@ describe('csrfProtection', () => {
     expect(res.status).to.have.been.calledWith(403)
   })
 
+  it('passes HTTPS origin behind a TLS-terminating proxy that omits X-Forwarded-Proto', () => {
+    req = withHeaders('POST', { host: 'shop.example', origin: 'https://shop.example' }, false, 'http')
+    csrfProtection()(req, res, next)
+    expect(next).to.have.been.calledWith()
+  })
+
   it('rejects cross-site POST with cookie even when a Bearer header is present', () => {
     req = withHeaders('POST', { host: 'localhost:3000', origin: 'https://evil.example', authorization: 'Bearer forged' })
     csrfProtection()(req, res, next)
