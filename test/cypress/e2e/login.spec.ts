@@ -4,7 +4,15 @@ describe('/#/login', () => {
   })
 
   describe('SQL injection on the email field', () => {
-    for (const payload of ["' or 1=1--", "admin@juice-sh.op'--", "jim@juice-sh.op'--", "bender@juice-sh.op'--"]) {
+    for (const payload of [
+      "' or 1=1--",
+      "admin@juice-sh.op'--",
+      "jim@juice-sh.op'--",
+      "bender@juice-sh.op'--",
+      "' or deletedAt IS NOT NULL--",
+      "chris.pike@juice-sh.op'--",
+      "' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '12345' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--"
+    ]) {
       it(`should not log in with "${payload}"`, () => {
         cy.request({
           method: 'POST',
@@ -108,36 +116,6 @@ describe('/#/login', () => {
       cy.get('#loginButton').click()
 
       cy.expectChallengeSolved({ challenge: 'Login Bjoern' })
-    })
-  })
-
-  describe('challenge "ghostLogin"', () => {
-    it('should be able to log in as chris.pike@juice-sh.op by using "\' or deletedAt IS NOT NULL --"', () => {
-      cy.get('#email').type("' or deletedAt IS NOT NULL--")
-      cy.get('#password').type('a')
-      cy.get('#loginButton').click()
-    })
-
-    it('should be able to log in as chris.pike@juice-sh.op by using "chris.pike@juice-sh.op\' --"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`chris.pike@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'GDPR Data Erasure' })
-    })
-  })
-
-  describe('challenge "ephemeralAccountant"', () => {
-    it('should log in non-existing accountant user with SQLI attack on email field using UNION SELECT payload', () => {
-      cy.get('#email').type(
-        "' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '12345' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--"
-      )
-      cy.get('#password').type('a')
-      cy.get('#loginButton').click()
-      cy.expectChallengeSolved({ challenge: 'Ephemeral Accountant' })
     })
   })
 
