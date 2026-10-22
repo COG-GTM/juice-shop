@@ -27,7 +27,7 @@ export function profileImageCspSource (profileImage?: string | null) {
   }
   try {
     const url = new URL(profileImage)
-    if (!/^([a-z0-9.-]+|\[[0-9a-f:.]+\])(:\d{1,5})?$/i.test(url.host)) {
+    if (!/^[a-z0-9.-]+(:\d{1,5})?$/i.test(url.host)) {
       return ''
     }
     return url.origin
