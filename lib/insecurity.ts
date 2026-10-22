@@ -180,7 +180,7 @@ export const appendUserId = () => {
       req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
       next()
     } catch (error: unknown) {
-      res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
+      utils.sendGenericError(res, error, 401, { status: 'error', message: 'Unauthorized' })
     }
   }
 }

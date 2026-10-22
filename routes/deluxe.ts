@@ -52,7 +52,7 @@ export function upgradeToDeluxe () {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
       }
     } catch (err: unknown) {
-      res.status(400).json({ status: 'error', error: 'Something went wrong: ' + utils.getErrorMessage(err) })
+      utils.sendGenericError(res, err, 400, { status: 'error', error: 'Something went wrong. Please try again!' })
     }
   }
 }

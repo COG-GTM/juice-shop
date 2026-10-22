@@ -208,4 +208,35 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('sendGenericError', () => {
+    const fakeResponse = () => {
+      const res: any = { statusCode: undefined, body: undefined }
+      res.status = (code: number) => { res.statusCode = code; return res }
+      res.json = (body: unknown) => { res.body = body; return res }
+      return res
+    }
+
+    it('responds with status 500 and a generic message by default', () => {
+      const res = fakeResponse()
+      utils.sendGenericError(res, new Error('SQLITE_ERROR: no such table: Secrets'))
+      expect(res.statusCode).to.equal(500)
+      expect(res.body).to.equal('Internal Server Error')
+    })
+
+    it('responds with the given status and body', () => {
+      const res = fakeResponse()
+      utils.sendGenericError(res, new TypeError('Cannot read properties of undefined (reading \'data\')'), 401, { status: 'error', message: 'Unauthorized' })
+      expect(res.statusCode).to.equal(401)
+      expect(res.body).to.deep.equal({ status: 'error', message: 'Unauthorized' })
+    })
+
+    it('never includes error message or stack trace in the response', () => {
+      const res = fakeResponse()
+      const error = new Error('secret implementation detail')
+      utils.sendGenericError(res, error)
+      expect(JSON.stringify(res.body)).to.not.contain('secret implementation detail')
+      expect(JSON.stringify(res.body)).to.not.contain(' at ')
+    })
+  })
 })

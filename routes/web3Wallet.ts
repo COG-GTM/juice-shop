@@ -33,7 +33,7 @@ export function contractExploitListener () {
       }
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      utils.sendGenericError(res, error)
     }
   }
 }
