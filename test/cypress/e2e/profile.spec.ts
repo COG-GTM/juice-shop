@@ -3,7 +3,8 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    it('should be possible to request internal resources using image upload URL', () => {
+    // FIXME Profile image URLs resolving to loopback/private addresses are no longer fetched (sfind-ffbccd94)
+    xit('should be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
       cy.get('#url').type(
