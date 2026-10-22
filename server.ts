@@ -54,6 +54,7 @@ import logger from './lib/logger'
 import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
+import { csrfProtection } from './lib/csrf'
 import validateConfig from './lib/startup/validateConfig'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
@@ -307,8 +308,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(bodyParser.urlencoded({ extended: true }))
   /* File Upload */
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
-  app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
-  app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
+  app.post('/profile/image/file', csrfProtection(), uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
+  app.post('/profile/image/url', csrfProtection(), uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
   app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
@@ -634,7 +635,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/products/reviews', security.isAuthorized(), utils.asyncHandler(likeProductReviews()))
 
   /* Chat API endpoint */
-  app.post('/rest/chat', utils.asyncHandler(chat()))
+  app.post('/rest/chat', csrfProtection(), utils.asyncHandler(chat()))
 
   /* Web3 API endpoints */
   app.post('/rest/web3/submitKey', utils.asyncHandler(checkKeys()))
@@ -663,7 +664,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Routes for profile page */
   app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
-  app.post('/profile', utils.asyncHandler(updateUserProfile()))
+  app.post('/profile', csrfProtection(), utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
   app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))

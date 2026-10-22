@@ -51,4 +51,63 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username from same origin is accepted', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://127.0.0.1')
+      .set('Host', '127.0.0.1')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username from foreign origin is rejected as CSRF', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username with foreign referer is rejected as CSRF', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Referer', 'http://htmledit.squarefree.com/')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST profile image URL from foreign origin is rejected as CSRF', async () => {
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'https://evil.example')
+      .field('imageUrl', 'https://evil.example/x.png')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST profile image file from foreign origin is rejected as CSRF', async () => {
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'https://evil.example')
+      .attach('file', Buffer.from('x'), 'x.jpg')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
 })

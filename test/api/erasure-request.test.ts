@@ -68,6 +68,18 @@ void describe('/dataerasure', () => {
     assert.equal(loginRes.status, 200)
   })
 
+  void it('POST erasure request from foreign origin is rejected as CSRF', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token, Origin: 'https://evil.example' })
+      .type('form')
+      .send({ email: 'bjoern.kimminich@gmail.com', securityAnswer: 'something' })
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST erasure form  fails on unauthenticated access', async () => {
     const res = await request(app)
       .post('/dataerasure/')
