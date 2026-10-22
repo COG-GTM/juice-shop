@@ -6,16 +6,22 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { RouterModule } from '@angular/router'
 import { ChatbotComponent } from './chatbot.component'
+import { LoginGuard } from '../app.guard'
 
 describe('ChatbotComponent', () => {
     let component: ChatbotComponent
     let fixture: ComponentFixture<ChatbotComponent>
+    let loginGuard: { canActivate: ReturnType<typeof vi.fn> }
 
     beforeEach(() => {
+        loginGuard = { canActivate: vi.fn().mockReturnValue(true) }
         TestBed.configureTestingModule({
             imports: [
                 RouterModule.forRoot([], { useHash: true }),
                 ChatbotComponent
+            ],
+            providers: [
+                { provide: LoginGuard, useValue: loginGuard }
             ]
         }).compileComponents()
 
@@ -33,8 +39,31 @@ describe('ChatbotComponent', () => {
         expect(container).toBeTruthy()
     })
 
+    it('should require a logged-in user', () => {
+        expect(loginGuard.canActivate).toHaveBeenCalled()
+    })
+
     it('should contain a router-outlet', () => {
         const outlet = fixture.nativeElement.querySelector('router-outlet')
         expect(outlet).toBeTruthy()
+    })
+
+    it('should not render the router-outlet for anonymous users', () => {
+        TestBed.resetTestingModule()
+        loginGuard = { canActivate: vi.fn().mockReturnValue(false) }
+        TestBed.configureTestingModule({
+            imports: [
+                RouterModule.forRoot([], { useHash: true }),
+                ChatbotComponent
+            ],
+            providers: [
+                { provide: LoginGuard, useValue: loginGuard }
+            ]
+        }).compileComponents()
+
+        fixture = TestBed.createComponent(ChatbotComponent)
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('router-outlet')).toBeNull()
     })
 })
