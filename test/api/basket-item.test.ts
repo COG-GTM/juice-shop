@@ -96,6 +96,15 @@ void describe('/api/BasketItems', () => {
     assert.equal(await countItemsOfBasket3(), before)
   })
 
+  void it('POST new basket item ignores BasketId nested in another property for the ownership check', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{ "ProductId": 5, "quantity": 1, "meta": { "BasketId": "3" } }')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, 2)
+  })
+
   void it('POST new basket item with duplicate quantity is rejected', async () => {
     const res = await request(app)
       .post('/api/BasketItems')

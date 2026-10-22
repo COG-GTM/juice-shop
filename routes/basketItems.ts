@@ -19,7 +19,7 @@ interface RequestWithRawBody extends Request {
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const basketIds = []
+    const basketIds: Array<string | number> = []
     const seenKeys = new Set<string>()
     let hasDuplicateKey = false
 
@@ -41,7 +41,8 @@ export function addBasketItem () {
       res.status(400).json({ error: 'Duplicate ProductId, BasketId or quantity parameter' })
       return
     }
-    if (!user?.bid || (basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) !== Number(basketIds[0]))) {
+    const requestedBasketId = req.body?.BasketId
+    if (!user?.bid || (requestedBasketId && requestedBasketId !== 'undefined' && Number(user.bid) !== Number(requestedBasketId))) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
       return
     }
