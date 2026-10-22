@@ -50,6 +50,15 @@ describe('redirect', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  it('should raise error for array-typed redirect target', () => {
+    req.query.to = ['http://kimminich.de', 'https://github.com/juice-shop/juice-shop']
+
+    performRedirect()(req, res, next)
+
+    expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
   it('redirecting to https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm should solve the "redirectCryptoCurrencyChallenge"', () => {
     req.query.to = 'https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm'
     challenges.redirectCryptoCurrencyChallenge = { solved: false, save } as unknown as Challenge
