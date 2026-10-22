@@ -89,6 +89,23 @@ void describe('/redirect', () => {
     assert.ok(res.text.includes('&#39;includes&#39;'))
   })
 
+  void it('GET rejected with 400 when "to" parameter is passed as an array', async () => {
+    const res = await request(app)
+      .get('/redirect?to=http://kimminich.de&to=https://github.com/juice-shop/juice-shop')
+      .redirects(0)
+    assert.equal(res.status, 400)
+    assert.equal(res.headers.location, undefined)
+    assert.ok(res.text.includes('Invalid target URL for redirect'))
+  })
+
+  void it('GET rejected with 400 when "to" parameter is passed as an array with bracket notation', async () => {
+    const res = await request(app)
+      .get('/redirect?to[]=https://github.com/juice-shop/juice-shop')
+      .redirects(0)
+    assert.equal(res.status, 400)
+    assert.equal(res.headers.location, undefined)
+  })
+
   void it('GET error message hinting at allowlist validation when calling /redirect with an unrecognized "to" target', async () => {
     const res = await request(app)
       .get('/redirect?to=whatever')
