@@ -64,7 +64,12 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
   if (order.couponIssued || couponClaimedOrderIds.has(order.orderId)) return { error: 'A coupon was already issued for this order' }
   couponClaimedOrderIds.add(order.orderId)
-  await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+  try {
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+  } catch {
+    couponClaimedOrderIds.delete(order.orderId)
+    return { error: 'The coupon could not be issued right now, please try again' }
+  }
   return {}
 }
 
