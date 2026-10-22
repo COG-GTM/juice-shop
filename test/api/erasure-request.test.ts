@@ -87,19 +87,7 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('POST erasure request with non-existing file path as layout parameter throws error', async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
-
-    const res = await request(app)
-      .post('/dataerasure/')
-      .set({ Cookie: 'token=' + token })
-      .send({ layout: '../this/file/does/not/exist' })
-
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('no such file or directory'))
-  })
-
-  void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {
+  void it('POST erasure request ignores user-supplied layout parameter', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -108,7 +96,20 @@ void describe('/dataerasure', () => {
       .send({ layout: '../package.json' })
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('juice-shop'))
-    assert.ok(res.text.includes('......'))
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
+
+  void it('POST erasure request ignores user-supplied view options', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ settings: { views: '/' }, _title_: '<script>alert(1)</script>' })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('<script>alert(1)</script>'))
   })
 })
