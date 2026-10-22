@@ -112,6 +112,18 @@ describe('utils', () => {
           'usbmux:x:140:140:usbmux user:/:/usr/bin/nologin\n' +
           'moi:x:1000:1000:moi:/home/moi:/bin/zsh\n')).to.equal(true)
     })
+
+    it('passes on a single passwd entry and on the macOS passwd header', () => {
+      expect(utils.matchesEtcPasswdFile('root:x:0:0:root:/root:/bin/bash')).to.equal(true)
+      expect(utils.matchesEtcPasswdFile('# note that this file is consulted directly only when the system is running')).to.equal(true)
+    })
+
+    it('runs in linear time on adversarial input', () => {
+      const start = Date.now()
+      expect(utils.matchesEtcPasswdFile('a'.repeat(200000))).to.equal(false)
+      expect(utils.matchesEtcPasswdFile(':a'.repeat(100000))).to.equal(false)
+      expect(Date.now() - start).to.be.below(500)
+    })
   })
 
   describe('getChallengeEnablementStatus', () => {
