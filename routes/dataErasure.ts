@@ -15,6 +15,7 @@ import { SecurityAnswerModel } from '../models/securityAnswer'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { csrfProtection } from '../lib/csrf'
 import { UserModel } from '../models/user'
 
 const entities = new Entities()
@@ -71,7 +72,7 @@ interface DataErasureRequestParams {
   securityAnswer: string
 }
 
-router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
+router.post('/', csrfProtection(), (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {
