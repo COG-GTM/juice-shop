@@ -9,8 +9,11 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 
@@ -98,6 +101,70 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL does not request internal hosts', async () => {
+    const hits: string[] = []
+    const internal = http.createServer((req, res) => {
+      hits.push(req.url ?? '')
+      res.writeHead(200, { 'content-type': 'image/png' })
+      res.end('png')
+    })
+    await new Promise<void>(resolve => internal.listen(0, '127.0.0.1', resolve))
+    const port = (internal.address() as AddressInfo).port
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    try {
+      for (const imageUrl of [`http://127.0.0.1:${port}/a.png`, `http://localhost:${port}/a.png`, `http://[::ffff:127.0.0.1]:${port}/a.png`]) {
+        const res = await request(app)
+          .post('/profile/image/url')
+          .set('Cookie', `token=${token}`)
+          .type('form')
+          .send({ imageUrl })
+          .redirects(0)
+        assert.equal(res.status, 302)
+      }
+    } finally {
+      internal.close()
+    }
+    assert.deepEqual(hits, [])
+  })
+
+  void it('POST profile image URL with the challenge key on a foreign host does not solve the SSRF challenge', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .type('form')
+      .send({ imageUrl: 'http://juice-shop.invalid/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.equal(challenges.ssrfChallenge.solved, false)
+  })
+
+  void it('POST profile image URL pointing at the server-side challenge endpoint still solves the SSRF challenge', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .type('form')
+      .send({ imageUrl: 'http://localhost:3000/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.equal(challenges.ssrfChallenge.solved, true)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
