@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -46,9 +47,63 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST username containing template or script syntax is rejected', async () => {
+    for (const username of ["#{global.process.mainModule.require('child_process').execSync('id')}", '<script>alert(`xss`)</script>', 'a'.repeat(65)]) {
+      const res = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username })
+        .redirects(0)
+
+      assert.equal(res.status, 400)
+    }
+  })
+
+  void it('POST update username from a foreign origin is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from the same origin is accepted', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile neither evaluates nor compiles a stored username', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    await user.update({ username: '#{global.sstiProbe = 7*7}' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(Reflect.get(globalThis, 'sstiProbe'), undefined)
+    assert.ok(res.text.includes('#{global.sstiProbe = 7*7}'))
+    assert.ok(!res.text.includes('>49<'))
   })
 })
