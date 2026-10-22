@@ -73,6 +73,7 @@ export function profileImageFileUpload () {
     }
 
     const fileName = `${userId}.${extension}`
+    let failed = false
     await serializePerUser(userId, async () => {
       let written = false
       try {
@@ -86,12 +87,22 @@ export function profileImageFileUpload () {
         const user = await UserModel.findByPk(userId)
         if (user != null) {
           await user.update({ profileImage: `assets/public/images/uploads/${fileName}` })
-          if (written) await removeStaleProfileImages(userId, extension)
         }
       } catch (error) {
+        failed = true
         next(error)
+        return
+      }
+
+      if (written) {
+        try {
+          await removeStaleProfileImages(userId, extension)
+        } catch (err) {
+          logger.warn('Error removing stale profile images: ' + (err instanceof Error ? err.message : String(err)))
+        }
       }
     })
+    if (failed) return
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
   }
