@@ -9,6 +9,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import * as db from '../data/mongodb'
+import * as utils from '../lib/utils'
 
 // vuln-code-snippet start noSqlReviewsChallenge forgedReviewChallenge
 export function updateProductReviews () {
@@ -24,7 +25,7 @@ export function updateProductReviews () {
         challengeUtils.solveIf(challenges.forgedReviewChallenge, () => { return user?.data && result.original[0] && result.original[0].author !== user.data.email && result.modified === 1 }) // vuln-code-snippet hide-line
         res.json(result)
       }, (err: unknown) => {
-        res.status(500).json(err)
+        res.status(500).json(utils.redactError(err))
       })
   }
 }

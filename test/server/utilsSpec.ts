@@ -195,6 +195,17 @@ describe('utils', () => {
     })
   })
 
+  describe('redactError', () => {
+    it('returns a generic message instead of the error details', () => {
+      const error = new Error('SQLITE_ERROR: no such table: Secrets')
+      expect(utils.redactError(error)).to.equal('Unexpected server error')
+    })
+
+    it('returns the given public message instead of the error details', () => {
+      expect(utils.redactError(new TypeError("Cannot read properties of undefined (reading 'data')"), 'Something went wrong')).to.equal('Something went wrong')
+    })
+  })
+
   describe('toISO8601', () => {
     it('converts date to ISO 8601 representation', () => {
       expect(utils.toISO8601(new Date('2025-12-15T00:00:00Z'))).to.equal('2025-12-15')

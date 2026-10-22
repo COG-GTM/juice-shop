@@ -219,6 +219,11 @@ export const getErrorMessage = (error: unknown) => {
   return String(error)
 }
 
+export const redactError = (error: unknown, publicMessage = 'Unexpected server error') => {
+  logger.error(getErrorMessage(error))
+  return publicMessage
+}
+
 export const matchesSystemIniFile = (text: string) => {
   const match = text.match(/; for 16-bit app support/gi)
   return match !== null && match.length >= 1
