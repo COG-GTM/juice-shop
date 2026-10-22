@@ -83,7 +83,7 @@ describe('fileUpload', () => {
       req.file = { originalname: 'complaint.yml', buffer: Buffer.from('toJSON: !!js/function "function () { globalThis.yamlFunctionInvoked = true; return \'pwned\' }"') }
       let error: Error | undefined
 
-      handleYamlUpload(req, res, (err?: Error) => { error = err })
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
 
       expect((globalThis as any).yamlFunctionInvoked).to.equal(false)
       expect(error?.message).to.contain('unknown tag')
@@ -94,7 +94,7 @@ describe('fileUpload', () => {
       req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello') }
       let error: Error | undefined
 
-      handleYamlUpload(req, res, (err?: Error) => { error = err })
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
 
       expect(error?.message).to.contain('{"message":"hello"}')
     })
