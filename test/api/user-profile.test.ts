@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
+import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -51,4 +53,32 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  if (utils.isChallengeEnabled(challenges.csrfChallenge)) {
+    void it('POST update username from a lookalike origin does not solve the CSRF challenge', async () => {
+      const res = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .set('Origin', 'http://attacker.com/?://htmledit.squarefree.com')
+        .type('form')
+        .send({ username: 'NotCSRF' })
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      assert.equal(challenges.csrfChallenge.solved, false)
+    })
+
+    void it('POST update username from htmledit.squarefree.com origin solves the CSRF challenge', async () => {
+      const res = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .set('Origin', 'http://htmledit.squarefree.com')
+        .type('form')
+        .send({ username: 'CSRF' })
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      assert.equal(challenges.csrfChallenge.solved, true)
+    })
+  }
 })

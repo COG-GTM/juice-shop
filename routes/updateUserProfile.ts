@@ -11,6 +11,14 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+function isFromHost (url: string | undefined, host: string) {
+  try {
+    return url !== undefined && new URL(url).host === host
+  } catch {
+    return false
+  }
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -28,8 +36,7 @@ export function updateUserProfile () {
       }
 
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
-        return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
-          (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
+        return isFromHost(req.headers.origin ?? req.headers.referer, 'htmledit.squarefree.com') &&
           req.body.username !== user.username
       })
 
