@@ -74,6 +74,25 @@ void describe('/rest/products/search', () => {
     assert.ok(!JSON.stringify(res.body).includes('CREATE TABLE'))
   })
 
+  void it('GET product search treats an array-typed q parameter like an empty search', async () => {
+    const all = await request(app).get('/rest/products/search?q=')
+    const res = await request(app)
+      .get(`/rest/products/search?q[]=${encodeURIComponent("')) union select id,email,password,'4','5','6','7','8','9' from users--")}&q[]=x`)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, all.body.data.length)
+    assert.ok(!JSON.stringify(res.body.data).includes('admin@'))
+  })
+
+  void it('GET product search treats an object-typed q parameter like an empty search instead of failing', async () => {
+    const all = await request(app).get('/rest/products/search?q=')
+    const res = await request(app)
+      .get('/rest/products/search?q[foo]=bar')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, all.body.data.length)
+  })
+
   void it('GET product search cannot select logically deleted christmas special by default', async () => {
     const res = await request(app)
       .get('/rest/products/search?q=seasonal%20special%20offer')
