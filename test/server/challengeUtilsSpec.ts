@@ -4,9 +4,11 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
 import * as challengeUtils from '../../lib/challengeUtils'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
+import logger from '../../lib/logger'
 
 const expect = chai.expect
 
@@ -22,6 +24,17 @@ describe('challengeUtils', () => {
 
     it('returns existing challenge', () => {
       expect(challengeUtils.findChallengeByName('scoreBoardChallenge')).to.deep.equal({ id: 42, name: 'scoreBoardChallenge' })
+    })
+
+    it('strips line breaks from the logged name of a non-existing challenge', () => {
+      const warn = sinon.stub(logger, 'warn')
+      try {
+        challengeUtils.findChallengeByName('blubb\r\nwarn: Solved 6-star forgedChallenge\n')
+        expect(warn.callCount).to.equal(1)
+        expect(warn.firstCall.args).to.deep.equal(['Missing challenge with name: blubbwarn: Solved 6-star forgedChallenge'])
+      } finally {
+        warn.restore()
+      }
     })
   })
 
