@@ -45,8 +45,8 @@ describe('/api', () => {
     })
   })
 
-  describe('challenge "changeProduct"', () => {
-    it('should be possible to change product via PUT request without being logged in', () => {
+  describe('PUT /api/Products/:id', () => {
+    it('should not be possible to change product via PUT request without being logged in', () => {
       cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
         cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
           cy.window().then(async () => {
@@ -63,13 +63,55 @@ describe('/api', () => {
                 })
               }
             )
+            assert.equal(response.status, 403)
+          })
+        })
+      })
+    })
+  })
+
+  describe('challenge "changeProduct"', () => {
+    beforeEach(() => {
+      cy.login({ email: 'accountant', password: 'i am an awesome accountant' })
+    })
+
+    it('should be possible to change product via PUT request as accountant', () => {
+      cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
+        cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
+          const productUrl = `${Cypress.config('baseUrl')}/api/Products/${tamperingProductId}`
+          let originalDescription: string
+          cy.window().then(async () => {
+            originalDescription = (await (await fetch(productUrl)).json()).data.description
+            const response = await fetch(productUrl, {
+              method: 'PUT',
+              cache: 'no-cache',
+              headers: {
+                'Content-type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({
+                description: `<a href="${overwriteUrl}" target="_blank">More...</a>`
+              })
+            })
             assert.equal(response.status, 200)
           })
 
           cy.visit('/#/search')
+          cy.expectChallengeSolved({ challenge: 'Product Tampering' })
+
+          cy.window().then(async () => {
+            await fetch(productUrl, {
+              method: 'PUT',
+              cache: 'no-cache',
+              headers: {
+                'Content-type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify({ description: originalDescription })
+            })
+          })
         })
       })
-      cy.expectChallengeSolved({ challenge: 'Product Tampering' })
     })
   })
 })
