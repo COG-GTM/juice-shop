@@ -6,10 +6,13 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -201,6 +204,20 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('appendUserId', () => {
+    it('responds with a generic 401 without exception details for unknown tokens', () => {
+      const req = { body: {}, headers: { authorization: 'Bearer unknown' }, cookies: {} } as unknown as Request
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+
+      security.appendUserId()(req, res, next)
+
+      expect(next).to.have.not.been.called
+      expect(res.status).to.have.been.calledWith(401)
+      expect(res.json).to.have.been.calledWith({ status: 'error', message: 'Unauthorized' })
     })
   })
 })

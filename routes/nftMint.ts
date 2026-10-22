@@ -30,7 +30,7 @@ export function nftMintListener () {
       }
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      res.status(500).json(utils.concealError(error, 'NFT mint listener'))
     }
   }
 }
@@ -47,7 +47,7 @@ export function walletNFTVerify () {
         res.status(200).json({ success: false, message: 'Wallet did not mint the NFT', status: challenges.nftMintChallenge })
       }
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      res.status(500).json(utils.concealError(error, 'NFT wallet verification'))
     }
   }
 }

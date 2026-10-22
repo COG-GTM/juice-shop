@@ -49,7 +49,7 @@ export const serveCodeSnippet = () => async (req: Request<SnippetRequestBody, Re
     res.status(200).json({ snippet: snippetData.snippet })
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: utils.concealError(error, 'Code snippet retrieval') })
   }
 }
 
@@ -78,7 +78,7 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
     }
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: utils.concealError(error, 'Code snippet verdict') })
     return
   }
   const vulnLines: number[] = snippetData.vulnLines
