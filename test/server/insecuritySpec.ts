@@ -203,4 +203,22 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('verify', () => {
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'jim@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg":"none"', () => {
+      expect(security.verify('eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.')).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg')).to.equal(false)
+    })
+
+    it('rejects a malformed token', () => {
+      expect(security.verify('not-a-jwt')).to.equal(false)
+    })
+  })
 })
