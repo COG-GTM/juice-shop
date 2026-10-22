@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import { Readable } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
@@ -39,31 +40,56 @@ export function resolveComplaintEntryPath (entryPath: unknown): string | null {
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+      const complaintsDirectory = path.resolve('uploads/complaints')
+      const source = Readable.from([file.buffer])
+      const parser = unzipper.Parse()
       let entryCount = 0
       let extractedBytes = 0
-      Readable.from([file.buffer])
-        .pipe(unzipper.Parse())
+      let limitExceeded = false
+      const stopExtraction = () => {
+        limitExceeded = true
+        source.unpipe(parser)
+        source.destroy()
+        parser.destroy()
+      }
+      source.pipe(parser)
         .on('entry', function (entry: any) {
           challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + entry.path) === path.resolve('ftp/legal.md') })
-          const targetPath = resolveComplaintEntryPath(entry.path)
-          if (targetPath === null || entry.type !== 'File' || ++entryCount > MAX_ZIP_ENTRIES || extractedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
+          if (limitExceeded) return
+          if (++entryCount > MAX_ZIP_ENTRIES) {
+            stopExtraction()
+            return
+          }
+          const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(entry.path) : null
+          const tempPath = path.join(complaintsDirectory, `.${crypto.randomUUID()}.part`)
+          let output: fs.WriteStream | null = null
+          let aborted = false
+          entry.on('data', function (chunk: Buffer) {
+            extractedBytes += chunk.length
+            if (!limitExceeded && extractedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
+              if (output !== null) {
+                aborted = true
+                entry.unpipe(output)
+                output.destroy()
+                output = null
+                fs.rm(tempPath, { force: true }, () => {})
+              }
+              stopExtraction()
+            }
+          })
+          if (targetPath === null) {
             entry.autodrain()
             return
           }
-          let aborted = false
-          const output = fs.createWriteStream(targetPath).on('error', function (err) { if (!aborted) next(err) })
-          entry.on('data', function (chunk: Buffer) {
-            extractedBytes += chunk.length
-            if (!aborted && extractedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
-              aborted = true
-              entry.unpipe(output)
-              output.destroy()
-              fs.rm(targetPath, { force: true }, () => {})
-              entry.autodrain()
-            }
-          })
+          output = fs.createWriteStream(tempPath, { flags: 'wx' })
+            .on('error', function (err) { fs.rm(tempPath, { force: true }, () => {}); if (!aborted) next(err) })
+            .on('finish', function () {
+              fs.rename(tempPath, targetPath, function (err) {
+                if (err != null) { fs.rm(tempPath, { force: true }, () => {}); next(err) }
+              })
+            })
           entry.pipe(output)
-        }).on('error', function (err: unknown) { next(err) })
+        }).on('error', function (err: unknown) { if (!limitExceeded) next(err) })
     }
     res.status(204).end()
   } else {
