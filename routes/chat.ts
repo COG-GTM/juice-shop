@@ -20,6 +20,7 @@ import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
 import { Counter } from 'prom-client'
+import jws from 'jws'
 
 function summarizeLlmError (error: unknown): string {
   if (!(error instanceof Error)) {
@@ -41,7 +42,7 @@ const appName = config.get<string>('application.name')
 
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
+  if (!token || jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
 }

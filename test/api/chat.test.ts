@@ -8,11 +8,17 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
+import * as db from '../../data/mongodb'
 
 const MOCK_LLM_PORT = 43210
 
 let app: Express
+let authHeader: Record<string, string>
 let mockServer: http.Server
 let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = (_req, _body, res) => {
   res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -86,6 +92,11 @@ before(async () => {
   })
   const result = await createTestApp()
   app = result.app
+  const { token } = await login(app, {
+    email: 'jim@' + config.get<string>('application.domain'),
+    password: 'ncc-1701'
+  })
+  authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 after(async () => {
@@ -110,7 +121,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'Hi' }] })
 
     assert.equal(res.status, 200)
@@ -127,7 +138,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'Hello' }] })
 
     assert.equal(res.status, 200)
@@ -144,7 +155,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'What is your name?' }] })
 
     assert.equal(res.status, 200)
@@ -163,7 +174,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'What products do you have?' }] })
 
     assert.equal(res.status, 200)
@@ -199,7 +210,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'Do you have apple juice?' }] })
 
     assert.equal(res.status, 200)
@@ -215,7 +226,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'Hi' }] })
 
     assert.equal(res.status, 200)
@@ -233,7 +244,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [] })
 
     assert.equal(res.status, 200)
@@ -251,7 +262,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 
     const res = await request(app)
       .post('/rest/chat')
-      .set({ 'content-type': 'application/json' })
+      .set(authHeader)
       .send({ messages: [{ role: 'user', content: 'Test' }] })
 
     assert.equal(res.status, 200)
@@ -266,4 +277,83 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       assert.ok(parsed.choices[0].delta)
     }
   })
+})
+
+void describe('/rest/chat authentication', { timeout: 120000 }, () => {
+  const adminEmail = 'admin@' + config.get<string>('application.domain')
+  let adminOrderId: string
+
+  before(async () => {
+    const order = await db.ordersCollection.findOne({ email: adminEmail.replace(/[aeiou]/gi, '*') }) as { orderId: string }
+    adminOrderId = order.orderId
+  })
+
+  function base64url (obj: object): string {
+    return Buffer.from(JSON.stringify(obj)).toString('base64url')
+  }
+
+  function forgedTokens (): Record<string, string> {
+    const payload = base64url({ status: 'success', data: { id: 1, email: adminEmail, role: 'admin' }, iat: Math.floor(Date.now() / 1000) })
+    const hs256Input = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+    const hs256Signature = crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')
+    return {
+      unsigned: `${base64url({ alg: 'none', typ: 'JWT' })}.${payload}.`,
+      'HS256 signed with the public key': `${hs256Input}.${hs256Signature}`,
+      'garbage RS256 signature': `${base64url({ alg: 'RS256', typ: 'JWT' })}.${payload}.${Buffer.from('garbage').toString('base64url')}`
+    }
+  }
+
+  async function askForOrder (headers: Record<string, string>) {
+    let toolResult: string | undefined
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId: adminOrderId })),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        toolResult = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')?.content
+        sendSSE(res, [contentChunk('Here is your order.'), finishChunk()])
+      }
+    }
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(headers)
+      .send({ messages: [{ role: 'user', content: `Show me order ${adminOrderId}` }] })
+    return { res, toolResult }
+  }
+
+  void it('POST without a token is rejected', { timeout: 15000 }, async () => {
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST with a valid token returns the caller\'s own order', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+    const { res, toolResult } = await askForOrder({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.ok(toolResult?.includes(adminOrderId))
+    assert.ok(toolResult?.includes('totalPrice'))
+  })
+
+  for (const [kind, token] of Object.entries(forgedTokens())) {
+    void it(`POST with a forged ${kind} token does not reveal the victim's order`, { timeout: 15000 }, async () => {
+      const { res, toolResult } = await askForOrder({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+      assert.ok(!res.text.includes('totalPrice'))
+      if (res.status === 200) {
+        assert.ok(toolResult?.includes('Customer not authenticated'))
+        assert.ok(!toolResult?.includes('totalPrice'))
+      } else {
+        assert.equal(res.status, 401)
+      }
+    })
+  }
 })
