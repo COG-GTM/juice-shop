@@ -312,6 +312,19 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.email, 'string')
   })
 
+  void it('GET who-am-i with fields parameter ignores inherited property names', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .get('/rest/user/whoami?fields=email,__proto__,constructor,toString,hasOwnProperty')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user), ['email'])
+    assert.equal(res.body.user.email, 'bjoern.kimminich@gmail.com')
+  })
+
   void it('GET who-am-i with fields parameter can be tricked into returning password', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',

@@ -25,12 +25,11 @@ export function retrieveLoggedInUser () {
         let baseUser: any = {}
 
         if (requestedFields.length > 0) {
-          // When fields are specified, return only those fields
-          for (const field of requestedFields) {
-            if (user?.data[field as keyof typeof user.data] !== undefined) {
-              baseUser[field] = user?.data[field as keyof typeof user.data]
-            }
-          }
+          // When fields are specified, return only those (own) fields
+          const userData: Record<string, unknown> = user?.data ?? {}
+          baseUser = Object.fromEntries(requestedFields
+            .filter(field => Object.prototype.hasOwnProperty.call(userData, field) && userData[field] !== undefined)
+            .map(field => [field, userData[field]]))
         } else {
           // If no fields parameter, return standard fields (not password field)
           baseUser = {
