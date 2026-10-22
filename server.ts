@@ -253,7 +253,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
           } else if (!relativePath.startsWith('.') && currentFolder !== '') {
             relativePath = currentFolder + '/' + relativePath
           } else {
-            relativePath = relativePath.replace('..', '.')
+            relativePath = relativePath.replace(/^\.\./, '.')
           }
           return 'a href="' + relativePath + '"'
         })
