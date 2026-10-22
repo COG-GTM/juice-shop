@@ -25,10 +25,10 @@ export function retrieveLoggedInUser () {
         let baseUser: any = {}
 
         if (requestedFields.length > 0) {
-          // When fields are specified, return only those (own) fields
+          // When fields are specified, return only those fields (never Object.prototype members)
           const userData: Record<string, unknown> = user?.data ?? {}
           baseUser = Object.fromEntries(requestedFields
-            .filter(field => Object.prototype.hasOwnProperty.call(userData, field) && userData[field] !== undefined)
+            .filter(field => !(field in Object.prototype) && userData[field] !== undefined)
             .map(field => [field, userData[field]]))
         } else {
           // If no fields parameter, return standard fields (not password field)
