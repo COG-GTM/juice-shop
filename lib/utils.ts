@@ -5,6 +5,7 @@
 
 /* jslint node: true */
 import packageJson from '../package.json'
+import type { Response } from 'express'
 import fs from 'node:fs'
 import logger from './logger'
 import config from 'config'
@@ -217,6 +218,11 @@ export const toSimpleIpAddress = (ipv6: string) => {
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
+}
+
+export const sendGenericError = (res: Response, error: unknown, statusCode = 500, body: unknown = 'Internal Server Error') => {
+  logger.error(`Request failed with status ${statusCode}: ${getErrorMessage(error)}`)
+  res.status(statusCode).json(body)
 }
 
 export const matchesSystemIniFile = (text: string) => {

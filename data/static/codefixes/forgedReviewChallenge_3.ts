@@ -8,7 +8,7 @@ export function updateProductReviews () {
       (result: { modified: number, original: Array<{ author: any }> }) => {
         res.json(result)
       }, (err: unknown) => {
-        res.status(500).json(err)
+        utils.sendGenericError(res, err)
       })
   }
 }
