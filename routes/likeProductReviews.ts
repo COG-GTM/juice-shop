@@ -10,6 +10,8 @@ import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
+import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
 
@@ -53,7 +55,8 @@ export function likeProductReviews () {
         )
         res.json(result)
       } catch (err) {
-        res.status(500).json(err)
+        logger.error(`Error liking product review: ${utils.getErrorMessage(err)}`)
+        res.status(500).json('Internal Server Error')
       }
     } catch (err) {
       res.status(400).json({ error: 'Wrong Params' })

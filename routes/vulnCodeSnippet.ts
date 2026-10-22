@@ -11,6 +11,7 @@ import { getCodeChallenges } from '../lib/codingChallenges'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as accuracy from '../lib/accuracy'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import { type ChallengeKey } from 'models/challenge'
 
 interface SnippetRequestBody {
@@ -31,6 +32,11 @@ const setStatusCode = (error: any) => {
   }
 }
 
+const snippetErrorMessage = (error: any) => {
+  logger.error(`Error retrieving code snippet: ${utils.getErrorMessage(error)}`)
+  return error?.name === 'BrokenBoundary' ? 'Broken code snippet boundaries' : 'Unable to retrieve code snippet'
+}
+
 export const retrieveCodeSnippet = async (challengeKey: string) => {
   const codeChallenges = await getCodeChallenges()
   if (codeChallenges.has(challengeKey)) {
@@ -49,7 +55,7 @@ export const serveCodeSnippet = () => async (req: Request<SnippetRequestBody, Re
     res.status(200).json({ snippet: snippetData.snippet })
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: snippetErrorMessage(error) })
   }
 }
 
@@ -78,7 +84,7 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
     }
   } catch (error) {
     const statusCode = setStatusCode(error)
-    res.status(statusCode).json({ status: 'error', error: utils.getErrorMessage(error) })
+    res.status(statusCode).json({ status: 'error', error: snippetErrorMessage(error) })
     return
   }
   const vulnLines: number[] = snippetData.vulnLines

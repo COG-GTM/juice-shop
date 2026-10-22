@@ -30,7 +30,8 @@ export function nftMintListener () {
       }
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      logger.error(`Error creating NFT Mint Listener: ${utils.getErrorMessage(error)}`)
+      res.status(500).json('Internal Server Error')
     }
   }
 }
@@ -47,7 +48,8 @@ export function walletNFTVerify () {
         res.status(200).json({ success: false, message: 'Wallet did not mint the NFT', status: challenges.nftMintChallenge })
       }
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      logger.error(`Error verifying NFT wallet: ${utils.getErrorMessage(error)}`)
+      res.status(500).json('Internal Server Error')
     }
   }
 }
