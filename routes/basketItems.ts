@@ -19,38 +19,44 @@ interface RequestWithRawBody extends Request {
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
+    const basketIds: Array<string | number> = []
+    const seenKeys = new Set<string>()
+    let hasDuplicateKey = false
 
     for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
+      const key = result[i].key
+      if (key === 'ProductId' || key === 'BasketId' || key === 'quantity') {
+        hasDuplicateKey = hasDuplicateKey || seenKeys.has(key)
+        seenKeys.add(key)
+        if (key === 'BasketId') {
+          basketIds.push(result[i].value)
+        }
       }
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketIds.length > 1 && basketIds.some((id) => id && id !== 'undefined' && user.bid != id) }) // eslint-disable-line eqeqeq
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+    if (hasDuplicateKey) {
+      res.status(400).json({ error: 'Duplicate ProductId, BasketId or quantity parameter' })
+      return
+    }
+    const requestedBasketId = req.body?.BasketId
+    if (!user?.bid || (requestedBasketId && requestedBasketId !== 'undefined' && Number(user.bid) !== Number(requestedBasketId))) {
+      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+      return
+    }
+
+    const basketItemInstance = BasketItemModel.build({
+      ProductId: req.body.ProductId,
+      BasketId: user.bid,
+      quantity: req.body.quantity
+    })
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
