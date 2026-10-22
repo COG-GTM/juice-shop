@@ -15,6 +15,8 @@ import { challenges, notifications } from '../data/datacache'
 
 const entities = new Entities()
 
+const stripLineBreaks = (value: unknown) => String(value).replace(/[\r\n]/g, '')
+
 const globalWithSocketIO = global as typeof globalThis & {
   io: SocketIOClientStatic & Server
 }
@@ -93,7 +95,7 @@ export const findChallengeByName = (challengeName: string) => {
       return challenge
     }
   }
-  logger.warn('Missing challenge with name: ' + challengeName)
+  logger.warn('Missing challenge with name: ' + stripLineBreaks(challengeName))
 }
 
 export const findChallengeById = (challengeId: number) => {
@@ -102,7 +104,7 @@ export const findChallengeById = (challengeId: number) => {
       return challenge
     }
   }
-  logger.warn('Missing challenge with id: ' + challengeId)
+  logger.warn('Missing challenge with id: ' + stripLineBreaks(challengeId))
 }
 
 export const solveFindIt = async function (key: ChallengeKey, isRestore: boolean = false) {
