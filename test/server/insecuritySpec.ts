@@ -111,6 +111,20 @@ describe('insecurity', () => {
     })
   })
 
+  describe('appendUserId', () => {
+    it('does not expose error details for requests without a known token', () => {
+      const req = { headers: {}, cookies: {}, body: {} } as unknown as Request
+      let status = 0
+      let body: unknown
+      const res: any = { status: (code: number) => { status = code; return res }, json: (data: unknown) => { body = data } }
+
+      security.appendUserId()(req, res, () => { throw new Error('next() must not be called') })
+
+      expect(status).to.equal(401)
+      expect(body).to.deep.equal({ status: 'error', message: 'Invalid or missing authentication token' })
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
