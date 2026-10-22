@@ -3,10 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
+import { Writable } from 'node:stream'
 import chai from 'chai'
+import sinon from 'sinon'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleZipFileUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +66,43 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('handleZipFileUpload', () => {
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    it('extracts the uploaded zip from memory without writing the upload to a temporary file', (done) => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      const zip = fs.readFileSync(path.resolve(__dirname, '../files/arbitraryFileWrite.zip'))
+      const open = sinon.spy(fs, 'open')
+      const write = sinon.spy(fs, 'write')
+      const chunks: Buffer[] = []
+      const createWriteStream = sinon.stub(fs, 'createWriteStream').callsFake(() => new Writable({
+        write (chunk, _encoding, callback) {
+          chunks.push(chunk)
+          callback()
+        },
+        final (callback) {
+          callback()
+          try {
+            expect(open.called).to.equal(false)
+            expect(write.called).to.equal(false)
+            expect(createWriteStream.calledOnceWith('uploads/complaints/../../ftp/legal.md')).to.equal(true)
+            expect(Buffer.concat(chunks).length).to.equal(73)
+            expect(challenges.fileWriteChallenge.solved).to.equal(true)
+            done()
+          } catch (err) {
+            done(err)
+          }
+        }
+      }) as unknown as fs.WriteStream)
+      res.status = () => res
+      res.end = () => {}
+      req.file = { originalname: 'Complaint.ZIP', buffer: zip, size: zip.length }
+
+      handleZipFileUpload(req, res, done)
+    })
   })
 })
