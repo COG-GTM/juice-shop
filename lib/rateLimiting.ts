@@ -5,6 +5,7 @@
 
 import { type Request } from 'express'
 import { rateLimit } from 'express-rate-limit'
+import jwt from 'jsonwebtoken'
 
 import * as security from './insecurity'
 
@@ -43,8 +44,10 @@ export function secondFactorUserOf (req: Request) {
   const tmpToken = req.body?.tmpToken
   if (typeof tmpToken !== 'string') return undefined
   try {
-    if (!security.verify(tmpToken)) return undefined
-    const userId = security.decode(tmpToken)?.userId
+    let userId: unknown
+    jwt.verify(tmpToken, security.publicKey, (err: Error | null, decoded: any) => { // callback is invoked synchronously
+      if (err === null) userId = decoded?.userId
+    })
     return userId !== undefined && userId !== null ? String(userId) : undefined
   } catch {
     return undefined
