@@ -208,4 +208,19 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('logAndMaskError', () => {
+    it('returns a generic message instead of the error details', () => {
+      const error = new Error('SQLITE_ERROR: no such table: Secrets')
+      error.stack = 'Error: SQLITE_ERROR\n    at /juice-shop/build/routes/secret.js:42:13'
+      const message = utils.logAndMaskError(error, 'test')
+      expect(message).to.equal(utils.unexpectedErrorMessage)
+      expect(message).to.not.contain('SQLITE_ERROR')
+      expect(message).to.not.contain('secret.js')
+    })
+
+    it('returns a generic message for non-Error values', () => {
+      expect(utils.logAndMaskError({ code: 'ECONNREFUSED' }, 'test')).to.equal(utils.unexpectedErrorMessage)
+    })
+  })
 })
