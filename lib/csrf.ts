@@ -22,8 +22,7 @@ export function isCrossSiteRequest (req: Request) {
     return true
   }
   try {
-    const sourceUrl = new URL(source)
-    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${host}`).host
+    return new URL(source).origin !== new URL(`${req.protocol}://${host}`).origin
   } catch {
     return true
   }
@@ -31,7 +30,8 @@ export function isCrossSiteRequest (req: Request) {
 
 export function csrfProtection () {
   return function csrfProtectionMiddleware (req: Request, res: Response, next: NextFunction) {
-    if (SAFE_METHODS.has(req.method) || /^Bearer\s/i.test(req.get('authorization') ?? '')) {
+    // Cross-origin requests without cookies (e.g. the Angular dev server on :4200) carry no ambient credentials to abuse
+    if (SAFE_METHODS.has(req.method) || req.get('cookie') === undefined) {
       next()
       return
     }
