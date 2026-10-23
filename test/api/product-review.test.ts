@@ -62,6 +62,13 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('GET product reviews includes newly created review', async () => {
+    const res = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string, author: string }) => review.message === 'Lorem Ipsum' && review.author === 'Anonymous'))
+  })
 })
 
 void describe('/rest/products/reviews', () => {
