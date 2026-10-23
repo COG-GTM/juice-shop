@@ -78,10 +78,10 @@ describe('/#/complain', () => {
       })
     })
 
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
+    it('should not be solved as external entities are no longer expanded', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
-          cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
+          cy.request('/api/Challenges/?name=XXE Data Access').its('body.data.0.solved').should('equal', false)
         }
       })
     })
