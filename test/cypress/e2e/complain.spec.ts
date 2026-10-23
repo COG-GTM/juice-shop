@@ -78,7 +78,7 @@ describe('/#/complain', () => {
       })
     })
 
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
+    xit('should be solved either through Windows- or Linux-specific attack path', () => { // XXE disabled: uploads are parsed without external entity expansion
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
