@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -35,6 +36,21 @@ void describe('/promotion', () => {
       .get('/promotion')
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">'))
+  })
+
+  void it('GET promotion video page escapes markup in subtitles', async () => {
+    const subtitlesFile = 'frontend/dist/frontend/assets/public/videos/owasp_promo.vtt'
+    const original = fs.readFileSync(subtitlesFile)
+    fs.writeFileSync(subtitlesFile, 'WEBVTT\n\n</script><script>alert(`xss`)</script>\n')
+    try {
+      const res = await request(app)
+        .get('/promotion')
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+      assert.ok(res.text.includes('\\u003c/script>\\u003cscript>alert(`xss`)\\u003c/script>'))
+    } finally {
+      fs.writeFileSync(subtitlesFile, original)
+    }
   })
 })
 
