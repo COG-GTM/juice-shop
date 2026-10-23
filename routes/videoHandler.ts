@@ -84,7 +84,7 @@ function getSubsFromFile () {
 }
 
 function escapeScriptContent (content: string) {
-  return content.replace(/</g, '\\u003c')
+  return content.replace(/\\/g, '\\\\').replace(/</g, '\\u003c')
 }
 
 function videoPath () {

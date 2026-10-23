@@ -41,13 +41,13 @@ void describe('/promotion', () => {
   void it('GET promotion video page escapes markup in subtitles', async () => {
     const subtitlesFile = 'frontend/dist/frontend/assets/public/videos/owasp_promo.vtt'
     const original = fs.readFileSync(subtitlesFile)
-    fs.writeFileSync(subtitlesFile, 'WEBVTT\n\n</script><script>alert(`xss`)</script>\n')
+    fs.writeFileSync(subtitlesFile, 'WEBVTT\n\n</script><script>alert(`xss`)</script> \\u003c\n')
     try {
       const res = await request(app)
         .get('/promotion')
       assert.equal(res.status, 200)
       assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
-      assert.ok(res.text.includes('\\u003c/script>\\u003cscript>alert(`xss`)\\u003c/script>'))
+      assert.ok(res.text.includes('\\u003c/script>\\u003cscript>alert(`xss`)\\u003c/script> \\\\u003c'))
     } finally {
       fs.writeFileSync(subtitlesFile, original)
     }
