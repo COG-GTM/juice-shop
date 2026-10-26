@@ -53,14 +53,21 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('GET product reviews includes reviews created by users', async () => {
+  void it('GET product reviews includes reviews created by users under any numeric spelling of the id', async () => {
     await request(app)
-      .put('/rest/products/2/reviews')
+      .put('/rest/products/02/reviews')
       .send({ message: 'User-created review', author: 'Anonymous' })
     const res = await request(app)
       .get('/rest/products/2/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.body.data.some((review: { message: string }) => review.message === 'User-created review'))
+  })
+
+  void it('PUT product review is rejected for non-numeric product id', async () => {
+    const res = await request(app)
+      .put('/rest/products/kaboom/reviews')
+      .send({ message: 'Lorem Ipsum', author: 'Anonymous' })
+    assert.equal(res.status, 400)
   })
 
   void it('PUT single product review can be created', async () => {

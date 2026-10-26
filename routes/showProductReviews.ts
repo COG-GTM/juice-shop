@@ -18,8 +18,7 @@ export function showProductReviews () {
       return
     }
 
-    // Seeded reviews store the product id as a number, user-created ones as a string
-    db.reviewsCollection.find({ product: { $in: [id, String(id)] } }).then((reviews: Review[]) => {
+    db.reviewsCollection.find({ product: id }).then((reviews: Review[]) => {
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
