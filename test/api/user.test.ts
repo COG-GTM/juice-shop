@@ -27,7 +27,7 @@ before(async () => {
   adminHeader = { Authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
   const { token: customerToken } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
   customerHeader = { Authorization: `Bearer ${customerToken}`, 'content-type': 'application/json' }
-  customerId = (await request(app).get('/rest/user/whoami').set(customerHeader)).body.user.id
+  customerId = (await request(app).get('/rest/user/whoami').set('Cookie', `token=${customerToken}`)).body.user.id
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
