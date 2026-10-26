@@ -44,7 +44,7 @@ async function ownBasketId (user: AuthenticatedUser) {
   if (user?.data?.id == null) {
     return undefined
   }
-  if (user.bid != null) {
+  if (user.bid != null && await ownsBasket(user, Number(user.bid))) {
     return Number(user.bid)
   }
   const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
