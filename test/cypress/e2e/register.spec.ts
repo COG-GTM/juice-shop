@@ -11,35 +11,34 @@ describe('/#/register', () => {
       })
     })
 
-    it('should be possible to bypass validation by directly using Rest API', async () => {
+    it('should not execute markup from a registered email on the administration page', () => {
+      cy.window().then(async () => {
+        const response = await fetch(
+          `${Cypress.config('baseUrl')}/api/Users/`,
+          {
+            method: 'POST',
+            cache: 'no-cache',
+            headers: {
+              'Content-type': 'application/json'
+            },
+            body: JSON.stringify({
+              email: '<iframe src="javascript:alert(`xss`)">xss-e2e@juice-sh.op',
+              password: 'XSSed',
+              passwordRepeat: 'XSSed'
+            })
+          }
+        )
+        const body = await response.json()
+        expect(body.data.email).not.to.contain('<iframe')
+      })
+
+      cy.on('window:alert', (t) => {
+        throw new Error(`Unexpected alert: ${t}`)
+      })
+      cy.visit('/#/administration')
+      cy.get('.user-table iframe').should('not.exist')
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Users/`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                  email: '<iframe src="javascript:alert(`xss`)">',
-                  password: 'XSSed',
-                  passwordRepeat: 'XSSed',
-                  role: 'admin'
-                })
-              }
-            )
-            if (response.status === 201) {
-              console.log('Success')
-            }
-          })
-
-          cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
           cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
         }
       })
