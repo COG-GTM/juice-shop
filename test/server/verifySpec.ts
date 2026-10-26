@@ -354,6 +354,22 @@ describe('verify', () => {
 
       expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
+
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token is not yet valid', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, nbf: Math.floor(Date.now() / 1000) + 3600 }, '')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token has a malformed not-before', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, nbf: 'later' }, '')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
   })
 })
 

@@ -118,7 +118,7 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
     }
 
     challengeUtils.solveIf(challenge, () => {
-      return hasAlgorithm(token, algorithm) && hasForgedSignature(token, algorithm) && !isExpired(decoded) && hasEmail(decoded as { data: { email: string } }, email)
+      return hasAlgorithm(token, algorithm) && hasForgedSignature(token, algorithm) && !isExpired(decoded) && !isNotYetValid(decoded) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
 }
@@ -137,6 +137,10 @@ function hasForgedSignature (token: string, algorithm: string) {
 
 function isExpired (payload: { exp?: unknown }) {
   return payload.exp !== undefined && (typeof payload.exp !== 'number' || payload.exp <= Date.now() / 1000)
+}
+
+function isNotYetValid (payload: { nbf?: unknown }) {
+  return payload.nbf !== undefined && (typeof payload.nbf !== 'number' || payload.nbf > Date.now() / 1000)
 }
 
 function hasAlgorithm (token: string, algorithm: string) {
