@@ -69,7 +69,7 @@ void describe('/api/Feedbacks', () => {
     })
   }
 
-  void it('POST feedback in another users name as anonymous user', async () => {
+  void it('POST feedback in another users name as anonymous user is stored without user association', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -87,10 +87,10 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, null)
   })
 
-  void it('POST feedback in a non-existing users name as anonymous user fails with constraint error', async () => {
+  void it('POST feedback in a non-existing users name as anonymous user is stored without user association', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -106,9 +106,9 @@ void describe('/api/Feedbacks', () => {
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(res.body.errors.includes('SQLITE_CONSTRAINT: FOREIGN KEY constraint failed'))
+    assert.equal(res.body.data.UserId, null)
   })
 
   void it('POST feedback is associated with current user', async () => {
@@ -137,7 +137,7 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
-  void it('POST feedback is associated with any passed user ID', async () => {
+  void it('POST feedback ignores a passed user ID of another user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -160,7 +160,58 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, 4)
+  })
+
+  void it('POST feedback is associated with current user authenticated by cookie only', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .set('Cookie', ['token=' + token])
+      .send({
+        comment: 'Cookies are not just for baskets!',
+        rating: 5,
+        UserId: 3,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.UserId, 4)
+  })
+
+  void it('POST feedback with an unsigned token claiming another user is stored without user association', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
+    const unsignedToken = `${header}.${payload}.`
+
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + unsignedToken, 'content-type': 'application/json' })
+      .send({
+        comment: 'Signed by nobody',
+        rating: 1,
+        UserId: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.UserId, null)
   })
 
   void it('POST feedback can be created without actually supplying comment', async () => {
