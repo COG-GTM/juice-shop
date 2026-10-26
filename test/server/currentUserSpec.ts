@@ -71,7 +71,7 @@ describe('currentUser', () => {
       findByPk.restore()
     }
 
-    expect(findByPk).not.to.have.been.called
+    expect(findByPk.called).to.equal(false)
     expect(res.json).to.have.been.calledWith({ user: { id: 1 } })
   })
 
