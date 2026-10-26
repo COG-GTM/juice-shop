@@ -34,17 +34,39 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects a mongoDB sleep command as product id', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 400)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews rejects JavaScript injection as product id', async () => {
+    const res = await request(app)
+      .get(`/rest/products/${encodeURIComponent('1||(global.marker=1)')}/reviews`)
+    assert.equal(res.status, 400)
+    assert.equal((global as any).marker, undefined)
+  })
+
+  void it('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews includes reviews created by users under any numeric spelling of the id', async () => {
+    await request(app)
+      .put('/rest/products/02/reviews')
+      .send({ message: 'User-created review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/2/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'User-created review'))
+  })
+
+  void it('PUT product review is rejected for non-numeric product id', async () => {
+    const res = await request(app)
+      .put('/rest/products/kaboom/reviews')
+      .send({ message: 'Lorem Ipsum', author: 'Anonymous' })
     assert.equal(res.status, 400)
   })
 
@@ -124,7 +146,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 2)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
