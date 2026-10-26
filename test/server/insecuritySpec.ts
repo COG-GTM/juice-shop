@@ -226,7 +226,7 @@ describe('insecurity', () => {
     })
 
     it('rejects HS256 tokens signed with an arbitrary secret', () => {
-      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, 'this_surly_isnt_the_right_key'))).to.equal(false)
+      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, crypto.randomBytes(32).toString('hex')))).to.equal(false)
     })
 
     it('rejects empty and malformed tokens', () => {
