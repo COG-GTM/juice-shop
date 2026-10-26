@@ -6,7 +6,6 @@
 import { type Request, type Response } from 'express'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 interface Caller {
   id?: number
@@ -20,12 +19,11 @@ interface FetchContext {
 }
 
 export function callerFrom (req: Request): Caller {
-  const token = utils.jwtFrom(req)
-  const decoded = security.verify(token) && security.decode(token)
-  const id = decoded?.data?.id
+  const user = security.authenticatedUsers.from(req)?.data
+  const id = user?.id
   return {
     id: typeof id === 'number' ? id : undefined,
-    isAdmin: decoded?.data?.role === security.roles.admin
+    isAdmin: user?.role === security.roles.admin
   }
 }
 
