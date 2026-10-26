@@ -19,6 +19,7 @@ import bodyParser from 'body-parser'
 // @ts-expect-error FIXME due to non-existing type definitions for finale-rest
 import * as finale from 'finale-rest'
 import compression from 'compression'
+import validator from 'validator'
 // @ts-expect-error FIXME due to non-existing type definitions for express-robots-txt
 import robots from 'express-robots-txt'
 import cookieParser from 'cookie-parser'
@@ -413,6 +414,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       } else {
         res.status(400).send(res.__('Invalid email/password cannot be empty'))
       }
+    }
+    next()
+  })
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const email = req.body?.email
+    if (email !== undefined && email !== null && (typeof email !== 'string' || (email.trim().length > 0 && !validator.isEmail(email.trim())))) {
+      res.status(400).send(res.__('Invalid email address'))
+      return
     }
     next()
   })
