@@ -93,6 +93,13 @@ describe('WalletComponent', () => {
         expect(component.balanceControl.valid).toBe(true)
     })
 
+    it('amount should have at most two decimal places', () => {
+        component.balanceControl.setValue(10.001)
+        expect(component.balanceControl.valid).toBeFalsy()
+        component.balanceControl.setValue(10.12)
+        expect(component.balanceControl.valid).toBe(true)
+    })
+
     it('should hold balance returned by backend API', () => {
         walletService.get.mockReturnValue(of(100))
         component.ngOnInit()
