@@ -23,9 +23,23 @@ const MAX_TOP_UP_CENTS = 100000
 const MAX_DAILY_TOP_UP_CENTS = 100000
 const TOP_UP_WINDOW_MS = 24 * 60 * 60 * 1000
 
+const TOP_UP_SWEEP_INTERVAL_MS = 60 * 60 * 1000
+
 const recentTopUps = new Map<number, Array<{ at: number, cents: number }>>()
+let lastTopUpSweep = 0
+
+function sweepExpiredTopUps (now: number) {
+  if (now - lastTopUpSweep < TOP_UP_SWEEP_INTERVAL_MS) return
+  lastTopUpSweep = now
+  for (const [userId, entries] of recentTopUps) {
+    const active = entries.filter(entry => now - entry.at < TOP_UP_WINDOW_MS)
+    if (active.length > 0) recentTopUps.set(userId, active)
+    else recentTopUps.delete(userId)
+  }
+}
 
 function reserveTopUp (userId: number, cents: number, now = Date.now()) {
+  sweepExpiredTopUps(now)
   const entries = (recentTopUps.get(userId) ?? []).filter(entry => now - entry.at < TOP_UP_WINDOW_MS)
   const used = entries.reduce((sum, entry) => sum + entry.cents, 0)
   if (used + cents > MAX_DAILY_TOP_UP_CENTS) {
