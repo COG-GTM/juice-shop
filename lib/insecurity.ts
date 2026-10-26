@@ -58,7 +58,6 @@ export const verify = (token: string) => token ? (jws.verify as ((token: string,
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
-export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
 export const sanitizeSecure = (html: string): string => {
   const sanitized = sanitizeHtml(html)
@@ -192,10 +191,28 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'lax' })
         }
       }
     })
   }
   next()
+}
+
+export const isSameOriginRequest = (req: Request) => {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) return true
+  try {
+    return new URL(source).host === req.headers.host
+  } catch {
+    return false
+  }
+}
+
+export const requireSameOrigin = () => (req: Request, res: Response, next: NextFunction) => {
+  if (isSameOriginRequest(req)) {
+    next()
+    return
+  }
+  res.status(403).json({ error: 'Cross-origin request blocked' })
 }
