@@ -20,7 +20,7 @@ export function updateProductReviews () {
     }
 
     if (typeof req.body.id !== 'string') {
-      challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return req.body.id !== null && typeof req.body.id === 'object' && !Array.isArray(req.body.id) }) // vuln-code-snippet hide-line
+      challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return req.body.id !== null && typeof req.body.id === 'object' && Object.keys(req.body.id).some((key: string) => key.startsWith('$')) }) // vuln-code-snippet hide-line
       res.status(400).send()
       return
     }
