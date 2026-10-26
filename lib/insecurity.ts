@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -13,13 +14,21 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
+export const privateKeyFile = path.resolve(process.env.JWT_PRIVATE_KEY_FILE ?? 'data/jwt.key')
+
+export const isInPubliclyServedDirectory = (file: string) =>
+  ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist'].some(dir => path.resolve(file).startsWith(path.resolve(dir) + path.sep))
+
+if (isInPubliclyServedDirectory(privateKeyFile)) {
+  throw new Error(`JWT_PRIVATE_KEY_FILE must not point into a publicly served directory: ${privateKeyFile}`)
+}
 
 const loadSigningKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
@@ -33,10 +42,18 @@ const loadSigningKey = (): string => {
     privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
     publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
   }).privateKey
+  // write to a temp file and hard-link it into place so concurrent starters agree on one complete key
+  const tempFile = `${privateKeyFile}.${process.pid}.tmp`
   try {
-    fs.writeFileSync(privateKeyFile, generatedKey, { mode: 0o600 })
-  } catch {
-    // read-only file systems keep the generated key in memory only
+    fs.writeFileSync(tempFile, generatedKey, { mode: 0o600 })
+    fs.linkSync(tempFile, privateKeyFile)
+  } catch (err: any) {
+    if (err?.code === 'EEXIST') {
+      return fs.readFileSync(privateKeyFile, 'utf8')
+    }
+    logger.warn(`Could not persist JWT signing key to ${privateKeyFile} (${err?.code ?? err}); issued tokens will be invalid after a restart`)
+  } finally {
+    fs.rmSync(tempFile, { force: true })
   }
   return generatedKey
 }

@@ -49,13 +49,9 @@ describe('keyServer', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 
-  it('should refuse to serve the JWT private key file', () => {
-    req.params.file = 'jwt.key'
-
-    serveKeyFiles()(req, res, next)
-
-    expect(res.status).to.have.been.calledWith(403)
-    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
-    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  it('should not allow the JWT private key file inside a publicly served directory', () => {
+    expect(security.isInPubliclyServedDirectory('encryptionkeys/jwt.key')).to.equal(true)
+    expect(security.isInPubliclyServedDirectory('ftp/jwt.key')).to.equal(true)
+    expect(security.isInPubliclyServedDirectory(security.privateKeyFile)).to.equal(false)
   })
 })

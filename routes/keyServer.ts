@@ -14,9 +14,6 @@ export function serveKeyFiles () {
     if (file.includes('/')) {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
-    } else if (file === path.basename(security.privateKeyFile)) {
-      res.status(403)
-      next(new Error('Access to the JWT signing key is forbidden!'))
     } else if (file === 'jwt.pub') {
       res.type('text/plain').send(security.publicKey)
     } else {
