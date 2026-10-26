@@ -11,6 +11,7 @@ import { AdministrationService } from '../Services/administration.service'
 import { Router, RouterLink } from '@angular/router'
 import { UserService } from '../Services/user.service'
 import { CookieService } from 'ngy-cookie'
+import { finalize } from 'rxjs/operators'
 import { ConfigurationService } from '../Services/configuration.service'
 import { LoginGuard } from '../app.guard'
 import { roles } from '../roles'
@@ -91,7 +92,8 @@ export class SidenavComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    const token = localStorage.getItem('token')
+    this.userService.saveLastLoginIp().pipe(finalize(() => { this.revokeSession(token) })).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     localStorage.removeItem('token')
     this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
@@ -99,6 +101,12 @@ export class SidenavComponent implements OnInit {
     sessionStorage.removeItem('guestBasket')
     this.userService.isLoggedIn.next(false)
     this.ngZone.run(async () => await this.router.navigate(['/']))
+  }
+
+  revokeSession (token: string | null) {
+    if (token) {
+      this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    }
   }
 
   goToProfilePage () {
