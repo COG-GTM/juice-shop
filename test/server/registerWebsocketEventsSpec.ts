@@ -55,6 +55,7 @@ describe('registerWebsocketEvents', () => {
       expect(verifiedUserIdFrom(null)).to.equal(undefined)
       expect(verifiedUserIdFrom(42)).to.equal(undefined)
       expect(verifiedUserIdFrom('')).to.equal(undefined)
+      expect(verifiedUserIdFrom('not-a-token')).to.equal(undefined)
       expect(verifiedUserIdFrom(`${header}.${forgedPayload}.${signature}`)).to.equal(undefined)
     })
   })
