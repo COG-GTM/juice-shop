@@ -34,6 +34,19 @@ void describe('/api/Complaints', () => {
     assert.equal(typeof res.body.data.updatedAt, 'string')
   })
 
+  void it('POST complaint ignores a passed user ID of another user', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ message: 'Filed in jim\'s name?', UserId: 2 })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 3)
+  })
+
   void it('GET all complaints is forbidden via public API', async () => {
     const res = await request(app)
       .get('/api/Complaints')

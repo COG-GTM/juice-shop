@@ -159,7 +159,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT update basket ID of basket item without basket ID is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -171,8 +171,22 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 2 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket ID of basket item without basket ID as admin', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ ProductId: 12, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(adminHeader)
+      .send({ BasketId: 1 })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 2)
+    assert.equal(res.body.data.BasketId, 1)
   })
 
   void it('PUT update basket ID of basket item without basket ID to another user\'s basket is forbidden', async () => {

@@ -190,6 +190,24 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
+  void it('POST feedback with a signed token that was not issued at login is stored without user association', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + security.authorize({ data: { id: 3 } }) })
+      .send({
+        comment: 'Not really bender.',
+        rating: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, null)
+  })
+
   void it('POST feedback can be created without actually supplying comment', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')

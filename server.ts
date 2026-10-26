@@ -460,6 +460,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Hints: anonymous updates may only unlock a hint */
   app.put('/api/Hints/:id', restrictHintUpdate())
+  /* Complaints: always filed under the authenticated user */
+  app.post('/api/Complaints', security.bindUserId())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
