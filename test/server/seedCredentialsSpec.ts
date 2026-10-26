@@ -18,14 +18,13 @@ describe('seedCredentials', () => {
     it('does not use the published admin password', () => {
       const credentials = resolveSeedCredentials(admin, env)
       expect(credentials.password).to.not.equal('admin123')
-      expect(credentials.generatedAdminPassword).to.equal(credentials.password)
+      expect(credentials.password).to.have.length.of.at.least(24)
     })
 
     it('does not use the published password for other users', () => {
       const credentials = resolveSeedCredentials(accountant, env)
       expect(credentials.password).to.not.equal('i am an awesome accountant')
       expect(credentials.password).to.have.length.of.at.least(24)
-      expect(credentials.generatedAdminPassword).to.equal(undefined)
     })
 
     it('generates different passwords on each call', () => {
@@ -50,7 +49,6 @@ describe('seedCredentials', () => {
     it('uses JUICE_SHOP_ADMIN_PASSWORD for the admin account when set', () => {
       const credentials = resolveSeedCredentials(admin, { JUICE_SHOP_ADMIN_PASSWORD: 'operator-chosen' })
       expect(credentials.password).to.equal('operator-chosen')
-      expect(credentials.generatedAdminPassword).to.equal(undefined)
     })
 
     it('does not apply JUICE_SHOP_ADMIN_PASSWORD to other users', () => {

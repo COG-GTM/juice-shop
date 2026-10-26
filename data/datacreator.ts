@@ -187,17 +187,17 @@ async function createUsers () {
   const users = await loadStaticUserData()
   if (!demoCredentialsEnabled()) {
     logger.info('Seeding users with random credentials (set JUICE_SHOP_DEMO_CREDENTIALS=true to use the published demo credentials)')
+    if (!process.env.JUICE_SHOP_ADMIN_PASSWORD) {
+      logger.warn('JUICE_SHOP_ADMIN_PASSWORD is not set, so the admin account has a random password and cannot be logged into')
+    }
   }
 
   await Promise.all(
     users.map(async (staticUser) => {
       const { username, email, customDomain, key, role, deletedFlag, profileImage, feedback, address, card, lastLoginIp = '' } = staticUser
-      const { password, totpSecret, securityQuestion, generatedAdminPassword } = resolveSeedCredentials(staticUser)
+      const { password, totpSecret, securityQuestion } = resolveSeedCredentials(staticUser)
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
-        if (generatedAdminPassword) {
-          logger.warn(`Generated password for ${completeEmail}: ${generatedAdminPassword} (set JUICE_SHOP_ADMIN_PASSWORD to choose your own)`)
-        }
         const user = await UserModel.create({
           username,
           email: completeEmail,
