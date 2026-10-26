@@ -82,6 +82,32 @@ describe('insecurity', () => {
     })
   })
 
+  describe('verify', () => {
+    it('accepts a token signed with the RS256 private key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg: none"', () => {
+      /*
+      Header: { "alg": "none", "typ": "JWT" }
+      Payload: { "data": { "email": "jwtn3d@juice-sh.op" }, "iat": 1508639612, "exp": 9999999999 }
+       */
+      expect(security.verify('eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.')).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      /*
+      Header: { "alg": "HS256", "typ": "JWT" }
+      Payload: { "data": { "email": "rsa_lord@juice-sh.op" }, "iat": 1582221575 }
+       */
+      expect(security.verify('eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg')).to.equal(false)
+    })
+
+    it('rejects missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
