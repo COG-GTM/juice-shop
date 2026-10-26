@@ -47,6 +47,7 @@ function getVerifiedTokenPayload (req: Request): ChatTokenPayload | undefined {
   if (!token) return undefined
   try {
     if (jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+    if (!security.authenticatedUsers.get(token)) return undefined
     const payload = security.decode(token) as ChatTokenPayload | undefined
     if (payload?.exp !== undefined && payload.exp * 1000 < Date.now()) return undefined
     return payload
