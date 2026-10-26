@@ -205,7 +205,8 @@ describe('insecurity', () => {
   })
 
   describe('isCrossSiteRequest', () => {
-    const requestWith = (headers: Record<string, string>) => ({
+    const requestWith = (headers: Record<string, string>, protocol = 'http') => ({
+      protocol,
       get: (name: string) => headers[name.toLowerCase()]
     }) as unknown as Request
 
@@ -223,7 +224,8 @@ describe('insecurity', () => {
     it('allows same-origin Origin or Referer', () => {
       expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'http://localhost:3000' }))).to.equal(false)
       expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', referer: 'http://localhost:3000/profile' }))).to.equal(false)
-      expect(security.isCrossSiteRequest(requestWith({ host: 'shop.example', origin: 'https://shop.example' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'shop.example', origin: 'https://shop.example' }, 'https'))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'shop.example', origin: 'https://shop.example', 'x-forwarded-proto': 'https' }))).to.equal(false)
     })
 
     it('rejects foreign, opaque or malformed Origin or Referer', () => {
@@ -231,6 +233,7 @@ describe('insecurity', () => {
       expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'http://localhost:3000.attacker.example' }))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', referer: 'http://htmledit.squarefree.com/' }))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'null' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'shop.example', origin: 'http://shop.example' }, 'https'))).to.equal(true)
     })
   })
 })
