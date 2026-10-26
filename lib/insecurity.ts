@@ -199,3 +199,9 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   }
   next()
 }
+
+export const loggedInUserFrom = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && decode(token)
+  return decodedToken?.data
+}
