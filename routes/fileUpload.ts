@@ -16,6 +16,7 @@ import { type NextFunction, type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
@@ -45,7 +46,8 @@ function openComplaintTempFile (): { tempPath: string, fd: number } | null {
   const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
     return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
-  } catch {
+  } catch (err) {
+    logger.warn(`Could not store complaint zip entry: ${utils.getErrorMessage(err)}`)
     return null
   }
 }
@@ -58,19 +60,12 @@ function createExtractionBudget () {
   let remainingBytes = maxComplaintZipUncompressedBytes
   return {
     takeEntry: () => remainingEntries-- > 0 && remainingBytes > 0,
-    limiter: () => {
-      let exceeded = false
-      return new Transform({
-        transform (chunk: Buffer, _encoding, callback) {
-          remainingBytes -= chunk.length
-          if (remainingBytes < 0) exceeded = true
-          callback(null, exceeded ? undefined : chunk)
-        },
-        flush (callback) {
-          callback(exceeded ? new Error('Zip archive exceeds the uncompressed size limit') : null)
-        }
-      })
-    }
+    limiter: () => new Transform({
+      transform (chunk: Buffer, _encoding, callback) {
+        remainingBytes -= chunk.length
+        callback(remainingBytes < 0 ? new Error('Zip archive exceeds the uncompressed size limit') : null, remainingBytes < 0 ? undefined : chunk)
+      }
+    })
   }
 }
 
@@ -78,27 +73,64 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const budget = createExtractionBudget()
-      Readable.from([file.buffer])
-        .pipe(unzipper.Parse())
-        .on('entry', function (entry: any) {
-          const fileName = entry.path
-          challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
-          const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-          const temp = targetPath !== null && budget.takeEntry() ? openComplaintTempFile() : null
-          if (targetPath !== null && temp !== null) {
-            const limiter = budget.limiter()
-            const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
-            const discard = () => { fs.rm(temp.tempPath, { force: true }, () => {}) }
-            output.on('error', () => { limiter.unpipe(output); limiter.resume(); discard() })
-            output.on('close', () => {
-              if (output.writableFinished) fs.rename(temp.tempPath, targetPath, (err) => { if (err != null) discard() })
+      const source = Readable.from([file.buffer])
+      const parser = source.pipe(unzipper.Parse())
+      let aborted = false
+      const abort = (reason: string) => {
+        if (aborted) return
+        aborted = true
+        logger.warn(`Aborted complaint zip extraction: ${reason}`)
+        source.unpipe(parser)
+        source.destroy()
+        parser.destroy()
+      }
+      parser.on('entry', function (entry: any) {
+        if (aborted) {
+          entry.autodrain()
+          return
+        }
+        const fileName = entry.path
+        challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+        if (!budget.takeEntry()) {
+          entry.autodrain()
+          abort('archive exceeds the entry or size limit')
+          return
+        }
+        const limiter = budget.limiter()
+        limiter.on('error', (err: Error) => { abort(err.message) })
+        const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
+        const temp = targetPath !== null ? openComplaintTempFile() : null
+        if (targetPath === null || temp === null) {
+          entry.pipe(limiter).resume()
+          return
+        }
+        const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
+        let discarded = false
+        const discard = () => {
+          discarded = true
+          output.destroy()
+          fs.rm(temp.tempPath, { force: true }, () => {})
+        }
+        output.on('error', (err: Error) => {
+          if (discarded) return
+          logger.warn(`Could not store complaint zip entry: ${err.message}`)
+          limiter.unpipe(output)
+          limiter.resume()
+          discard()
+        })
+        output.on('close', () => {
+          if (output.writableFinished && !discarded) {
+            fs.rename(temp.tempPath, targetPath, (err) => {
+              if (err != null) {
+                logger.warn(`Could not store complaint zip entry: ${err.message}`)
+                discard()
+              }
             })
-            limiter.on('error', () => { output.destroy(); discard() })
-            entry.pipe(limiter).pipe(output)
-          } else {
-            entry.autodrain()
           }
-        }).on('error', function (err: unknown) { next(err) })
+        })
+        limiter.on('error', discard)
+        entry.pipe(limiter).pipe(output)
+      }).on('error', function (err: unknown) { next(err) })
     }
     res.status(204).end()
   } else {
