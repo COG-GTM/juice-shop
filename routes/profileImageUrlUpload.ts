@@ -3,15 +3,47 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
+import fs from 'node:fs/promises'
 import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
+import fileType from 'file-type'
 
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
+
+const UPLOADS_DIR = 'frontend/dist/frontend/assets/public/images/uploads'
+export const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024
+export const ALLOWED_PROFILE_IMAGE_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif'
+}
+
+async function readBodyWithLimit (body: ReadableStream<Uint8Array>, limit: number): Promise<Buffer> {
+  const stream = Readable.fromWeb(body as any)
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of stream) {
+    size += chunk.length
+    if (size > limit) {
+      stream.destroy()
+      throw new Error(`url returned more than ${limit} bytes`)
+    }
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
+}
+
+export async function detectProfileImageExtension (buffer: Buffer): Promise<string> {
+  const detected = await fileType.fromBuffer(buffer)
+  const ext = detected ? ALLOWED_PROFILE_IMAGE_TYPES[detected.mime] : undefined
+  if (ext === undefined) {
+    throw new Error(`url did not return a JPG, PNG or GIF image${detected ? ' (detected ' + detected.mime + ')' : ''}`)
+  }
+  return ext
+}
 
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -25,9 +57,12 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          const buffer = await readBodyWithLimit(response.body, MAX_PROFILE_IMAGE_BYTES)
+          const ext = await detectProfileImageExtension(buffer)
+          await fs.writeFile(`${UPLOADS_DIR}/${loggedInUser.data.id}.${ext}`, buffer)
+          await fs.rm(`${UPLOADS_DIR}/${loggedInUser.data.id}.svg`, { force: true }).catch((error) => {
+            logger.warn(`Could not remove previous SVG profile image: ${utils.getErrorMessage(error)}`)
+          })
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
