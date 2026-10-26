@@ -4,12 +4,15 @@
  */
 
 import { describe, it, before } from 'node:test'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +53,30 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile with huge repeated script-src profile image responds quickly', async () => {
+    const jim = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = jim?.profileImage
+    await jim?.update({ profileImage: ';script-src'.repeat(20000) })
+    const server = app.listen(0)
+
+    try {
+      const { port } = server.address() as AddressInfo
+      const start = Date.now()
+      // The profile image is echoed into the CSP header, so the default 16 KB client header limit must be raised
+      const status = await new Promise<number | undefined>((resolve, reject) => {
+        http.get({ port, path: '/profile', headers: authHeader, maxHeaderSize: 1024 * 1024 }, res => {
+          res.resume()
+          resolve(res.statusCode)
+        }).on('error', reject)
+      })
+
+      assert.equal(status, 200)
+      assert.ok(Date.now() - start < 2000)
+    } finally {
+      server.close()
+      await jim?.update({ profileImage: originalProfileImage })
+    }
   })
 })
