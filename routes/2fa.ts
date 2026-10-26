@@ -17,15 +17,7 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const payload = security.verify(tmpToken) && security.decode(tmpToken)
-    const { userId, type } = payload
-
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
-    }
-    if (security.isSecondFactorTokenExpired(payload)) {
-      throw new Error('Temporary token expired')
-    }
+    const { userId } = security.verifySecondFactorToken(tmpToken)
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
