@@ -43,4 +43,19 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+    it('should render safe formatting tags in feedback', () => {
+        component.feedback = 'This is <b>the</b> store for awesome stuff of all kinds!'
+        fixture.detectChanges()
+        const cite: HTMLElement = fixture.nativeElement.querySelector('cite')
+        expect(cite.querySelector('b')?.textContent).toBe('the')
+        expect(cite.textContent).toBe('This is the store for awesome stuff of all kinds!')
+    })
+
+    it('should strip unsafe markup from feedback', () => {
+        component.feedback = 'Hi <iframe src="javascript:alert(`xss`)"></iframe><img src="x" onerror="alert(1)">'
+        fixture.detectChanges()
+        const cite: HTMLElement = fixture.nativeElement.querySelector('cite')
+        expect(cite.querySelector('iframe')).toBeNull()
+        expect(cite.querySelector('img')?.hasAttribute('onerror')).toBeFalsy()
+    })
 })
