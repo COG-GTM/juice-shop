@@ -20,7 +20,7 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 const loadSigningKey = () => {
-  const configuredKey = process.env.JWT_PRIVATE_KEY ?? (process.env.JWT_PRIVATE_KEY_FILE ? fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8') : undefined)
+  const configuredKey = process.env.JWT_PRIVATE_KEY ? process.env.JWT_PRIVATE_KEY : (process.env.JWT_PRIVATE_KEY_FILE ? fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8') : undefined)
   if (configuredKey) {
     return crypto.createPrivateKey(configuredKey.replace(/\\n/g, '\n'))
   }
