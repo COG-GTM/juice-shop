@@ -184,6 +184,10 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const balanceAfter = (await request(app).get('/rest/wallet/balance').set(benderHeader)).body.data
     assert.equal(balanceAfter, balanceBefore)
+
+    const orders = (await request(app).get('/rest/order-history').set(benderHeader)).body.data
+    const order = orders.find((o: { orderId: string }) => o.orderId === res.body.orderConfirmation)
+    assert.equal(order.bonus, 0)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {

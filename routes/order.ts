@@ -132,7 +132,8 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Helvetica-Bold').fontSize(20).text(`${req.__('Total Price')}: ${totalPrice.toFixed(2)}¤`)
           doc.moveDown()
-          doc.font('Helvetica-Bold').fontSize(15).text(`${req.__('Bonus Points Earned')}: ${totalPoints}`)
+          const earnedPoints = Math.max(totalPoints, 0)
+          doc.font('Helvetica-Bold').fontSize(15).text(`${req.__('Bonus Points Earned')}: ${earnedPoints}`)
           doc.font('Times-Roman').fontSize(15).text(`(${req.__('The bonus points from this order will be added 1:1 to your wallet ¤-fund for future purchases!')}`)
           doc.moveDown()
           doc.moveDown()
@@ -141,15 +142,14 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
-            const walletBonus = Math.max(totalPoints, 0)
             try {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, walletBonus)) {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, earnedPoints)) {
                   next(new Error('Insufficient wallet balance.'))
                   return
                 }
               } else {
-                await WalletModel.increment({ balance: walletBonus }, { where: { UserId: req.body.UserId } })
+                await WalletModel.increment({ balance: earnedPoints }, { where: { UserId: req.body.UserId } })
               }
             } catch (error: unknown) {
               next(error)
@@ -166,7 +166,7 @@ export function placeOrder () {
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
             products: basketProducts,
-            bonus: totalPoints,
+            bonus: earnedPoints,
             deliveryPrice: deliveryAmount,
             eta: deliveryMethod.eta.toString()
           }).then(() => {
