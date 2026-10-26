@@ -7,6 +7,8 @@ build/reports/
 dist/
 vagrant/
 logs/
+jwt.key
+encryptionkeys/jwt.pub
 Dockerfile
 .npmrc
 /bom.json

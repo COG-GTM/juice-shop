@@ -7,6 +7,7 @@ import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { serveKeyFiles } from '../../routes/keyServer'
+import * as security from '../../lib/insecurity'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -17,7 +18,8 @@ describe('keyServer', () => {
 
   beforeEach(() => {
     req = { params: { } }
-    res = { sendFile: sinon.spy(), status: sinon.spy() }
+    res = { sendFile: sinon.spy(), status: sinon.spy(), send: sinon.spy() }
+    res.type = sinon.stub().returns(res)
     next = sinon.spy()
   })
 
@@ -34,6 +36,25 @@ describe('keyServer', () => {
 
     serveKeyFiles()(req, res, next)
 
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should serve the public key matching the active JWT signing key', () => {
+    req.params.file = 'jwt.pub'
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.send).to.have.been.calledWith(security.publicKey)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+  })
+
+  it('should refuse to serve the JWT private key file', () => {
+    req.params.file = 'jwt.key'
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(403)
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
