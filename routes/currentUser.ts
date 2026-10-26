@@ -25,7 +25,7 @@ export function retrieveLoggedInUser () {
 
         let baseUser: any = {}
 
-        if (requestedFields.length > 0) {
+        if (fieldsParam) {
           // When fields are specified, return only those fields
           let userData: any = user?.data
           if (userData?.id !== undefined && requestedFields.some(field => userData[field] === undefined)) {
