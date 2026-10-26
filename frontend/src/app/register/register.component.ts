@@ -51,7 +51,7 @@ export class RegisterComponent implements OnInit {
   public passwordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(5), Validators.maxLength(40)])
   public repeatPasswordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, matchValidator(this.passwordControl)])
   public securityQuestionControl: UntypedFormControl = new UntypedFormControl('', [Validators.required])
-  public securityAnswerControl: UntypedFormControl = new UntypedFormControl('', [Validators.required])
+  public securityAnswerControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.pattern(/\S/)])
   public securityQuestions!: SecurityQuestion[]
   public selected?: number
   public error: string | null = null
@@ -91,6 +91,8 @@ export class RegisterComponent implements OnInit {
           } else {
             this.error = error
           }
+        } else if (typeof err.error?.message === 'string') {
+          this.error = err.error.message
         }
       }
     })

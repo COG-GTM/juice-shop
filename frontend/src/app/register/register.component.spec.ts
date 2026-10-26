@@ -181,6 +181,20 @@ describe('RegisterComponent', () => {
         expect(console.log).toHaveBeenCalledWith('Error')
     })
 
+    it('security answer should not accept whitespace only', () => {
+        component.securityAnswerControl.setValue('   ')
+        expect(component.securityAnswerControl.valid).toBeFalsy()
+        component.securityAnswerControl.setValue(' a ')
+        expect(component.securityAnswerControl.valid).toBe(true)
+    })
+
+    it('should show message from backend on rejected registration', () => {
+        userService.save.mockReturnValue(throwError(() => ({ error: { status: 'error', message: 'Invalid security question or answer.' } })))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBe('Invalid security question or answer.')
+    })
+
     it('should log error on saving user', () => {
         userService.save.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
