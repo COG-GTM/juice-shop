@@ -8,6 +8,7 @@ import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
+import jws from 'jws'
 import { Op } from 'sequelize'
 import { ProductModel } from '../models/product'
 import { UserModel } from '../models/user'
@@ -41,7 +42,7 @@ const appName = config.get<string>('application.name')
 
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
+  if (!token || jws.decode(token)?.header.alg !== 'RS256' || !security.verify(token)) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
 }

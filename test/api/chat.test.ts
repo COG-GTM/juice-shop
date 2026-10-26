@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 const MOCK_LLM_PORT = 43210
@@ -57,6 +59,43 @@ function finishChunk (reason: string = 'stop'): object {
     model: 'test-model',
     choices: [{ index: 0, delta: {}, finish_reason: reason }]
   }
+}
+
+function base64url (obj: object): string {
+  return Buffer.from(JSON.stringify(obj)).toString('base64url')
+}
+
+function unsignedToken (payload: object): string {
+  return `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(payload)}.`
+}
+
+function publicKeyHmacToken (payload: object): string {
+  const input = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(payload)}`
+  return `${input}.${crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')}`
+}
+
+async function getOrderByIdToolResult (token: string): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_order', 'getOrderById', '{"orderId":"0000-0000000000000000"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+        sendSSE(res, [contentChunk('ok'), finishChunk()])
+        resolve(toolMsg?.content ?? '')
+      }
+    }
+    void request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+      .send({ messages: [{ role: 'user', content: 'Where is my order 0000-0000000000000000?' }] })
+      .then(() => { if (callCount < 2) reject(new Error('getOrderById tool result was not sent to LLM')) }, reject)
+  })
 }
 
 function sendSSE (res: http.ServerResponse, chunks: object[]): void {
@@ -265,5 +304,21 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void it('POST getOrderById rejects an unsigned token', { timeout: 15000 }, async () => {
+    const content = await getOrderByIdToolResult(unsignedToken({ data: { id: 1, email: 'admin@juice-sh.op' } }))
+    assert.ok(content.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById rejects an HS256 token signed with the public key', { timeout: 15000 }, async () => {
+    const content = await getOrderByIdToolResult(publicKeyHmacToken({ data: { id: 1, email: 'admin@juice-sh.op' } }))
+    assert.ok(content.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById accepts a validly signed token', { timeout: 15000 }, async () => {
+    const content = await getOrderByIdToolResult(security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } }))
+    assert.ok(!content.includes('Customer not authenticated'))
+    assert.ok(content.includes('Order not found'))
   })
 })
