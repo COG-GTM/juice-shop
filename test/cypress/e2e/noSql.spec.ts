@@ -3,6 +3,15 @@ describe('/rest/products/reviews', () => {
     cy.visit('/#/search')
   })
 
+  describe('product reviews query', () => {
+    it('should reject a command injected into the get route', () => {
+      cy.request({
+        url: `${Cypress.config('baseUrl')}/rest/products/sleep(1000)/reviews`,
+        failOnStatusCode: false
+      }).its('status').should('eq', 400)
+    })
+  })
+
   describe('challenge "NoSQL Exfiltration"', () => {
     it('should be possible to inject and get all the orders', () => {
       cy.task('isDocker').then((isDocker) => {
