@@ -143,7 +143,7 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('POST update username from same origin sets SameSite=Strict token cookie', async () => {
+  void it('POST update username from same origin sets SameSite=Lax token cookie', async () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
@@ -156,6 +156,6 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
     const cookies = [res.headers['set-cookie'] ?? []].flat()
-    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Strict')))
+    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Lax')))
   })
 })

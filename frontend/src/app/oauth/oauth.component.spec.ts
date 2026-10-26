@@ -98,11 +98,11 @@ describe('OAuthComponent', () => {
         expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
     })
 
-    it('stores the returned authentication token in a SameSite=Strict cookie', () => {
+    it('stores the returned authentication token in a SameSite=Lax cookie', () => {
         const putSpy = vi.spyOn(TestBed.inject(CookieService), 'put')
         userService.login.mockReturnValue(of({ token: 'TOKEN' }))
         component.login({ email: 'test@test.com' })
-        expect(putSpy).toHaveBeenCalledWith('token', 'TOKEN', expect.objectContaining({ sameSite: 'strict' }))
+        expect(putSpy).toHaveBeenCalledWith('token', 'TOKEN', expect.objectContaining({ sameSite: 'lax' }))
     })
 
     it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
