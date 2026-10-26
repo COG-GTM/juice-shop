@@ -87,8 +87,18 @@ describe('AdministrationComponent', () => {
     it('should find all users via the UserService', () => {
         component.findAllUsers()
         expect(component.userDataSource.data.length).toBe(2)
-        expect(component.userDataSource.data[0].email.toString()).toContain('User1')
-        expect(component.userDataSource.data[1].email.toString()).toContain('User2')
+        expect(component.userDataSource.data[0].email).toBe('User1')
+        expect(component.userDataSource.data[1].email).toBe('User2')
+    })
+
+    it('should render user emails as text instead of HTML', () => {
+        const payload = '<img src=x onerror=alert(1)>@evil.test'
+        userService.find.mockReturnValue(of([{ email: payload }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.user-table mat-cell.mat-column-email span')
+        expect(cell.textContent).toBe(payload)
+        expect(fixture.nativeElement.querySelector('.user-table img')).toBeNull()
     })
 
     it('should give an error if UserService fails to find all users', () => {
