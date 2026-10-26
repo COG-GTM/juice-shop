@@ -9,7 +9,7 @@ import * as security from '../lib/insecurity'
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
   try {
-    const users = await UserModel.findAll()
+    const users = await UserModel.scope('withSecrets').findAll()
 
     res.json({
       status: 'success',
