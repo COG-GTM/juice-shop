@@ -93,8 +93,9 @@ describe('insecurity', () => {
       security.authenticatedUsers.tokenMap = {}
       security.authenticatedUsers.idMap = {}
       security.authenticatedUsers.revokedTokens = {}
-    security.authenticatedUsers.sessionsValidAfter = {}
-    security.authenticatedUsers.exemptTokens = {}
+      security.authenticatedUsers.sessionsValidAfter = {}
+      security.authenticatedUsers.exemptTokens = {}
+      security.authenticatedUsers.issuedTokens = {}
       security.authenticatedUsers.lastSweep = 0
     })
 
@@ -256,7 +257,29 @@ describe('insecurity', () => {
 
       expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
       expect(security.isLiveSessionToken(uncached)).to.equal(false)
+      clock.tick(1000)
       expect(security.isLiveSessionToken(sessionFor(1))).to.equal(true)
+    })
+
+    it('revokes uncached sessions issued within the same second as the revocation', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const sameSecond = sessionFor(1)
+
+      security.authenticatedUsers.revokeAllFor(1)
+
+      expect(security.isLiveSessionToken(sameSecond)).to.equal(false)
+    })
+
+    it('drops a session kept by an earlier revocation when all sessions are revoked again', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const kept = sessionFor(1)
+      security.authenticatedUsers.revokeAllFor(1, kept)
+      expect(security.isLiveSessionToken(kept)).to.equal(true)
+      clock.tick(1000)
+
+      security.authenticatedUsers.revokeAllFor(1)
+
+      expect(security.isLiveSessionToken(kept)).to.equal(false)
     })
 
     it('forgets per-user revocation cut-offs once all affected tokens have expired', () => {
@@ -270,6 +293,7 @@ describe('insecurity', () => {
 
       expect(security.authenticatedUsers.sessionsValidAfter).to.deep.equal({})
       expect(security.authenticatedUsers.exemptTokens).to.deep.equal({})
+      expect(security.authenticatedUsers.issuedTokens).to.deep.equal({})
     })
 
     it('sweeps expired tokens on lookups as well', () => {

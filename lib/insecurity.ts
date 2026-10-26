@@ -36,6 +36,7 @@ interface IAuthenticatedUsers {
   revokedTokens: Record<string, number>
   sessionsValidAfter: Record<string, number>
   exemptTokens: Record<string, number>
+  issuedTokens: Record<string, number>
   lastSweep: number
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
@@ -78,7 +79,12 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 // exp is set explicitly because jsonwebtoken 0.4.0 ignores the expiresIn option
-export const authorize = (user = {}) => jwt.sign({ ...user, iat: nowInSeconds(), exp: nowInSeconds() + sessionTokenLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
+export const authorize = (user = {}) => {
+  const exp = nowInSeconds() + sessionTokenLifetimeInSeconds
+  const token = jwt.sign({ ...user, iat: nowInSeconds(), exp }, privateKey, { algorithm: 'RS256' })
+  authenticatedUsers.issuedTokens[token] = exp
+  return token
+}
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -127,6 +133,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   revokedTokens: {},
   sessionsValidAfter: {},
   exemptTokens: {},
+  issuedTokens: {},
   lastSweep: 0,
   put: function (token: string, user: ResponseWithUser) {
     this.sweep()
@@ -176,6 +183,9 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   revokeAllFor: function (userId: number, exceptToken?: string) {
     const keep = exceptToken ? utils.unquote(exceptToken) : undefined
     this.sessionsValidAfter[userId] = nowInSeconds()
+    for (const token of Object.keys(this.exemptTokens)) {
+      if (claimsOf(token)?.data?.id === userId) delete this.exemptTokens[token]
+    }
     const keepExp = keep ? expiryOf(keep) : undefined
     if (keep && keepExp !== undefined && keepExp > nowInSeconds() && hasValidSignature(keep)) {
       this.exemptTokens[keep] = keepExp
@@ -183,6 +193,12 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     for (const [token, user] of Object.entries(this.tokenMap)) {
       if (user.data?.id === userId && token !== keep) {
         this.revoke(token)
+      }
+    }
+    for (const token of Object.keys(this.issuedTokens)) {
+      if (claimsOf(token)?.data?.id === userId && token !== keep) {
+        this.revoke(token)
+        delete this.issuedTokens[token]
       }
     }
   },
@@ -208,6 +224,9 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     }
     for (const [token, exp] of Object.entries(this.exemptTokens)) {
       if (exp <= now) delete this.exemptTokens[token]
+    }
+    for (const [token, exp] of Object.entries(this.issuedTokens)) {
+      if (exp <= now) delete this.issuedTokens[token]
     }
     for (const [userId, validAfter] of Object.entries(this.sessionsValidAfter)) {
       if (validAfter + sessionTokenLifetimeInSeconds <= now) delete this.sessionsValidAfter[userId]
