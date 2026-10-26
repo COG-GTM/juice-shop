@@ -51,6 +51,8 @@ export const containsOrEscaped = function (str: string, element: string) {
   return contains(str, element) || containsEscaped(str, element)
 }
 
+export const isPlainFileName = (name: string) => !!name && name !== '.' && name !== '..' && !/[/\\:\0]/.test(name)
+
 export const unquote = function (str: string) {
   if (str && startsWith(str, '"') && endsWith(str, '"')) {
     return str.substring(1, str.length - 1)
