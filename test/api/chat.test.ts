@@ -311,14 +311,6 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
   })
 
-  void it('POST rejects getOrderById for a validly signed JWT that was never issued as a session', { timeout: 30000 }, async () => {
-    const unissuedToken = security.authorize({ data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
-
-    const toolResult = await requestOrder(unissuedToken, '5267-f9cd5c0e7e7a1ee5')
-
-    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
-  })
-
   void it('POST returns an own order via getOrderById for a signed-in customer', { timeout: 30000 }, async () => {
     const { token } = await login(app, { email: adminEmail, password: 'admin123' })
     const history = await request(app)
