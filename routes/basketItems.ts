@@ -17,7 +17,7 @@ export function addBasketItem () {
     const basketId = await sessionBasketId(user)
     const requestedBasketId = req.body.BasketId
     const hasRequestedBasketId = requestedBasketId !== undefined && requestedBasketId !== null && requestedBasketId !== '' && requestedBasketId !== 'undefined'
-    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user != null && hasRequestedBasketId && String(requestedBasketId) !== String(basketId) })
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user != null && hasRequestedBasketId && Number(requestedBasketId) !== basketId })
 
     if (basketId == null || (hasRequestedBasketId && Number(requestedBasketId) !== basketId)) {
       res.status(401).json({ error: 'Invalid BasketId' })
