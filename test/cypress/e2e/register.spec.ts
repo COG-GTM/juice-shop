@@ -62,9 +62,8 @@ describe('/#/register', () => {
             role: 'admin'
           })
         })
-        if (response.status === 201) {
-          console.log('Success')
-        }
+        const body = await response.json()
+        expect(body.data.role).to.equal('customer')
       })
       cy.expectChallengeSolved({ challenge: 'Admin Registration' })
     })
