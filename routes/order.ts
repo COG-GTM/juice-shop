@@ -36,6 +36,14 @@ export function placeOrder () {
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
+          if (customer?.data?.id === undefined) {
+            res.status(401).json({ status: 'error', message: 'Unauthorized' })
+            return
+          }
+          if (basket.UserId !== customer.data.id) {
+            res.status(403).json({ status: 'error', message: 'You are not allowed to place an order for this basket.' })
+            return
+          }
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
