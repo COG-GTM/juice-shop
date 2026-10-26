@@ -51,4 +51,42 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of ['a#{7*7}', 'a!{7*7}', '#{7*7}', "a#{global.process.mainModule.require('child_process').execSync('id')}"]) {
+    void it(`GET user profile renders username ${payload} as literal text`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('text-align: center;">' + payload.substring(0, 3)))
+      assert.ok(!res.text.includes('>a49<'))
+      assert.ok(!res.text.includes('>49<'))
+      assert.ok(!res.text.includes('uid='))
+    })
+  }
+
+  void it('GET user profile does not execute Pug code from a multi-line username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'x\n                  - global.juiceShopSstiProbe = 1' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal((global as Record<string, unknown>).juiceShopSstiProbe, undefined)
+    assert.ok(res.text.includes('- global.juiceShopSstiProbe = 1'))
+  })
 })
