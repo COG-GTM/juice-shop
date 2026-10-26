@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -14,6 +15,26 @@ import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const baskets = await BasketModel.findAll({ where: { UserId: req.body.UserId }, attributes: ['id'] })
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map((basket) => basket.id) } })
+    res.json({ status: 'success', data: items })
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    const basket = item?.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId, UserId: req.body.UserId } }) : null
+    if (basket != null) {
+      next()
+    } else {
+      res.status(403).json({ status: 'error', error: 'Not allowed' })
+    }
+  }
 }
 
 export function addBasketItem () {

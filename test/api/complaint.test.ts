@@ -8,14 +8,20 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let authHeader: { Authorization: string, 'content-type': string }
+let benderAuthHeader: { Authorization: string, 'content-type': string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+  benderAuthHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -44,6 +50,35 @@ void describe('/api/Complaints', () => {
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('POST new complaint is always stored for the logged-in user', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(authHeader)
+      .send({ UserId: 3, message: 'Filed in somebody else\'s name' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 2)
+  })
+
+  void it('GET all complaints only returns own complaints', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 2)
+    }
+
+    const benderRes = await request(app)
+      .get('/api/Complaints')
+      .set(benderAuthHeader)
+    assert.equal(benderRes.status, 200)
+    assert.ok(benderRes.body.data.length > 0)
+    for (const complaint of benderRes.body.data) {
+      assert.equal(complaint.UserId, 3)
+    }
   })
 })
 
