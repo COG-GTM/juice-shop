@@ -24,6 +24,18 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+function isSafeExtractionPath (absolutePath: string, targetDir: string) {
+  if (!absolutePath.startsWith(targetDir + path.sep)) return false
+  try {
+    const realTargetDir = fs.realpathSync(targetDir)
+    const realParentDir = fs.realpathSync(path.dirname(absolutePath))
+    if (realParentDir !== realTargetDir && !realParentDir.startsWith(realTargetDir + path.sep)) return false
+    return fs.lstatSync(absolutePath, { throwIfNoEntry: false })?.isSymbolicLink() !== true
+  } catch {
+    return false
+  }
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -41,7 +53,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const targetDir = path.resolve('uploads/complaints')
                 const absolutePath = path.resolve(targetDir, entry.path)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (entry.type === 'File' && absolutePath.startsWith(targetDir + path.sep)) {
+                if (entry.type === 'File' && isSafeExtractionPath(absolutePath, targetDir)) {
                   entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
