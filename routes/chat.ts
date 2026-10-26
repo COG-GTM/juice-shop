@@ -52,6 +52,7 @@ async function getUserId (req: Request): Promise<number | undefined> {
 
 const MAX_CHAT_MESSAGES = 50
 const MAX_CHAT_MESSAGE_LENGTH = 4000
+const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
 const MAX_CHAT_TOTAL_LENGTH = 32000
 const MAX_OUTPUT_TOKENS = 2048
 const CHAT_ROLES = ['user', 'assistant']
@@ -73,8 +74,9 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
     if (!CHAT_ROLES.includes(role) || typeof content !== 'string') {
       return { error: 'each message needs a role of user or assistant and string content' }
     }
-    if (role === 'user' && content.length > MAX_CHAT_MESSAGE_LENGTH) {
-      return { error: `message content must not exceed ${MAX_CHAT_MESSAGE_LENGTH} characters` }
+    const maxLength = role === 'assistant' ? MAX_ASSISTANT_MESSAGE_LENGTH : MAX_CHAT_MESSAGE_LENGTH
+    if (content.length > maxLength) {
+      return { error: `${role as string} message content must not exceed ${maxLength} characters` }
     }
     totalLength += content.length
     validated.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
