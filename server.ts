@@ -525,9 +525,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         if (securityQuestionId != null && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
           const securityQuestion = await SecurityQuestionModel.findByPk(securityQuestionId)
           if (securityQuestion != null) {
-            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer }).catch((err: unknown) => {
-              console.log(err)
-            })
+            try {
+              await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
+            } catch (err) {
+              await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+              throw err
+            }
           }
         }
         return context.continue
