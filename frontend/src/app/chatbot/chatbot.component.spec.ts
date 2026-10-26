@@ -6,16 +6,25 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { RouterModule } from '@angular/router'
 import { ChatbotComponent } from './chatbot.component'
+import { LoginGuard } from '../app.guard'
 
 describe('ChatbotComponent', () => {
     let component: ChatbotComponent
     let fixture: ComponentFixture<ChatbotComponent>
+    let loginGuard: any
 
     beforeEach(() => {
+        loginGuard = {
+            canActivate: vi.fn().mockName('LoginGuard.canActivate').mockReturnValue(true)
+        }
+
         TestBed.configureTestingModule({
             imports: [
                 RouterModule.forRoot([], { useHash: true }),
                 ChatbotComponent
+            ],
+            providers: [
+                { provide: LoginGuard, useValue: loginGuard }
             ]
         }).compileComponents()
 
@@ -26,6 +35,10 @@ describe('ChatbotComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy()
+    })
+
+    it('should require a logged-in user', () => {
+        expect(loginGuard.canActivate).toHaveBeenCalled()
     })
 
     it('should render the chatbot container', () => {
