@@ -17,5 +17,10 @@ const cleanupFtpFolder = async () => {
   } catch (err) {
     logger.warn('Error listing PDF files in /ftp folder: ' + utils.getErrorMessage(err))
   }
+  try {
+    await fs.remove('orders')
+  } catch (err) {
+    logger.warn('Error removing order confirmations folder: ' + utils.getErrorMessage(err))
+  }
 }
 export default cleanupFtpFolder

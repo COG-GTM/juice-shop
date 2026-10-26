@@ -70,7 +70,7 @@ import * as verify from './routes/verify'
 import * as address from './routes/address'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
-import { placeOrder } from './routes/order'
+import { placeOrder, serveOrderConfirmation } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
@@ -164,7 +164,7 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 app.set('view engine', 'hbs')
 
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
-void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
+const cleanupFtpFolderReady = collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
@@ -601,6 +601,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
   app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
   app.post('/rest/basket/:id/checkout', placeOrder())
+  app.get('/rest/order-confirmation/:orderId', security.isAuthorized(), serveOrderConfirmation())
   app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
@@ -729,6 +730,7 @@ export async function start (readyCallback?: () => void) {
   const datacreatorEnd = startupGauge.startTimer({ task: 'datacreator' })
   await sequelize.sync({ force: true })
   await preconditionsReady
+  await cleanupFtpFolderReady // vuln-code-snippet hide-line
   await datacreator()
   datacreatorEnd()
   const port = process.env.PORT ?? config.get('server.port')

@@ -29,6 +29,46 @@ interface Product {
   bonus: number
 }
 
+const orderConfirmationsDir = 'orders'
+const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
+function orderConfirmationPath (userId: number | undefined, orderId: string) {
+  const baseDir = path.resolve(orderConfirmationsDir)
+  const pdfFile = path.resolve(baseDir, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
+  if (!pdfFile.startsWith(baseDir + path.sep)) {
+    throw new Error('Invalid order confirmation path')
+  }
+  return pdfFile
+}
+
+function verifiedUserIdFrom (req: Request): number | undefined {
+  const token = utils.jwtFrom(req)
+  if (token === undefined || !security.verify(token)) return undefined
+  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
+  return decoded?.data?.id
+}
+
+export function serveOrderConfirmation () {
+  return (req: Request, res: Response) => {
+    const userId = verifiedUserIdFrom(req)
+    const orderId = req.params.orderId
+    if (userId === undefined) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    if (!orderIdPattern.test(orderId)) {
+      res.status(400).json({ error: 'Invalid order id' })
+      return
+    }
+    const pdfFile = orderConfirmationPath(userId, orderId)
+    if (!fs.existsSync(pdfFile)) {
+      res.status(404).json({ error: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(pdfFile)
+  }
+}
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
@@ -38,11 +78,12 @@ export function placeOrder () {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
+          const pdfFile = orderConfirmationPath(verifiedUserIdFrom(req), orderId)
+          await fs.promises.mkdir(path.dirname(pdfFile), { recursive: true })
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfFile))
 
           fileWriter.on('finish', () => {
             void (async () => {
