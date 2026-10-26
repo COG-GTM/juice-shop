@@ -16,3 +16,6 @@ Dockerfile
 frontend/node_modules/
 frontend/dist/
 frontend/.angular/
+
+# Instance-specific coupon signing key (generated at startup)
+data/juiceshop.coupon.key*

@@ -148,7 +148,12 @@ export const discountFromCoupon = (coupon?: string) => {
   if (!encodedPayload || !signature || rest.length > 0) {
     return undefined
   }
-  const decoded = z85.decode(encodedPayload)
+  let decoded
+  try {
+    decoded = z85.decode(encodedPayload)
+  } catch {
+    return undefined
+  }
   if (!decoded || hasValidFormat(decoded.toString()) == null) {
     return undefined
   }
