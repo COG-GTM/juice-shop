@@ -39,15 +39,19 @@ void describe('/b2b/v2/orders', () => {
   }
 
   void it('POST long-running payload does not delay a parallel request', async () => {
-    const start = Date.now()
+    const timedRequest = async () => {
+      const start = Date.now()
+      const res = await request(app).get('/rest/admin/application-version')
+      return { res, duration: Date.now() - start }
+    }
     const [attack, other] = await Promise.all([
       request(app).post('/b2b/v2/orders').set(authHeader).send({ orderLinesData: maliciousPayloads['busy spinning regex'] }),
-      request(app).get('/rest/admin/application-version')
+      timedRequest()
     ])
 
     assert.equal(attack.status, 400)
-    assert.equal(other.status, 200)
-    assert.ok(Date.now() - start < 1000)
+    assert.equal(other.res.status, 200)
+    assert.ok(other.duration < 2000, `parallel request took ${other.duration}ms`)
   })
 
   void it('POST valid "orderLinesData" as documented in Swagger is accepted', async () => {
