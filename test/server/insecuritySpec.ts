@@ -140,6 +140,12 @@ describe('insecurity', () => {
       expect(res.status.calledWith(401)).to.equal(true)
     })
 
+    it('rejects an expired admin token with 401', () => {
+      const { res, next } = run(`Bearer ${security.authorize({ data: { role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
     it('rejects an unsigned admin token with 401', () => {
       const unsigned = jwt.sign({ data: { role: 'admin' } }, '', { algorithm: 'none' } as any)
       const { res, next } = run(`Bearer ${unsigned}`)

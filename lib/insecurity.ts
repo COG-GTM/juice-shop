@@ -164,16 +164,28 @@ export const isAccounting = () => {
   }
 }
 
+const verifyRs256 = (token?: string) => {
+  const [header, payload, signature] = (token ?? '').split('.')
+  if (!header || !payload || !signature) return null
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') return null
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))) return null
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (typeof claims.exp === 'number' && claims.exp <= Math.floor(Date.now() / 1000)) return null
+    return claims
+  } catch {
+    return null
+  }
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    let decodedToken: any
-    try {
-      decodedToken = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
-    } catch {
+    const decodedToken = verifyRs256(utils.jwtFrom(req))
+    if (!decodedToken) {
       res.status(401).json({ error: 'Unauthorized' })
       return
     }
-    if (decodedToken?.data?.role === roles.admin) {
+    if (decodedToken.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
