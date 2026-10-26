@@ -13,6 +13,7 @@ describe('userProfile', () => {
     it('returns only the origin of an http(s) image URL', () => {
       expect(profileImageCspSource('https://www.gravatar.com/avatar/abc?s=200')).to.equal('https://www.gravatar.com')
       expect(profileImageCspSource('http://localhost:3000/assets/public/images/uploads/1.png')).to.equal('http://localhost:3000')
+      expect(profileImageCspSource('https://[2001:db8::1]:8443/avatar.png')).to.equal('https://[2001:db8::1]:8443')
     })
 
     it('returns nothing for local upload paths and empty values', () => {

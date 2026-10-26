@@ -202,8 +202,11 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
 export const isSameOriginRequest = (req: Request) => {
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) return true
+  const forwardedProto = req.headers['x-forwarded-proto']
+  const protocol = (typeof forwardedProto === 'string' ? forwardedProto.split(',')[0].trim() : req.protocol) + ':'
   try {
-    return new URL(source).host === req.headers.host
+    const url = new URL(source)
+    return url.protocol === protocol && url.host === req.headers.host
   } catch {
     return false
   }

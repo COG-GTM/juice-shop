@@ -184,7 +184,7 @@ describe('insecurity', () => {
   })
 
   describe('isSameOriginRequest', () => {
-    const req = (headers: Record<string, string>) => ({ headers: { host: 'localhost:3000', ...headers } }) as unknown as Request
+    const req = (headers: Record<string, string>) => ({ protocol: 'http', headers: { host: 'localhost:3000', ...headers } }) as unknown as Request
 
     it('accepts requests without Origin or Referer', () => {
       expect(security.isSameOriginRequest(req({}))).to.equal(true)
@@ -200,6 +200,12 @@ describe('insecurity', () => {
       expect(security.isSameOriginRequest(req({ origin: 'null' }))).to.equal(false)
       expect(security.isSameOriginRequest(req({ referer: 'https://evil.example/localhost:3000' }))).to.equal(false)
       expect(security.isSameOriginRequest(req({ origin: 'http://localhost:3000.evil.example' }))).to.equal(false)
+    })
+
+    it('rejects same host with a different scheme', () => {
+      expect(security.isSameOriginRequest(req({ origin: 'https://localhost:3000' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'http://localhost:3000', 'x-forwarded-proto': 'https' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'https://localhost:3000', 'x-forwarded-proto': 'https' }))).to.equal(true)
     })
 
     it('prefers Origin over Referer', () => {
