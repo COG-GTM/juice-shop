@@ -115,10 +115,15 @@ export class OrderHistoryComponent implements OnInit {
         const pdfUrl = URL.createObjectURL(pdf)
         if (pdfWindow !== null) {
           pdfWindow.location.href = pdfUrl
+          const revokeWhenClosed = setInterval(() => {
+            if (pdfWindow.closed) {
+              clearInterval(revokeWhenClosed)
+              URL.revokeObjectURL(pdfUrl)
+            }
+          }, 5000)
         } else {
           window.open(pdfUrl, '_blank')
         }
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
       },
       error: (err) => {
         pdfWindow?.close()
