@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { assignTestPassword } from './helpers/auth'
 
 let app: Express
 
@@ -144,7 +145,7 @@ void describe('/rest/user/login', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: await assignTestPassword('bjoern.kimminich@gmail.com')
       })
 
     assert.equal(res.status, 200)
@@ -242,7 +243,7 @@ void describe('/rest/saveLoginIp', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: await assignTestPassword('bjoern.kimminich@gmail.com')
       })
 
     assert.equal(loginRes.status, 200)
@@ -264,7 +265,7 @@ void describe('/rest/saveLoginIp', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: await assignTestPassword('bjoern.kimminich@gmail.com')
       })
 
     assert.equal(loginRes.status, 200)

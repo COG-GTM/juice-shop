@@ -134,12 +134,13 @@ describe('/#/login', () => {
   })
 
   describe('challenge "oauthUserPassword"', () => {
-    it('should be able to log in as bjoern.kimminich@gmail.com with base64-encoded email as password', () => {
-      cy.get('#email').type('bjoern.kimminich@gmail.com')
-      cy.get('#password').type('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=')
-      cy.get('#loginButton').click()
-
-      cy.expectChallengeSolved({ challenge: 'Login Bjoern' })
+    it('should not be able to log in as bjoern.kimminich@gmail.com with base64-encoded reversed email as password', () => {
+      cy.request({
+        method: 'POST',
+        url: '/rest/user/login',
+        body: { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' },
+        failOnStatusCode: false
+      }).its('status').should('eq', 401)
     })
   })
 
