@@ -32,9 +32,15 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    BasketModel.findOne({ where: { id, UserId: req.body.UserId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const basketItems = (basket.Products ?? []).map(product => product.BasketItem).filter((item): item is BasketItemModel => item != null)
+          if (basketItems.some(item => !isValidOrderQuantity(item.quantity))) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some(item => item.quantity < 0) })
+            res.status(400).json({ error: { message: 'Order contains invalid item quantities.' } })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -47,7 +53,7 @@ export function placeOrder () {
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              await BasketItemModel.destroy({ where: { BasketId: basket.id } })
               res.json({ orderConfirmation: orderId })
             })()
           })
@@ -137,7 +143,12 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            res.status(400).json({ error: { message: 'Order total must not be negative.' } })
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -192,12 +203,24 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     const couponDate = Number(couponData[1])
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+    if (campaign) {
+      if (isCampaignActive(campaign, Date.now())) {
+        return campaign.discount
+      }
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return couponDate === campaign.validOn })
     }
   }
   return 0
+}
+
+function isValidOrderQuantity (quantity: unknown) {
+  return Number.isSafeInteger(quantity) && (quantity as number) > 0
+}
+
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+export function isCampaignActive (campaign: { validOn: number }, now: number) {
+  return now >= campaign.validOn && now < campaign.validOn + ONE_DAY_IN_MS
 }
 
 const campaigns = {
