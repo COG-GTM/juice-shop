@@ -141,6 +141,19 @@ describe('ChatConversationComponent', () => {
         expect(component.isLoading()).toBe(false)
     })
 
+    it('should only send the most recent history that fits the server limits', async () => {
+        async function* emptyHistoryStream() {}
+        chatService.streamMessages.mockReturnValue(emptyHistoryStream())
+        component.messages.set(Array.from({ length: 60 }, (_, i) => ({ role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant', content: `msg ${i}` })))
+
+        await component.sendMessage('Latest')
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent.length).toBe(50)
+        expect(sent[sent.length - 1]).toEqual({ role: 'user', content: 'Latest' })
+        expect(sent[0].content).toBe('msg 11')
+    })
+
     it('should accumulate streamed content in assistant message', async () => {
         async function* contentStream() {
             yield { deltaContent: 'Hello ' }

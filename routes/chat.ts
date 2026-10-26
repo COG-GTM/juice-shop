@@ -39,11 +39,55 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function userIdFromToken (req: Request): number | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return userIdFromToken(req)
+}
+
+const MAX_CHAT_MESSAGES = 50
+const MAX_CHAT_MESSAGE_LENGTH = 4000
+const MAX_CHAT_TOTAL_LENGTH = 32000
+const MAX_OUTPUT_TOKENS = 2048
+const CHAT_ROLES = ['user', 'assistant']
+
+interface ChatMessage { role: 'user' | 'assistant', content: string }
+
+export function validateChatMessages (messages: unknown): { messages?: ChatMessage[], error?: string } {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { error: 'messages must be a non-empty array' }
+  }
+  if (messages.length > MAX_CHAT_MESSAGES) {
+    return { error: `messages must not contain more than ${MAX_CHAT_MESSAGES} entries` }
+  }
+  const validated: ChatMessage[] = []
+  let totalLength = 0
+  for (const message of messages) {
+    const role = message?.role
+    const content = message?.content
+    if (!CHAT_ROLES.includes(role) || typeof content !== 'string') {
+      return { error: 'each message needs a role of user or assistant and string content' }
+    }
+    if (role === 'user' && content.length > MAX_CHAT_MESSAGE_LENGTH) {
+      return { error: `message content must not exceed ${MAX_CHAT_MESSAGE_LENGTH} characters` }
+    }
+    totalLength += content.length
+    validated.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
+  }
+  if (totalLength > MAX_CHAT_TOTAL_LENGTH) {
+    return { error: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters` }
+  }
+  return { messages: validated }
+}
+
+export function chatRateLimitKey (req: Request): string {
+  const userId = userIdFromToken(req)
+  return userId ? `user:${userId}` : req.ip ?? ''
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -51,14 +95,6 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   if (!userId) return undefined
   const user = await UserModel.findByPk(userId, { attributes: ['username'] })
   return user?.username ?? undefined
-}
-
-function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'assistant', content: string }> {
-  if (!Array.isArray(messages)) return []
-  return messages
-    .filter((m): m is { role: 'user' | 'assistant', content: string } =>
-      (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string')
-    .map(({ role, content }) => ({ role, content }))
 }
 
 const COUPON_DISCOUNT = 10
@@ -219,8 +255,18 @@ export function chat () {
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
+    if (!userIdFromToken(req)) {
+      res.status(401).json({ error: 'a logged-in user is required' })
+      return
+    }
+
+    const { messages, error: validationError } = validateChatMessages(req.body?.messages)
+    if (!messages) {
+      res.status(400).json({ error: validationError })
+      return
+    }
+
     const model = config.get<string>('application.chatBot.model')
-    const messages = conversationFromClient(req.body?.messages)
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
@@ -238,6 +284,7 @@ export function chat () {
         messages,
         tools: chatTools,
         maxRetries: config.get<number>('application.chatBot.llmMaxRetries'),
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         stopWhen: stepCountIs(10),
         onError: ({ error }) => {
           logger.warn('Chatbot stream error: ' + summarizeLlmError(error))
