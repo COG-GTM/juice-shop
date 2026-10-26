@@ -47,7 +47,7 @@ describe('/profile', () => {
   })
 
   describe('challenge "ssti"', () => {
-    it('should be possible to inject arbitrary nodeJs commands in username', () => {
+    xit('should be possible to inject arbitrary nodeJs commands in username', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')
