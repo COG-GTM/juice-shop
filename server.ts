@@ -452,6 +452,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* Ownership checks for per-user resources before finale takes over */
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.getBasketItems()))
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
+  app.put('/api/Addresss/:id', utils.asyncHandler(address.ensureAddressOwnership()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
