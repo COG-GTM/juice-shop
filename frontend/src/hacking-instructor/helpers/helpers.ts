@@ -39,7 +39,7 @@ export function waitForInputToHaveValue (inputSelector: string, value: string, o
 
     if (options.replacement?.length === 2) {
       if (!config) {
-        const res = await fetch('/rest/admin/application-configuration')
+        const res = await fetch('/rest/application-configuration')
         const json = await res.json()
         config = json.config
       }
@@ -146,7 +146,7 @@ export function waitForElementsInnerHtmlToBe (elementSelector: string, value: st
 export function waitInMs (timeInMs: number) {
   return async () => {
     if (!config) {
-      const res = await fetch('/rest/admin/application-configuration')
+      const res = await fetch('/rest/application-configuration')
       const json = await res.json()
       config = json.config
     }

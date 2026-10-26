@@ -29,7 +29,7 @@ describe('ConfigurationService', () => {
         let res: any
         service.getApplicationConfiguration().subscribe(data => { res = data })
 
-        const req = httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration')
+        const req = httpMock.expectOne('http://localhost:3000/rest/application-configuration')
         req.flush({
             config: {
                 version: '8.0.0',
@@ -50,7 +50,7 @@ describe('ConfigurationService', () => {
 
         let capturedError: any
         service.getApplicationConfiguration().subscribe({ next: () => { }, error: (err) => (capturedError = err) })
-        const req = httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration')
+        const req = httpMock.expectOne('http://localhost:3000/rest/application-configuration')
         req.error(new ErrorEvent('Request failed'), { status: 404, statusText: 'Request failed' })
 
         expect(capturedError).toBeTruthy()
