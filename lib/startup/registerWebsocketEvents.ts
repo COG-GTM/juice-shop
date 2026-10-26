@@ -20,8 +20,16 @@ export const VERIFICATION_EVENT_LIMIT = 20
 export const VERIFICATION_WINDOW_MS = 60 * 1000
 const verificationAttempts = new Map<string, number[]>()
 
+const hasValidSignature = (token: string) => {
+  try {
+    return security.verify(token)
+  } catch {
+    return false
+  }
+}
+
 export const verifiedUserIdFrom = (token: unknown): number | undefined => {
-  if (typeof token !== 'string' || token.length === 0 || !security.verify(token)) {
+  if (typeof token !== 'string' || token.length === 0 || !hasValidSignature(token)) {
     return undefined
   }
   const payload = security.decode(token) as { exp?: number, data?: { id?: unknown } } | undefined
