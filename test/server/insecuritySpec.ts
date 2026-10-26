@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import crypto from 'node:crypto'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request, Response } from 'express'
@@ -221,6 +222,13 @@ describe('insecurity', () => {
 
     it('returns 401 without a token', () => {
       expect(run()).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('returns 401 for an expired admin token', () => {
+      const clock = sinon.useFakeTimers({ now: Date.now() - 7 * 60 * 60 * 1000, toFake: ['Date'] })
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+      clock.restore()
+      expect(run(`Bearer ${token}`)).to.deep.equal({ nextCalled: false, status: 401 })
     })
 
     it('returns 401 for a malformed token', () => {

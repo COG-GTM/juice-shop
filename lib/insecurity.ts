@@ -168,7 +168,7 @@ export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
     const decodedToken = token && jws.decode(token)?.header?.alg === 'RS256' && verify(token) && decode(token)
-    if (!decodedToken) {
+    if (!decodedToken || typeof decodedToken.exp !== 'number' || decodedToken.exp <= Math.floor(Date.now() / 1000)) {
       res.status(401).json({ error: 'Unauthorized' })
     } else if (decodedToken.data?.role === roles.admin) {
       next()
