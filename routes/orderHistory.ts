@@ -34,8 +34,12 @@ export function orderConfirmation () {
       return
     }
     const orders = await ordersCollection.find({ orderId, UserId: loggedInUser.data.id })
-    const pdfFile = path.resolve(ORDER_CONFIRMATIONS_DIR, `order_${orderId}.pdf`)
-    if (orders.length === 0 || !fs.existsSync(pdfFile)) {
+    if (orders.length === 0) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    const pdfFile = path.resolve(ORDER_CONFIRMATIONS_DIR, path.basename(`order_${orders[0].orderId}.pdf`))
+    if (!fs.existsSync(pdfFile)) {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
       return
     }
