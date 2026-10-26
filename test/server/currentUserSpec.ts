@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { retrieveLoggedInUser } from '../../routes/currentUser'
-import { authenticatedUsers } from '../../lib/insecurity'
+import { authenticatedUsers, authorize } from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -30,14 +32,26 @@ describe('currentUser', () => {
   })
 
   it('should return ID and email of user belonging to cookie from the request', () => {
-    req.cookies.token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+    const token = authorize({ data: { id: 1, email: 'admin@juice-sh.op' } })
+    req.cookies.token = token
     req.query.callback = undefined
     authenticatedUsers.put(
-      'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0',
+      token,
       { data: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } as unknown as UserModel }
     )
     retrieveLoggedInUser()(req, res)
 
     expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } })
+  })
+
+  it('should not accept a token signed with a key other than the active signing key', () => {
+    const { privateKey: otherKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'pkcs1', format: 'pem' } })
+    const token = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op' } }, otherKey, { algorithm: 'RS256' })
+    req.cookies.token = token
+    authenticatedUsers.put(token, { data: { id: 1, email: 'admin@juice-sh.op' } as unknown as UserModel })
+
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.json).to.have.been.calledWith({ user: { id: undefined, email: undefined, lastLoginIp: undefined, profileImage: undefined } })
   })
 })
