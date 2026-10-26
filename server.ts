@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Not accessible via API. Answers are created server-side during user registration. */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -515,6 +516,26 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // create the security answer for a newly registered user server-side
+    if (name === 'User') {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const securityQuestionId = req.body.securityQuestion?.id
+        const securityAnswer = req.body.securityAnswer
+        if (securityQuestionId != null && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          const securityQuestion = await SecurityQuestionModel.findByPk(securityQuestionId)
+          if (securityQuestion != null) {
+            try {
+              await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
+            } catch (err) {
+              await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+              throw err
+            }
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
