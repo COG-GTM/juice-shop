@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import * as resourceOwnership from './routes/resourceOwnership'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -452,6 +453,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Owner scoping for generated API endpoints */
+  app.get('/api/Users', security.isAdmin())
+  app.get('/api/Users/:id', resourceOwnership.ownUserOrAdmin())
+  app.get('/api/Complaints', security.isAdmin())
+  app.get('/api/BasketItems', security.isAdmin())
+  app.get('/api/BasketItems/:id', utils.asyncHandler(resourceOwnership.ownBasketItem()))
+  app.put('/api/BasketItems/:id', utils.asyncHandler(resourceOwnership.ownBasketItem()), resourceOwnership.basketItemQuantityOnly())
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(resourceOwnership.ownBasketItem()))
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(resourceOwnership.ownFeedbackOrAdmin()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',

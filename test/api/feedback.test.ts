@@ -15,6 +15,7 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -296,9 +297,44 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
-    const res = await request(app)
+    const forbiddenRes = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
+    assert.equal(forbiddenRes.status, 403)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(adminHeader)
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE own feedback is allowed but feedback of another user is forbidden', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Owned by Jim',
+        rating: 3,
+        UserId: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+
+    const otherUserHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 3, email: 'bender@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
+    const forbiddenRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(otherUserHeader)
+    assert.equal(forbiddenRes.status, 403)
+
+    const ownerHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(ownerHeader)
     assert.equal(res.status, 200)
   })
 })
