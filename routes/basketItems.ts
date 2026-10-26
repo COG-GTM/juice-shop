@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -55,6 +56,43 @@ export function addBasketItem () {
   }
 }
 
+async function isOwnBasketItem (req: Request, item: BasketItemModel | null) {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  if (item?.BasketId == null || userId == null) {
+    return false
+  }
+  const basket = await BasketModel.findOne({ where: { id: item.BasketId, UserId: userId } })
+  return basket != null
+}
+
+function denyForeignBasketItem (res: Response) {
+  res.status(403).json({ status: 'error', message: 'Access to this basket item is not allowed.' })
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId == null) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(basket => basket.id) } })
+    res.status(200).json({ status: 'success', data: items })
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (await isOwnBasketItem(req, item)) {
+      next()
+    } else {
+      denyForeignBasketItem(res)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
     void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
@@ -66,6 +104,10 @@ export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (!(await isOwnBasketItem(req, item))) {
+        denyForeignBasketItem(res)
+        return
+      }
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
