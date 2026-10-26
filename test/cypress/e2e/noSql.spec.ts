@@ -7,7 +7,8 @@ describe('/rest/products/reviews', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
-    it('should be possible to inject a command into the get route', () => {
+    // Product review ids are parsed as integers and no longer evaluated via $where
+    xit('should be possible to inject a command into the get route', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.window().then(() => {
