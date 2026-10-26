@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
@@ -39,11 +40,24 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
+// RS256 is pinned here because security.verify trusts the alg header of the token, including "none"
+function verifiedUserIdFrom (token: string): number | undefined {
+  try {
+    const [header, payload, signature] = token.split('.')
+    const { alg } = JSON.parse(Buffer.from(header, 'base64url').toString()) as { alg?: unknown }
+    if (alg !== 'RS256' || !signature) return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))) return undefined
+    const { exp, data } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { exp?: unknown, data?: { id?: unknown } }
+    if (typeof exp === 'number' && exp * 1000 <= Date.now()) return undefined
+    return Number.isSafeInteger(data?.id) ? data?.id as number : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  return token ? verifiedUserIdFrom(token) : undefined
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -157,14 +171,10 @@ export function chat () {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
-          const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-          if (!user) return { error: 'Customer not found' }
-
-          const maskedEmail = user.email ? user.email.replace(/[aeiou]/gi, '*') : undefined
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
-          if (order.email !== maskedEmail) return { error: 'Order does not belong to the current customer' }
+          if (order.UserId !== userId) return { error: 'Order does not belong to the current customer' }
 
           return order
         }

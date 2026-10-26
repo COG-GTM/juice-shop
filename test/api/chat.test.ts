@@ -8,7 +8,9 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 const MOCK_LLM_PORT = 43210
 
@@ -70,6 +72,66 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+const adminCredentials = { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' }
+const bjoernCredentials = { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' }
+
+function base64url (value: object): string {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
+
+function payloadOf (token: string): any {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+}
+
+function unsignedTokenFor (payload: object): string {
+  return `${base64url({ typ: 'JWT', alg: 'none' })}.${base64url(payload)}.`
+}
+
+function tamperedTokenFor (validToken: string, payload: object): string {
+  const [header, , signature] = validToken.split('.')
+  return `${header}.${base64url(payload)}.${signature}`
+}
+
+async function systemPromptFor (token?: string): Promise<string> {
+  let systemPrompt = ''
+  onLlmRequest = (_req, body, res) => {
+    systemPrompt = JSON.parse(body).messages?.[0]?.content ?? ''
+    sendSSE(res, [contentChunk('Hi'), finishChunk()])
+  }
+  const req = request(app).post('/rest/chat').set({ 'content-type': 'application/json' })
+  if (token) void req.set('Authorization', `Bearer ${token}`)
+  const res = await req.send({ messages: [{ role: 'user', content: 'Hi' }] })
+  assert.equal(res.status, 200)
+  return systemPrompt
+}
+
+async function getOrderByIdResultFor (orderId: string, token: string): Promise<string> {
+  let toolResult = ''
+  let callCount = 0
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })), finishChunk('tool_calls')])
+    } else {
+      const toolMessage = JSON.parse(body).messages?.find((m: { role: string }) => m.role === 'tool')
+      toolResult = typeof toolMessage?.content === 'string' ? toolMessage.content : JSON.stringify(toolMessage?.content ?? body)
+      sendSSE(res, [contentChunk('Done'), finishChunk()])
+    }
+  }
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+    .send({ messages: [{ role: 'user', content: `Where is order ${orderId}?` }] })
+  assert.equal(res.status, 200)
+  return toolResult
+}
+
+async function firstOrderIdOf (token: string): Promise<string> {
+  const res = await request(app).get('/rest/order-history').set('Authorization', `Bearer ${token}`)
+  assert.equal(res.status, 200)
+  return res.body.data[0].orderId
 }
 
 before(async () => {
@@ -265,5 +327,65 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void describe('customer identity', () => {
+    void it('POST greets the customer of a validly signed token by username', { timeout: 15000 }, async () => {
+      const { token } = await login(app, bjoernCredentials)
+
+      assert.ok((await systemPromptFor(token)).includes('bkimminich'))
+    })
+
+    void it('POST treats an unsigned token as anonymous', { timeout: 15000 }, async () => {
+      const { token } = await login(app, bjoernCredentials)
+
+      const systemPrompt = await systemPromptFor(unsignedTokenFor(payloadOf(token)))
+
+      assert.ok(!systemPrompt.includes('bkimminich'))
+      assert.ok(!systemPrompt.includes('The customer you are currently chatting with'))
+    })
+
+    void it('POST treats a token whose payload was swapped for another user as anonymous', { timeout: 15000 }, async () => {
+      const { token: adminToken } = await login(app, adminCredentials)
+      const { token: bjoernToken } = await login(app, bjoernCredentials)
+
+      const systemPrompt = await systemPromptFor(tamperedTokenFor(adminToken, payloadOf(bjoernToken)))
+
+      assert.ok(!systemPrompt.includes('bkimminich'))
+      assert.ok(!systemPrompt.includes('The customer you are currently chatting with'))
+    })
+  })
+
+  void describe('getOrderById tool', () => {
+    void it('returns an order to the customer who placed it', { timeout: 15000 }, async () => {
+      const { token } = await login(app, adminCredentials)
+      const orderId = await firstOrderIdOf(token)
+
+      const result = await getOrderByIdResultFor(orderId, token)
+
+      assert.ok(result.includes(orderId))
+      assert.ok(!result.includes('error'))
+    })
+
+    void it('refuses an order of another customer', { timeout: 15000 }, async () => {
+      const { token: adminToken } = await login(app, adminCredentials)
+      const { token: bjoernToken } = await login(app, bjoernCredentials)
+      const orderId = await firstOrderIdOf(adminToken)
+
+      const result = await getOrderByIdResultFor(orderId, bjoernToken)
+
+      assert.ok(result.includes('Order does not belong to the current customer'))
+      assert.ok(!result.includes(orderId))
+    })
+
+    void it('refuses an order requested with an unsigned token claiming its owner', { timeout: 15000 }, async () => {
+      const { token } = await login(app, adminCredentials)
+      const orderId = await firstOrderIdOf(token)
+
+      const result = await getOrderByIdResultFor(orderId, unsignedTokenFor(payloadOf(token)))
+
+      assert.ok(result.includes('Customer not authenticated'))
+      assert.ok(!result.includes(orderId))
+    })
   })
 })
