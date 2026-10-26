@@ -131,6 +131,22 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.data.quantity, 20)
   })
 
+  void it('PUT update quantity of basket item via form-encoded body', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 4, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set({ Authorization: authHeader.Authorization })
+      .type('form')
+      .send('quantity=2')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.quantity, 2)
+  })
+
   void it('PUT update basket ID of basket item is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
