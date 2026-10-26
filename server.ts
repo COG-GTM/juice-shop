@@ -594,7 +594,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Custom Restful API */
   app.post('/rest/user/login', login())
-  app.post('/rest/user/oauth', utils.asyncHandler(oauthLogin()))
+  app.post('/rest/user/oauth', rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }), utils.asyncHandler(oauthLogin()))
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
   app.post('/rest/user/reset-password', utils.asyncHandler(resetPassword()))
   app.get('/rest/user/security-question', utils.asyncHandler(securityQuestion()))
