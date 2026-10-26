@@ -34,15 +34,21 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects injected mongoDB sleep command', async () => {
+    const t0 = Date.now()
     const res = await request(app)
-      .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+      .get('/rest/products/1||sleep(2000)/reviews')
+    assert.equal(res.status, 400)
+    assert.ok(Date.now() - t0 < 2000)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews rejects injected JavaScript', async () => {
+    const res = await request(app)
+      .get('/rest/products/1||process.kill(process.pid)/reviews')
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
     assert.equal(res.status, 400)
@@ -50,13 +56,18 @@ void describe('/rest/products/:id/reviews', () => {
 
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
-      .put('/rest/products/1/reviews')
+      .put('/rest/products/01/reviews')
       .send({
         message: 'Lorem Ipsum',
         author: 'Anonymous'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/01/reviews')
+    assert.equal(reviews.status, 200)
+    assert.ok(reviews.body.data.some((review: { message: string }) => review.message === 'Lorem Ipsum'))
   })
 })
 
