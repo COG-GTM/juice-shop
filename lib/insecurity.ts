@@ -167,7 +167,7 @@ export const isAccounting = () => {
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    const decodedToken = token && verify(token) ? decode(token) : undefined
+    const decodedToken = token && jws.decode(token)?.header?.alg === 'RS256' && verify(token) ? decode(token) : undefined
     const expired = typeof decodedToken?.exp === 'number' && decodedToken.exp * 1000 <= Date.now()
     if (!decodedToken || expired) {
       res.status(401).json({ error: 'Unauthorized' })
