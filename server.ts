@@ -525,13 +525,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
           try {
             if (await SecurityQuestionModel.findByPk(securityQuestionId) == null) {
-              await UserModel.destroy({ where: { id: context.instance.id } })
+              await UserModel.destroy({ where: { id: context.instance.id }, force: true })
               res.status(400).json({ status: 'error', message: 'Invalid security question' })
               return context.stop
             }
             await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
           } catch (error) {
-            await UserModel.destroy({ where: { id: context.instance.id } })
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
             throw error
           }
         }
