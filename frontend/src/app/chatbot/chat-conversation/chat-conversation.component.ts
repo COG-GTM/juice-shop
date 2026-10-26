@@ -18,14 +18,19 @@ import { type ChatMessage, type StoredConversation } from '../chat.model'
 
 const MAX_HISTORY_MESSAGES = 50
 const MAX_HISTORY_LENGTH = 32000
+const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
 
-export function trimHistory<T extends { content: string }> (messages: T[]): T[] {
+export function trimHistory<T extends { role: string, content: string }> (messages: T[]): T[] {
   const trimmed: T[] = []
   let totalLength = 0
   for (let i = messages.length - 1; i >= 0 && trimmed.length < MAX_HISTORY_MESSAGES; i--) {
-    totalLength += messages[i].content.length
+    let message = messages[i]
+    if (message.role === 'assistant' && message.content.length > MAX_ASSISTANT_MESSAGE_LENGTH) {
+      message = { ...message, content: message.content.slice(0, MAX_ASSISTANT_MESSAGE_LENGTH) }
+    }
+    totalLength += message.content.length
     if (totalLength > MAX_HISTORY_LENGTH) break
-    trimmed.unshift(messages[i])
+    trimmed.unshift(message)
   }
   return trimmed
 }
