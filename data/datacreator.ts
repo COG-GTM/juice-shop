@@ -30,6 +30,7 @@ import config from 'config'
 import * as utils from '../lib/utils'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
+import { demoCredentialsEnabled, resolveSeedCredentials } from './seedCredentials'
 import type { CreationAttributes } from 'sequelize'
 import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -184,9 +185,17 @@ async function createChallenges () {
 
 async function createUsers () {
   const users = await loadStaticUserData()
+  if (!demoCredentialsEnabled()) {
+    logger.info('Seeding users with random credentials (set JUICE_SHOP_DEMO_CREDENTIALS=true to use the published demo credentials)')
+    if (!process.env.JUICE_SHOP_ADMIN_PASSWORD) {
+      logger.warn('JUICE_SHOP_ADMIN_PASSWORD is not set, so the admin account has a random password and cannot be logged into')
+    }
+  }
 
   await Promise.all(
-    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
+    users.map(async (staticUser) => {
+      const { username, email, customDomain, key, role, deletedFlag, profileImage, feedback, address, card, lastLoginIp = '' } = staticUser
+      const { password, totpSecret, securityQuestion } = resolveSeedCredentials(staticUser)
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
         const user = await UserModel.create({
