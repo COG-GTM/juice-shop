@@ -269,7 +269,7 @@ void describe('/api/Feedbacks/:id', () => {
       .send({
         rating: 0
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing feedback is forbidden via public API', async () => {

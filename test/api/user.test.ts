@@ -206,12 +206,12 @@ void describe('/api/Users/:id', () => {
       .put('/api/Users/1')
       .set(jsonHeader)
       .send({ email: 'administr@t.or' })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing user is forbidden via public API', async () => {
     const res = await request(app).delete('/api/Users/1')
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('GET existing user by id', async () => {
@@ -224,12 +224,12 @@ void describe('/api/Users/:id', () => {
       .put('/api/Users/1')
       .set(authHeader)
       .send({ email: 'horst.horstmann@horstma.nn' })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing user is forbidden via API even when authenticated', async () => {
     const res = await request(app).delete('/api/Users/1').set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 

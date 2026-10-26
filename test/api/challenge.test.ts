@@ -48,7 +48,7 @@ void describe('/api/Challenges', () => {
         difficulty: 3,
         solved: false
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 
@@ -57,7 +57,7 @@ void describe('/api/Challenges/:id', () => {
     const res = await request(app)
       .get('/api/Challenges/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing challenge is forbidden via public API even when authenticated', async () => {
@@ -69,14 +69,14 @@ void describe('/api/Challenges/:id', () => {
         description: 'I am a vulnerability!!!',
         difficulty: 3
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing challenge is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .delete('/api/Challenges/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 

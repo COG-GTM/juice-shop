@@ -39,7 +39,7 @@ void describe('/api/SecurityQuestions', () => {
       .set(authHeader)
       .send({ question: 'Your own first name?' })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 
@@ -49,7 +49,7 @@ void describe('/api/SecurityQuestions/:id', () => {
       .get('/api/SecurityQuestions/1')
       .set(authHeader)
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing security question is forbidden via public API even when authenticated', async () => {
@@ -58,7 +58,7 @@ void describe('/api/SecurityQuestions/:id', () => {
       .set(authHeader)
       .send({ question: 'Your own first name?' })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing security question is forbidden via public API even when authenticated', async () => {
@@ -66,7 +66,7 @@ void describe('/api/SecurityQuestions/:id', () => {
       .delete('/api/SecurityQuestions/1')
       .set(authHeader)
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 

@@ -52,7 +52,7 @@ void describe('/api/Complaints/:id', () => {
     const res = await request(app)
       .get('/api/Complaints/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing complaint is forbidden', async () => {
@@ -62,13 +62,13 @@ void describe('/api/Complaints/:id', () => {
       .send({
         message: 'Should not work...'
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing complaint is forbidden', async () => {
     const res = await request(app)
       .delete('/api/Complaints/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })

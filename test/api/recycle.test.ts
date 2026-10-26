@@ -81,13 +81,13 @@ void describe('/api/Recycles', () => {
       .send({
         quantity: 100000
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing recycle is forbidden', async () => {
     const res = await request(app)
       .delete('/api/Recycles/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
