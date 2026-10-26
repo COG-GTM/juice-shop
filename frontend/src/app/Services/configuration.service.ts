@@ -89,9 +89,8 @@ export interface Config {
   hackingInstructor: {
     isEnabled: boolean
     avatarImage: string
+    hintPlaybackSpeed: string
   }
-  products: any[]
-  memories: any[]
   ctf: {
     showFlagsInNotifications: boolean
     showCountryDetailsInNotifications: string
