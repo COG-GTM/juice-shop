@@ -6,10 +6,8 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
-import * as challengeUtils from '../lib/challengeUtils'
 
 import * as utils from '../lib/utils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
@@ -19,38 +17,33 @@ interface RequestWithRawBody extends Request {
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
-
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
+    const keyCounts: Record<string, number> = {}
+    for (const { key } of result) {
+      keyCounts[key] = (keyCounts[key] ?? 0) + 1
+    }
+    if (['ProductId', 'BasketId', 'quantity'].some(key => keyCounts[key] > 1)) {
+      res.status(400).json({ error: 'Duplicate parameters are not allowed' })
+      return
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    if (!isOwnBasket(user, req.body.BasketId)) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
+      return
+    }
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+    const basketItem = {
+      ProductId: req.body.ProductId,
+      BasketId: user?.bid,
+      quantity: req.body.quantity
+    }
+
+    const basketItemInstance = BasketItemModel.build(basketItem)
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
@@ -66,13 +59,16 @@ export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item == null) {
+        throw new Error('No such item found!')
+      }
       const user = security.authenticatedUsers.from(req)
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+      if (!isOwnBasket(user, item.BasketId) || (req.body.BasketId !== undefined && !isOwnBasket(user, req.body.BasketId))) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
+      }
+      if (req.body.quantity !== undefined) {
+        await quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
       }
@@ -82,7 +78,16 @@ export function quantityCheckBeforeBasketItemUpdate () {
   }
 }
 
-async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
+function isOwnBasket (user: { bid?: number } | undefined, basketId: unknown) {
+  return user?.bid !== undefined && basketId !== undefined && basketId !== null && basketId !== '' && Number(basketId) === Number(user.bid)
+}
+
+async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: unknown) {
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1) {
+    res.status(400).json({ error: 'Quantity must be a positive integer' })
+    return
+  }
+
   const product = await QuantityModel.findOne({ where: { ProductId: id } })
   if (product == null) {
     throw new Error('No such product found!')
