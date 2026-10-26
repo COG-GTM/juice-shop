@@ -39,7 +39,8 @@ export function updateProductReviews () {
 }
 // vuln-code-snippet end noSqlReviewsChallenge forgedReviewChallenge
 
-async function solveForgedReviewIfForeignAuthor (id: string, email: string) {
+async function solveForgedReviewIfForeignAuthor (id: unknown, email: string) {
+  if (typeof id !== 'string') return
   try {
     const review = await db.reviewsCollection.findOne({ _id: id })
     challengeUtils.solveIf(challenges.forgedReviewChallenge, () => { return review && review.author !== email })
