@@ -73,6 +73,25 @@ describe('registerWebsocketEvents', () => {
     expect(challenges.localXssChallenge.solved).to.equal(false)
   })
 
+  it('stays responsive after oversized verifySvgInjectionChallenge and verifyLocalXssChallenge payloads', async () => {
+    const long = 'a'.repeat(900 * 1024)
+    const started = Date.now()
+    socket.emit('verifySvgInjectionChallenge', long)
+    socket.emit('verifyLocalXssChallenge', long)
+    expect(await roundTrip()).to.equal('ok')
+    expect(Date.now() - started).to.be.below(1000)
+    expect(socket.connected).to.equal(true)
+  })
+
+  it('ignores oversized payloads even when they contain a solving string', async () => {
+    const padding = 'a'.repeat(11 * 1024)
+    socket.emit('verifyLocalXssChallenge', '<iframe src="javascript:alert(`xss`)">' + padding)
+    socket.emit('verifySvgInjectionChallenge', '../../..//redirect?to=https://placecats.com/g/200/100?x=https://github.com/juice-shop/juice-shop' + padding)
+    await roundTrip()
+    expect(challenges.localXssChallenge.solved).to.equal(false)
+    expect(challenges.svgInjectionChallenge.solved).to.equal(false)
+  })
+
   it('still solves localXssChallenge for a string payload', async () => {
     socket.emit('verifyLocalXssChallenge', '<iframe src="javascript:alert(`xss`)">')
     await roundTrip()

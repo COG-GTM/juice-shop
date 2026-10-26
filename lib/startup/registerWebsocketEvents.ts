@@ -17,6 +17,11 @@ const globalWithSocketIO = global as typeof globalThis & {
   io: SocketIOClientStatic & Server
 }
 
+const MAX_PAYLOAD_LENGTH = 10 * 1024
+const svgInjectionPayload = /\.\.\/\.\.\/\.\.[\w/-]*?\/redirect\?to=https?:\/\/placecats.com\/(g\/)?[\d]+\/[\d]+/
+
+const isBoundedString = (data: unknown): data is string => typeof data === 'string' && data.length <= MAX_PAYLOAD_LENGTH
+
 const onSafely = (socket: any, event: string, handler: (data: unknown) => void) => {
   socket.on(event, (data: unknown) => {
     try {
@@ -43,7 +48,7 @@ const registerWebsocketEvents = (server: any) => {
     })
 
     onSafely(socket, 'notification received', (data: unknown) => {
-      if (typeof data !== 'string') return
+      if (!isBoundedString(data)) return
       const i = notifications.findIndex(({ flag }: any) => flag === data)
       if (i > -1) {
         notifications.splice(i, 1)
@@ -51,14 +56,14 @@ const registerWebsocketEvents = (server: any) => {
     })
 
     onSafely(socket, 'verifyLocalXssChallenge', (data: unknown) => {
-      if (typeof data !== 'string') return
+      if (!isBoundedString(data)) return
       challengeUtils.solveIf(challenges.localXssChallenge, () => { return utils.contains(data, '<iframe src="javascript:alert(`xss`)">') })
       challengeUtils.solveIf(challenges.xssBonusChallenge, () => { return utils.contains(data, config.get('challenges.xssBonusPayload')) })
     })
 
     onSafely(socket, 'verifySvgInjectionChallenge', (data: unknown) => {
-      if (typeof data !== 'string') return
-      challengeUtils.solveIf(challenges.svgInjectionChallenge, () => { return data.match(/.*\.\.\/\.\.\/\.\.[\w/-]*?\/redirect\?to=https?:\/\/placecats.com\/(g\/)?[\d]+\/[\d]+.*/) && security.isRedirectAllowed(data) })
+      if (!isBoundedString(data)) return
+      challengeUtils.solveIf(challenges.svgInjectionChallenge, () => { return svgInjectionPayload.test(data) && security.isRedirectAllowed(data) })
     })
 
     onSafely(socket, 'verifyCloseNotificationsChallenge', (data: unknown) => {
