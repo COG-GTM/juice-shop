@@ -24,23 +24,66 @@ before(async () => {
 
 const jsonHeader = { 'content-type': 'application/json' }
 
+async function adminHeader () {
+  const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  return { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+}
+
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
     const res = await request(app).get('/api/Users')
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
+  void it('GET all users is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users is forbidden for customers', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${token}` })
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users as admin', async () => {
+    const res = await request(app).get('/api/Users').set(await adminHeader())
     assert.equal(res.status, 200)
   })
 
   void it('GET all users doesnt include passwords', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+    const res = await request(app).get('/api/Users').set(await adminHeader())
     assert.equal(res.status, 200)
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
+      assert.equal(user.totpSecret, undefined)
     }
+  })
+
+  for (const query of [
+    `password=${security.hash('admin123')}`,
+    `password[]=${security.hash('admin123')}&password[]=${security.hash('ncc-1701')}`,
+    'totpSecret=IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH',
+    `q=${security.hash('admin123').substring(0, 8)}`,
+    'sort=password',
+    'sort=-totpSecret,id'
+  ]) {
+    void it(`GET all users ignores excluded attributes in query "${query}"`, async () => {
+      const headers = await adminHeader()
+      const all = await request(app).get('/api/Users').set(headers)
+      const res = await request(app).get(`/api/Users?${query}`).set(headers)
+      assert.equal(res.status, 200)
+      assert.ok(all.body.data.length > 2)
+      assert.equal(res.body.data.length, all.body.data.length)
+      assert.deepEqual(res.body.data.map((user: { id: number }) => user.id), all.body.data.map((user: { id: number }) => user.id))
+    })
+  }
+
+  void it('GET all users still filters on visible attributes', async () => {
+    const res = await request(app).get('/api/Users?email=jim@juice-sh.op').set(await adminHeader())
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].email, 'jim@juice-sh.op')
   })
 
   void it('POST new user', async () => {
