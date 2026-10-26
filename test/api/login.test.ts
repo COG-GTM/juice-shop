@@ -42,6 +42,12 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
+
+    const { data } = JSON.parse(Buffer.from(res.body.authentication.token.split('.')[1], 'base64').toString())
+    assert.equal(data.email, 'kalli@kasper.le')
+    assert.equal(data.role, 'customer')
+    assert.equal(data.password, undefined)
+    assert.equal(data.totpSecret, undefined)
   })
 
   void it('POST login sets the session token cookie as HttpOnly and SameSite=Strict', async () => {
