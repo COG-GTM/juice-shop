@@ -125,6 +125,7 @@ import { upgradeToDeluxe, deluxeMembershipStatus } from './routes/deluxe'
 import { serveCodeSnippet, checkVulnLines } from './routes/vulnCodeSnippet'
 import { orderHistory, allOrders, toggleDeliveryStatus } from './routes/orderHistory'
 import { continueCode, continueCodeFindIt, continueCodeFixIt } from './routes/continueCode'
+import { stripExcludedAttributeQuery } from './routes/excludedAttributeQuery'
 import { ensureFileIsPassed, handleZipFileUpload, checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from './routes/fileUpload'
 
 const app = express()
@@ -472,6 +473,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.disable)
   )
+  /* Users: listing all users is admin-only and must not filter, search or sort on excluded attributes */
+  app.get('/api/Users', security.isAdmin(), stripExcludedAttributeQuery(['password', 'totpSecret']))
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
