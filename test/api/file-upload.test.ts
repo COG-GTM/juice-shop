@@ -50,6 +50,7 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('Apple Juice'))
   })
 
   void it('POST large XML file near upload size limit', async () => {
@@ -61,29 +62,51 @@ void describe('/file-upload', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
+    void it('POST file type XML with XXE attack against Windows is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
+      assert.ok(!res.text.includes('16-bit app support'))
     })
 
-    void it('POST file type XML with XXE attack against Linux', async () => {
+    void it('POST file type XML with XXE attack against Linux is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST UTF-7 encoded XML with XXE attack does not disclose the file', async () => {
+      const payload = Buffer.from('<?xml version="1.0" encoding="UTF-7"?>+ADw-+ACE-DOCTYPE foo +AFs-+ADw-+ACE-ENTITY xxe SYSTEM +ACI-file:///etc/passwd+ACI-+AD4-+AF0-+AD4-+ADw-foo+AD4-+ACY-xxe+ADs-+ADw-/foo+AD4-')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'xxeUtf7.xml')
+      assert.equal(res.status, 410)
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
+    })
+
+    void it('POST malformed XML does not reflect parser errors', async () => {
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from('<foo><bar></foo>'), 'malformed.xml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('invalid XML document'))
+      assert.ok(!res.text.includes('mismatch'))
+    })
+
+    void it('POST file type XML with Billion Laughs attack is rejected', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
@@ -100,6 +123,38 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.ok(res.status >= 410)
+    })
+
+    void it('POST XML with dev/random entity declared only inside a comment is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!-- <!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]> --><foo>&amp;xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'commented.xml')
+      assert.equal(res.status, 410)
+    })
+
+    void it('POST XML with dev/random entity after a quoted comment opener in another entity value is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY decoy "<!--"><!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'quotedComment.xml')
+      assert.equal(res.status, 503)
+    })
+
+    void it('POST XML with dev/random parameter entity is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random"> %xxe;]><foo/>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'parameterEntity.xml')
+      assert.equal(res.status, 503)
+    })
+
+    void it('POST XML with dev/random parameter entity referenced only in element text is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random">]><foo>%xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'parameterEntityText.xml')
+      assert.equal(res.status, 410)
     })
   }
 
