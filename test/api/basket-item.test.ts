@@ -170,9 +170,23 @@ void describe('/api/BasketItems/:id', () => {
     const res = await request(app)
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
-      .send({ BasketId: 3 })
+      .send({ BasketId: 2 })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.body.data.BasketId, 2)
+  })
+
+  void it('PUT update basket ID of basket item without basket ID to another user\'s basket is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ ProductId: 8, quantity: 8 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+      .send({ BasketId: 3 })
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
