@@ -5,54 +5,57 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
-
-import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
-interface RequestWithRawBody extends Request {
-  rawBody: string
-}
+type AuthenticatedUser = ReturnType<typeof security.authenticatedUsers.from>
 
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
+    const user = security.authenticatedUsers.from(req)
+    const basketId = await ownBasketId(user)
+    const requestedBasketId = req.body.BasketId
+    const hasRequestedBasketId = requestedBasketId !== undefined && requestedBasketId !== null && requestedBasketId !== '' && requestedBasketId !== 'undefined'
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user != null && hasRequestedBasketId && Number(requestedBasketId) !== basketId })
 
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
+    if (basketId == null || (hasRequestedBasketId && Number(requestedBasketId) !== basketId)) {
+      res.status(401).json({ error: 'Invalid BasketId' })
+      return
     }
 
-    const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
-
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+    const basketItemInstance = BasketItemModel.build({
+      ProductId: req.body.ProductId,
+      BasketId: basketId,
+      quantity: req.body.quantity
+    })
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
+}
+
+async function ownBasketId (user: AuthenticatedUser) {
+  if (user?.data?.id == null) {
+    return undefined
+  }
+  if (user.bid != null) {
+    return Number(user.bid)
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
+}
+
+async function ownsBasket (user: AuthenticatedUser, basketId: number | null | undefined) {
+  if (user?.data?.id == null || basketId == null) {
+    return false
+  }
+  return await BasketModel.findOne({ where: { id: basketId, UserId: user.data.id } }) != null
 }
 
 export function quantityCheckBeforeBasketItemAddition () {
@@ -68,11 +71,12 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
+      if (item == null || !(await ownsBasket(user, item.BasketId))) {
+        res.status(403).json({ error: 'Not allowed' })
+        return
+      }
       if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+        await quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
       }
