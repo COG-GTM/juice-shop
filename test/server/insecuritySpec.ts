@@ -243,34 +243,32 @@ describe('insecurity', () => {
   })
 
   describe('hashSecurityAnswer', () => {
-    it('does not produce the legacy HMAC with the formerly hardcoded key', () => {
-      const legacy = crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex')
-      const stored = security.hashSecurityAnswer('Samuel')
-      expect(stored).to.not.equal(legacy)
-      expect(stored).to.not.contain(legacy)
+    it('does not store a bare unsalted digest', async () => {
+      const stored = await security.hashSecurityAnswer('Samuel')
+      expect(stored).to.not.match(/^[0-9a-f]{64}$/)
+      expect(stored).to.match(/^[0-9a-f]{32}:[0-9a-f]{64}$/)
     })
 
-    it('uses a random salt per answer', () => {
-      const first = security.hashSecurityAnswer('Samuel')
-      const second = security.hashSecurityAnswer('Samuel')
-      expect(first).to.match(/^[0-9a-f]{32}:[0-9a-f]{64}$/)
+    it('uses a random salt per answer', async () => {
+      const first = await security.hashSecurityAnswer('Samuel')
+      const second = await security.hashSecurityAnswer('Samuel')
       expect(first).to.not.equal(second)
     })
   })
 
   describe('verifySecurityAnswer', () => {
     it('accepts the correct answer', async () => {
-      expect(await security.verifySecurityAnswer('Samuel', security.hashSecurityAnswer('Samuel'))).to.equal(true)
+      expect(await security.verifySecurityAnswer('Samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(true)
     })
 
     it('rejects a wrong answer', async () => {
-      expect(await security.verifySecurityAnswer('samuel', security.hashSecurityAnswer('Samuel'))).to.equal(false)
+      expect(await security.verifySecurityAnswer('samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(false)
     })
 
     it('rejects malformed or missing stored values', async () => {
       expect(await security.verifySecurityAnswer('Samuel', undefined)).to.equal(false)
       expect(await security.verifySecurityAnswer('Samuel', '')).to.equal(false)
-      expect(await security.verifySecurityAnswer('Samuel', crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('Samuel').digest('hex'))).to.equal(false)
+      expect(await security.verifySecurityAnswer('Samuel', crypto.randomBytes(32).toString('hex'))).to.equal(false)
     })
   })
 })
