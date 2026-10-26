@@ -342,6 +342,15 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST with an oversized assistant message is rejected', { timeout: 15000 }, async () => {
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: [{ role: 'user', content: 'Hi' }, { role: 'assistant', content: 'a'.repeat(12001) }, { role: 'user', content: 'More' }] })
+
+    assert.equal(res.status, 400)
+  })
+
   void it('POST with too much total message content is rejected', { timeout: 15000 }, async () => {
     const messages = Array.from({ length: 9 }, () => ({ role: 'user', content: 'a'.repeat(4000) }))
 
