@@ -192,11 +192,11 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     const couponDate = Number(couponData[1])
     const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign) {
+    if (campaign && couponDate === campaign.validOn) {
       if (isCampaignActive(campaign, Date.now())) {
         return campaign.discount
       }
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return couponDate === campaign.validOn })
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return true })
     }
   }
   return 0
