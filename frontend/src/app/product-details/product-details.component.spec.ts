@@ -92,6 +92,15 @@ describe('ProductDetailsComponent', () => {
         expect(component).toBeTruthy()
     })
 
+    it('should render product descriptions without inline event handlers', () => {
+        component.data = { productData: { id: 42, description: 'Fresh<img src="x" onerror="alert(1)">' } as Product }
+        fixture.detectChanges()
+        const description: HTMLElement = fixture.debugElement.query(By.css('.details-row h1 + div')).nativeElement
+        expect(description.textContent).toContain('Fresh')
+        expect(description.innerHTML).not.toContain('onerror')
+        expect(description.querySelector('img')?.hasAttribute('onerror') ?? false).toBe(false)
+    })
+
     it('should post anonymous review if no user email is returned', () => {
         component.data = { productData: { id: 42 } as Product }
         userService.whoAmI.mockReturnValue(of({}))

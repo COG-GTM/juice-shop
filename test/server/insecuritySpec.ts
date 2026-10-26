@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,41 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isAdminOrAccounting', () => {
+    const run = (authorization?: string) => {
+      let nextCalled = false
+      let status: number | undefined
+      const res: any = { status: (code: number) => { status = code; return res }, json: () => res }
+      security.isAdminOrAccounting()({ headers: authorization ? { authorization } : {} } as any, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+    const tokenFor = (role: string) => `Bearer ${security.authorize({ data: { role } })}`
+
+    it('allows administrators', () => {
+      expect(run(tokenFor(security.roles.admin))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('allows accountants', () => {
+      expect(run(tokenFor(security.roles.accounting))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('rejects customers, deluxe members and requests without a token', () => {
+      expect(run(tokenFor(security.roles.customer))).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run(tokenFor(security.roles.deluxe))).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run()).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('rejects accounting tokens HMAC-signed with the public key', () => {
+      const forged = jws.sign({ header: { alg: 'HS256' }, payload: { data: { role: security.roles.accounting } }, secret: security.publicKey })
+      expect(run(`Bearer ${forged}`)).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('rejects unsigned admin tokens', () => {
+      const unsigned = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7InJvbGUiOiJhZG1pbiJ9fQ.'
+      expect(run(`Bearer ${unsigned}`)).to.deep.equal({ nextCalled: false, status: 403 })
     })
   })
 })
