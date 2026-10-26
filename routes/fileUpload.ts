@@ -40,6 +40,17 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
   return targetPath.startsWith(complaintsDirectory + path.sep) && path.dirname(targetPath) === complaintsDirectory ? targetPath : null
 }
 
+const complaintFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
+
+function openComplaintFile (targetPath: string): number | null {
+  try {
+    return fs.openSync(targetPath, complaintFileFlags, 0o644)
+  } catch (err) {
+    reportExtractionError(err)
+    return null
+  }
+}
+
 function reportExtractionError (err: unknown) {
   logger.warn('Complaint ZIP extraction failed (' + utils.getErrorMessage(err) + ')')
 }
@@ -62,8 +73,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
-                if (targetPath !== null) {
-                  entry.pipe(fs.createWriteStream(targetPath).on('error', reportExtractionError))
+                const fd = targetPath !== null ? openComplaintFile(targetPath) : null
+                if (targetPath !== null && fd !== null) {
+                  entry.pipe(fs.createWriteStream(targetPath, { fd }).on('error', reportExtractionError))
                 } else {
                   entry.autodrain()
                 }
