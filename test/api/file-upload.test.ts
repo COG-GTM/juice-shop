@@ -147,14 +147,13 @@ void describe('/file-upload', () => {
     })
 
     void it('POST zip file with directory traversal payload does not write outside complaints folder', async () => {
-      const legalFile = path.resolve('ftp/legal.md')
-      const legalBefore = fs.readFileSync(legalFile, 'utf8')
+      const originalLegal = fs.readFileSync(path.resolve('data/static/legal.md'), 'utf8')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', path.resolve(__dirname, '../files/arbitraryFileWrite.zip'))
       assert.equal(res.status, 204)
       await waitForExtraction()
-      assert.equal(fs.readFileSync(legalFile, 'utf8'), legalBefore)
+      assert.equal(fs.readFileSync(path.resolve('ftp/legal.md'), 'utf8'), originalLegal)
     })
 
     void it('POST zip file exceeding extracted size limit is not written', async () => {
