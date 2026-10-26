@@ -104,6 +104,29 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('registration with a nonexistent security question is rejected without persisting the user', async () => {
+    const payload = {
+      email: 'invalid.question@te.st',
+      password: '12345',
+      passwordRepeat: '12345',
+      securityQuestion: { id: 999999 },
+      securityAnswer: 'Horst'
+    }
+    const res = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send(payload)
+
+    assert.equal(res.status, 400)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ ...payload, securityQuestion: { id: 1 } })
+
+    assert.equal(retryRes.status, 201)
+  })
+
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .put('/api/SecurityAnswers/1')

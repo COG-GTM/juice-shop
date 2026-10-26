@@ -519,11 +519,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // store the security answer submitted with the registration for the newly created user
     if (name === 'User') {
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any, stop: any }) => {
         const securityQuestionId = req.body.securityQuestion?.id
         const securityAnswer = req.body.securityAnswer
         if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
-          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+          try {
+            if (await SecurityQuestionModel.findByPk(securityQuestionId) == null) {
+              await UserModel.destroy({ where: { id: context.instance.id } })
+              res.status(400).json({ status: 'error', message: 'Invalid security question' })
+              return context.stop
+            }
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+          } catch (error) {
+            await UserModel.destroy({ where: { id: context.instance.id } })
+            throw error
+          }
         }
         return context.continue
       })
