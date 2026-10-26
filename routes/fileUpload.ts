@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,32 +24,42 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const MAX_ZIP_EXTRACTED_BYTES = 10 * 1024 * 1024
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
-      const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
-      fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
-        fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
-          fs.close(fd, function () {
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
-              .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
-                  entry.autodrain()
-                }
-              }).on('error', function (err: unknown) { next(err) })
+      const baseDir = path.resolve('uploads/complaints')
+      let extractedBytes = 0
+      let limitExceeded = false
+      const source = Readable.from(file.buffer)
+      const parser = unzipper.Parse()
+      source.pipe(parser)
+        .on('entry', function (entry: any) {
+          const absolutePath = path.resolve(baseDir, entry.path)
+          challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
+          if (limitExceeded || entry.type !== 'File' || !absolutePath.startsWith(baseDir + path.sep)) {
+            entry.autodrain()
+            return
+          }
+          const output = fs.createWriteStream(absolutePath).on('error', function (err) {
+            entry.unpipe(output)
+            entry.autodrain()
+            next(err)
           })
-        })
-      })
+          entry.on('data', function (chunk: Buffer) {
+            extractedBytes += chunk.length
+            if (extractedBytes > MAX_ZIP_EXTRACTED_BYTES && !limitExceeded) {
+              limitExceeded = true
+              entry.unpipe(output)
+              output.destroy()
+              fs.rm(absolutePath, { force: true }, () => {})
+              source.unpipe(parser)
+              parser.destroy()
+            }
+          })
+          entry.pipe(output)
+        }).on('error', function (err: unknown) { next(err) })
     }
     res.status(204).end()
   } else {
