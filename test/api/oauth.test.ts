@@ -61,6 +61,12 @@ void describe('/rest/user/oauth', () => {
       .get('/rest/user/whoami')
       .set({ Authorization: 'Bearer ' + res.body.authentication.token, Cookie: 'token=' + res.body.authentication.token })
     assert.equal(whoami.body.user.email, 'oauth.newbie@gmail.com')
+
+    const wallet = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: 'Bearer ' + res.body.authentication.token })
+    assert.equal(wallet.status, 200)
+    assert.equal(wallet.body.data, 0)
   })
 
   void it('POST login with btoa(reverse(email)) fails for an account created through OAuth', async () => {
