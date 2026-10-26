@@ -204,14 +204,16 @@ export function serveOrderPdf () {
       res.status(400).json({ status: 'error', message: 'Invalid order id' })
       return
     }
-    const pdfPath = orderPdfPathFor(userId, orderId)
-    fs.access(pdfPath, fs.constants.R_OK, (err) => {
-      if (err) {
+    const userDirectory = path.join(orderPdfDirectory, String(userId))
+    const requestedFile = `order_${orderId}.pdf`
+    fs.readdir(userDirectory, (err, files) => {
+      const pdfFile = err ? undefined : files.find(file => file === requestedFile)
+      if (pdfFile === undefined) {
         res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
         return
       }
       res.type('application/pdf')
-      res.sendFile(pdfPath, (sendErr) => { if (sendErr) next(sendErr) })
+      res.sendFile(path.join(userDirectory, pdfFile), (sendErr) => { if (sendErr) next(sendErr) })
     })
   }
 }
