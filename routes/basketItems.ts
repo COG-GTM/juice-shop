@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -16,50 +17,91 @@ interface RequestWithRawBody extends Request {
   rawBody: string
 }
 
+const singleValueKeys = ['ProductId', 'BasketId', 'quantity']
+
+function inspectBasketItemBody (req: Request) {
+  const body = req.body
+  let entries: Array<{ key: string, value: unknown }> = []
+  try {
+    entries = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
+  } catch {
+    return { ambiguous: true, basketIds: [] }
+  }
+  const basketIds = entries.filter((entry) => entry.key === 'BasketId').map((entry) => entry.value)
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return { ambiguous: true, basketIds }
+  }
+  const ambiguous = singleValueKeys.some((key) => {
+    const occurrences = entries.filter((entry) => entry.key === key).length
+    return occurrences > (Object.prototype.hasOwnProperty.call(body, key) ? 1 : 0)
+  })
+  return { ambiguous, basketIds }
+}
+
+async function sessionBasketId (user: ReturnType<typeof security.authenticatedUsers.from>) {
+  if (!user) {
+    return undefined
+  }
+  if (user.bid) {
+    return Number(user.bid)
+  }
+  if (!user.data?.id) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  if (basket == null) {
+    return undefined
+  }
+  user.bid = basket.id
+  return basket.id
+}
+
+function sendAmbiguousBodyError (res: Response) {
+  res.status(400).json({ error: 'ProductId, BasketId and quantity must each appear at most once at the top level of the request body' })
+}
+
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
-
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
+    if (inspectBasketItemBody(req).ambiguous) {
+      sendAmbiguousBodyError(res)
+      return
     }
 
-    const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
+    try {
+      const bid = await sessionBasketId(security.authenticatedUsers.from(req))
+      const requestedBasketId = req.body.BasketId
+      if (!bid || (requestedBasketId !== undefined && requestedBasketId !== null && requestedBasketId !== 'undefined' && Number(requestedBasketId) !== bid)) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
       }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+      const basketItemInstance = BasketItemModel.build({
+        ProductId: req.body.ProductId,
+        BasketId: bid,
+        quantity: req.body.quantity
+      })
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
 
 export function quantityCheckBeforeBasketItemAddition () {
-  return (req: Request, res: Response, next: NextFunction) => {
-    void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { ambiguous, basketIds } = inspectBasketItemBody(req)
+    const user = security.authenticatedUsers.from(req)
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user?.bid && basketIds.length > 1 && basketIds.some((id) => id && id !== 'undefined' && Number(id) !== Number(user.bid)) })
+    if (ambiguous) {
+      sendAmbiguousBodyError(res)
+      return
+    }
+    try {
+      await quantityCheck(req, res, next, req.body.ProductId, req.body.quantity)
+    } catch (error) {
       next(error)
-    })
+    }
   }
 }
 export function quantityCheckBeforeBasketItemUpdate () {
