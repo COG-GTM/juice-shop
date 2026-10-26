@@ -57,11 +57,12 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
   }
 
   SecurityAnswer.addHook('beforeSave', hashAnswer)
-  SecurityAnswer.addHook('beforeBulkCreate', async (securityAnswers: SecurityAnswer[]) => {
+  SecurityAnswer.addHook('beforeBulkCreate', async (securityAnswers: SecurityAnswer[], options: { individualHooks?: boolean }) => {
+    if (options?.individualHooks) return
     await Promise.all(securityAnswers.map(hashAnswer))
   })
-  SecurityAnswer.addHook('beforeBulkUpdate', async (options: { attributes?: { answer?: unknown } }) => {
-    if (options.attributes?.answer != null) {
+  SecurityAnswer.addHook('beforeBulkUpdate', async (options: { individualHooks?: boolean, attributes?: { answer?: unknown } }) => {
+    if (!options.individualHooks && options.attributes?.answer != null) {
       options.attributes.answer = await security.hashSecurityAnswer(String(options.attributes.answer))
     }
   })
