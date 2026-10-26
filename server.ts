@@ -347,6 +347,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
+  /* Generated /api endpoints: PATCH would bypass the per-verb PUT/DELETE guards below */
+  app.patch('/api/*', security.denyAll())
+
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
   /* Checks on JWT in Authorization header */ // vuln-code-snippet hide-line
