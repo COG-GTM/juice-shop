@@ -74,6 +74,10 @@ export const verify = (token: string) => {
 }
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+export const secondFactorTokenExpiry = () => Date.now() + secondFactorTokenLifetimeMs
+export const isSecondFactorTokenExpired = (payload: { expiresAt?: unknown } | undefined) => typeof payload?.expiresAt !== 'number' || payload.expiresAt <= Date.now()
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
