@@ -217,7 +217,7 @@ describe('utils', () => {
 
     it('redacts URL-encoded, mixed-case, bracketed and duplicated parameter names', () => {
       expect(utils.redactSensitiveQueryParams('/x?cur%72ent=a&NEW=b&repeat[]=c&password=d&password=e'))
-        .to.equal('/x?cur%72ent=[REDACTED]&NEW=[REDACTED]&repeat[]=[REDACTED]&password=[REDACTED]&password=[REDACTED]')
+        .to.equal('/x?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]&password=[REDACTED]&password=[REDACTED]')
     })
 
     it('leaves other parameters and URLs without query string unchanged', () => {
@@ -226,8 +226,13 @@ describe('utils', () => {
       expect(utils.redactSensitiveQueryParams(undefined)).to.equal(undefined)
     })
 
-    it('keeps malformed percent-encoding intact without throwing', () => {
+    it('redacts the whole query string when a parameter name has malformed percent-encoding', () => {
       expect(utils.redactSensitiveQueryParams('/x?%E0%A4%A=1&new=2')).to.equal('/x?[REDACTED]&new=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?pass%word=secret&q=apple')).to.equal('/x?[REDACTED]&[REDACTED]')
+    })
+
+    it('does not log bracket contents of sensitive parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/x?password[hunter2]=x&PassWord%5Bs3cr3t%5D=y')).to.equal('/x?password=[REDACTED]&password=[REDACTED]')
     })
 
     it('redacts fragments of passwords containing unencoded ampersands', () => {
@@ -237,7 +242,7 @@ describe('utils', () => {
 
     it('handles parameter names with many opening brackets in linear time', () => {
       const start = Date.now()
-      expect(utils.redactSensitiveQueryParams('/x?new' + '['.repeat(50000) + '%0A=1')).to.equal('/x?new' + '['.repeat(50000) + '%0A=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?new' + '['.repeat(50000) + '%0A=1')).to.equal('/x?new=[REDACTED]')
       expect(Date.now() - start).to.be.below(1000)
     })
 
