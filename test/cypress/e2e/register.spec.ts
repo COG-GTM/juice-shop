@@ -3,7 +3,7 @@ describe('/#/register', () => {
     cy.visit('/#/register')
   })
 
-  describe('persisted XSS via user email', () => {
+  describe('challenge "persistedXssUser"', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
@@ -37,6 +37,11 @@ describe('/#/register', () => {
       })
       cy.visit('/#/administration')
       cy.get('.user-table iframe').should('not.exist')
+      cy.task('isDocker').then((isDocker) => {
+        if (!isDocker) {
+          cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
+        }
+      })
     })
   })
 

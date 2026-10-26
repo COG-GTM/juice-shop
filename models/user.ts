@@ -13,6 +13,7 @@ import {
   type CreationOptional,
   type Sequelize
 } from 'sequelize'
+import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
@@ -57,6 +58,14 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         type: DataTypes.STRING,
         unique: true,
         set (email: string) {
+          if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
+            challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
+              return utils.contains(
+                email,
+                '<iframe src="javascript:alert(`xss`)">'
+              )
+            })
+          }
           this.setDataValue('email', security.sanitizeSecure(email))
         }
       }, // vuln-code-snippet hide-end
