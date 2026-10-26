@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -77,7 +78,7 @@ void describe('/rest/order-confirmation/:orderId', () => {
   })
 
   void it('GET with a registered but unverifiable token is denied', async () => {
-    const forgedToken = jwt.sign({ data: { id: 2 } }, 'not-the-server-key')
+    const forgedToken = jwt.sign({ data: { id: 2 } }, crypto.randomBytes(32).toString('hex'))
     security.authenticatedUsers.put(forgedToken, { data: { id: 2 } } as any)
     const res = await request(app)
       .get(`/rest/order-confirmation/${orderId}`)
