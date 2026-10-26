@@ -7,7 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
-import { pipeline, Transform } from 'node:stream'
+import { pipeline, Transform, Writable } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -37,6 +37,18 @@ export function resolveComplaintUploadPath (entryName: unknown): string | null {
   return absolutePath.startsWith(COMPLAINT_UPLOAD_DIR + path.sep) ? absolutePath : null
 }
 
+function isInsideRealComplaintUploadDir (absolutePath: string) {
+  try {
+    const realUploadDir = fs.realpathSync(COMPLAINT_UPLOAD_DIR)
+    const realParentDir = fs.realpathSync(path.dirname(absolutePath))
+    return realParentDir === realUploadDir || realParentDir.startsWith(realUploadDir + path.sep)
+  } catch {
+    return false
+  }
+}
+
+const NO_FOLLOW_WRITE_FLAGS = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -50,23 +62,40 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           fs.close(fd, function () {
             let entryCount = 0
             let totalBytes = 0
+            let aborted = false
+            const writtenFiles: string[] = []
+            const parser = unzipper.Parse()
+            const abort = (err: unknown) => {
+              if (aborted) return
+              aborted = true
+              parser.destroy()
+              writtenFiles.forEach(writtenFile => { fs.rm(writtenFile, { force: true }, () => {}) })
+              next(err)
+            }
             fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
+              .pipe(parser)
               .on('entry', function (entry: any) {
-                entryCount++
-                const absolutePath = resolveComplaintUploadPath(entry.path)
-                if (absolutePath !== null && entry.type === 'File' && entryCount <= MAX_ZIP_ENTRIES) {
-                  const sizeLimiter = new Transform({
-                    transform (chunk: Buffer, _encoding, callback) {
-                      totalBytes += chunk.length
-                      callback(totalBytes > MAX_ZIP_TOTAL_BYTES ? new Error('Zip file exceeds maximum decompressed size') : null, chunk)
-                    }
-                  })
-                  pipeline(entry, sizeLimiter, fs.createWriteStream(absolutePath), function (err) { if (err != null) { next(err) } })
-                } else {
+                if (aborted || ++entryCount > MAX_ZIP_ENTRIES) {
                   entry.autodrain()
+                  abort(new Error('Zip file contains too many entries'))
+                  return
                 }
-              }).on('error', function (err: unknown) { next(err) })
+                const sizeLimiter = new Transform({
+                  transform (chunk: Buffer, _encoding, callback) {
+                    totalBytes += chunk.length
+                    callback(totalBytes > MAX_ZIP_TOTAL_BYTES ? new Error('Zip file exceeds maximum decompressed size') : null, chunk)
+                  }
+                })
+                const absolutePath = entry.type === 'File' ? resolveComplaintUploadPath(entry.path) : null
+                let destination: Writable
+                if (absolutePath !== null && isInsideRealComplaintUploadDir(absolutePath)) {
+                  writtenFiles.push(absolutePath)
+                  destination = fs.createWriteStream(absolutePath, { flags: NO_FOLLOW_WRITE_FLAGS })
+                } else {
+                  destination = new Writable({ write (_chunk, _encoding, callback) { callback() } })
+                }
+                pipeline(entry, sizeLimiter, destination, function (err) { if (err != null) { abort(err) } })
+              }).on('error', function (err: unknown) { abort(err) })
           })
         })
       })
