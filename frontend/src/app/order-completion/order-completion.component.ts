@@ -94,9 +94,21 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
+    const pdfWindow = window.open('', '_blank')
     this.orderHistoryService.getConfirmationPdf(this.orderId).subscribe({
-      next: (pdf) => { window.open(URL.createObjectURL(pdf), '_blank') },
-      error: (err) => { console.log(err) }
+      next: (pdf) => {
+        const pdfUrl = URL.createObjectURL(pdf)
+        if (pdfWindow !== null) {
+          pdfWindow.location.href = pdfUrl
+        } else {
+          window.open(pdfUrl, '_blank')
+        }
+        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
+      },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
     })
   }
 
