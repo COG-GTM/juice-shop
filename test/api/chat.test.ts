@@ -8,7 +8,11 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as db from '../../data/mongodb'
+import { challenges } from '../../data/datacache'
 
 const MOCK_LLM_PORT = 43210
 
@@ -78,6 +82,11 @@ before(async () => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
+        if (body === '') { // aborted request of an already finished test
+          res.writeHead(400)
+          res.end()
+          return
+        }
         onLlmRequest(req, body, res)
       })
     })
@@ -97,6 +106,66 @@ after(async () => {
     mockServer.close(() => { resolve() })
   })
 })
+
+const adminEmail = 'admin@' + config.get<string>('application.domain')
+
+async function requestOrder (token: string, orderId: string): Promise<string | undefined> {
+  let toolResult: string | undefined
+  let callCount = 0
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const parsed = JSON.parse(body)
+      toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content
+      sendSSE(res, [contentChunk('Here you go.'), finishChunk()])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+    .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+  assert.equal(res.status, 200)
+  return toolResult
+}
+
+async function withUnpersistedAiDebuggingChallenge (fn: () => Promise<void>): Promise<void> {
+  const challenge: any = challenges.aiDebuggingChallenge
+  const { solved } = challenge
+  challenge.solved = false
+  challenge.save = async () => await new Promise(() => {})
+  try {
+    await fn()
+  } finally {
+    challenge.solved = solved
+    delete challenge.save
+  }
+}
+
+async function chatWithToolCallsShown (token: string): Promise<void> {
+  let callCount = 0
+  onLlmRequest = (_req, _body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [toolCallChunk('call_search', 'searchProducts', '{"query":"apple"}'), finishChunk('tool_calls')])
+    } else {
+      sendSSE(res, [contentChunk('Done.'), finishChunk()])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}`, Cookie: 'show_tool_calls=true' })
+    .send({ messages: [{ role: 'user', content: 'Search for apple' }] })
+
+  assert.equal(res.status, 200)
+}
 
 void describe('/rest/chat', { timeout: 120000 }, () => {
   void it('POST returns streamed text content as SSE events', { timeout: 15000 }, async () => {
@@ -205,6 +274,86 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST does not derive a customer identity from a forged JWT', { timeout: 15000 }, async () => {
+    const forgedToken = [
+      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+      Buffer.from(JSON.stringify({ data: { id: 1, username: 'admin' } })).toString('base64url'),
+      ''
+    ].join('.')
+
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('How can I help you?'), finishChunk()])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${forgedToken}` })
+      .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(!parsedBody.messages[0].content.includes('The customer you are currently chatting with'))
+  })
+
+  void it('POST rejects getOrderById for a forged JWT', { timeout: 30000 }, async () => {
+    const forgedToken = [
+      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+      Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' } })).toString('base64url'),
+      ''
+    ].join('.')
+
+    const toolResult = await requestOrder(forgedToken, '5267-f9cd5c0e7e7a1ee5')
+
+    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
+  void it('POST returns an own order via getOrderById for a signed-in customer', { timeout: 30000 }, async () => {
+    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+    const history = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+    const orderId = history.body.data[0].orderId
+
+    const toolResult = await requestOrder(token, orderId)
+
+    assert.ok(toolResult?.includes(orderId), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
+    assert.ok(!toolResult?.includes('error'), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
+  })
+
+  void it('POST rejects an order whose id does not match the customer email hash', { timeout: 30000 }, async () => {
+    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+    const orderId = 'ffff-' + Date.now().toString(16)
+    await db.ordersCollection.insert({
+      orderId,
+      email: adminEmail.replace(/[aeiou]/gi, '*'),
+      totalPrice: 1.99,
+      products: [],
+      eta: '0',
+      delivered: false
+    })
+
+    const toolResult = await requestOrder(token, orderId)
+
+    assert.ok(toolResult?.includes('Order does not belong to the current customer'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
+  void it('POST does not solve aiDebuggingChallenge for a signed-in admin showing tool calls', { timeout: 30000 }, async () => {
+    await withUnpersistedAiDebuggingChallenge(async () => {
+      const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+      await chatWithToolCallsShown(token)
+      assert.equal(challenges.aiDebuggingChallenge.solved, false)
+    })
+  })
+
+  void it('POST solves aiDebuggingChallenge for a signed-in non-admin showing tool calls', { timeout: 30000 }, async () => {
+    await withUnpersistedAiDebuggingChallenge(async () => {
+      const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+      await chatWithToolCallsShown(token)
+      assert.equal(challenges.aiDebuggingChallenge.solved, true)
+    })
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
