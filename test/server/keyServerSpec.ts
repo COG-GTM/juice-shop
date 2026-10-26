@@ -26,15 +26,19 @@ describe('keyServer', () => {
 
     serveKeyFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/encryptionkeys[/\\]test.file/))
+    expect(res.sendFile).to.have.been.calledWith('test.file', sinon.match({ root: sinon.match(/encryptionkeys$/) }))
+    expect(next).to.have.not.been.calledWith(sinon.match.any)
   })
 
-  it('should raise error for slashes in filename', () => {
-    req.params.file = '../../../../nice.try'
+  for (const file of ['../../../../nice.try', '..\\..\\data\\juiceshop.sqlite', '..\\..\\package.json', '..\\..\\..\\Windows\\win.ini', 'C:\\Windows\\win.ini', 'C:win.ini', '..', '.', 'premium.key\0']) {
+    it(`should raise error for file name ${JSON.stringify(file)}`, () => {
+      req.params.file = file
 
-    serveKeyFiles()(req, res, next)
+      serveKeyFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
-    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
-  })
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
 })
