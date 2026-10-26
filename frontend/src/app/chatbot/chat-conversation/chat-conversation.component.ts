@@ -134,6 +134,7 @@ export class ChatConversationComponent implements OnInit {
 
   async sendMessage (content: string) {
     if (!content || this.isLoading()) return
+    content = content.slice(0, MAX_USER_MESSAGE_LENGTH)
 
     this.messages.update(prev => [...prev, { role: 'user', content }])
     this.messageInput.set('')
