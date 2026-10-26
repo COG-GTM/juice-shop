@@ -4,6 +4,7 @@
  */
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
+import crypto from 'node:crypto'
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
@@ -230,6 +231,26 @@ describe('insecurity', () => {
       const next = sinon.spy()
       const [header, payload] = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } }).split('.')
       security.isAdmin()(requestWithToken(`${header}.${payload}.forged`), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
+    it('responds 401 for an admin token signed with HS256 using the public key', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const encode = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+      const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      security.isAdmin()(requestWithToken(`${unsigned}.${signature}`), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
+    it('responds 401 for an unsigned admin token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const encode = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+      security.isAdmin()(requestWithToken(`${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}.`), res as any, next)
       expect(next.callCount).to.equal(0)
       expect(res.status.firstCall.args).to.deep.equal([401])
     })
