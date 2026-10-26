@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -231,6 +232,18 @@ describe('insecurity', () => {
       const result = run(`Bearer ${header}.${payload}.`)
       expect(result.status).to.equal(401)
       expect(result.nextCalled).to.equal(false)
+    })
+
+    it('rejects requests with expired admin token with 401', () => {
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      const clock = sinon.useFakeTimers(Date.now() + 7 * 60 * 60 * 1000)
+      try {
+        const result = run('Bearer ' + token)
+        expect(result.status).to.equal(401)
+        expect(result.nextCalled).to.equal(false)
+      } finally {
+        clock.restore()
+      }
     })
 
     it('passes requests with admin token', () => {

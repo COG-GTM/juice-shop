@@ -173,7 +173,8 @@ export const isAdmin = () => {
     } catch {
       decodedToken = undefined
     }
-    if (!decodedToken) {
+    const isExpired = typeof decodedToken?.exp !== 'number' || decodedToken.exp * 1000 <= Date.now()
+    if (!decodedToken || isExpired) {
       res.status(401).json({ error: 'Authentication required' })
     } else if (decodedToken?.data?.role === roles.admin) {
       next()
