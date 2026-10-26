@@ -28,6 +28,8 @@ const relationsInit = (_sequelize: Sequelize) => {
       name: 'UserId'
     }
   })
+  // @ts-expect-error FIXME type mismatch
+  makeKeyNonUpdatable(AddressModel, 'UserId')
 
   BasketModel.belongsTo(UserModel, {
     constraints: true,
@@ -53,6 +55,8 @@ const relationsInit = (_sequelize: Sequelize) => {
       name: 'UserId'
     }
   })
+  // @ts-expect-error FIXME type mismatch
+  makeKeyNonUpdatable(CardModel, 'UserId')
 
   ComplaintModel.belongsTo(UserModel, {
     constraints: true,
