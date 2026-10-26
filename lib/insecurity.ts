@@ -23,8 +23,17 @@ import * as z85 from 'z85'
 
 export const privateKeyFile = path.resolve(process.env.JWT_PRIVATE_KEY_FILE ?? 'data/jwt.key')
 
+const realPath = (file: string): string => {
+  try {
+    return fs.realpathSync(file)
+  } catch {
+    const parent = path.dirname(file)
+    return parent === file ? file : path.join(realPath(parent), path.basename(file))
+  }
+}
+
 export const isInPubliclyServedDirectory = (file: string) =>
-  ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist'].some(dir => path.resolve(file).startsWith(path.resolve(dir) + path.sep))
+  ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist'].some(dir => realPath(path.resolve(file)).startsWith(realPath(path.resolve(dir)) + path.sep))
 
 if (isInPubliclyServedDirectory(privateKeyFile)) {
   throw new Error(`JWT_PRIVATE_KEY_FILE must not point into a publicly served directory: ${privateKeyFile}`)

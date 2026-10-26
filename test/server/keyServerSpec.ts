@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -53,5 +55,15 @@ describe('keyServer', () => {
     expect(security.isInPubliclyServedDirectory('encryptionkeys/jwt.key')).to.equal(true)
     expect(security.isInPubliclyServedDirectory('ftp/jwt.key')).to.equal(true)
     expect(security.isInPubliclyServedDirectory(security.privateKeyFile)).to.equal(false)
+  })
+
+  it('should not allow the JWT private key file to be symlinked into a publicly served directory', () => {
+    const link = path.resolve('data', `keyServerSpec-${process.pid}`)
+    fs.symlinkSync(path.resolve('encryptionkeys'), link, 'junction')
+    try {
+      expect(security.isInPubliclyServedDirectory(path.join(link, 'jwt.key'))).to.equal(true)
+    } finally {
+      fs.unlinkSync(link)
+    }
   })
 })
