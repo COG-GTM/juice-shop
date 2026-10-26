@@ -203,4 +203,27 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('cookieSecret', () => {
+    it('is a random 256-bit secret when COOKIE_SECRET is not configured', () => {
+      expect(security.cookieSecret).to.match(/^[0-9a-f]{64}$/)
+    })
+
+    it('generates a fresh random secret for an unset or empty value', () => {
+      const first = security.resolveCookieSecret(undefined)
+      const second = security.resolveCookieSecret('')
+      expect(first).to.match(/^[0-9a-f]{64}$/)
+      expect(second).to.match(/^[0-9a-f]{64}$/)
+      expect(first).to.not.equal(second)
+    })
+
+    it('uses a configured secret of sufficient length', () => {
+      const configured = 'f3a9c1e7b5d20486f3a9c1e7b5d20486'
+      expect(security.resolveCookieSecret(configured)).to.equal(configured)
+    })
+
+    it('rejects a configured secret that is too short', () => {
+      expect(() => security.resolveCookieSecret('too-short')).to.throw('COOKIE_SECRET must be at least 32 characters long')
+    })
+  })
 })
