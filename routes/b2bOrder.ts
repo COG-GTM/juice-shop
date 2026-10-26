@@ -49,7 +49,7 @@ function isValidOrderLine (orderLine: unknown) {
     return false
   }
   const { productId, quantity, customerReference, couponCode } = orderLine as Record<string, unknown>
-  return Number.isSafeInteger(productId) &&
+  return Number.isSafeInteger(productId) && (productId as number) >= 1 &&
     Number.isSafeInteger(quantity) && (quantity as number) >= 1 &&
     (customerReference === undefined || typeof customerReference === 'string' ||
       (Array.isArray(customerReference) && customerReference.every(reference => typeof reference === 'string'))) &&
