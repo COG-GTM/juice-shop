@@ -132,17 +132,18 @@ function yamlAliasLimiter (limit = MAX_YAML_ALIAS_EXPANSION) {
 // Estimates the length of JSON.stringify(value) without building the string. Aliased nodes are
 // shared references in the parsed document, so each object's (and string's) size is computed once and
 // reused at every reference; the walk stays linear in the parsed graph while still accounting for the
-// exponential expansion that serialization would materialize. Cyclic aliases count as infinite.
+// exponential expansion that serialization would materialize. Cyclic aliases throw like JSON.stringify.
 function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes = new Map<unknown, number>()): number {
   if (value === null || (typeof value !== 'object' && typeof value !== 'string')) { return String(value).length }
   const known = sizes.get(value)
+  if (known === -1) { throw new TypeError('Converting circular structure to JSON') }
   if (known !== undefined) { return known }
   if (typeof value === 'string') {
     const length = JSON.stringify(value).length
     sizes.set(value, length)
     return length
   }
-  sizes.set(value, Number.POSITIVE_INFINITY)
+  sizes.set(value, -1)
   let length = 2
   if (typeof (value as { toJSON?: unknown }).toJSON === 'function') {
     length = estimateJsonLength((value as { toJSON: () => unknown }).toJSON(), limit, sizes)
