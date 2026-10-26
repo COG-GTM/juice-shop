@@ -9,6 +9,7 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +202,53 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isAdmin', () => {
+    const responseSpy = () => ({ status: sinon.stub().returnsThis(), json: sinon.spy() })
+    const requestWithToken = (token?: string) => ({ headers: token ? { authorization: `Bearer ${token}` } : {} }) as unknown as Request
+
+    it('calls next() for a validly signed admin token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      security.isAdmin()(requestWithToken(security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })), res as any, next)
+      expect(next.callCount).to.equal(1)
+      expect(res.status.callCount).to.equal(0)
+    })
+
+    it('responds 401 without a token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      security.isAdmin()(requestWithToken(), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
+    it('responds 401 for an admin token with an invalid signature', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const [header, payload] = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } }).split('.')
+      security.isAdmin()(requestWithToken(`${header}.${payload}.forged`), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
+    it('responds 401 for an expired admin token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const exp = Math.floor(Date.now() / 1000) - 60
+      security.isAdmin()(requestWithToken(security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' }, exp })), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
+    it('responds 403 for a non-admin token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      security.isAdmin()(requestWithToken(security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([403])
     })
   })
 })
