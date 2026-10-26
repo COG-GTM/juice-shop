@@ -41,15 +41,14 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "basketAccessChallenge"', () => {
-      it('should access basket with id from session storage instead of the one associated to logged-in user', () => {
+      it('should not be possible to access the basket of another user', () => {
         cy.window().then(() => {
-          window.sessionStorage.bid = 3
+          cy.request({
+            url: '/rest/basket/3',
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            failOnStatusCode: false
+          }).its('status').should('eq', 404)
         })
-
-        cy.visit('/#/basket')
-
-        // TODO Verify functionally that it's not the basket of the admin
-        cy.expectChallengeSolved({ challenge: 'View Basket' })
       })
     })
 
