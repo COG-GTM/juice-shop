@@ -11,6 +11,7 @@ import { SecurityAnswerModel } from '../models/securityAnswer'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { accountKey, passwordResetLockout } from '../lib/rateLimiting'
 import { UserModel } from '../models/user'
 
 export function resetPassword () {
@@ -31,6 +32,13 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
+    const account = accountKey(email)
+    const retryAfter = passwordResetLockout.admit(account)
+    if (retryAfter > 0) {
+      res.set('Retry-After', String(retryAfter))
+      res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
+      return
+    }
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -41,14 +49,20 @@ export function resetPassword () {
       if ((data != null) && security.hmac(answer) === data.answer) {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
+          passwordResetLockout.reset(account)
           const updatedUser = await user.update({ password: newPassword })
           verifySecurityAnswerChallenges(updatedUser, answer)
           res.json({ user: updatedUser })
+        } else {
+          passwordResetLockout.release(account)
         }
       } else {
+        if (data != null) passwordResetLockout.recordFailure(account)
+        else passwordResetLockout.release(account)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
+      passwordResetLockout.release(account)
       next(error)
     }
   }
