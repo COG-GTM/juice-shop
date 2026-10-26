@@ -5,13 +5,52 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
+const base64url = (data: object | string) => Buffer.from(typeof data === 'string' ? data : JSON.stringify(data)).toString('base64url')
+const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+const unsignedToken = (payload: object = forgedPayload) => `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(payload)}.`
+const hmacWithPublicKeyToken = () => {
+  const unsigned = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(forgedPayload)}`
+  return `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+}
+
 describe('insecurity', () => {
+  describe('verify', () => {
+    it('accepts a token signed with the private RSA key and returns its payload', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token).data.email).to.equal('test@juice-sh.op')
+    })
+
+    it('rejects an unsigned token with algorithm "none"', () => {
+      expect(security.verify(unsignedToken())).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacWithPublicKeyToken())).to.equal(false)
+    })
+
+    it('rejects an expired token', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' }, iat: Math.floor(Date.now() / 1000) - 7 * 60 * 60 })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('isCustomer', () => {
+    it('does not trust the role claimed by a forged token', () => {
+      const req = { headers: { authorization: `Bearer ${unsignedToken({ data: { id: 1, role: 'customer' } })}` } } as unknown as Request
+      expect(security.isCustomer(req)).to.equal(false)
+    })
+  })
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
