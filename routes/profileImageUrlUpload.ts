@@ -26,7 +26,7 @@ export function profileImageUrlUpload () {
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${fileName}` })
         } catch (error) {
-          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; keeping current profile image`)
+          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error).replace(/[\r\n]+/g, ' ')}; keeping current profile image`)
         }
       } else {
         next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
