@@ -130,6 +130,35 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing an order does not expose the confirmation PDF publicly', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    const orderId: string = res.body.orderConfirmation
+
+    const listing = await request(app).get('/ftp')
+    assert.equal(listing.status, 200)
+    assert.ok(!listing.text.includes(`order_${orderId}.pdf`))
+
+    const anonymousFtpDownload = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(anonymousFtpDownload.status, 404)
+
+    const anonymousDownload = await request(app).get(`/rest/order-confirmation/${orderId}`)
+    assert.equal(anonymousDownload.status, 401)
+
+    const { token: otherToken } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const otherUserDownload = await request(app).get(`/rest/order-confirmation/${orderId}`).set({ Authorization: `Bearer ${otherToken}` })
+    assert.equal(otherUserDownload.status, 404)
+
+    const ownerDownload = await request(app).get(`/rest/order-confirmation/${orderId}`).set(authHeader)
+    assert.equal(ownerDownload.status, 200)
+    assert.ok(ownerDownload.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation rejects malformed order ids', async () => {
+    const res = await request(app).get('/rest/order-confirmation/..%2F..%2Fpackage.json').set(authHeader)
+    assert.equal(res.status, 400)
+  })
+
   void it('POST placing an order for a non-existing basket fails', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 500)
