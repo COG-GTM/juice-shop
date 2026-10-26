@@ -14,13 +14,16 @@ import registerWebsocketEvents from '../../lib/startup/registerWebsocketEvents'
 const expect = chai.expect
 
 const unsolved = () => ({ solved: false, save: () => ({ then () {} }) }) as unknown as Challenge
+const stubbedChallenges = ['localXssChallenge', 'xssBonusChallenge', 'svgInjectionChallenge', 'closeNotificationsChallenge'] as const
 
 describe('registerWebsocketEvents', () => {
   let server: http.Server
   let port: number
   let socket: ReturnType<typeof ioClient>
+  const originalChallenges: Partial<Record<typeof stubbedChallenges[number], Challenge>> = {}
 
   before((done) => {
+    for (const key of stubbedChallenges) originalChallenges[key] = challenges[key]
     server = http.createServer((req, res) => { res.end('ok') })
     registerWebsocketEvents(server)
     server.listen(0, () => {
@@ -31,14 +34,12 @@ describe('registerWebsocketEvents', () => {
 
   after((done) => {
     (global as any).io?.close()
+    for (const key of stubbedChallenges) challenges[key] = originalChallenges[key] as Challenge
     server.close(() => { done() })
   })
 
   beforeEach((done) => {
-    challenges.localXssChallenge = unsolved()
-    challenges.xssBonusChallenge = unsolved()
-    challenges.svgInjectionChallenge = unsolved()
-    challenges.closeNotificationsChallenge = unsolved()
+    for (const key of stubbedChallenges) challenges[key] = unsolved()
     socket = ioClient(`http://localhost:${port}`, { forceNew: true, reconnection: false, transports: ['websocket'] })
     socket.on('connect', () => { done() })
   })
