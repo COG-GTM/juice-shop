@@ -160,6 +160,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
+
+  void it('POST placing an order with an expired campaign coupon grants no discount', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const couponData = Buffer.from(`WMNSDY2019-${new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()}`).toString('base64')
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ couponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(authHeader)
+    assert.equal(historyRes.status, 200)
+    const order = historyRes.body.data.find((o: { orderId: string }) => o.orderId === res.body.orderConfirmation)
+    assert.ok(order !== undefined)
+    assert.equal(order.promotionalAmount, '0')
+    assert.ok(order.totalPrice > 0)
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
