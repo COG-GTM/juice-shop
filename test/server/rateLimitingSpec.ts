@@ -39,10 +39,15 @@ describe('rateLimiting', () => {
       expect(rateLimiting.emailOf(requestWithBody({ email: ' Jim@Juice-sh.op ' }))).to.equal('jim@juice-sh.op')
     })
 
+    it('puts all non-string emails into one shared bucket', () => {
+      expect(rateLimiting.emailOf(requestWithBody({ email: ['a@b.c'] }))).to.equal('<non-string>')
+      expect(rateLimiting.emailOf(requestWithBody({ email: { $like: '%' } }))).to.equal('<non-string>')
+      expect(rateLimiting.emailOf(requestWithBody({ email: 1 }))).to.equal('<non-string>')
+    })
+
     it('returns undefined without a usable email', () => {
       expect(rateLimiting.emailOf(requestWithBody({}))).to.equal(undefined)
       expect(rateLimiting.emailOf(requestWithBody({ email: '  ' }))).to.equal(undefined)
-      expect(rateLimiting.emailOf(requestWithBody({ email: ['a@b.c'] }))).to.equal(undefined)
       expect(rateLimiting.emailOf(requestWithBody(undefined))).to.equal(undefined)
     })
   })

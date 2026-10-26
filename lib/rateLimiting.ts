@@ -26,9 +26,11 @@ export function accountRateLimit (accountOf: (req: Request) => string | undefine
   })
 }
 
+/* Non-string emails (arrays, objects) all share one bucket so they cannot be varied to dodge the limit */
 export function emailOf (req: Request) {
   const email = req.body?.email
-  return typeof email === 'string' && email.trim() !== '' ? email.trim().toLowerCase() : undefined
+  if (typeof email === 'string') return email.trim() !== '' ? email.trim().toLowerCase() : undefined
+  return email ? '<non-string>' : undefined
 }
 
 export function secondFactorUserOf (req: Request) {
