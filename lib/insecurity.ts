@@ -110,22 +110,25 @@ const securityAnswerKey = process.env.SECURITY_ANSWER_KEY !== undefined && proce
   ? process.env.SECURITY_ANSWER_KEY
   : crypto.randomBytes(32).toString('hex')
 
-export const hashSecurityAnswer = (answer: string, salt = crypto.randomBytes(16).toString('hex')) => {
-  const peppered = crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
-  return `${salt}:${crypto.scryptSync(peppered, salt, 32).toString('hex')}`
+const pepperSecurityAnswer = (answer: string) => crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
+
+const scryptSecurityAnswer = async (answer: string, salt: string) => await new Promise<Buffer>((resolve, reject) => {
+  crypto.scrypt(pepperSecurityAnswer(answer), salt, 32, (err, key) => {
+    if (err) reject(err)
+    else resolve(key)
+  })
+})
+
+export const hashSecurityAnswer = async (answer: string, salt = crypto.randomBytes(16).toString('hex')) => {
+  const digest = await scryptSecurityAnswer(answer, salt)
+  return `${salt}:${digest.toString('hex')}`
 }
 
 export const verifySecurityAnswer = async (answer: string, stored?: string | null) => {
   const [salt, digest] = (stored ?? '').split(':')
   if (!salt || !digest) return false
   const expected = Buffer.from(digest, 'hex')
-  const peppered = crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
-  const actual = await new Promise<Buffer>((resolve, reject) => {
-    crypto.scrypt(peppered, salt, 32, (err, key) => {
-      if (err) reject(err)
-      else resolve(key)
-    })
-  })
+  const actual = await scryptSecurityAnswer(answer, salt)
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
 }
 
