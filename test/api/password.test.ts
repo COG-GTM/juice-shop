@@ -18,11 +18,21 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
+const jsonHeader = { 'content-type': 'application/json' }
+
+async function loginStatus (email: string, password: string) {
+  const res = await request(app)
+    .post('/rest/user/login')
+    .set(jsonHeader)
+    .send({ email, password })
+  return res.status
+}
+
 void describe('/rest/user/change-password', () => {
-  void it('GET password change for newly created user with recognized token as Authorization header', async () => {
+  void it('POST password change for newly created user with recognized token as Authorization header', async () => {
     await request(app)
       .post('/api/Users')
-      .set({ 'content-type': 'application/json' })
+      .set(jsonHeader)
       .send({
         email: 'kuni@be.rt',
         password: 'kunigunde'
@@ -32,45 +42,133 @@ void describe('/rest/user/change-password', () => {
     const { token } = await login(app, { email: 'kuni@be.rt', password: 'kunigunde' })
 
     const res = await request(app)
-      .get('/rest/user/change-password?current=kunigunde&new=foo&repeat=foo')
-      .set({ Authorization: 'Bearer ' + token })
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ current: 'kunigunde', new: 'foo', repeat: 'foo' })
 
     assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id', 'username'])
+    assert.equal(res.body.user.email, 'kuni@be.rt')
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+    assert.equal(await loginStatus('kuni@be.rt', 'foo'), 200)
   })
 
-  void it('GET password change with passing wrong current password', async () => {
+  void it('POST password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
       password: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase'
     })
 
     const res = await request(app)
-      .get('/rest/user/change-password?current=definetely_wrong&new=blubb&repeat=blubb')
-      .set({ Authorization: 'Bearer ' + token })
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ current: 'definetely_wrong', new: 'blubb', repeat: 'blubb' })
 
     assert.equal(res.status, 401)
     assert.ok(res.text.includes('Current password is not correct'))
   })
 
-  void it('GET password change without passing any passwords', async () => {
+  void it('POST password change with valid token but without current password is rejected and leaves password unchanged', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'nocurrent@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'nocurrent@be.rt', password: 'original-secret' })
+
+    for (const current of [undefined, '', ['original-secret']]) {
+      const res = await request(app)
+        .post('/rest/user/change-password')
+        .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+        .send({ current, new: 'hijacked', repeat: 'hijacked' })
+
+      assert.equal(res.status, 401)
+      assert.ok(res.text.includes('Current password is not correct'))
+    }
+
+    assert.equal(await loginStatus('nocurrent@be.rt', 'original-secret'), 200)
+    assert.equal(await loginStatus('nocurrent@be.rt', 'hijacked'), 401)
+  })
+
+  void it('POST password change from a second session with the superseded password is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'twosessions@be.rt',
+        password: 'first-secret'
+      })
+      .expect(201)
+
+    const { token: tokenA } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    const { token: tokenB } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenA })
+      .send({ current: 'first-secret', new: 'second-secret', repeat: 'second-secret' })
+      .expect(200)
+
     const res = await request(app)
-      .get('/rest/user/change-password')
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenB })
+      .send({ current: 'first-secret', new: 'hijacked', repeat: 'hijacked' })
+
+    assert.equal(res.status, 401)
+    assert.equal(await loginStatus('twosessions@be.rt', 'second-secret'), 200)
+    assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
+  })
+
+  void it('GET password change via query string is no longer supported', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'viaget@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'viaget@be.rt', password: 'original-secret' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=original-secret&new=changed&repeat=changed')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(await loginStatus('viaget@be.rt', 'original-secret'), 200)
+    assert.equal(await loginStatus('viaget@be.rt', 'changed'), 401)
+  })
+
+  void it('POST password change without passing any passwords', async () => {
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set(jsonHeader)
+      .send({})
 
     assert.equal(res.status, 401)
     assert.ok(res.text.includes('Password cannot be empty'))
   })
 
-  void it('GET password change with passing wrong repeated password', async () => {
+  void it('POST password change with passing wrong repeated password', async () => {
     const res = await request(app)
-      .get('/rest/user/change-password?new=foo&repeat=bar')
+      .post('/rest/user/change-password')
+      .set(jsonHeader)
+      .send({ new: 'foo', repeat: 'bar' })
 
     assert.equal(res.status, 401)
     assert.ok(res.text.includes('New and repeated password do not match'))
   })
 
-  void it('GET password change without passing an authorization token', async () => {
+  void it('POST password change without passing an authorization token', async () => {
     const res = await request(app)
-      .get('/rest/user/change-password?new=foo&repeat=foo')
+      .post('/rest/user/change-password')
+      .set(jsonHeader)
+      .send({ new: 'foo', repeat: 'foo' })
 
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
@@ -78,10 +176,11 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change with passing unrecognized authorization token', async () => {
+  void it('POST password change with passing unrecognized authorization token', async () => {
     const res = await request(app)
-      .get('/rest/user/change-password?new=foo&repeat=foo')
-      .set({ Authorization: 'Bearer unknown' })
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer unknown' })
+      .send({ new: 'foo', repeat: 'foo' })
 
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
@@ -89,17 +188,19 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('POST password change for Bender without current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
     })
 
     const res = await request(app)
-      .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
-      .set({ Authorization: 'Bearer ' + token })
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ new: 'slurmCl4ssic', repeat: 'slurmCl4ssic' })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
+    assert.equal(await loginStatus('bender@' + config.get<string>('application.domain'), 'OhG0dPlease1nsertLiquor!'), 200)
   })
 })
 
