@@ -113,6 +113,16 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST YAML file with !!js/function tag is rejected without executing code', async () => {
+    const file = path.resolve(__dirname, '../files/yamlJsFunction.yml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.match(res.text, /unknown tag/)
+    assert.doesNotMatch(res.text, /pwned/)
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)

