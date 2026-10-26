@@ -27,6 +27,19 @@ describe('/rest/products/reviews', () => {
     })
   })
 
+  describe('challenge "NoSQL Exfiltration"', () => {
+    it('should not be possible to inject and get all the orders', () => {
+      cy.request({
+        url: '/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27',
+        failOnStatusCode: false
+      }).then((response) => {
+        expect(response.status).to.equal(404)
+        expect(response.body).to.deep.equal({ error: 'Order not found' })
+      })
+      cy.request('/api/Challenges/?name=NoSQL Exfiltration').its('body.data.0.solved').should('equal', false)
+    })
+  })
+
   describe('challenge "NoSQL Manipulation"', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
