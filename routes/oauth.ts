@@ -10,6 +10,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -54,16 +55,18 @@ export function oauthLogin () {
 
     let user: UserModel
     try {
-      [user] = await UserModel.findOrCreate({
+      let created: boolean
+      [user, created] = await UserModel.findOrCreate({
         where: { email },
         defaults: { email, password: crypto.randomBytes(32).toString('base64') }
       })
+      if (created) {
+        await WalletModel.create({ UserId: user.id })
+      }
     } catch {
       res.status(401).json({ status: 'error', message: 'Invalid OAuth access token.' })
       return
     }
-
-    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return user.email === 'bjoern.kimminich@gmail.com' })
 
     if (user.totpSecret) {
       res.status(401).json({
@@ -83,6 +86,7 @@ export function oauthLogin () {
     const token = security.authorize(authenticatedUser)
     authenticatedUser.bid = basket.id
     security.authenticatedUsers.put(token, authenticatedUser)
+    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return user.email === 'bjoern.kimminich@gmail.com' })
     res.json({ authentication: { token, bid: basket.id, umail: user.email } })
   }
 }

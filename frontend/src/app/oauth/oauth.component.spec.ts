@@ -87,6 +87,14 @@ describe('OAuthComponent', () => {
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
+    it('continues with the two-factor screen when the server requires a TOTP token', () => {
+        userService.oauthLogin.mockReturnValue(throwError({ error: { status: 'totp_token_required', data: { tmpToken: 'TMP' } } }))
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('TMP')
+        localStorage.removeItem('totp_tmp_token')
+    })
+
     it('passes the OAuth access token to the server-side login', () => {
         sessionStorage.setItem('oauthState', 'STATE')
         component.ngOnInit()
