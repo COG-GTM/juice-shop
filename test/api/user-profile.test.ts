@@ -51,4 +51,31 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const { UserModel } = await import('../../models/user')
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const payloads = [
+      'a#{7*7}',
+      'a!{global.sstiProbe = 1}',
+      "#{global.process.mainModule.require('child_process').execSync('id')}",
+      'x\n                  - global.sstiProbe = 1'
+    ]
+    for (const payload of payloads) {
+      await user.update({ username: payload })
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('>a49<'))
+      assert.equal((global as any).sstiProbe, undefined)
+    }
+    await user.update({ username: 'a#{7*7}' })
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+    assert.ok(res.text.includes('a#{7*7}</p>'))
+  })
 })
