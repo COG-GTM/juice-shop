@@ -49,14 +49,10 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created with the logged-in user as author', async () => {
-    const { token } = await login(app, {
-      email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-    })
     const message = 'Lorem Ipsum <img src=x onerror=alert(1)>'
     const res = await request(app)
       .put('/rest/products/1/reviews')
-      .set({ Authorization: `Bearer ${token}` })
+      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'bjoern.kimminich@gmail.com' } })}` })
       .send({
         message,
         author: 'admin@' + config.get<string>('application.domain')
