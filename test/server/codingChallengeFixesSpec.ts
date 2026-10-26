@@ -7,6 +7,7 @@ import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
 import { readFixes, isKnownFixKey } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
+import yaml from 'js-yaml'
 import nodeFs from 'node:fs'
 import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
@@ -36,6 +37,12 @@ describe('codingChallengeFixes', () => {
   it('should have an info YAML file for each coding challenge', async () => {
     for (const challenge of codingChallenges) {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
+    }
+  })
+
+  it('should parse all coding challenge info YAML files with the safe schema', () => {
+    for (const file of fs.readdirSync('./data/static/codefixes').filter((f: string) => f.endsWith('.info.yml'))) {
+      expect(() => yaml.safeLoad(fs.readFileSync('./data/static/codefixes/' + file, 'utf8')), `${file} is not safe-loadable`).to.not.throw()
     }
   })
 
