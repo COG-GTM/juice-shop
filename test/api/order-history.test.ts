@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -46,6 +46,19 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+
+  void it('GET does not return orders of another user with the same vowel-masked email', async () => {
+    const maskedAdminEmail = ('admin@' + config.get<string>('application.domain')).replace(/[aeiou]/gi, '*')
+    await register(app, { email: maskedAdminEmail, password: 'Str0ngPassw0rd!' })
+    const { token } = await login(app, { email: maskedAdminEmail, password: 'Str0ngPassw0rd!' })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
   })
 })
 
