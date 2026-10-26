@@ -38,6 +38,11 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
+  revokedTokens: Record<string, number>
+  remove: (token: string) => void
+  revoke: (token?: string) => void
+  revokeAllFor: (userId: number, exceptToken?: string) => void
+  isRevoked: (token?: string) => boolean
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -51,11 +56,53 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const sessionLifetimeInSeconds = 6 * 60 * 60
+const nowInSeconds = () => Math.floor(Date.now() / 1000)
+
+export const isAuthorized = () => {
+  const checkJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (authenticatedUsers.isRevoked(utils.jwtFrom(req))) {
+      res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
+      return
+    }
+    checkJwt(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+// exp is set explicitly because jsonwebtoken 0.4.0 ignores the expiresIn option
+export const authorize = (user = {}) => jwt.sign({ ...user, jti: crypto.randomUUID(), exp: nowInSeconds() + sessionLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+const claimsOf = (token: string) => {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+    return claims !== null && typeof claims === 'object' ? claims : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const expiryOf = (token: string): number | undefined => {
+  const claims = claimsOf(token)
+  if (typeof claims?.exp === 'number') return claims.exp
+  if (typeof claims?.iat === 'number') return claims.iat + sessionLifetimeInSeconds
+  return claims === undefined ? undefined : 0
+}
+
+const isExpired = (token: string) => {
+  const exp = expiryOf(token)
+  return exp !== undefined && exp <= nowInSeconds()
+}
+
+const hasValidSignature = (token: string) => {
+  try {
+    return verify(token)
+  } catch {
+    return false
+  }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -72,12 +119,21 @@ export const sanitizeSecure = (html: string): string => {
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
+  revokedTokens: {},
   put: function (token: string, user: ResponseWithUser) {
+    if (this.isRevoked(token) || isExpired(token)) return
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    if (!token) return undefined
+    const key = utils.unquote(token)
+    if (!Object.prototype.hasOwnProperty.call(this.tokenMap, key)) return undefined
+    if (this.isRevoked(key) || isExpired(key)) {
+      this.remove(key)
+      return undefined
+    }
+    return this.tokenMap[key]
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -89,6 +145,40 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
     this.put(token, user)
+  },
+  remove: function (token: string) {
+    if (!Object.prototype.hasOwnProperty.call(this.tokenMap, token)) return
+    const userId = this.tokenMap[token]?.data?.id
+    delete this.tokenMap[token]
+    if (userId !== undefined && this.idMap[userId] === token) {
+      delete this.idMap[userId]
+    }
+  },
+  revoke: function (token?: string) {
+    if (!token) return
+    const key = utils.unquote(token)
+    const now = nowInSeconds()
+    for (const [revoked, until] of Object.entries(this.revokedTokens)) {
+      if (until <= now) delete this.revokedTokens[revoked]
+    }
+    const exp = expiryOf(key)
+    if (exp !== undefined && exp > now && hasValidSignature(key)) {
+      this.revokedTokens[key] = exp
+    }
+    this.remove(key)
+  },
+  revokeAllFor: function (userId: number, exceptToken?: string) {
+    const keep = exceptToken ? utils.unquote(exceptToken) : undefined
+    for (const [token, user] of Object.entries(this.tokenMap)) {
+      if (token !== keep && user?.data?.id === userId) {
+        this.revoke(token)
+      }
+    }
+  },
+  isRevoked: function (token?: string) {
+    if (!token) return false
+    const key = utils.unquote(token)
+    return Object.prototype.hasOwnProperty.call(this.revokedTokens, key) && this.revokedTokens[key] > nowInSeconds()
   }
 }
 
@@ -155,7 +245,8 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const token = utils.jwtFrom(req)
+    const decodedToken = verify(token) && !isExpired(token) && !authenticatedUsers.isRevoked(token) && decode(token)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -177,7 +268,12 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      const user = authenticatedUsers.get(utils.jwtFrom(req))
+      if (user === undefined) {
+        res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
+        return
+      }
+      req.body.UserId = user.data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
