@@ -163,7 +163,7 @@ void describe('/api/BasketItems/:id', () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
-      .send({ ProductId: 8, quantity: 8 })
+      .send({ ProductId: 11, quantity: 1 })
     assert.equal(createRes.status, 200)
     assert.equal(createRes.body.data.BasketId, undefined)
 
