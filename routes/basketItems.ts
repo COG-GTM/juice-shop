@@ -21,7 +21,7 @@ export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
     const productIds = []
-    const basketIds = []
+    const basketIds: unknown[] = []
     const quantities = []
 
     for (let i = 0; i < result.length; i++) {
