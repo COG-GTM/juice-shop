@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, type OnInit, inject } from '@angular/core'
+import { Component, type OnInit, SecurityContext, inject } from '@angular/core'
 import { DomSanitizer } from '@angular/platform-browser'
 import { ConfigurationService } from '../Services/configuration.service'
 import { FeedbackService } from '../Services/feedback.service'
@@ -114,7 +114,7 @@ export class AboutComponent implements OnInit {
         for (let i = 0; i < feedbacks.length; i++) {
 
           feedbacks[i].comment = `<figcaption><p class="feedback-comment">${
-            feedbacks[i].comment
+            this.sanitizer.sanitize(SecurityContext.HTML, feedbacks[i].comment) ?? ''
           }</p><div class="feedback-stars">(${this.stars[feedbacks[i].rating]})</div></figcaption>`
           feedbacks[i].comment = this.sanitizer.bypassSecurityTrustHtml(
             feedbacks[i].comment

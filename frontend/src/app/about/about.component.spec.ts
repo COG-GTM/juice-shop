@@ -4,7 +4,7 @@
  */
 
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter, NO_ERRORS_SCHEMA } from '@angular/core'
+import { EventEmitter, NO_ERRORS_SCHEMA, SecurityContext } from '@angular/core'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 
@@ -12,6 +12,8 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
+import { DomSanitizer } from '@angular/platform-browser'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -115,5 +117,21 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+    it('should keep safe formatting and strip unsafe markup from feedback in the carousel', () => {
+        vi.spyOn(TestBed.inject(FeedbackService), 'find').mockReturnValue(of([
+            { comment: 'This is <b>the</b> store', rating: 5 },
+            { comment: 'Hi <iframe src="javascript:alert(`xss`)"></iframe><img src="x" onerror="alert(1)">', rating: 1 }
+        ]))
+        const addImage = vi.spyOn(component.galleryRef, 'addImage')
+        const sanitizer = TestBed.inject(DomSanitizer)
+
+        component.populateSlideshowFromFeedbacks()
+
+        const captions = addImage.mock.calls.map((call: any[]) => sanitizer.sanitize(SecurityContext.HTML, call[0].args))
+        expect(captions[0]).toContain('This is <b>the</b> store')
+        expect(captions[1]).not.toContain('<iframe')
+        expect(captions[1]).not.toContain('javascript:')
+        expect(captions[1]).not.toContain('onerror')
     })
 })

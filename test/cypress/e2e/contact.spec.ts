@@ -49,27 +49,33 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    // Cypress alert bug
-    // The challenge also passes but its just that cypress freezes and is unable to perform any action
-    xit('should be possible to trick the sanitization with a masked XSS attack', () => {
+    it('should neither store nor execute a masked XSS attack', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
+          cy.on('window:alert', (text) => {
+            throw new Error(`Unexpected alert: ${text}`)
+          })
           cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
           cy.get('#comment').type(
-            '<<script>Foo</script>iframe src="javascript:alert(`xss`)">'
+            'Masked XSS attempt <<script>Foo</script>iframe src="javascript:alert(`xss`)">'
           )
           cy.get('#submitButton').should('not.be.disabled').click()
+          cy.expectChallengeSolved({ challenge: 'Server-side XSS Protection' })
+
+          cy.request('/api/Feedbacks').then((response) => {
+            const comments: string[] = response.body.data.map((feedback: { comment: string }) => feedback.comment)
+            const stored = comments.filter((comment) => comment.startsWith('Masked XSS attempt'))
+            expect(stored).to.have.length.greaterThan(0)
+            stored.forEach((comment) => { expect(comment).not.to.contain('<iframe') })
+          })
 
           cy.visit('/#/about')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
+          cy.get('.feedback-comment').should('exist')
+          cy.get('iframe[src^="javascript"]').should('not.exist')
 
           cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.expectChallengeSolved({ challenge: 'Server-side XSS Protection' })
+          cy.get('mat-cell').should('exist')
+          cy.get('iframe[src^="javascript"]').should('not.exist')
         }
       })
     })
