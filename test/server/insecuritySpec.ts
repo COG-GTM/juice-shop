@@ -234,6 +234,15 @@ describe('insecurity', () => {
       expect(res.status.firstCall.args).to.deep.equal([401])
     })
 
+    it('responds 401 for an expired admin token', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const exp = Math.floor(Date.now() / 1000) - 60
+      security.isAdmin()(requestWithToken(security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' }, exp })), res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([401])
+    })
+
     it('responds 403 for a non-admin token', () => {
       const res = responseSpy()
       const next = sinon.spy()
