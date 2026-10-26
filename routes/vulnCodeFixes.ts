@@ -11,6 +11,7 @@ const FixesDir = 'data/static/codefixes'
 interface codeFix {
   fixes: string[]
   correct: number
+  infoFile?: string
 }
 
 let CodeFixes: Map<string, codeFix> | null = null
@@ -26,6 +27,10 @@ const loadCodeFixes = () => {
       entry.correct = parseInt(metadata[1], 10) - 1
     }
     index.set(metadata[0], entry)
+  }
+  for (const [key, entry] of index) {
+    const infoFile = `${FixesDir}/${key}.info.yml`
+    if (fs.existsSync(infoFile)) entry.infoFile = infoFile
   }
   return index
 }
@@ -75,9 +80,8 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    const infoFile = `${FixesDir}/${key}.info.yml`
-    if (fs.existsSync(infoFile)) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync(infoFile, 'utf8'))
+    if (fixData.infoFile) {
+      const codingChallengeInfos = yaml.load(fs.readFileSync(fixData.infoFile, 'utf8'))
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     }
