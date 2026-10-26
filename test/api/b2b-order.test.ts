@@ -8,11 +8,16 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { challenges } from '../../data/datacache'
-import * as utils from '../../lib/utils'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+const notevilEscapePayload = 'function fn() {};' +
+  'var constructorProperty = Object.getOwnPropertyDescriptors(fn.__proto__).constructor;' +
+  'var properties = Object.values(constructorProperty);' +
+  'properties.pop(); properties.pop(); properties.pop();' +
+  'var Func = properties.pop();' +
+  'Func("globalThis.__b2bSandboxEscaped = true")()'
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 
 before(async () => {
@@ -21,41 +26,81 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/b2b/v2/orders', () => {
-  if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-    void it('POST endless loop exploit in "orderLinesData" will raise explicit error', async () => {
-      const res = await request(app)
+  void it('POST endless loop exploit in "orderLinesData" is rejected without being evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: '(function dos() { while(true); })()'
+      })
+
+    assert.equal(res.status, 400)
+    assert.ok(!res.text.includes('Infinite loop detected'))
+    assert.notEqual(challenges.rceChallenge?.solved, true)
+  })
+
+  void it('POST busy spinning regex attack is rejected without being evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
+      })
+
+    assert.equal(res.status, 400)
+    assert.notEqual(challenges.rceOccupyChallenge?.solved, true)
+  })
+
+  void it('POST sandbox breakout attack in "orderLinesData" is rejected', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: 'this.constructor.constructor("return process")().exit()'
+      })
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST CVE-2021-23771 notevil sandbox escape payload is rejected without being evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: notevilEscapePayload
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal((globalThis as Record<string, unknown>).__b2bSandboxEscaped, undefined)
+  })
+
+  void it('POST long-running payload does not delay a parallel request to another endpoint', async () => {
+    const started = Date.now()
+    const [order, version] = await Promise.all([
+      request(app)
         .post('/b2b/v2/orders')
         .set(authHeader)
-        .send({
-          orderLinesData: '(function dos() { while(true); })()'
-        })
+        .send({ orderLinesData: '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")' }),
+      request(app).get('/rest/admin/application-version')
+    ])
 
-      assert.equal(res.status, 500)
-      assert.ok(res.text.includes('Infinite loop detected - reached max iterations'))
-    })
+    assert.equal(order.status, 400)
+    assert.equal(version.status, 200)
+    assert.ok(Date.now() - started < 2000)
+  })
 
-    void it('POST busy spinning regex attack does not raise an error', async () => {
-      const res = await request(app)
-        .post('/b2b/v2/orders')
-        .set(authHeader)
-        .send({
-          orderLinesData: '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
-        })
+  void it('POST new B2B order accepts order lines in documented JSON format', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        cid: 'JS0815DE',
+        orderLinesData: '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"},{"productId": 13,"quantity": 2000,"customerReference": "PO0000003.4"}]'
+      })
 
-      assert.equal(res.status, 503)
-    })
-
-    void it('POST sandbox breakout attack in "orderLinesData" will raise error', async () => {
-      const res = await request(app)
-        .post('/b2b/v2/orders')
-        .set(authHeader)
-        .send({
-          orderLinesData: 'this.constructor.constructor("return process")().exit()'
-        })
-
-      assert.equal(res.status, 500)
-    })
-  }
+    assert.equal(res.status, 200)
+    assert.equal(res.body.cid, 'JS0815DE')
+  })
 
   void it('POST new B2B order is forbidden without authorization token', async () => {
     const res = await request(app)
