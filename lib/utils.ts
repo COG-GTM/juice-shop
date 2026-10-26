@@ -123,6 +123,8 @@ export const downloadToFile = async (url: string, dest: string) => {
   }
 }
 
+export const redactSensitiveQueryParams = (url: string) => url.replace(/([?&](?:current|new|repeat|password|passwordRepeat)=)[^&#]*/gi, '$1[REDACTED]')
+
 export const jwtFrom = ({ headers }: { headers: any }) => {
   if (headers?.authorization) {
     const parts = headers.authorization.split(' ')

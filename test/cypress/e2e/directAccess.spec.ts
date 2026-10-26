@@ -80,10 +80,16 @@ describe('/', () => {
   })
 
   describe('challenge "accessLogDisclosure"', () => {
-    it("should be able to access today's access log file", () => {
+    it("should be able to access today's access log file as admin", () => {
+      cy.login({ email: 'admin', password: 'admin123' })
       // cy.visit requires a text/html response hence cy.request has been used
-      cy.task<Date>('toISO8601').then((date: Date) => {
-        cy.request(`/support/logs/access.log.${date.toString()}`)
+      cy.window().then((win) => {
+        cy.task<Date>('toISO8601').then((date: Date) => {
+          cy.request({
+            url: `/support/logs/access.log.${date.toString()}`,
+            headers: { Authorization: `Bearer ${win.localStorage.getItem('token')}` }
+          })
+        })
       })
       cy.expectChallengeSolved({ challenge: 'Access Log' })
     })
