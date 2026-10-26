@@ -263,7 +263,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
-  // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
+  // vuln-code-snippet start directoryListingChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -281,7 +281,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   app.use(express.static(path.resolve('frontend/dist/frontend')))
   app.use(cookieParser('kekse'))
-  // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
+  // vuln-code-snippet end directoryListingChallenge
 
   /* Serve vendor dependencies locally instead of from CDN */
   app.use('/vendor/beercss', express.static(path.resolve('node_modules/beercss/dist/cdn')))
@@ -329,7 +329,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     verbose: false,
     max_logs: '2d'
   })
-  const stripQueryString = (url?: string) => url?.replace(/\?.*$/, '') ?? '-'
+  const stripQueryString = (url?: string) => url?.split('?')[0] ?? '-'
   morgan.token('url-without-query', (req: Request) => stripQueryString(req.originalUrl || req.url))
   morgan.token('referrer-without-query', (req: Request) => stripQueryString(req.headers.referer ?? req.headers.referrer as string | undefined))
   app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :url-without-query HTTP/:http-version" :status :res[content-length] ":referrer-without-query" ":user-agent"', { stream: accessLogStream }))
