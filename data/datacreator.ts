@@ -205,7 +205,7 @@ async function createUsers () {
         datacache.users[key] = user
         if (generatedCredentials && isPrivileged(role) && !deletedFlag) {
           const passwordFromEnv = key === 'admin' && password === process.env.JUICE_SHOP_ADMIN_PASSWORD
-          logger.info(`Generated credentials for ${role} ${completeEmail}: password ${passwordFromEnv ? '(from JUICE_SHOP_ADMIN_PASSWORD)' : password}${totpSecret ? `, TOTP secret ${totpSecret}` : ''}`)
+          logger.info(`Seeded ${role} user ${completeEmail} with ${passwordFromEnv ? 'password from JUICE_SHOP_ADMIN_PASSWORD' : 'a random password'} instead of the published one`)
         }
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
