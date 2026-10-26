@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import { sequelize } from '../models'
 
 interface Product {
   quantity: number
@@ -67,19 +68,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockReductions: StockReduction[] = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockReductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +132,16 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
+          const payWithWallet = !!req.body.UserId && req.body.orderDetails?.paymentId === 'wallet'
+          try {
+            const paid = await chargeAndReserveStock(req.body.UserId, payWithWallet, totalPrice, totalPoints, stockReductions)
+            if (!paid) {
+              next(new Error('Insufficient wallet balance.'))
               return
             }
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -179,6 +166,35 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+interface StockReduction {
+  ProductId: number
+  quantity: number
+}
+
+async function chargeAndReserveStock (UserId: number | undefined, payWithWallet: boolean, totalPrice: number, bonusPoints: number, stockReductions: StockReduction[]) {
+  return await sequelize.transaction(async (transaction) => {
+    if (payWithWallet) {
+      const wallet = await WalletModel.findOne({ where: { UserId }, transaction })
+      if (wallet == null || !(wallet.balance >= totalPrice)) {
+        return false
+      }
+      await WalletModel.decrement({ balance: totalPrice }, { where: { UserId }, transaction })
+    }
+    for (const { ProductId, quantity } of stockReductions) {
+      if (quantity > 0) {
+        const quantityRow = await QuantityModel.findOne({ where: { ProductId }, transaction })
+        if (quantityRow) {
+          await QuantityModel.update({ quantity: Math.max(quantityRow.quantity - quantity, 0) }, { where: { ProductId }, transaction })
+        }
+      }
+    }
+    if (UserId) {
+      await WalletModel.increment({ balance: bonusPoints }, { where: { UserId }, transaction })
+    }
+    return true
+  })
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
