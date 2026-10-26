@@ -102,6 +102,12 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    const { data } = JSON.parse(Buffer.from(res.body.data.token.split('.')[1], 'base64').toString())
+    assert.equal(data.role, 'deluxe')
+    assert.equal(typeof data.deluxeToken, 'string')
+    assert.equal(data.password, undefined)
+    assert.equal(data.totpSecret, undefined)
   })
 
   void it('POST upgrade deluxe membership status for customers with wallet payment', async () => {
