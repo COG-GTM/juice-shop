@@ -3,15 +3,20 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
-import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
+import fs from 'node:fs/promises'
 import { type Request, type Response, type NextFunction } from 'express'
+import fileType from 'file-type'
 
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
+
+const allowedImageTypes: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif'
+}
 
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -25,9 +30,13 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          const buffer = Buffer.from(await response.arrayBuffer())
+          const detectedType = await fileType.fromBuffer(buffer)
+          const ext = detectedType ? allowedImageTypes[detectedType.mime] : undefined
+          if (ext === undefined) {
+            throw new Error(`url returned an unsupported file type${detectedType ? (': ' + detectedType.mime) : ''}`)
+          }
+          await fs.writeFile(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, buffer)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
