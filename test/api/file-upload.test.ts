@@ -137,6 +137,19 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
+  void it('POST zip file with over-long file name does not crash the server', async () => {
+    const file = path.resolve(__dirname, '../files/passwordProtected.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file, { filename: 'a'.repeat(300) + '.zip' })
+    assert.equal(res.status, 204)
+
+    const followUp = await request(app)
+      .post('/file-upload')
+      .attach('file', path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf'))
+    assert.equal(followUp.status, 204)
+  })
+
   void it('POST valid file with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     const res = await request(app)
