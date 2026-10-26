@@ -36,7 +36,7 @@ const outboxMailer: PasswordResetMailer = async (email, token) => {
   const outbox = path.resolve('mail/outbox')
   await fs.mkdir(outbox, { recursive: true })
   const message = [
-    `To: ${email}`,
+    `To: ${email.replace(/[\r\n]/g, '')}`,
     'Subject: Password reset',
     '',
     'Use the following single-use code to reset your password. It expires in 15 minutes.',
@@ -76,10 +76,10 @@ const removeExpiredEntries = (now: number) => {
 
 export const issueResetToken = async (userId: number, email: string) => {
   removeExpiredEntries(Date.now())
-  invalidateResetTokens(userId)
   const token = crypto.randomBytes(32).toString('hex')
-  resetTokens.set(hashToken(token), { userId, expiresAt: Date.now() + RESET_TOKEN_TTL_MS })
   await mailer(email, token)
+  invalidateResetTokens(userId)
+  resetTokens.set(hashToken(token), { userId, expiresAt: Date.now() + RESET_TOKEN_TTL_MS })
 }
 
 export const isValidResetToken = (token: string, userId: number) => {

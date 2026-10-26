@@ -16,7 +16,7 @@ import * as passwordReset from '../lib/passwordReset'
 
 export function requestPasswordReset () {
   return async ({ body }: Request, res: Response, next: NextFunction) => {
-    const email = body.email
+    const email = body?.email
     if (typeof email !== 'string' || !email) {
       res.status(400).send(res.__('Email address is required.'))
       return
