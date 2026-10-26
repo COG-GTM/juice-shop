@@ -112,7 +112,7 @@ describe('insecurity', () => {
   })
 
   describe('updateAuthenticatedUsers', () => {
-    it('sets the token cookie with SameSite=Strict for a newly seen valid token', async () => {
+    it('sets the token cookie with SameSite=Lax for a newly seen valid token', async () => {
       const token = security.authorize({ data: { id: 4711, email: 'samesite@juice-sh.op' } })
       const cookies: any[] = []
       const req = { cookies: { token }, headers: {} } as unknown as Request
@@ -121,7 +121,7 @@ describe('insecurity', () => {
       security.updateAuthenticatedUsers()(req, res, () => {})
       await new Promise(resolve => setImmediate(resolve))
 
-      expect(cookies).to.deep.equal([['token', token, { sameSite: 'strict' }]])
+      expect(cookies).to.deep.equal([['token', token, { sameSite: 'lax' }]])
     })
   })
 
