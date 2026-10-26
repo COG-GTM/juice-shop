@@ -6,6 +6,11 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -79,6 +84,84 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('loadPrivateKey', () => {
+    const originalKey = process.env.JWT_PRIVATE_KEY
+    const originalKeyFile = process.env.JWT_PRIVATE_KEY_FILE
+    const pem = (): string => crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+
+    afterEach(() => {
+      if (originalKey === undefined) delete process.env.JWT_PRIVATE_KEY
+      else process.env.JWT_PRIVATE_KEY = originalKey
+      if (originalKeyFile === undefined) delete process.env.JWT_PRIVATE_KEY_FILE
+      else process.env.JWT_PRIVATE_KEY_FILE = originalKeyFile
+    })
+
+    it('reads key from JWT_PRIVATE_KEY with escaped newlines', () => {
+      const key = pem()
+      process.env.JWT_PRIVATE_KEY = key.replace(/\n/g, '\\n')
+      delete process.env.JWT_PRIVATE_KEY_FILE
+
+      expect(security.loadPrivateKey()).to.equal(key)
+    })
+
+    it('reads key from file referenced by JWT_PRIVATE_KEY_FILE', () => {
+      const key = pem()
+      const file = path.join(os.tmpdir(), `jwt-${crypto.randomUUID()}.pem`)
+      fs.writeFileSync(file, key)
+      delete process.env.JWT_PRIVATE_KEY
+      process.env.JWT_PRIVATE_KEY_FILE = file
+
+      try {
+        expect(security.loadPrivateKey()).to.equal(key)
+      } finally {
+        fs.unlinkSync(file)
+      }
+    })
+
+    it('prefers JWT_PRIVATE_KEY over JWT_PRIVATE_KEY_FILE', () => {
+      const key = pem()
+      process.env.JWT_PRIVATE_KEY = key
+      process.env.JWT_PRIVATE_KEY_FILE = path.join(os.tmpdir(), 'does-not-exist.pem')
+
+      expect(security.loadPrivateKey()).to.equal(key)
+    })
+
+    it('generates a fresh RSA key if none is configured', () => {
+      delete process.env.JWT_PRIVATE_KEY
+      delete process.env.JWT_PRIVATE_KEY_FILE
+
+      const key = security.loadPrivateKey()
+      expect(crypto.createPrivateKey(key).asymmetricKeyType).to.equal('rsa')
+      expect(security.loadPrivateKey()).to.not.equal(key)
+    })
+  })
+
+  describe('verify', () => {
+    const payload = { data: { email: 'admin@juice-sh.op', role: 'admin' } }
+
+    it('accepts tokens issued by authorize', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects RS256 tokens signed with a different private key', () => {
+      const foreignKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+      expect(security.verify(jwt.sign(payload, foreignKey, { algorithm: 'RS256' }))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public key', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${body}`).digest('base64url')
+      expect(security.verify(`${header}.${body}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects unsigned tokens', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+      expect(security.verify(`${header}.${body}.`)).to.equal(false)
     })
   })
 
