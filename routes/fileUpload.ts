@@ -78,7 +78,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 if (absolutePath !== null) {
                   try {
                     destination = fs.createWriteStream(absolutePath, { fd: fs.openSync(absolutePath, NO_FOLLOW_WRITE_FLAGS) })
-                  } catch {}
+                  } catch (err) {
+                    entry.autodrain()
+                    abort(err)
+                    return
+                  }
                 }
                 pipeline(entry, sizeLimiter, destination, function (err) { if (err != null) { abort(err) } })
               }).on('error', function (err: unknown) { abort(err) })
