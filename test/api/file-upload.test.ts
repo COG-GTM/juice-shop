@@ -111,6 +111,16 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
+
+    void it('POST file type YAML with !!js/function toJSON is rejected without executing it', async () => {
+      const file = path.resolve(__dirname, '../files/yamlFunctionToJson.yml')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('unknown tag'))
+      assert.ok(!res.text.includes('js-yaml-function-executed'))
+    })
   }
 
   void it('POST file too large for API', async () => {
