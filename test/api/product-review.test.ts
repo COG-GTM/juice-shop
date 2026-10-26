@@ -48,15 +48,32 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created with the logged-in user as author', async () => {
+    const message = 'Lorem Ipsum <img src=x onerror=alert(1)>'
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${security.authorize({ data: { email: 'bjoern.kimminich@gmail.com' } })}` })
+      .send({
+        message,
+        author: 'admin@' + config.get<string>('application.domain')
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const created = reviews.body.data.filter((review: { message: string }) => review.message === message)
+    assert.equal(created.length, 1)
+    assert.equal(created[0].author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT single product review needs an authenticated user', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        author: 'admin@' + config.get<string>('application.domain')
       })
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 401)
   })
 })
 
