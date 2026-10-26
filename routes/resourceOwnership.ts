@@ -34,11 +34,11 @@ async function basketIdsOf (userId: number) {
   return new Set(baskets.map(({ id }) => id))
 }
 
-function guardInstances (resource: any, actions: string[], mayAccess: (caller: Caller, instance: any) => Promise<boolean> | boolean) {
+function guardInstances (resource: any, actions: string[], mayAccess: (caller: Caller, instance: any, req: Request) => Promise<boolean> | boolean) {
   for (const action of actions) {
     resource[action].fetch.after(async (req: Request, res: Response, context: FetchContext) => {
       const caller = callerFrom(req)
-      if (caller.isAdmin || (caller.id !== undefined && await mayAccess(caller, context.instance))) {
+      if (caller.isAdmin || (caller.id !== undefined && await mayAccess(caller, context.instance, req))) {
         return context.continue
       }
       return context.error(403, 'Forbidden')
@@ -64,7 +64,12 @@ export function enforceResourceOwnership (name: string, resource: any) {
         const basketIds = await basketIdsOf(caller.id as number)
         return (item) => basketIds.has(item.BasketId)
       })
-      guardInstances(resource, ['read', 'update', 'delete'], async (caller, item) => (await basketIdsOf(caller.id as number)).has(item.BasketId))
+      guardInstances(resource, ['read', 'delete'], async (caller, item) => (await basketIdsOf(caller.id as number)).has(item.BasketId))
+      guardInstances(resource, ['update'], async (caller, item, req) => {
+        const basketIds = await basketIdsOf(caller.id as number)
+        const basketId = item.BasketId ?? Number(req.body?.BasketId)
+        return basketIds.has(basketId)
+      })
       break
     case 'Complaint':
       filterList(resource, (caller) => (complaint) => complaint.UserId === caller.id)
