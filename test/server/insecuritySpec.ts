@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -166,6 +167,27 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.isRevoked(token)).to.equal(true)
         security.authenticatedUsers.put(token, user)
         expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      })
+
+      it('does not cache tokens without any expiry or issued-at claim', () => {
+        const timeless = `e30.${Buffer.from(JSON.stringify(user)).toString('base64url')}.sig`
+        security.authenticatedUsers.put(timeless, user)
+        expect(security.authenticatedUsers.tokenMap[timeless]).to.equal(undefined)
+      })
+
+      it('denies accounting access for revoked tokens', () => {
+        const token = security.authorize({ data: { id: 4713, role: security.roles.accounting } })
+        const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+        const next = sinon.spy()
+        const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+
+        security.isAccounting()(req, res as any, next)
+        expect(next.callCount).to.equal(1)
+
+        security.authenticatedUsers.revoke(token)
+        security.isAccounting()(req, res as any, next)
+        expect(next.callCount).to.equal(1)
+        expect(res.status.calledWith(403)).to.equal(true)
       })
 
       it('does not remember revocations of unsigned tokens', () => {
