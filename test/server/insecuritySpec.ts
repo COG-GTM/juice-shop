@@ -8,7 +8,9 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import jwt from 'jsonwebtoken'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +110,54 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const run = (authorization?: string) => {
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = { status: sinon.stub().returnsThis(), json: sinon.stub() }
+      const next = sinon.spy()
+      security.isAdmin()(req, res as unknown as Response, next)
+      return { res, next }
+    }
+
+    it('allows a validly signed admin token', () => {
+      const { res, next } = run(`Bearer ${security.authorize({ data: { role: 'admin' } })}`)
+      expect(next.calledOnce).to.equal(true)
+      expect(res.status.called).to.equal(false)
+    })
+
+    it('rejects a validly signed customer token with 403', () => {
+      const { res, next } = run(`Bearer ${security.authorize({ data: { role: 'customer' } })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects a missing token with 401', () => {
+      const { res, next } = run()
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects an expired admin token with 401', () => {
+      const { res, next } = run(`Bearer ${security.authorize({ data: { role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects an unsigned admin token with 401', () => {
+      const unsigned = jwt.sign({ data: { role: 'admin' } }, '', { algorithm: 'none' } as any)
+      const { res, next } = run(`Bearer ${unsigned}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects an HS256-signed admin token with 401', () => {
+      const forged = jwt.sign({ data: { role: 'admin' } }, 'some-secret', { algorithm: 'HS256' })
+      const { res, next } = run(`Bearer ${forged}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
     })
   })
 
