@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
@@ -45,6 +46,12 @@ describe('insecurity', () => {
       expect(coupon).to.equal(security.generateCoupon(20, new Date()))
     })
 
+    it('zero-pads single-digit discounts so the coupon stays redeemable', () => {
+      const coupon = security.generateCoupon(5, new Date('1980-01-02'))
+      expect(z85.decode(coupon).toString()).to.equal('JAN80-05')
+      expect(security.discountFromCoupon(security.generateCoupon(5))).to.equal(5)
+    })
+
     it('does not encode day of month or time into coupon code', () => {
       const coupon = security.generateCoupon(10, new Date('December 01, 1999'))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 01, 1999 01:00:00')))
@@ -70,6 +77,18 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon(z85.encode('DEC18-999'))).to.equal(undefined)
       expect(security.discountFromCoupon(z85.encode('DEC18-1'))).to.equal(undefined)
       expect(security.discountFromCoupon(z85.encode('DEC2018-10'))).to.equal(undefined)
+    })
+
+    it('returns undefined for current coupon codes with a discount longer than two digits', () => {
+      expect(security.discountFromCoupon(z85.encode(`${utils.toMMMYY(new Date())}-150000`))).to.equal(undefined)
+    })
+
+    it('returns undefined for current coupon codes with trailing data after the discount', () => {
+      expect(security.discountFromCoupon(z85.encode(`${utils.toMMMYY(new Date())}-10abcd`))).to.equal(undefined)
+    })
+
+    it('returns undefined for a zero discount', () => {
+      expect(security.discountFromCoupon(z85.encode(`${utils.toMMMYY(new Date())}-00`))).to.equal(undefined)
     })
 
     it('returns undefined for expired coupon code', () => {
