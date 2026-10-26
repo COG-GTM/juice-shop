@@ -13,6 +13,8 @@ interface codeFix {
   correct: number
 }
 
+const FixKeyPattern = /^[A-Za-z0-9]{1,100}$/
+
 let CodeFixes: Map<string, codeFix> | undefined
 
 const loadCodeFixes = () => {
@@ -33,7 +35,7 @@ const loadCodeFixes = () => {
 
 export const readFixes = (key: unknown): codeFix => {
   CodeFixes ??= loadCodeFixes()
-  const fixData = typeof key === 'string' ? CodeFixes.get(key) : undefined
+  const fixData = typeof key === 'string' && FixKeyPattern.test(key) ? CodeFixes.get(key) : undefined
   return fixData ?? { fixes: [], correct: -1 }
 }
 
