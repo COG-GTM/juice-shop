@@ -212,6 +212,11 @@ describe('insecurity', () => {
       expect(security.verify(token)).to.equal(true)
     })
 
+    it('rejects tokens signed with the formerly hardcoded RSA private key', () => {
+      const tokenSignedWithLeakedKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+      expect(security.verify(tokenSignedWithLeakedKey)).to.equal(false)
+    })
+
     it('rejects tokens signed with any other RSA private key', () => {
       const { privateKey } = crypto.generateKeyPairSync('rsa', {
         modulusLength: 2048,
