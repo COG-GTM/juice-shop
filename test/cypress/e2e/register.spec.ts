@@ -3,46 +3,18 @@ describe('/#/register', () => {
     cy.visit('/#/register')
   })
 
-  describe('challenge "persistedXssUser"', () => {
-    beforeEach(() => {
-      cy.login({
-        email: 'admin',
-        password: 'admin123'
-      })
-    })
-
-    it('should be possible to bypass validation by directly using Rest API', async () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Users/`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                  email: '<iframe src="javascript:alert(`xss`)">',
-                  password: 'XSSed',
-                  passwordRepeat: 'XSSed',
-                  role: 'admin'
-                })
-              }
-            )
-            if (response.status === 201) {
-              console.log('Success')
-            }
-          })
-
-          cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
+  describe('email validation on registration', () => {
+    it('should reject an HTML payload as email address via REST API', () => {
+      cy.request({
+        method: 'POST',
+        url: '/api/Users/',
+        failOnStatusCode: false,
+        body: {
+          email: '<iframe src="javascript:alert(`xss`)">',
+          password: 'XSSed',
+          passwordRepeat: 'XSSed'
         }
-      })
+      }).its('status').should('eq', 400)
     })
   })
 
