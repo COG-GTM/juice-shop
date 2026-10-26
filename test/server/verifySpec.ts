@@ -321,6 +321,43 @@ describe('verify', () => {
 
         expect(challenges.jwtForgedChallenge.solved).to.equal(false)
       })
+
+      it('"jwtForgedChallenge" is not solved when HS256 token has email rsa_lord@juice-sh.op but a signature not made with the public RSA-key', () => {
+        req.headers = { authorization: `Bearer ${forgeToken('HS256', { data: { email: 'rsa_lord@juice-sh.op' } }, 'bm90LXRoZS1yaWdodC1zaWduYXR1cmU')}` }
+
+        verify.jwtChallenges()(req, res, next)
+
+        expect(challenges.jwtForgedChallenge.solved).to.equal(false)
+      })
     }
+
+    it('"jwtUnsignedChallenge" is not solved when token has an invalid signature despite "none" algorithm', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' } }, 'c2lnbmF0dXJl')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token is expired', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, iat: 1508639612, exp: 1508639613 }, '')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
+    it('"jwtUnsignedChallenge" is not solved when forged unsigned token has a malformed expiry', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, exp: 'never' }, '')}` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
   })
 })
+
+function forgeToken (alg: string, payload: object, signature: string) {
+  const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+  return `${encode({ alg, typ: 'JWT' })}.${encode(payload)}.${signature}`
+}
