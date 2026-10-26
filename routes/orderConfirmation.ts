@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import jws from 'jws'
@@ -20,6 +21,14 @@ export function orderConfirmationPath (userId: number | undefined, orderId: stri
     throw new Error('Invalid order confirmation path')
   }
   return filePath
+}
+
+async function findOrderConfirmation (userId: number, orderId: string) {
+  const userDirectory = path.resolve(orderConfirmationsDirectory, String(userId))
+  const fileName = `order_${orderId}.pdf`
+  const files = await fs.promises.readdir(userDirectory).catch(() => [] as string[])
+  const match = files.find(file => file === fileName)
+  return match ? path.join(userDirectory, match) : undefined
 }
 
 function isValidToken (token: string) {
@@ -51,15 +60,21 @@ export function retrieveOrderConfirmation () {
       return
     }
 
-    res.set('Cache-Control', 'private, no-store')
-    res.sendFile(orderConfirmationPath(userId, orderId), (err: any) => {
-      if (!err) return
-      if (err.status === 404 || err.code === 'ENOENT') {
-        res.removeHeader('Cache-Control')
+    void findOrderConfirmation(userId, orderId).then((filePath) => {
+      if (!filePath) {
         notFound(res)
-      } else {
-        next(err)
+        return
       }
-    })
+      res.set('Cache-Control', 'private, no-store')
+      res.sendFile(filePath, (err: any) => {
+        if (!err) return
+        if (err.status === 404 || err.code === 'ENOENT') {
+          res.removeHeader('Cache-Control')
+          notFound(res)
+        } else {
+          next(err)
+        }
+      })
+    }).catch(next)
   }
 }
