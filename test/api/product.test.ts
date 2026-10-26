@@ -109,7 +109,7 @@ void describe('/api/Products/:id', () => {
     assert.equal(product.price, original.price)
   })
 
-  void it('PUT update existing product is forbidden for non-accounting users', async () => {
+  void it('PUT update existing product is forbidden for customers', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(authHeader)
@@ -137,6 +137,25 @@ void describe('/api/Products/:id', () => {
     await request(app)
       .put('/api/Products/1')
       .set(accountingHeader)
+      .send({ description: original.description })
+  })
+
+  void it('PUT update existing product is allowed for administrators', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+    const adminHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(adminHeader)
+      .send({ description: '<img src="x" onerror="alert(1)">Fresh' })
+    assert.equal(res.status, 200)
+    assert.ok(!res.body.data.description.includes('onerror'))
+    await request(app)
+      .put('/api/Products/1')
+      .set(adminHeader)
       .send({ description: original.description })
   })
 

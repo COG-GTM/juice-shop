@@ -203,4 +203,34 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('isAdminOrAccounting', () => {
+    const run = (authorization?: string) => {
+      let nextCalled = false
+      let status: number | undefined
+      const res: any = { status: (code: number) => { status = code; return res }, json: () => res }
+      security.isAdminOrAccounting()({ headers: authorization ? { authorization } : {} } as any, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+    const tokenFor = (role: string) => `Bearer ${security.authorize({ data: { role } })}`
+
+    it('allows administrators', () => {
+      expect(run(tokenFor(security.roles.admin))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('allows accountants', () => {
+      expect(run(tokenFor(security.roles.accounting))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('rejects customers, deluxe members and requests without a token', () => {
+      expect(run(tokenFor(security.roles.customer))).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run(tokenFor(security.roles.deluxe))).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run()).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('rejects unsigned admin tokens', () => {
+      const unsigned = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7InJvbGUiOiJhZG1pbiJ9fQ.'
+      expect(run(`Bearer ${unsigned}`)).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+  })
 })
