@@ -152,6 +152,14 @@ describe('DataExportComponent', () => {
         expect(component.captchaLoading).toBe(false)
     })
 
+    it('should clear a previously typed answer when refreshing the captcha', () => {
+        imageCaptchaService.getCaptcha.mockReturnValue(of({ image: '<svg>captcha</svg>' }))
+        component.captchaControl.setValue('abcde')
+        component.getNewCaptcha()
+        expect(component.captchaControl.value).toBe('')
+        expect(component.captchaControl.pristine).toBe(true)
+    })
+
     it('should send the captcha answer and request a fresh captcha after a failed export', () => {
         dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Wrong answer to CAPTCHA. Please try again.' }))
         imageCaptchaService.getCaptcha.mockClear()

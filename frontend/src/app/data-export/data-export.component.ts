@@ -47,6 +47,7 @@ export class DataExportComponent implements OnInit {
   }
 
   getNewCaptcha () {
+    this.resetFormError()
     this.captcha = undefined
     if (this.captchaLoading) {
       this.captchaRefreshQueued = true
