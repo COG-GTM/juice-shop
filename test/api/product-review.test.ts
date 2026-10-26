@@ -34,11 +34,21 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews does not evaluate injected JavaScript in product id', async () => {
+    const t0 = Date.now()
     const res = await request(app)
-      .get('/rest/products/sleep(1)/reviews')
+      .get('/rest/products/1;global.sleep(2000)/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
+    assert.ok(Date.now() - t0 < 2000)
+  })
+
+  void it('GET product reviews does not return all reviews for an always-true injection', async () => {
+    const res = await request(app)
+      .get('/rest/products/1%20%7C%7C%20true/reviews')
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
