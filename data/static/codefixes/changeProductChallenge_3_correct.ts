@@ -1,11 +1,13 @@
 /** Authorization **/
   /* Baskets: Unauthorized users are not allowed to access baskets */
   app.use('/rest/basket', security.isAuthorized(), security.appendUserId())
-  /* BasketItems: API only accessible for authenticated users */
+  /* BasketItems: API only accessible for authenticated users and restricted to their own basket */
   app.use('/api/BasketItems', security.isAuthorized())
-  app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.getBasketItems()))
+  app.use('/api/BasketItems/:id', security.isAuthorized(), utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedbacks.ensureFeedbackDeletionAllowed()))
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -24,9 +26,9 @@
   app.route('/api/Hints/:id')
     .get(security.denyAll())
     .delete(security.denyAll())
-  /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
-  app.post('/api/Complaints', security.isAuthorized())
+  /* Complaints: POST and GET allowed when logged in only, GET restricted to own complaints for non-admins */
+  app.get('/api/Complaints', security.isAuthorized(), utils.asyncHandler(complaints.getComplaints()))
+  app.post('/api/Complaints', security.isAuthorized(), complaints.setComplaintAuthor())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())

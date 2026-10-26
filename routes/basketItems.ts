@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { BasketModel } from '../models/basket'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -97,5 +98,38 @@ async function quantityCheck (req: Request, res: Response, next: NextFunction, i
     }
   } else {
     res.status(400).json({ error: res.__('You can order only up to {{quantity}} items of this product.', { quantity: product.limitPerUser.toString() }) })
+  }
+}
+
+async function basketIdsOfUser (userId: number) {
+  const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+  return baskets.map(basket => basket.id)
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const user = security.loggedInUserFrom(req)
+    if (!user?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const basketItems = await BasketItemModel.findAll({ where: { BasketId: await basketIdsOfUser(user.id) } })
+    res.status(200).json({ status: 'success', data: basketItems })
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = security.loggedInUserFrom(req)
+    if (!user?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const basketItem = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (basketItem == null || (basketItem.BasketId != null && !(await basketIdsOfUser(user.id)).includes(basketItem.BasketId))) {
+      res.status(404).json({ status: 'error', message: 'Not found' })
+      return
+    }
+    next()
   }
 }
