@@ -115,6 +115,23 @@ void describe('/dataerasure', () => {
     assert.ok(!res.text.includes('......'))
   })
 
+  void it('POST erasure request does not read absolute or device file paths passed as layout parameter', async () => {
+    for (const layout of ['../../../../../../etc/passwd', '/dev/zero']) {
+      const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+      const res = await request(app)
+        .post('/dataerasure/')
+        .set({ Cookie: 'token=' + token })
+        .type('form')
+        .send({ email: 'x', securityAnswer: 'x', layout })
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('Sorry to see you leave!'))
+      assert.ok(!res.text.includes('root:x:0:0'))
+      assert.ok(!res.text.endsWith('......'))
+    }
+  })
+
   void it('POST erasure request does not pass request body fields to the template', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
