@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import jws from 'jws'
@@ -28,6 +27,10 @@ function isValidToken (token: string) {
   }
 }
 
+function notFound (res: Response) {
+  res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+}
+
 export function retrieveOrderConfirmation () {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
@@ -38,15 +41,20 @@ export function retrieveOrderConfirmation () {
     }
 
     const orderId = req.params.orderId
-    const pdfPath = orderIdPattern.test(orderId) ? orderConfirmationPath(userId, orderId) : undefined
-    if (!pdfPath?.startsWith(path.resolve(orderConfirmationsDirectory) + path.sep) || !fs.existsSync(pdfPath)) {
-      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+    if (!orderIdPattern.test(orderId)) {
+      notFound(res)
       return
     }
 
     res.set('Cache-Control', 'private, no-store')
-    res.sendFile(pdfPath, (err) => {
-      if (err) next(err)
+    res.sendFile(`order_${orderId}.pdf`, { root: path.resolve(orderConfirmationsDirectory, String(userId)) }, (err: any) => {
+      if (!err) return
+      if (err.status === 404 || err.code === 'ENOENT') {
+        res.removeHeader('Cache-Control')
+        notFound(res)
+      } else {
+        next(err)
+      }
     })
   }
 }
