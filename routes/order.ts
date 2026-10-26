@@ -20,6 +20,11 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+const orderPdfDirectory = path.resolve('data/orders')
+const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
+const orderPdfPathFor = (userId: number, orderId: string) => path.join(orderPdfDirectory, String(userId), `order_${orderId}.pdf`)
+
 interface Product {
   quantity: number
   id?: number
@@ -37,12 +42,18 @@ export function placeOrder () {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
+          const userId = customer?.data?.id
+          if (userId === undefined || userId === null) {
+            res.status(401).json({ status: 'error', message: 'Unauthorized' })
+            return
+          }
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
+          const pdfPath = orderPdfPathFor(userId, orderId)
+          await fs.promises.mkdir(path.dirname(pdfPath), { recursive: true })
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -178,6 +189,30 @@ export function placeOrder () {
       }).catch((error: unknown) => {
         next(error)
       })
+  }
+}
+
+export function serveOrderPdf () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const orderId = req.params.orderId
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId === undefined || userId === null) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    if (typeof orderId !== 'string' || !orderIdPattern.test(orderId)) {
+      res.status(400).json({ status: 'error', message: 'Invalid order id' })
+      return
+    }
+    const pdfPath = orderPdfPathFor(userId, orderId)
+    fs.access(pdfPath, fs.constants.R_OK, (err) => {
+      if (err) {
+        res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+        return
+      }
+      res.type('application/pdf')
+      res.sendFile(pdfPath, (sendErr) => { if (sendErr) next(sendErr) })
+    })
   }
 }
 
