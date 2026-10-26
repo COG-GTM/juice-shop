@@ -51,4 +51,62 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username is rejected for cross-origin requests', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET user profile renders username as escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '<<a|ascript>alert(1)</script>' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(1)</script>'))
+  })
+
+  void it('stored profile image URL cannot add CSP directives', async () => {
+    await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ imageUrl: "; script-src 'unsafe-inline'" })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
+  })
+})
+
+void describe('/profile/image/url', () => {
+  void it('POST image URL is rejected for cross-origin requests', async () => {
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'https://evil.example')
+      .type('form')
+      .send({ imageUrl: 'https://evil.example/a.png' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
 })

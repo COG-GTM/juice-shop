@@ -13,6 +13,16 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 
+export function isLinkableImageUrl (url: unknown) {
+  if (typeof url !== 'string' || /[\s;,'"]/.test(url)) return false
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -32,9 +42,13 @@ export function profileImageUrlUpload () {
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
           try {
-            const user = await UserModel.findByPk(loggedInUser.data.id)
-            await user?.update({ profileImage: url })
-            logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
+            if (isLinkableImageUrl(url)) {
+              const user = await UserModel.findByPk(loggedInUser.data.id)
+              await user?.update({ profileImage: url })
+              logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
+            } else {
+              logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; image link is not an absolute http(s) URL and was discarded`)
+            }
           } catch (error) {
             next(error)
             return

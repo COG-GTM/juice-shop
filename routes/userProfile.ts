@@ -21,6 +21,21 @@ function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
 
+export function profileImageCspSource (profileImage?: string | null) {
+  if (!profileImage || !/^https?:\/\//i.test(profileImage)) {
+    return ''
+  }
+  try {
+    const url = new URL(profileImage)
+    if (!/^([a-z0-9.-]+|\[[0-9a-f:.]+\])(:\d{1,5})?$/i.test(url.host)) {
+      return ''
+    }
+    return url.origin
+  } catch {
+    return ''
+  }
+}
+
 export function getUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     let template: string
@@ -59,19 +74,12 @@ export function getUserProfile () {
           throw new Error('Username is null')
         }
         username = eval(code) // eslint-disable-line no-eval
-      } catch (err) {
-        username = '\\' + username
-      }
-    } else {
-      username = '\\' + username
+      } catch {}
     }
 
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
-    if (username) {
-      template = template.replace(/_username_/g, username)
-    }
     template = template.replace(/_emailHash_/g, security.hash(user?.email))
     template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
     template = template.replace(/_favicon_/g, favicon())
@@ -85,7 +93,8 @@ export function getUserProfile () {
     try {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
-      const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
+      const imgSrc = ["'self'", profileImageCspSource(user.profileImage)].filter(Boolean).join(' ')
+      const CSP = `img-src ${imgSrc}; script-src 'self' 'unsafe-eval'`
 
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
         return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
@@ -95,7 +104,7 @@ export function getUserProfile () {
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn(user))
+      res.send(fn({ email: user.email, username: user.username, profileImage: user.profileImage, displayUsername: username }))
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }

@@ -139,27 +139,6 @@ describe('insecurity', () => {
     })
   })
 
-  describe('sanitizeLegacy', () => {
-    it('returns empty string for undefined input', () => {
-      expect(security.sanitizeLegacy()).to.equal('')
-      expect(security.sanitizeLegacy(undefined)).to.equal('')
-    })
-
-    it('returns input unchanged for plain text input', () => {
-      expect(security.sanitizeLegacy('bkimminich')).to.equal('bkimminich')
-      expect(security.sanitizeLegacy('Kosh III.')).to.equal('Kosh III.')
-    })
-
-    it('removes all opening tags and subsequent character from HTML input', () => {
-      expect(security.sanitizeLegacy('<h1>Hello</h1>')).to.equal('ello</h1>')
-      expect(security.sanitizeLegacy('<img src="test">')).to.equal('rc="test">')
-    })
-
-    it('can be bypassed to allow working HTML payload to be returned', () => {
-      expect(security.sanitizeLegacy('<<a|ascript>alert(`xss`)</script>')).to.equal('<script>alert(`xss`)</script>')
-    })
-  })
-
   describe('sanitizeSecure', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeSecure('')).to.equal('')
@@ -201,6 +180,36 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isSameOriginRequest', () => {
+    const req = (headers: Record<string, string>) => ({ protocol: 'http', headers: { host: 'localhost:3000', ...headers } }) as unknown as Request
+
+    it('accepts requests without Origin or Referer', () => {
+      expect(security.isSameOriginRequest(req({}))).to.equal(true)
+    })
+
+    it('accepts same-origin Origin and Referer', () => {
+      expect(security.isSameOriginRequest(req({ origin: 'http://localhost:3000' }))).to.equal(true)
+      expect(security.isSameOriginRequest(req({ referer: 'http://localhost:3000/profile' }))).to.equal(true)
+    })
+
+    it('rejects cross-origin, opaque or malformed Origin and Referer', () => {
+      expect(security.isSameOriginRequest(req({ origin: 'http://htmledit.squarefree.com' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'null' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ referer: 'https://evil.example/localhost:3000' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'http://localhost:3000.evil.example' }))).to.equal(false)
+    })
+
+    it('rejects same host with a different scheme', () => {
+      expect(security.isSameOriginRequest(req({ origin: 'https://localhost:3000' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'http://localhost:3000', 'x-forwarded-proto': 'https' }))).to.equal(false)
+      expect(security.isSameOriginRequest(req({ origin: 'https://localhost:3000', 'x-forwarded-proto': 'https' }))).to.equal(true)
+    })
+
+    it('prefers Origin over Referer', () => {
+      expect(security.isSameOriginRequest(req({ origin: 'https://evil.example', referer: 'http://localhost:3000/profile' }))).to.equal(false)
     })
   })
 })
