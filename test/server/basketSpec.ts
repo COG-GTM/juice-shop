@@ -35,8 +35,8 @@ describe('basket', () => {
     await retrieveBasket()(req, res, next)
 
     expect(findOne.firstCall.args[0].where).to.deep.equal({ id: '2', UserId: 2 })
-    expect(res.status).not.to.have.been.called
-    expect(res.json).to.have.been.calledOnce
+    expect(res.status.called).to.equal(false)
+    expect(res.json.calledOnce).to.equal(true)
   })
 
   it('returns 404 when the basket belongs to another user', async () => {
@@ -48,6 +48,6 @@ describe('basket', () => {
     expect(findOne.firstCall.args[0].where).to.deep.equal({ id: '1', UserId: 2 })
     expect(res.status).to.have.been.calledWith(404)
     expect(res.json).to.have.been.calledWith({ status: 'error', error: 'Basket not found' })
-    expect(next).not.to.have.been.called
+    expect(next.called).to.equal(false)
   })
 })
