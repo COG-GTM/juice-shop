@@ -12,6 +12,7 @@ import { challenges } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as utils from '../lib/utils'
 
 const googleTokenInfoUrl = 'https://oauth2.googleapis.com/tokeninfo'
@@ -64,6 +65,7 @@ export function oauthLogin () {
       let user = await UserModel.findOne({ where: { email } })
       if (user === null) {
         user = await UserModel.create({ email, password: crypto.randomBytes(32).toString('hex') })
+        await WalletModel.create({ UserId: user.id })
       }
 
       if (user.totpSecret) {

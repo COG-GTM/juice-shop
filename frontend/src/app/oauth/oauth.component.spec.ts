@@ -45,7 +45,8 @@ describe('OAuthComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule.withRoutes([
-                    { path: 'login', component: LoginComponent }
+                    { path: 'login', component: LoginComponent },
+                    { path: '2fa/enter', component: LoginComponent }
                 ]),
                 ReactiveFormsModule,
                 CookieModule.forRoot(),
@@ -89,6 +90,12 @@ describe('OAuthComponent', () => {
         expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
         expect(userService.save).not.toHaveBeenCalled()
         expect(userService.login).not.toHaveBeenCalled()
+    })
+
+    it('forwards to 2FA entry with temporary token when second factor is required', () => {
+        userService.oauthLogin.mockReturnValue(throwError({ error: { status: 'totp_token_required', data: { tmpToken: 'tmp' } } }))
+        component.ngOnInit()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('tmp')
     })
 
     it('stores authentication token and basket id on successful OAuth login', () => {
