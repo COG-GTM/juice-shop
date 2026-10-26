@@ -76,13 +76,17 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
-function declaresExternalEntity (data: string, target: RegExp) {
-  const entities = data.match(/<!ENTITY[^>]*\bSYSTEM\s*["'][^"']*["']/gi) ?? []
-  return entities.some(entity => target.test(entity))
+function referencesExternalEntity (data: string, target: RegExp) {
+  for (const [, name, uri] of data.matchAll(/<!ENTITY\s+([\w.-]+)\s+SYSTEM\s*["']([^"']*)["']/gi)) {
+    if (target.test(uri) && data.includes('&' + name + ';')) return true
+  }
+  return false
 }
 
 function isXxeDosAttempt (data: string) {
-  return declaresExternalEntity(data, /\/dev\/(u?random|zero)/i) || (data.match(/&[\w.-]+;/g) ?? []).length > 500
+  if (referencesExternalEntity(data, /\/dev\/(u?random|zero)/i)) return true
+  const declared = new Set(Array.from(data.matchAll(/<!ENTITY\s+([\w.-]+)\s+["']/gi), ([, name]) => name))
+  return (data.match(/&[\w.-]+;/g) ?? []).filter(ref => declared.has(ref.slice(1, -1))).length > 500
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -91,7 +95,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       if (containsDtd(data)) {
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return declaresExternalEntity(data, /\/etc\/passwd|system\.ini/i) })
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return referencesExternalEntity(data, /\/etc\/passwd|system\.ini/i) })
         if (isXxeDosAttempt(data)) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
