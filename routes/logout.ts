@@ -10,6 +10,8 @@ import * as utils from '../lib/utils'
 export function logout () {
   return (req: Request, res: Response) => {
     security.authenticatedUsers.revoke(utils.jwtFrom(req))
+    security.authenticatedUsers.revoke(req.cookies?.token)
+    res.clearCookie('token')
     res.status(204).send()
   }
 }
