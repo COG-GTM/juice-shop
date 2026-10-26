@@ -9,10 +9,17 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
+const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
+const uploadedFiles = () => fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir) : []
+const jimsToken = async () => (await login(app, {
+  email: 'jim@' + config.get<string>('application.domain'),
+  password: 'ncc-1701'
+})).token
 
 before(async () => {
   const result = await createTestApp()
@@ -44,6 +51,51 @@ void describe('/rest/memories', () => {
       .attach('image', file, 'Valid Image')
       .field('caption', 'Valid Image')
     assert.equal(res.status, 401)
+  })
+
+  void it('POST new memory without authentication does not write the upload to disk', async () => {
+    const filesBefore = uploadedFiles()
+    const res = await request(app)
+      .post('/rest/memories')
+      .attach('image', Buffer.alloc(100000), { filename: 'anonymous.png', contentType: 'image/png' })
+      .field('caption', 'Anonymous Image')
+    assert.equal(res.status, 401)
+    assert.deepEqual(uploadedFiles(), filesBefore)
+  })
+
+  void it('POST new memory with an invalid token does not write the upload to disk', async () => {
+    const filesBefore = uploadedFiles()
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer invalid.token.value')
+      .attach('image', Buffer.alloc(100000), { filename: 'forged.png', contentType: 'image/png' })
+    assert.equal(res.status, 401)
+    assert.deepEqual(uploadedFiles(), filesBefore)
+  })
+
+  void it('POST new memory image exceeding the size limit is rejected and not kept on disk', async () => {
+    const token = await jimsToken()
+    const filesBefore = uploadedFiles()
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', Buffer.alloc(1000001), { filename: 'oversized.png', contentType: 'image/png' })
+      .field('caption', 'Oversized Image')
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('File too large'))
+    assert.deepEqual(uploadedFiles(), filesBefore)
+  })
+
+  void it('POST new memory with non-image content declared as image/png is rejected and not kept on disk', async () => {
+    const token = await jimsToken()
+    const filesBefore = uploadedFiles()
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', Buffer.from('<html><script>alert(1)</script></html>'), { filename: 'disguised.png', contentType: 'image/png' })
+      .field('caption', 'Disguised Image')
+    assert.equal(res.status, 400)
+    assert.deepEqual(uploadedFiles(), filesBefore)
   })
 
   void it('POST new memory image file invalid type', async () => {
@@ -103,8 +155,10 @@ void describe('/rest/memories', () => {
   })
 
   void it('Should not crash the node-js server when sending invalid content like described in CVE-2022-24434', async () => {
+    const token = await jimsToken()
     const res = await request(app)
       .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
       .set('Content-Type', 'multipart/form-data; boundary=----WebKitFormBoundaryoo6vortfDzBsDiro')
       .send('------WebKitFormBoundaryoo6vortfDzBsDiro\r\n Content-Disposition: form-data; name="bildbeschreibung"\r\n\r\n\r\n------WebKitFormBoundaryoo6vortfDzBsDiro--')
     assert.equal(res.status, 500)
