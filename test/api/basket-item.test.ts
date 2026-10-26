@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { BasketItemModel } from '../../models/basketitem'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -279,5 +280,36 @@ void describe('/api/BasketItems/:id', () => {
       .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/api/BasketItems for a session cached without basket ID', () => {
+  void it('POST and PUT basket item resolve the basket from the database', async () => {
+    const cached = security.authenticatedUsers.get(authHeader.Authorization.split(' ')[1])
+    assert.ok(cached)
+    const userWithoutBid = { status: 'success', data: cached.data }
+    const token = security.authorize(userWithoutBid)
+    security.authenticatedUsers.put(token, userWithoutBid)
+    const header = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(header)
+      .send({ BasketId: 2, ProductId: 18, quantity: 1 })
+    assert.equal(createRes.status, 200)
+    assert.equal(createRes.body.data.BasketId, 2)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(header)
+      .send({ quantity: 2 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.quantity, 2)
+
+    const foreign = await request(app)
+      .put('/api/BasketItems/1')
+      .set(header)
+      .send({ quantity: 1 })
+    assert.equal(foreign.status, 403)
   })
 })
