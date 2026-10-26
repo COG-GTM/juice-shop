@@ -125,8 +125,8 @@ export function ensureBasketItemOwnership () {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
       return
     }
-    const basketItem = await BasketItemModel.findOne({ where: { id: req.params.id, BasketId: await basketIdsOfUser(user.id) } })
-    if (basketItem == null) {
+    const basketItem = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (basketItem == null || (basketItem.BasketId != null && !(await basketIdsOfUser(user.id)).includes(basketItem.BasketId))) {
       res.status(404).json({ status: 'error', message: 'Not found' })
       return
     }

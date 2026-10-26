@@ -382,7 +382,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only, GET restricted to own complaints for non-admins */
   app.get('/api/Complaints', security.isAuthorized(), utils.asyncHandler(complaints.getComplaints()))
-  app.post('/api/Complaints', security.isAuthorized())
+  app.post('/api/Complaints', security.isAuthorized(), security.appendUserId())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
