@@ -56,6 +56,24 @@ void describe('/profile/image/file', () => {
     assert.ok(res.text.includes('Error: Profile image upload does not accept this file type'))
   })
 
+  void it('POST profile image file is rejected for cross-site requests', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .set('Sec-Fetch-Site', 'cross-site')
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST profile image file forbidden for anonymous user', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
 
@@ -98,6 +116,46 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL does not inject a non-URL value into the profile CSP', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .type('form')
+      .send({ imageUrl: "x; script-src 'self' 'unsafe-inline'" })
+      .redirects(0)
+    assert.equal(res.status, 302)
+
+    const profile = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${token}`)
+    assert.equal(profile.status, 200)
+    const csp = profile.headers['content-security-policy']
+    assert.ok(!csp.includes('unsafe-inline'))
+    assert.equal(csp.match(/script-src/g)?.length, 1)
+  })
+
+  void it('POST profile image URL is rejected for cross-site requests', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .set('Origin', 'https://attacker.example')
+      .type('form')
+      .send({ imageUrl: "x; script-src 'self' 'unsafe-inline'" })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
