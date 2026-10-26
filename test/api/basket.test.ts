@@ -14,6 +14,7 @@ import * as utils from '../../lib/utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 import { QuantityModel } from '../../models/quantity'
+import { BasketItemModel } from '../../models/basketitem'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -142,28 +143,28 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is rejected', async () => {
+  void it('POST adding a negative quantity to reach a negative order total is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
+
+  void it('POST placing an order for a basket with a negative total cost is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 10, quantity: -100 }, { validate: false })
 
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Order total must not be negative.'))
+    assert.ok(res.text.includes('Basket item quantities must be positive.'))
 
-    const deleteRes = await request(app).delete(`/api/BasketItems/${itemRes.body.data.id}`).set(authHeader)
-    assert.equal(deleteRes.status, 200)
+    await item.destroy()
   })
 
   void it('POST placing an order with a negative quantity line offset by positive items is rejected and does not change stock', async () => {
     const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
-    const itemRes = await request(app)
-      .post('/api/BasketItems')
-      .set(authHeader)
-      .send({ BasketId: 2, ProductId: 1, quantity: -1 })
-    assert.equal(itemRes.status, 200)
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 1, quantity: -1 }, { validate: false })
 
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 500)
@@ -172,8 +173,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
     assert.equal(stockAfter?.quantity, stockBefore?.quantity)
 
-    const deleteRes = await request(app).delete(`/api/BasketItems/${itemRes.body.data.id}`).set(authHeader)
-    assert.equal(deleteRes.status, 200)
+    await item.destroy()
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
