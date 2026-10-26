@@ -31,6 +31,7 @@ void describe('/rest/track-order/:id', () => {
     assert.ok(Array.isArray(res.body.data))
     for (const item of res.body.data) {
       assert.equal(typeof item.orderId, 'string')
+      assert.equal(item.UserId, undefined)
       assert.equal(typeof item.email, 'string')
       assert.equal(typeof item.totalPrice, 'number')
       assert.ok(Array.isArray(item.products))
