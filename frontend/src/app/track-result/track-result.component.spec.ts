@@ -11,27 +11,22 @@ import { MatTableModule } from '@angular/material/table'
 import { MatCardModule } from '@angular/material/card'
 import { RouterTestingModule } from '@angular/router/testing'
 import { TrackOrderService } from '../Services/track-order.service'
-import { DomSanitizer } from '@angular/platform-browser'
-import { of } from 'rxjs'
+import { ActivatedRoute } from '@angular/router'
+import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('TrackResultComponent', () => {
     let component: TrackResultComponent
     let fixture: ComponentFixture<TrackResultComponent>
     let trackOrderService: any
-    let sanitizer: any
+    let activatedRoute: any
 
     beforeEach(async () => {
         trackOrderService = {
             find: vi.fn().mockName("TrackOrderService.find")
         }
         trackOrderService.find.mockReturnValue(of({ data: [{}] }))
-        sanitizer = {
-            bypassSecurityTrustHtml: vi.fn().mockName("DomSanitizer.bypassSecurityTrustHtml"),
-            sanitize: vi.fn().mockName("DomSanitizer.sanitize")
-        }
-        sanitizer.bypassSecurityTrustHtml.mockImplementation((args: any) => args)
-        sanitizer.sanitize.mockReturnValue({})
+        activatedRoute = { snapshot: { queryParams: {}, data: {} } }
 
         TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -41,7 +36,7 @@ describe('TrackResultComponent', () => {
                 TrackResultComponent],
             providers: [
                 { provide: TrackOrderService, useValue: trackOrderService },
-                { provide: DomSanitizer, useValue: sanitizer },
+                { provide: ActivatedRoute, useValue: activatedRoute },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -59,12 +54,28 @@ describe('TrackResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should consider order number as trusted HTML', () => {
-        component.orderId = '<a src="link">Link</a>'
-        trackOrderService.find.mockReturnValue(of({ data: [{ orderId: component.orderId }] }))
-        component.ngOnInit()
+    it('should render order number as text instead of HTML', () => {
+        const payload = '<img src=x onerror=alert(1)>'
+        trackOrderService.find.mockReturnValue(of({ data: [{ orderId: payload }] }))
+        fixture = TestBed.createComponent(TrackResultComponent)
+        fixture.detectChanges()
 
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<code><a src="link">Link</a></code>')
+        const orderNo: HTMLElement = fixture.nativeElement.querySelector('h1 code')
+        expect(orderNo.textContent).toBe(payload)
+        expect(fixture.nativeElement.querySelector('h1 img')).toBeNull()
+    })
+
+    it('should render the requested id as text when the order is not found', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        activatedRoute.snapshot.queryParams = { id: payload }
+        trackOrderService.find.mockReturnValue(throwError(() => ({ status: 404 })))
+        fixture = TestBed.createComponent(TrackResultComponent)
+        fixture.detectChanges()
+
+        const orderNo: HTMLElement = fixture.nativeElement.querySelector('h1 code')
+        expect(orderNo.textContent).toBe(payload)
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+        expect(fixture.componentInstance.status).toBe(Status.New)
     })
 
     it('should set "delivered" status for delivered orders', () => {
