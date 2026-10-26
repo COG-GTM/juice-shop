@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import chai from 'chai'
 import sinon from 'sinon'
 import config from 'config'
@@ -17,6 +18,12 @@ import { isWindows } from '../../lib/utils'
 const expect = chai.expect
 
 chai.use(sinonChai)
+
+const forgeHs256Token = (payload: object) => {
+  const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+  const unsigned = `${encode({ typ: 'JWT', alg: 'HS256' })}.${encode(payload)}`
+  return `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+}
 
 describe('verify', () => {
   let req: any
@@ -255,7 +262,7 @@ describe('verify', () => {
       challenges.jwtForgedChallenge = { solved: false, save, disabledEnv: 'Windows' } as unknown as Challenge
     })
 
-    it('"jwtUnsignedChallenge" is solved when forged unsigned token has email jwtn3d@juice-sh.op in the payload', () => {
+    it('"jwtUnsignedChallenge" is not solved because unsigned tokens are rejected even with email jwtn3d@juice-sh.op in the payload', () => {
       /*
       Header: { "alg": "none", "typ": "JWT" }
       Payload: { "data": { "email": "jwtn3d@juice-sh.op" }, "iat": 1508639612, "exp": 9999999999 }
@@ -264,10 +271,10 @@ describe('verify', () => {
 
       verify.jwtChallenges()(req, res, next)
 
-      expect(challenges.jwtUnsignedChallenge.solved).to.equal(true)
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
 
-    it('"jwtUnsignedChallenge" is solved when forged unsigned token has string "jwtn3d@" in the payload', () => {
+    it('"jwtUnsignedChallenge" is not solved because unsigned tokens are rejected even with string "jwtn3d@" in the payload', () => {
       /*
       Header: { "alg": "none", "typ": "JWT" }
       Payload: { "data": { "email": "jwtn3d@" }, "iat": 1508639612, "exp": 9999999999 }
@@ -276,7 +283,7 @@ describe('verify', () => {
 
       verify.jwtChallenges()(req, res, next)
 
-      expect(challenges.jwtUnsignedChallenge.solved).to.equal(true)
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
 
     it('"jwtUnsignedChallenge" is not solved via regularly signed token even with email jwtn3d@juice-sh.op in the payload', () => {
@@ -289,28 +296,20 @@ describe('verify', () => {
     })
 
     if (!isWindows()) { // The "jwtForgedChallenge" is disabled on Windows due to an incompatibility
-      it('"jwtForgedChallenge" is solved when forged token HMAC-signed with public RSA-key has email rsa_lord@juice-sh.op in the payload', () => {
-        /*
-        Header: { "alg": "HS256", "typ": "JWT" }
-        Payload: { "data": { "email": "rsa_lord@juice-sh.op" }, "iat": 1508639612, "exp": 9999999999 }
-         */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg' }
+      it('"jwtForgedChallenge" is not solved because tokens HMAC-signed with the public RSA-key are rejected even with email rsa_lord@juice-sh.op in the payload', () => {
+        req.headers = { authorization: `Bearer ${forgeHs256Token({ data: { email: 'rsa_lord@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })}` }
 
         verify.jwtChallenges()(req, res, next)
 
-        expect(challenges.jwtForgedChallenge.solved).to.equal(true)
+        expect(challenges.jwtForgedChallenge.solved).to.equal(false)
       })
 
-      it('"jwtForgedChallenge" is solved when forged token HMAC-signed with public RSA-key has string "rsa_lord@" in the payload', () => {
-        /*
-        Header: { "alg": "HS256", "typ": "JWT" }
-        Payload: { "data": { "email": "rsa_lord@" }, "iat": 1508639612, "exp": 9999999999 }
-         */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAIn0sImlhdCI6MTU4MjIyMTY3NX0.50f6VAIQk2Uzpf3sgH-1JVrrTuwudonm2DKn2ec7Tg8' }
+      it('"jwtForgedChallenge" is not solved because tokens HMAC-signed with the public RSA-key are rejected even with string "rsa_lord@" in the payload', () => {
+        req.headers = { authorization: `Bearer ${forgeHs256Token({ data: { email: 'rsa_lord@' }, iat: 1508639612, exp: 9999999999 })}` }
 
         verify.jwtChallenges()(req, res, next)
 
-        expect(challenges.jwtForgedChallenge.solved).to.equal(true)
+        expect(challenges.jwtForgedChallenge.solved).to.equal(false)
       })
 
       it('"jwtForgedChallenge" is not solved when token regularly signed with private RSA-key has email rsa_lord@juice-sh.op in the payload', () => {

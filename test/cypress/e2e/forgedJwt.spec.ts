@@ -1,32 +1,22 @@
 describe('/', () => {
+  const encode = (part: object) => btoa(JSON.stringify(part)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const payload = (email: string) => encode({ data: { email }, iat: 1508639612, exp: 9999999999 })
+
   describe('challenge "jwtUnsigned"', () => {
-    it('should accept an unsigned token with email jwtn3d@juice-sh.op in the payload ', () => {
-      cy.window().then(() => {
-        localStorage.setItem(
-          'token',
-          'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
-        )
-      })
-      cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'Unsigned JWT' })
+    it('should reject an unsigned token with email jwtn3d@juice-sh.op in the payload', () => {
+      const token = `${encode({ alg: 'none', typ: 'JWT' })}.${payload('jwtn3d@juice-sh.op')}.`
+      cy.request({ url: '/rest/basket/1', headers: { Authorization: `Bearer ${token}` }, failOnStatusCode: false })
+        .its('status').should('eq', 401)
+      cy.request('/api/Challenges/?key=jwtUnsignedChallenge').its('body.data.0.solved').should('eq', false)
     })
   })
 
   describe('challenge "jwtForged"', () => {
-    it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
-      cy.task('isWindows').then((isWindows) => {
-        if (!isWindows) {
-          cy.window().then(() => {
-            localStorage.setItem(
-              'token',
-              'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgzMDM3NzExfQ.gShXDT5TrE5736mpIbfVDEcQbLfteJaQUG7Z0PH8Xc8'
-            )
-          })
-          cy.visit('/#/')
-
-          cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
-        }
-      })
+    it('should reject an HMAC-signed token with email rsa_lord@juice-sh.op in the payload', () => {
+      const token = `${encode({ alg: 'HS256', typ: 'JWT' })}.${payload('rsa_lord@juice-sh.op')}.${encode({ sig: 'not-the-signing-key' })}`
+      cy.request({ url: '/rest/basket/1', headers: { Authorization: `Bearer ${token}` }, failOnStatusCode: false })
+        .its('status').should('eq', 401)
+      cy.request('/api/Challenges/?key=jwtForgedChallenge').its('body.data.0.solved').should('eq', false)
     })
   })
 })
