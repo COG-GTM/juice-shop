@@ -3,13 +3,24 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
 import { AddressModel } from '../models/address'
 
 export function getAddress () {
   return async (req: Request, res: Response) => {
     const addresses = await AddressModel.findAll({ where: { UserId: req.body.UserId } })
     res.status(200).json({ status: 'success', data: addresses })
+  }
+}
+
+export function checkAddressOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const address = await AddressModel.findOne({ where: { id: req.params.id, UserId: req.body.UserId } })
+    if (address != null) {
+      next()
+    } else {
+      res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
+    }
   }
 }
 

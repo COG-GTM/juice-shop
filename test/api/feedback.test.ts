@@ -15,6 +15,7 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: 'admin' } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -278,7 +279,7 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
+  void it('DELETE existing feedback is only allowed for admins', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -299,6 +300,11 @@ void describe('/api/Feedbacks/:id', () => {
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 403)
+
+    const adminRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(adminAuthHeader)
+    assert.equal(adminRes.status, 200)
   })
 })
