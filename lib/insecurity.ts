@@ -167,7 +167,8 @@ export const isAccounting = () => {
 const verifiedTokenData = (req: Request) => {
   const token = utils.jwtFrom(req)
   const decodedToken = verify(token) && decode(token)
-  return decodedToken?.data
+  if (!decodedToken || (decodedToken.exp && decodedToken.exp * 1000 < Date.now())) return undefined
+  return decodedToken.data
 }
 
 export const isAdmin = () => {
