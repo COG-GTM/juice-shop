@@ -148,6 +148,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore - bonusPoints)
+
+    const responses = await Promise.all(Array.from({ length: 10 }, async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.ok(responses.some(res => res.status === 200))
+    assert.ok(responses.some(res => res.status === 500 && res.text.includes('Error: Insufficient wallet balance.')))
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))

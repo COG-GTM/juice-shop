@@ -34,9 +34,10 @@ const WalletModelInit = (sequelize: Sequelize) => {
         autoIncrement: true
       },
       balance: {
-        type: DataTypes.INTEGER,
+        type: 'INTEGER CHECK (balance >= 0)',
         validate: {
-          isInt: true
+          isInt: true,
+          min: 0
         },
         defaultValue: 0
       }
