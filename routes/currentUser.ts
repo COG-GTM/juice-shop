@@ -33,11 +33,9 @@ export function retrieveLoggedInUser () {
             const userRow = await UserModel.findByPk(userData.id)
             userData = { ...userRow?.get({ plain: true }), ...userData }
           }
-          for (const field of requestedFields) {
-            if (userData?.[field] !== undefined) {
-              baseUser[field] = userData[field]
-            }
-          }
+          baseUser = Object.fromEntries(requestedFields
+            .filter(field => !(field in Object.prototype) && userData?.[field] !== undefined)
+            .map(field => [field, userData[field]]))
         } else {
           // If no fields parameter, return standard fields (not password field)
           baseUser = {
