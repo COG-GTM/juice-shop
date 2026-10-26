@@ -461,6 +461,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
   app.put('/api/Addresss/:id', utils.asyncHandler(address.ensureAddressOwnership()))
   app.get('/api/Complaints', security.appendUserId(), utils.asyncHandler(getOwnComplaints()))
+  app.post('/api/Complaints', security.appendUserId())
   app.post('/api/Feedbacks', feedback.bindFeedbackToCurrentUser())
   app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.ensureFeedbackDeletionAllowed()))
   app.put('/api/Hints/:id', restrictHintUpdateToUnlocking())

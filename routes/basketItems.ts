@@ -6,6 +6,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
+import { BasketModel } from '../models/basket'
 import * as challengeUtils from '../lib/challengeUtils'
 
 import * as utils from '../lib/utils'
@@ -55,15 +56,23 @@ export function addBasketItem () {
   }
 }
 
+async function basketIdOf (req: Request) {
+  const user = security.authenticatedUsers.from(req)
+  if (user?.bid) return user.bid
+  if (!user?.data?.id) return undefined
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
+}
+
 export function getOwnBasketItems () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const user = security.authenticatedUsers.from(req)
-    if (!user?.bid) {
-      res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
-      return
-    }
     try {
-      const items = await BasketItemModel.findAll({ where: { BasketId: user.bid } })
+      const bid = await basketIdOf(req)
+      if (!bid) {
+        res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
+        return
+      }
+      const items = await BasketItemModel.findAll({ where: { BasketId: bid } })
       res.json({ status: 'success', data: items })
     } catch (error) {
       next(error)
@@ -74,9 +83,9 @@ export function getOwnBasketItems () {
 export function ensureBasketItemOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = security.authenticatedUsers.from(req)
+      const bid = await basketIdOf(req)
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      if (!user?.bid || item == null || Number(item.BasketId) !== Number(user.bid)) {
+      if (!bid || item == null || Number(item.BasketId) !== Number(bid)) {
         res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
         return
       }

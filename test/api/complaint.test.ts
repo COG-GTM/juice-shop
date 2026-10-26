@@ -61,6 +61,22 @@ void describe('/api/Complaints', () => {
     assert.ok(res.body.data.length > 0)
     assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === userId))
   })
+
+  void it('POST complaint ignores UserId of another user', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const userHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const userId = security.decode(token).data.id
+
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(userHeader)
+      .send({ message: 'Forged complaint', UserId: userId + 1 })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, userId)
+  })
 })
 
 void describe('/api/Complaints/:id', () => {
