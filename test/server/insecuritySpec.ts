@@ -5,11 +5,15 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -108,6 +112,41 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    const unsignedToken = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
+    const hmacSignedWithPublicKey = () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      return `${header}.${payload}.${signature}`
+    }
+
+    it('accepts a token signed by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg: none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects an HS256 token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacSignedWithPublicKey())).to.equal(false)
+    })
+
+    it('rejects missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('rejects requests even with a validly signed token', () => {
+      const next = sinon.spy()
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { email: 'test@juice-sh.op' } })}` } }
+      security.denyAll()(req as any, {} as any, next)
+      expect(next).to.have.been.calledWithMatch(sinon.match.has('status', 401))
     })
   })
 
