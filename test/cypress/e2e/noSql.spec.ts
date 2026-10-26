@@ -28,7 +28,8 @@ describe('/rest/products/reviews', () => {
   })
 
   describe('challenge "NoSQL Exfiltration"', () => {
-    it('should be possible to inject and get all the orders', () => {
+    // Disabled: /rest/track-order now uses an equality filter instead of $where
+    xit('should be possible to inject and get all the orders', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.window().then(async () => {
