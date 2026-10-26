@@ -782,6 +782,8 @@ export async function createApp (options?: { inMemoryDb?: boolean }) {
   return { app: testApp, sequelize: seq }
 }
 
+export { app }
+
 // stop server on sigint or sigterm signals
 process.on('SIGINT', () => { close(0) })
 process.on('SIGTERM', () => { close(0) })
