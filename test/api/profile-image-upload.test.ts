@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -55,6 +56,58 @@ void describe('/profile/image/file', () => {
     assert.ok(res.text.includes(`${config.get<string>('application.name')} (Express`))
     assert.ok(res.text.includes('Error: Profile image upload does not accept this file type'))
   })
+
+  void it('POST profile image file from same origin is accepted', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  for (const [name, headers] of [
+    ['cross-site Sec-Fetch-Site', { 'Sec-Fetch-Site': 'cross-site', Origin: 'https://attacker.example' }],
+    ['foreign Origin', { Origin: 'https://attacker.example' }],
+    ['foreign Referer', { Referer: 'https://attacker.example/csrf.html' }],
+    ['opaque Origin', { Origin: 'null' }]
+  ] as Array<[string, Record<string, string>]>) {
+    void it(`POST profile image file with ${name} is rejected without changing the profile image`, async () => {
+      const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+      const { token } = await login(app, {
+        email: `bender@${config.get<string>('application.domain')}`,
+        password: 'OhG0dPlease1nsertLiquor!'
+      })
+      const user = await UserModel.findOne({ where: { email: `bender@${config.get<string>('application.domain')}` } })
+      assert.ok(user)
+      const profileImageBefore = user.profileImage
+
+      const res = await request(app)
+        .post('/profile/image/file')
+        .set('Cookie', `token=${token}`)
+        .set('Host', 'localhost:3000')
+        .set(headers)
+        .attach('file', file)
+        .redirects(0)
+
+      assert.equal(res.status, 403)
+      assert.ok(res.text.includes('Error: Cross-site profile image upload rejected'))
+      await user.reload()
+      assert.equal(user.profileImage, profileImageBefore)
+    })
+  }
 
   void it('POST profile image file forbidden for anonymous user', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
