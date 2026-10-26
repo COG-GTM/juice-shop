@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { mock } from 'node:test'
 import request from 'supertest'
+import config from 'config'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../../lib/insecurity'
@@ -37,6 +39,24 @@ export async function login (app: Express, { email, password, totpSecret }: { em
   }
 
   return loginRes.body.authentication
+}
+
+export async function googleLogin (app: Express, email: string) {
+  const tokenInfo = { aud: config.get<string>('application.googleOauth.clientId'), email, email_verified: 'true', expires_in: '3599' }
+  const fetchMock = mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(tokenInfo), { status: 200 }))
+  try {
+    const res = await request(app)
+      .post('/rest/user/oauth-login')
+      .set(jsonHeader)
+      .send({ accessToken: 'test-access-token' })
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to login '${email}' via Google: ${res.status}`)
+    }
+    return res.body.authentication
+  } finally {
+    fetchMock.mock.restore()
+  }
 }
 
 export async function register (app: Express, { email, password, totpSecret }: { email: string, password: string, totpSecret?: string }) {

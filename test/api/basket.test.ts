@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, googleLogin } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -105,10 +105,7 @@ void describe('/api/Baskets/:id', () => {
 
 void describe('/rest/basket/:id', () => {
   void it('GET existing basket of another user', async () => {
-    const { token } = await login(app, {
-      email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-    })
+    const { token } = await googleLogin(app, 'bjoern.kimminich@gmail.com')
     const res = await request(app)
       .get('/rest/basket/2')
       .set({ Authorization: 'Bearer ' + token })
