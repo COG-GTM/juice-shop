@@ -41,7 +41,8 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "basketAccessChallenge"', () => {
-      it('should access basket with id from session storage instead of the one associated to logged-in user', () => {
+      // Basket access is now restricted to the basket owner, so this challenge can no longer be solved
+      it.skip('should access basket with id from session storage instead of the one associated to logged-in user', () => {
         cy.window().then(() => {
           window.sessionStorage.bid = 3
         })
