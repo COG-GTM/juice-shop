@@ -10,6 +10,9 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import * as z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -17,6 +20,7 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const unsignedCoupon = z85.encode(utils.toMMMYY(new Date()) + '-99')
 
 before(
   async () => {
@@ -179,6 +183,20 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
+  void it('PUT apply unsigned z85-encoded coupon for the current month is not accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply valid coupon with characters reserved in URLs is accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(security.generateCoupon(15, new Date())))
+      .set(authHeader)
+    assert.equal(res.status, 200)
+  })
+
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
@@ -191,5 +209,38 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 500)
+  })
+})
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number) {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ couponData: expiredCampaignCouponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(authHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its original campaign date grants no discount', async () => {
+    const order = await checkoutWithCampaignCoupon(1)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored while the server clock is within the campaign day', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2)
+    assert.notEqual(order.promotionalAmount, '0')
   })
 })
