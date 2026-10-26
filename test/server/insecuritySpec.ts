@@ -215,6 +215,15 @@ describe('insecurity', () => {
       expect(security.isRevoked({ data: { id: 4712 }, issuedAt: before })).to.equal(false)
     })
 
+    it('revokes a token issued in the same millisecond as the reset but not one issued after it', () => {
+      const before = security.decode(security.authorize({ data: { id: 4714 } }))
+      security.revokeSessions(4714)
+      const after = security.decode(security.authorize({ data: { id: 4714 } }))
+
+      expect(security.isRevoked(before)).to.equal(true)
+      expect(security.isRevoked(after)).to.equal(false)
+    })
+
     it('revokes tokens without issuance time and falls back to iat', () => {
       security.revokeSessions(4713)
 

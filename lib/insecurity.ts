@@ -52,9 +52,14 @@ export const cutOffPoisonNullByte = (str: string) => {
 }
 
 const sessionsRevokedBefore = new Map<number, number>()
+let lastStamp = 0
+const nextStamp = () => {
+  lastStamp = Math.max(Date.now(), lastStamp + 1)
+  return lastStamp
+}
 
 export const revokeSessions = (userId: number) => {
-  sessionsRevokedBefore.set(userId, Date.now())
+  sessionsRevokedBefore.set(userId, nextStamp())
   for (const [token, session] of Object.entries(authenticatedUsers.tokenMap)) {
     if (session?.data?.id === userId) delete authenticatedUsers.tokenMap[token]
   }
@@ -82,7 +87,7 @@ export const isAuthorized = () => {
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign({ ...user, issuedAt: Date.now() }, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ ...user, issuedAt: nextStamp() }, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
