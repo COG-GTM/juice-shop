@@ -6,12 +6,69 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  const forgeToken = (alg: string, payload: object, secret?: string) => {
+    const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+    const signature = secret ? crypto.createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url') : ''
+    return `${header}.${body}.${signature}`
+  }
+
+  describe('verify', () => {
+    it('accepts tokens signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with alg "none"', () => {
+      expect(security.verify(forgeToken('none', { data: { role: 'accounting' } }))).to.equal(false)
+    })
+
+    it('rejects tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(forgeToken('HS256', { data: { role: 'accounting' } }, security.publicKey))).to.equal(false)
+    })
+
+    it('rejects missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('isCustomer', () => {
+    it('rejects forged tokens claiming the customer role', () => {
+      const req = { headers: { authorization: `Bearer ${forgeToken('HS256', { data: { role: 'customer' } }, security.publicKey)}` } } as unknown as Request
+      expect(security.isCustomer(req)).to.equal(false)
+    })
+
+    it('accepts genuine tokens with the customer role', () => {
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { role: 'customer' } })}` } } as unknown as Request
+      expect(security.isCustomer(req)).to.equal(true)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    const runMiddleware = async (token: string) => await new Promise<unknown>((resolve) => {
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      void security.isAuthorized()(req, {} as any, (err?: unknown) => { resolve(err) })
+    })
+
+    it('passes requests with genuine tokens', async () => {
+      expect(await runMiddleware(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(undefined)
+    })
+
+    it('rejects requests with unsigned tokens with alg "none"', async () => {
+      expect(await runMiddleware(forgeToken('none', { data: { role: 'accounting' } }))).to.have.property('status', 401)
+    })
+
+    it('rejects requests with tokens HMAC-signed with the public RSA key', async () => {
+      expect(await runMiddleware(forgeToken('HS256', { data: { role: 'accounting' } }, security.publicKey))).to.have.property('status', 401)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
