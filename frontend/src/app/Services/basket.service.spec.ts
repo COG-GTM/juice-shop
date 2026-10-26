@@ -101,6 +101,21 @@ describe('BasketService', () => {
         httpMock.verify()
     })
 
+    it('should get order confirmation PDF via the authenticated rest api', () => {
+        const service = TestBed.inject(BasketService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res: any
+        const pdf = new Blob(['%PDF'], { type: 'application/pdf' })
+        service.getOrderConfirmationPdf('abcd-0123456789abcdef').subscribe((data) => (res = data))
+        const req = httpMock.expectOne('http://localhost:3000/rest/order/abcd-0123456789abcdef/pdf')
+        req.flush(pdf)
+        expect(req.request.method).toBe('GET')
+        expect(req.request.responseType).toBe('blob')
+        expect(res).toBe(pdf)
+        httpMock.verify()
+    })
+
     it('should apply coupon to basket via the rest api', () => {
         const service = TestBed.inject(BasketService)
         const httpMock = TestBed.inject(HttpTestingController)
