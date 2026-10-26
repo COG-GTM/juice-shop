@@ -77,6 +77,21 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.callCount(0)
   })
 
+  it('empty orderLinesData is rejected', () => {
+    req.body.orderLinesData = ''
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('missing orderLinesData still returns an order confirmation', () => {
+    b2bOrder()(req, res, next)
+
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
   it('accepts an array of order lines as documented in Swagger', () => {
     req.body.orderLinesData = '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"},{"productId": 13,"quantity": 2000,"customerReference": "PO0000003.4"}]'
 
