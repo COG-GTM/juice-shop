@@ -16,6 +16,20 @@ import { LoginGuard } from '../../app.guard'
 import { ChatInputBoxComponent } from '../chat-input-box/chat-input-box.component'
 import { type ChatMessage, type StoredConversation } from '../chat.model'
 
+const MAX_HISTORY_MESSAGES = 50
+const MAX_HISTORY_LENGTH = 32000
+
+export function trimHistory<T extends { content: string }> (messages: T[]): T[] {
+  const trimmed: T[] = []
+  let totalLength = 0
+  for (let i = messages.length - 1; i >= 0 && trimmed.length < MAX_HISTORY_MESSAGES; i--) {
+    totalLength += messages[i].content.length
+    if (totalLength > MAX_HISTORY_LENGTH) break
+    trimmed.unshift(messages[i])
+  }
+  return trimmed
+}
+
 @Component({
   standalone: true,
   selector: 'app-chat-conversation',
@@ -123,10 +137,10 @@ export class ChatConversationComponent implements OnInit {
     const assistantIndex = this.messages().length
     this.messages.update(prev => [...prev, { role: 'assistant', content: '' }])
 
-    const apiMessages = this.messages()
+    const apiMessages = trimHistory(this.messages()
       .slice(0, -1)
       .filter(m => !m.error)
-      .map(m => ({ role: m.role, content: m.content }))
+      .map(m => ({ role: m.role, content: m.content })))
 
     const stream = this.chatService.streamMessages(apiMessages)
     for await (const chunk of stream) {
