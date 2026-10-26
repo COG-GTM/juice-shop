@@ -6,6 +6,8 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -281,6 +283,19 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i and /api/Users reject a token signed with a foreign RSA key', async () => {
+    const foreignKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+    const forged = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, foreignKey, { algorithm: 'RS256', expiresIn: '6h' })
+    const whoami = await request(app)
+      .get('/rest/user/whoami')
+      .set('Cookie', `token=${forged}`)
+    assert.deepEqual(whoami.body.user, {})
+    const users = await request(app)
+      .get('/api/Users')
+      .set('Authorization', `Bearer ${forged}`)
+    assert.equal(users.status, 401)
   })
 
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {

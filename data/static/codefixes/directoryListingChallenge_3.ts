@@ -5,6 +5,7 @@
   app.use('/.well-known', express.static('.well-known'))
 
   /* /encryptionkeys directory browsing */
+  app.get('/encryptionkeys/jwt.pub', (req: Request, res: Response) => { res.type('text/plain').send(security.publicKey) })
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
