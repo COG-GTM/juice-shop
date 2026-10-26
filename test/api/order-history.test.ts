@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -46,6 +46,43 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+
+  void it('GET order history does not leak orders of an account whose email differs only in vowels', async () => {
+    const domain = config.get<string>('application.domain')
+    const victim = { email: 'alica.vowels@' + domain, password: 'alica.vowels' }
+    const lookalike = { email: 'olico.vowels@' + domain, password: 'olico.vowels' }
+    await register(app, victim)
+    await register(app, lookalike)
+
+    const { token: victimToken, bid } = await login(app, victim)
+    const victimHeader = { Authorization: 'Bearer ' + victimToken, 'content-type': 'application/json' }
+    await request(app).post('/api/BasketItems').set(victimHeader).send({ BasketId: bid, ProductId: 1, quantity: 1 }).expect(200)
+    const checkout = await request(app).post(`/rest/basket/${bid}/checkout`).set(victimHeader).expect(200)
+
+    const victimHistory = await request(app).get('/rest/order-history').set(victimHeader)
+    assert.equal(victimHistory.status, 200)
+    assert.deepEqual(victimHistory.body.data.map((order: { orderId: string }) => order.orderId), [checkout.body.orderConfirmation])
+
+    const { token: lookalikeToken } = await login(app, lookalike)
+    const lookalikeHistory = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + lookalikeToken, 'content-type': 'application/json' })
+    assert.equal(lookalikeHistory.status, 200)
+    assert.deepEqual(lookalikeHistory.body.data, [])
+  })
+
+  void it('GET order history does not leak seeded admin orders to an account whose email differs only in vowels', async () => {
+    const lookalike = { email: 'odmin@' + config.get<string>('application.domain'), password: 'odmin123' }
+    await register(app, lookalike)
+    const { token } = await login(app, lookalike)
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 })
 
