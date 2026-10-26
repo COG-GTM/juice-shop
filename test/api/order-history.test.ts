@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -46,6 +46,37 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+
+  void it('GET does not return orders of a user whose email differs only in vowels', async () => {
+    const victim = { email: 'alice.orders@acme.test', password: 'Victim123!' }
+    const attacker = { email: 'olaco.ordirs@ocmo.test', password: 'Attacker123!' }
+    await register(app, victim)
+    await register(app, attacker)
+
+    const victimAuth = await login(app, victim)
+    const victimHeader = { Authorization: 'Bearer ' + victimAuth.token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(victimHeader)
+      .send({ BasketId: victimAuth.bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const checkoutRes = await request(app).post(`/rest/basket/${victimAuth.bid}/checkout`).set(victimHeader)
+    assert.equal(checkoutRes.status, 200)
+
+    const victimHistory = await request(app).get('/rest/order-history').set(victimHeader)
+    assert.equal(victimHistory.status, 200)
+    assert.equal(victimHistory.body.data.length, 1)
+    assert.equal(victimHistory.body.data[0].orderId, checkoutRes.body.orderConfirmation)
+
+    const attackerAuth = await login(app, attacker)
+    const attackerHistory = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + attackerAuth.token, 'content-type': 'application/json' })
+    assert.equal(attackerHistory.status, 200)
+    assert.equal(attackerHistory.body.data.length, 0)
   })
 })
 
