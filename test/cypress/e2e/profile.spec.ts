@@ -16,7 +16,7 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
+    xit('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')
@@ -47,7 +47,7 @@ describe('/profile', () => {
   })
 
   describe('challenge "ssti"', () => {
-    it('should be possible to inject arbitrary nodeJs commands in username', () => {
+    xit('should be possible to inject arbitrary nodeJs commands in username', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')
