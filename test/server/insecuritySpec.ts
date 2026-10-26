@@ -203,4 +203,34 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('isCrossSiteRequest', () => {
+    const requestWith = (headers: Record<string, string>) => ({
+      get: (name: string) => headers[name.toLowerCase()]
+    }) as unknown as Request
+
+    it('allows requests without Sec-Fetch-Site, Origin or Referer', () => {
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000' }))).to.equal(false)
+    })
+
+    it('trusts Sec-Fetch-Site when present', () => {
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', 'sec-fetch-site': 'same-origin' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', 'sec-fetch-site': 'none' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', 'sec-fetch-site': 'same-site' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', 'sec-fetch-site': 'cross-site', origin: 'http://localhost:3000' }))).to.equal(true)
+    })
+
+    it('allows same-origin Origin or Referer', () => {
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'http://localhost:3000' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', referer: 'http://localhost:3000/profile' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'shop.example', origin: 'https://shop.example' }))).to.equal(false)
+    })
+
+    it('rejects foreign, opaque or malformed Origin or Referer', () => {
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'https://attacker.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'http://localhost:3000.attacker.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', referer: 'http://htmledit.squarefree.com/' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ host: 'localhost:3000', origin: 'null' }))).to.equal(true)
+    })
+  })
 })
