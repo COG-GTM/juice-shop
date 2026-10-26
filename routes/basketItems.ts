@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -20,7 +21,7 @@ export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
     const productIds = []
-    const basketIds = []
+    const basketIds: unknown[] = []
     const quantities = []
 
     for (let i = 0; i < result.length; i++) {
@@ -34,23 +35,28 @@ export function addBasketItem () {
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user?.bid != null && basketIds.length > 1 && basketIds.some((basketId) => basketId && basketId !== 'undefined' && user.bid != basketId) }) // eslint-disable-line eqeqeq
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+    if (productIds.length > 1 || quantities.length > 1) {
+      res.status(400).json({ error: 'Duplicate keys in request body' })
+      return
+    }
+    const basket = basketIds.length === 1 ? await findOwnBasket(req, basketIds[0]) : null
+    if (basket == null) {
+      res.status(401).json({ error: 'Invalid BasketId' })
+      return
+    }
+
+    const basketItemInstance = BasketItemModel.build({
+      ProductId: productIds[0],
+      BasketId: basket.id,
+      quantity: quantities[0]
+    })
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
@@ -68,11 +74,12 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
+      if (item == null || await findOwnBasket(req, item.BasketId) == null) {
+        res.status(401).json({ error: 'Invalid BasketItem' })
+        return
+      }
       if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+        await quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
       }
@@ -80,6 +87,15 @@ export function quantityCheckBeforeBasketItemUpdate () {
       next(error)
     }
   }
+}
+
+async function findOwnBasket (req: Request, basketId: unknown) {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  const id = Number(basketId)
+  if (userId == null || basketId == null || basketId === '' || !Number.isSafeInteger(id)) {
+    return null
+  }
+  return await BasketModel.findOne({ where: { id, UserId: userId } })
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
