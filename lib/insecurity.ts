@@ -69,6 +69,8 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+export const isValidEmailAddress = (email: string): boolean => /^[^\s@<>"'`]+@[^\s@<>"'`]+$/.test(email)
+
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},

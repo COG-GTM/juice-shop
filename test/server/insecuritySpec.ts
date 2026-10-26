@@ -188,6 +188,25 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isValidEmailAddress', () => {
+    it('accepts regular email addresses', () => {
+      expect(security.isValidEmailAddress('admin@juice-sh.op')).to.equal(true)
+      expect(security.isValidEmailAddress('bjoern.kimminich+test@gmail.com')).to.equal(true)
+    })
+
+    it('rejects strings without exactly one @', () => {
+      expect(security.isValidEmailAddress('admin')).to.equal(false)
+      expect(security.isValidEmailAddress('a@b@c')).to.equal(false)
+      expect(security.isValidEmailAddress('@juice-sh.op')).to.equal(false)
+    })
+
+    it('rejects HTML markup and whitespace', () => {
+      expect(security.isValidEmailAddress('<iframe src="javascript:alert(`xss`)">')).to.equal(false)
+      expect(security.isValidEmailAddress('a@b.c<iframe src="javascript:alert(1)">')).to.equal(false)
+      expect(security.isValidEmailAddress('a b@c.d')).to.equal(false)
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')

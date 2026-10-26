@@ -91,6 +91,19 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as plain text', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        userService.find.mockReturnValue(of([{ email: payload, lastLoginTime: Date.now() / 1000 }]))
+        fixture = TestBed.createComponent(AdministrationComponent)
+        component = fixture.componentInstance
+        fixture.detectChanges()
+        const emailCell: HTMLElement = fixture.nativeElement.querySelector('mat-cell.mat-column-email span')
+        expect(component.userDataSource.data[0].email).toBe(payload)
+        expect(emailCell.textContent?.trim()).toBe(payload)
+        expect(emailCell.className).toBe('confirmation')
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))

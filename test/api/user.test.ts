@@ -9,9 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
-import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
-import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -179,20 +177,39 @@ void describe('/api/Users', () => {
     assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
   })
 
-  if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-    void it('POST new user with XSS attack in email address', async () => {
-      const res = await request(app)
-        .post('/api/Users')
-        .set(jsonHeader)
-        .send({
-          email: '<iframe src="javascript:alert(`xss`)">',
-          password: 'does.not.matter'
-        })
-      assert.equal(res.status, 201)
-      assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.email, '<iframe src="javascript:alert(`xss`)">')
-    })
-  }
+  void it('POST new user with XSS attack in email address is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: '<iframe src="javascript:alert(`xss`)">',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new user with HTML around a valid email address is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn<iframe src="javascript:alert(`xss`)">',
+        password: 'does.not.matter',
+        passwordRepeat: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new user with non-string email is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: ['<iframe src="javascript:alert(`xss`)">'],
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
 })
 
 void describe('/api/Users/:id', () => {
