@@ -68,6 +68,9 @@ import locales from './data/static/locales.json'
 import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
+import * as feedback from './routes/feedback'
+import { getOwnComplaints, bindComplaintToCurrentUser } from './routes/complaint'
+import { restrictHintUpdateToUnlocking } from './routes/hint'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
@@ -452,6 +455,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Ownership checks for generated API endpoints */
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.getOwnBasketItems()))
+  app.use('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
+  app.put('/api/Addresss/:id', utils.asyncHandler(address.ensureAddressOwnership()))
+  app.get('/api/Complaints', bindComplaintToCurrentUser(), utils.asyncHandler(getOwnComplaints()))
+  app.post('/api/Complaints', bindComplaintToCurrentUser())
+  app.post('/api/Feedbacks', feedback.bindFeedbackToCurrentUser())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.ensureFeedbackDeletionAllowed()))
+  app.put('/api/Hints/:id', restrictHintUpdateToUnlocking())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',

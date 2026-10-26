@@ -186,3 +186,26 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data, 'Malicious activity detected.')
   })
 })
+
+void describe('/api/Addresss/:id of other users', () => {
+  void it('PUT update address of another user is forbidden and leaves it unchanged', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const benderAddresses = await request(app).get('/api/Addresss').set(benderHeader)
+    const benderAddress = benderAddresses.body.data[0]
+
+    const res = await request(app)
+      .put('/api/Addresss/' + benderAddress.id)
+      .set(authHeader)
+      .send({ fullName: 'Hijacked' })
+    assert.equal(res.status, 403)
+
+    const after = await request(app).get('/api/Addresss/' + benderAddress.id).set(benderHeader)
+    assert.equal(after.status, 200)
+    assert.equal(after.body.data.fullName, benderAddress.fullName)
+    assert.equal(after.body.data.UserId, benderAddress.UserId)
+  })
+})
