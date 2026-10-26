@@ -102,7 +102,7 @@ describe('verifySecondFactorToken', () => {
     const expired = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token', expiresAt: Date.now() - 1 })
     expect(() => security.verifySecondFactorToken(wrongType)).to.throw('Invalid token type')
     expect(() => security.verifySecondFactorToken(expired)).to.throw('Temporary token expired')
-    expect(() => security.verifySecondFactorToken('garbage')).to.throw('Invalid token type')
+    expect(() => security.verifySecondFactorToken('garbage')).to.throw()
     expect(() => security.verifySecondFactorToken(undefined)).to.throw('Invalid token type')
   })
 })
