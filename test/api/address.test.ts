@@ -154,6 +154,37 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data.fullName, 'Jimy')
   })
 
+  void it('PUT update address of another user is forbidden', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const takeover = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(benderHeader)
+      .send({})
+    assert.equal(takeover.status, 403)
+
+    const read = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(benderHeader)
+    assert.equal(read.status, 400)
+
+    const own = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(own.status, 200)
+    assert.equal(own.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT cannot reassign UserId of own address', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ UserId: 3 })
+    assert.equal(res.status, 200)
+    assert.notEqual(res.body.data.UserId, 3)
+  })
+
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)
