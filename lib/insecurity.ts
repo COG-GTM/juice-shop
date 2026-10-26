@@ -164,6 +164,35 @@ export const isAccounting = () => {
   }
 }
 
+const verifiedTokenData = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && decode(token)
+  return decodedToken?.data
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedTokenData(req)?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const isSelfOrAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = verifiedTokenData(req)
+    if (user?.role === roles.admin || (user?.id !== undefined && String(user.id) === String(req.params.id))) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const authenticatedUserId = (req: Request): number | undefined => verifiedTokenData(req)?.id
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
