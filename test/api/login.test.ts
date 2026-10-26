@@ -65,6 +65,28 @@ void describe('/rest/user/login', () => {
     assert.equal(res.body.authentication.umail, 'a&b@kasper.le')
   })
 
+  void it('POST login newly created user with HTML entity in email', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'a&amp;b@kasper.le',
+        password: 'kallliiii'
+      })
+      .expect(201)
+
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'a&amp;b@kasper.le',
+        password: 'kallliiii'
+      })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.authentication.umail, 'a&amp;b@kasper.le')
+  })
+
   void it('POST login non-existing user', async () => {
     const res = await request(app)
       .post('/rest/user/login')
