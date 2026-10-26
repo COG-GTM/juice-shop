@@ -10,11 +10,10 @@ import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
-    const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const currentPassword = typeof body?.current === 'string' ? body.current : ''
+    const newPassword = typeof body?.new === 'string' ? body.new : ''
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -36,7 +35,11 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
+    if (security.hash(currentPassword) !== loggedInUser.data.password) {
+      challengeUtils.solveIf(
+        challenges.changePasswordBenderChallenge,
+        () => loggedInUser.data.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
+      )
       res.status(401).send(res.__('Current password is not correct.'))
       return
     }
@@ -48,11 +51,13 @@ export function changePassword () {
         return
       }
 
-      await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
+      if (user.password !== loggedInUser.data.password) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
+      await user.update({ password: newPassword })
+      loggedInUser.data.password = user.password
       res.json({ user })
     } catch (error) {
       next(error)
