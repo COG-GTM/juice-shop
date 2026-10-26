@@ -124,6 +124,45 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST password change revokes all other sessions of the user but keeps the current one', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'revoke@be.rt',
+        password: 'before-change'
+      })
+      .expect(201)
+
+    const { token: stolenToken } = await login(app, { email: 'revoke@be.rt', password: 'before-change' })
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    const { token: ownerToken } = await login(app, { email: 'revoke@be.rt', password: 'before-change' })
+    assert.notEqual(stolenToken, ownerToken)
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + ownerToken })
+      .send({ current: 'before-change', new: 'after-change', repeat: 'after-change' })
+      .expect(200)
+
+    await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + stolenToken })
+      .expect(401)
+    await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + ownerToken })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + stolenToken })
+      .send({ current: 'after-change', new: 'hijacked', repeat: 'hijacked' })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(await loginStatus('revoke@be.rt', 'after-change'), 200)
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
