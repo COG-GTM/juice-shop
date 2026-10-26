@@ -166,8 +166,12 @@ export const isAccounting = () => {
 
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.admin) {
+    const token = utils.jwtFrom(req)
+    if (!verify(token)) {
+      res.status(401).json({ status: 'error', message: 'No valid authorization token was found' })
+      return
+    }
+    if (decode(token)?.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
