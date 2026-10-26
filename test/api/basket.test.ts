@@ -167,6 +167,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
   })
 
+  void it('POST placing an order with negative bonus points does not drive the wallet negative', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(benderHeader)).body.data
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(benderHeader)
+      .send({ BasketId: 3, ProductId: 10, quantity: -100 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app).post('/rest/basket/3/checkout').set(benderHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(benderHeader)).body.data
+    assert.equal(balanceAfter, balanceBefore)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))

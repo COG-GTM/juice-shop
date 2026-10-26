@@ -141,14 +141,15 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
+            const walletBonus = Math.max(totalPoints, 0)
             try {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, walletBonus)) {
                   next(new Error('Insufficient wallet balance.'))
                   return
                 }
               } else {
-                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+                await WalletModel.increment({ balance: walletBonus }, { where: { UserId: req.body.UserId } })
               }
             } catch (error: unknown) {
               next(error)
