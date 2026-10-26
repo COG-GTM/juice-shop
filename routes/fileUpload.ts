@@ -76,14 +76,30 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
+function declaresExternalEntity (data: string, target: RegExp) {
+  const entities = data.match(/<!ENTITY[^>]*\bSYSTEM\s*["'][^"']*["']/gi) ?? []
+  return entities.some(entity => target.test(entity))
+}
+
+function isXxeDosAttempt (data: string) {
+  return declaresExternalEntity(data, /\/dev\/(u?random|zero)/i) || (data.match(/&[\w.-]+;/g) ?? []).length > 500
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       if (containsDtd(data)) {
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML documents must not contain a DTD (' + file.originalname + ')'))
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return declaresExternalEntity(data, /\/etc\/passwd|system\.ini/i) })
+        if (isXxeDosAttempt(data)) {
+          challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
+          res.status(503)
+          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
+        } else {
+          res.status(410)
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML documents must not contain a DTD (' + file.originalname + ')'))
+        }
       } else {
         try {
           const sandbox = { libxml, data }
