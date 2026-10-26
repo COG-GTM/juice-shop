@@ -94,7 +94,7 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is forbidden via public API', async () => {
+  void it('PUT update existing product requires authentication via public API', async () => {
     const original = (await request(app).get('/api/Products/1')).body.data
     const res = await request(app)
       .put('/api/Products/1')
@@ -103,7 +103,7 @@ void describe('/api/Products/:id', () => {
         description: '<iframe src="javascript:alert(`xss`)">',
         price: 0.01
       })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 401)
     const product = (await request(app).get('/api/Products/1')).body.data
     assert.equal(product.description, original.description)
     assert.equal(product.price, original.price)
