@@ -77,7 +77,7 @@ function containsDtd (data: string) {
 }
 
 function referencesExternalEntity (data: string, target: RegExp) {
-  for (const [, name, uri] of data.matchAll(/<!ENTITY\s+([\w.-]+)\s+SYSTEM\s*["']([^"']*)["']/gi)) {
+  for (const [, name, uri] of data.matchAll(/<!ENTITY\s+([^\s%&;<>"']+)\s+SYSTEM\s*["']([^"']*)["']/gi)) {
     if (target.test(uri) && data.includes('&' + name + ';')) return true
   }
   return false
@@ -85,8 +85,8 @@ function referencesExternalEntity (data: string, target: RegExp) {
 
 function isXxeDosAttempt (data: string) {
   if (referencesExternalEntity(data, /\/dev\/(u?random|zero)/i)) return true
-  const declared = new Set(Array.from(data.matchAll(/<!ENTITY\s+([\w.-]+)\s+["']/gi), ([, name]) => name))
-  return (data.match(/&[\w.-]+;/g) ?? []).filter(ref => declared.has(ref.slice(1, -1))).length > 500
+  const declared = new Set(Array.from(data.matchAll(/<!ENTITY\s+([^\s%&;<>"']+)\s/gi), ([, name]) => name))
+  return Array.from(data.matchAll(/&([^\s&;<>"']+);/g)).filter(([, name]) => declared.has(name)).length > 500
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
