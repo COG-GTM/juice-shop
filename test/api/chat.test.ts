@@ -134,10 +134,6 @@ async function firstOrderIdOf (token: string): Promise<string> {
   return res.body.data[0].orderId
 }
 
-const uncaught: string[] = []
-process.on('uncaughtException', (e) => { uncaught.push('uncaughtException: ' + (e?.stack ?? String(e))) })
-process.on('unhandledRejection', (e: any) => { uncaught.push('unhandledRejection: ' + (e?.stack ?? String(e))) })
-
 before(async () => {
   await new Promise<void>((resolve) => {
     mockServer = http.createServer((req, res) => {
@@ -391,9 +387,5 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       assert.ok(result.includes('Customer not authenticated'))
       assert.ok(!result.includes(orderId))
     })
-  })
-
-  void it('DIAGNOSTIC no uncaught errors', () => {
-    assert.deepEqual(uncaught, [])
   })
 })
