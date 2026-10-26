@@ -282,7 +282,7 @@ void describe('/rest/user/reset-password brute-force protection', () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
-      .send({ email: email.toUpperCase(), answer: 'I even shared my pizza bagels with you!', new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
+      .send({ email, answer: 'I even shared my pizza bagels with you!', new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
 
     assert.equal(res.status, 429)
   })

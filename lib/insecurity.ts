@@ -51,24 +51,22 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-const revokedPasswordHashes = new Map<number, Set<string>>()
+const sessionsRevokedBefore = new Map<number, number>()
 
-/* Ends all sessions of a user whose tokens were issued for the previous password */
-export const revokeSessions = (userId: number, previousPasswordHash?: string, currentPasswordHash?: string) => {
-  const revoked = revokedPasswordHashes.get(userId) ?? new Set<string>()
-  if (previousPasswordHash) revoked.add(previousPasswordHash)
-  if (currentPasswordHash) revoked.delete(currentPasswordHash)
-  revokedPasswordHashes.set(userId, revoked)
+export const revokeSessions = (userId: number) => {
+  sessionsRevokedBefore.set(userId, Date.now())
   for (const [token, session] of Object.entries(authenticatedUsers.tokenMap)) {
     if (session?.data?.id === userId) delete authenticatedUsers.tokenMap[token]
   }
   delete authenticatedUsers.idMap[userId]
 }
 
-export const isRevoked = (decoded?: { data?: { id?: number, password?: string } }) => {
+export const isRevoked = (decoded?: { data?: { id?: number }, issuedAt?: number, iat?: number }) => {
   const id = decoded?.data?.id
-  const password = decoded?.data?.password
-  return id !== undefined && password !== undefined && (revokedPasswordHashes.get(id)?.has(password) ?? false)
+  const revokedBefore = id !== undefined ? sessionsRevokedBefore.get(id) : undefined
+  if (revokedBefore === undefined) return false
+  const issuedAt = typeof decoded?.issuedAt === 'number' ? decoded.issuedAt : typeof decoded?.iat === 'number' ? decoded.iat * 1000 : 0
+  return issuedAt < revokedBefore
 }
 
 export const isAuthorized = () => {
@@ -84,7 +82,7 @@ export const isAuthorized = () => {
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ ...user, issuedAt: Date.now() }, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 

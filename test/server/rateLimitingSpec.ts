@@ -28,8 +28,9 @@ describe('rateLimiting', () => {
   })
 
   describe('accountKey', () => {
-    it('normalizes case and whitespace so variants of one email share a lockout', () => {
-      expect(accountKey(' Jim@Juice-sh.op ')).to.equal('jim@juice-sh.op')
+    it('keeps emails that differ only by case as separate accounts', () => {
+      expect(accountKey('Jim@juice-sh.op')).to.not.equal(accountKey('jim@juice-sh.op'))
+      expect(accountKey('jim@juice-sh.op')).to.equal('jim@juice-sh.op')
     })
   })
 

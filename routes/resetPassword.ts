@@ -50,9 +50,8 @@ export function resetPassword () {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
           passwordResetLockout.reset(account)
-          const previousPasswordHash = user.password
           const updatedUser = await user.update({ password: newPassword })
-          security.revokeSessions(updatedUser.id, previousPasswordHash, updatedUser.password)
+          security.revokeSessions(updatedUser.id)
           verifySecurityAnswerChallenges(updatedUser, answer)
           res.json({ user: updatedUser })
         } else {

@@ -204,23 +204,23 @@ describe('insecurity', () => {
     })
   })
   describe('revokeSessions', () => {
-    it('revokes sessions carrying the previous password hash only', () => {
-      security.authenticatedUsers.put('revoked-token', { data: { id: 4711, password: 'old' } as unknown as UserModel })
-      security.revokeSessions(4711, 'old', 'new')
+    it('revokes tokens issued before the reset only', () => {
+      const before = Date.now() - 1000
+      security.authenticatedUsers.put('revoked-token', { data: { id: 4711 } as unknown as UserModel })
+      security.revokeSessions(4711)
 
       expect(security.authenticatedUsers.get('revoked-token')).to.equal(undefined)
-      expect(security.isRevoked({ data: { id: 4711, password: 'old' } })).to.equal(true)
-      expect(security.isRevoked({ data: { id: 4711, password: 'new' } })).to.equal(false)
-      expect(security.isRevoked({ data: { id: 4712, password: 'old' } })).to.equal(false)
-      expect(security.isRevoked({ data: { id: 4711 } })).to.equal(false)
+      expect(security.isRevoked({ data: { id: 4711 }, issuedAt: before })).to.equal(true)
+      expect(security.isRevoked({ data: { id: 4711 }, issuedAt: Date.now() + 1000 })).to.equal(false)
+      expect(security.isRevoked({ data: { id: 4712 }, issuedAt: before })).to.equal(false)
     })
 
-    it('allows the previous password again after it is reset to it', () => {
-      security.revokeSessions(4713, 'a', 'b')
-      security.revokeSessions(4713, 'b', 'a')
+    it('revokes tokens without issuance time and falls back to iat', () => {
+      security.revokeSessions(4713)
 
-      expect(security.isRevoked({ data: { id: 4713, password: 'a' } })).to.equal(false)
-      expect(security.isRevoked({ data: { id: 4713, password: 'b' } })).to.equal(true)
+      expect(security.isRevoked({ data: { id: 4713 } })).to.equal(true)
+      expect(security.isRevoked({ data: { id: 4713 }, iat: Math.floor(Date.now() / 1000) - 10 })).to.equal(true)
+      expect(security.isRevoked({ data: { id: 4713 }, iat: Math.floor(Date.now() / 1000) + 10 })).to.equal(false)
     })
   })
 })

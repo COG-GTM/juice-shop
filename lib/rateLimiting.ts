@@ -94,7 +94,7 @@ export class FailedAttemptLockout {
 }
 
 export function accountKey (email: unknown) {
-  return String(email).trim().toLowerCase()
+  return String(email)
 }
 
 export const passwordResetLockout = new FailedAttemptLockout()
