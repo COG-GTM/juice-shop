@@ -6,6 +6,7 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import config from 'config'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -124,10 +125,26 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+  void it('POST placing an order for the own basket returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order for another user\'s basket is forbidden and leaves it untouched', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const adminHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const before = await request(app).get('/rest/basket/1').set(adminHeader)
+    assert.equal(before.status, 200)
+    assert.ok(before.body.data.Products.length > 0)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.orderConfirmation, undefined)
+
+    const after = await request(app).get('/rest/basket/1').set(adminHeader)
+    assert.equal(after.status, 200)
+    assert.deepEqual(after.body.data.Products.map((p: { id: number }) => p.id), before.body.data.Products.map((p: { id: number }) => p.id))
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -143,7 +160,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
