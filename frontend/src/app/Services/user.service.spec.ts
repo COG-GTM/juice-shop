@@ -205,6 +205,8 @@ describe('UserService', () => {
     })
 
     it('should revoke the given session token via the REST API', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
         service.logout('session-token').subscribe()
 
         const req = httpMock.expectOne('http://localhost:3000/rest/user/logout')

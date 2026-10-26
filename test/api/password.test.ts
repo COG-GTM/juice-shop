@@ -61,7 +61,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(revoked.text.includes('Error: Blocked illegal activity'))
 
     const kept = await request(app)
-      .get('/rest/user/change-password?current=kunigunde&new=bar&repeat=bar')
+      .get('/rest/user/change-password?current=foo&new=bar&repeat=bar')
       .set({ Authorization: 'Bearer ' + currentToken })
     assert.equal(kept.status, 200)
   })
