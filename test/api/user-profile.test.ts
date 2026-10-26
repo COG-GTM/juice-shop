@@ -51,4 +51,111 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username is rejected for cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const profile = await request(app).get('/profile').set(authHeader)
+    assert.equal(profile.status, 200)
+    assert.ok(!profile.text.includes('value="CSRF"'))
+  })
+
+  void it('POST update username is rejected for cross-site Referer without Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Referer', 'http://attacker.example/csrf.html')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for opaque Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'null')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for same hostname on a different port', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:8080')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is accepted when Host carries an explicit default port', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:80')
+      .set('Origin', 'http://localhost:80')
+      .type('form')
+      .send('username=DefaultPort')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST update username is rejected when X-Forwarded-Host is forged to match a cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Host', 'attacker.example')
+      .set('Origin', 'http://attacker.example')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is rejected for cross-site Sec-Fetch-Site', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Sec-Fetch-Site', 'cross-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from same origin sets SameSite=Lax token cookie', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const cookies = [res.headers['set-cookie'] ?? []].flat()
+    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Lax')))
+  })
 })
