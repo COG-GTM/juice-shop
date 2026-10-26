@@ -105,7 +105,7 @@ export class LoginComponent implements OnInit {
         localStorage.setItem('token', authentication.token)
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
-        { expires, sameSite: 'lax' })
+        this.cookieService.put('token', authentication.token, { expires, sameSite: 'lax' })
         sessionStorage.setItem('bid', authentication.bid)
 
         this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)
