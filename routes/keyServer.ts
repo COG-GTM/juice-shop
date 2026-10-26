@@ -3,21 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
-import * as security from '../lib/insecurity'
 
 export function serveKeyFiles () {
-  return ({ params }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
-
-    if (file === 'jwt.pub') {
-      res.type('text/plain').send(security.publicKey)
-    } else if (!file.includes('/')) {
-      res.sendFile(path.resolve('encryptionkeys/', file))
-    } else {
-      res.status(403)
-      next(new Error('File names cannot contain forward slashes!'))
-    }
+  return (req: Request, res: Response, next: NextFunction) => {
+    res.status(404)
+    next(new Error('File not found!'))
   }
 }
