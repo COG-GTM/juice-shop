@@ -17,11 +17,11 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
-
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
+    const secondFactorToken = security.verifySecondFactorToken(tmpToken)
+    if (secondFactorToken == null) {
+      throw new Error('Invalid or expired second factor token')
     }
+    const { userId } = secondFactorToken
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
