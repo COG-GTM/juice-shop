@@ -4,9 +4,10 @@
  */
 
 import chai from 'chai'
+import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintUploadPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,33 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveComplaintUploadPath', () => {
+    const uploadDir = path.resolve('uploads/complaints')
+
+    it('should resolve plain entry names inside the complaints upload directory', () => {
+      expect(resolveComplaintUploadPath('complaint.pdf')).to.equal(path.join(uploadDir, 'complaint.pdf'))
+      expect(resolveComplaintUploadPath('sub/complaint.pdf')).to.equal(path.join(uploadDir, 'sub', 'complaint.pdf'))
+    })
+
+    const maliciousNames = [
+      '../marker.txt',
+      '../../ftp/legal.md',
+      '../../frontend/dist/frontend/index.html',
+      'sub/../../marker.txt',
+      '..\\..\\ftp\\legal.md',
+      '/etc/passwd',
+      '\\windows\\win.ini',
+      'evil\0.txt',
+      '..',
+      '.',
+      ''
+    ]
+    maliciousNames.forEach(name => {
+      it(`should reject entry name ${JSON.stringify(name)}`, () => {
+        expect(resolveComplaintUploadPath(name)).to.equal(null)
+      })
+    })
   })
 })
