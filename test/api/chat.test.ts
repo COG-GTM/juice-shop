@@ -81,7 +81,12 @@ before(async () => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
-        onLlmRequest(req, body, res)
+        try {
+          onLlmRequest(req, body, res)
+        } catch {
+          if (!res.headersSent) res.writeHead(500)
+          res.end()
+        }
       })
     })
     mockServer.keepAliveTimeout = 0
