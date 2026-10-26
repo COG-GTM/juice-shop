@@ -341,7 +341,7 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.body.user.email, 'bjoern.kimminich@gmail.com')
   })
 
-  void it('GET who-am-i sets the token cookie with SameSite=Strict', async () => {
+  void it('GET who-am-i sets the token cookie with SameSite=Lax', async () => {
     const token = security.authorize({ data: { id: 4711, email: 'samesite@juice-sh.op' } })
     const res = await request(app)
       .get('/rest/user/whoami')
@@ -350,6 +350,6 @@ void describe('/rest/user/whoami', () => {
     const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? [])
     const tokenCookie = cookies.find(cookie => cookie.startsWith(`token=${token}`))
     assert.ok(tokenCookie)
-    assert.match(tokenCookie, /;\s*SameSite=Strict/i)
+    assert.match(tokenCookie, /;\s*SameSite=Lax/i)
   })
 })
