@@ -76,7 +76,7 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
-const externalFileEntity = (target: string) => new RegExp(`(<!--)[\\s\\S]*?(?:-->|$)|<!ENTITY\\s+(%\\s+)?([^\\s%>"']+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']|<![a-z][^>"'[]*(?:(?:"[^"]*(?:"|$)|'[^']*(?:'|$))[^>"'[]*)*`, 'gi')
+const externalFileEntity = (target: string) => new RegExp(`(<!--[\\s\\S]*?(?:-->|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>|$))|<!ENTITY\\s+(%\\s+)?([^\\s%>"']+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']|<![a-z][^>"'[]*(?:(?:"[^"]*(?:"|$)|'[^']*(?:'|$))[^>"'[]*)*`, 'gi')
 const fileDisclosureEntity = externalFileEntity('etc/passwd|[a-z]:/windows/system\\.ini')
 const devRandomEntity = externalFileEntity('dev/u?random')
 

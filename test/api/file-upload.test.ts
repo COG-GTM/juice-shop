@@ -149,6 +149,22 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 503)
     })
 
+    void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'cdata.xml')
+      assert.equal(res.status, 410)
+    })
+
+    void it('POST XML with dev/random parameter entity referenced after a quoted bracket is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random"><!ENTITY bracket "]"> %xxe;]><foo/>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'quotedBracket.xml')
+      assert.equal(res.status, 503)
+    })
+
     void it('POST XML with dev/random parameter entity referenced only in element text is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random">]><foo>%xxe;</foo>')
       const res = await request(app)
