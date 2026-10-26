@@ -163,6 +163,20 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 42 })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update basket ID of basket item to own basket is rejected by noUpdate constraint', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 9, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+      .send({ BasketId: 2 })
     assert.equal(res.status, 400)
     assert.equal(res.body.message, 'null: `BasketId` cannot be updated due `noUpdate` constraint')
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])

@@ -27,14 +27,15 @@ export function addBasketItem () {
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (!isOwnBasket(user, req.body.BasketId)) {
+    const bid = user?.bid
+    if (bid === undefined || !isOwnBasket(user, req.body.BasketId)) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
       return
     }
 
     const basketItem = {
       ProductId: req.body.ProductId,
-      BasketId: user?.bid,
+      BasketId: bid,
       quantity: req.body.quantity
     }
 
