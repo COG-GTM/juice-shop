@@ -12,16 +12,19 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let bid: number
 
 before(
   async () => {
     const result = await createTestApp()
     app = result.app
 
-    const { token } = await login(app, {
+    const auth = await login(app, {
       email: 'jim@juice-sh.op',
       password: 'ncc-1701'
     })
+    const token = auth.token
+    bid = auth.bid
     authHeader = {
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
@@ -54,6 +57,24 @@ void describe('/api/BasketItems', () => {
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 2, quantity: 1 })
     assert.equal(res.status, 200)
+  })
+
+  void it('POST new basket item always uses basket of logged-in user', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: bid + 1, ProductId: 4, quantity: 1 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, bid)
+  })
+
+  void it('POST new basket item with duplicate BasketId keys uses basket of logged-in user', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send(`{ "ProductId": 5, "BasketId": ${bid}, "quantity": 1, "BasketId": ${bid + 1} }`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, bid)
   })
 
   void it('POST new basket item with more than available quantity is forbidden', async () => {
@@ -137,20 +158,13 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
-    const createRes = await request(app)
+  void it('POST new basket item without basket ID uses basket of logged-in user', async () => {
+    const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ ProductId: 8, quantity: 8 })
-    assert.equal(createRes.status, 200)
-    assert.equal(createRes.body.data.BasketId, undefined)
-
-    const res = await request(app)
-      .put('/api/BasketItems/' + createRes.body.data.id)
-      .set(authHeader)
-      .send({ BasketId: 3 })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.body.data.BasketId, bid)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
