@@ -12,8 +12,8 @@ const MAX_ORDER_LINES = 1000
 
 export function b2bOrder () {
   return ({ body }: Request, res: Response, next: NextFunction) => {
-    const orderLinesData = body.orderLinesData === undefined ? '' : body.orderLinesData
-    if (orderLinesData !== '' && !isValidOrderLinesData(orderLinesData)) {
+    const orderLinesData = body.orderLinesData
+    if (orderLinesData !== undefined && !isValidOrderLinesData(orderLinesData)) {
       res.status(400)
       next(new Error('Invalid orderLinesData: expected a JSON order line or array of order lines'))
       return
