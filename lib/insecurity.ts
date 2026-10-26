@@ -34,6 +34,8 @@ interface IAuthenticatedUsers {
   tokenMap: Record<string, ResponseWithUser>
   idMap: Record<string, string>
   revokedTokens: Record<string, number>
+  sessionsValidAfter: Record<string, number>
+  exemptTokens: Record<string, number>
   lastSweep: number
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
@@ -76,17 +78,21 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 // exp is set explicitly because jsonwebtoken 0.4.0 ignores the expiresIn option
-export const authorize = (user = {}) => jwt.sign({ ...user, exp: nowInSeconds() + sessionTokenLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ ...user, iat: nowInSeconds(), exp: nowInSeconds() + sessionTokenLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
-const expiryOf = (token: string) => {
+const claimsOf = (token: string) => {
   try {
-    const { exp } = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
-    return typeof exp === 'number' ? exp : undefined
+    return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
   } catch {
     return undefined
   }
+}
+
+const expiryOf = (token: string) => {
+  const exp = claimsOf(token)?.exp
+  return typeof exp === 'number' ? exp : undefined
 }
 
 const hasValidSignature = (token: string) => {
@@ -119,6 +125,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   revokedTokens: {},
+  sessionsValidAfter: {},
+  exemptTokens: {},
   lastSweep: 0,
   put: function (token: string, user: ResponseWithUser) {
     this.sweep()
@@ -128,6 +136,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   },
   get: function (token?: string) {
     if (!token) return undefined
+    this.sweep()
     const key = utils.unquote(token)
     if (!Object.prototype.hasOwnProperty.call(this.tokenMap, key)) return undefined
     if (!isLiveSessionToken(key)) {
@@ -166,6 +175,11 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   },
   revokeAllFor: function (userId: number, exceptToken?: string) {
     const keep = exceptToken ? utils.unquote(exceptToken) : undefined
+    this.sessionsValidAfter[userId] = nowInSeconds()
+    const keepExp = keep ? expiryOf(keep) : undefined
+    if (keep && keepExp !== undefined && keepExp > nowInSeconds() && hasValidSignature(keep)) {
+      this.exemptTokens[keep] = keepExp
+    }
     for (const [token, user] of Object.entries(this.tokenMap)) {
       if (user.data?.id === userId && token !== keep) {
         this.revoke(token)
@@ -173,7 +187,13 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     }
   },
   isRevoked: function (token?: string) {
-    return token ? Object.prototype.hasOwnProperty.call(this.revokedTokens, utils.unquote(token)) : false
+    if (!token) return false
+    const key = utils.unquote(token)
+    if (Object.prototype.hasOwnProperty.call(this.revokedTokens, key)) return true
+    const claims = claimsOf(key)
+    const validAfter = this.sessionsValidAfter[claims?.data?.id]
+    if (validAfter === undefined || Object.prototype.hasOwnProperty.call(this.exemptTokens, key)) return false
+    return typeof claims.iat !== 'number' || claims.iat < validAfter
   },
   sweep: function () {
     const now = nowInSeconds()
@@ -185,6 +205,12 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     }
     for (const [token, exp] of Object.entries(this.revokedTokens)) {
       if (exp <= now) delete this.revokedTokens[token]
+    }
+    for (const [token, exp] of Object.entries(this.exemptTokens)) {
+      if (exp <= now) delete this.exemptTokens[token]
+    }
+    for (const [userId, validAfter] of Object.entries(this.sessionsValidAfter)) {
+      if (validAfter + sessionTokenLifetimeInSeconds <= now) delete this.sessionsValidAfter[userId]
     }
   }
 }
@@ -250,9 +276,14 @@ export const deluxeToken = (email: string) => {
   return hmac.update(email + roles.deluxe).digest('hex')
 }
 
+const activeClaimsFrom = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  return !authenticatedUsers.isRevoked(token) && verify(token) && decode(token)
+}
+
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const decodedToken = activeClaimsFrom(req)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -262,12 +293,12 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const decodedToken = activeClaimsFrom(req)
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const decodedToken = activeClaimsFrom(req)
   return decodedToken?.data?.role === roles.customer
 }
 

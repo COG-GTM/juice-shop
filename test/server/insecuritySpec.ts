@@ -93,6 +93,8 @@ describe('insecurity', () => {
       security.authenticatedUsers.tokenMap = {}
       security.authenticatedUsers.idMap = {}
       security.authenticatedUsers.revokedTokens = {}
+    security.authenticatedUsers.sessionsValidAfter = {}
+    security.authenticatedUsers.exemptTokens = {}
       security.authenticatedUsers.lastSweep = 0
     })
 
@@ -242,6 +244,58 @@ describe('insecurity', () => {
       })
 
       expect(err).to.equal(undefined)
+    })
+
+    it('revokes sessions of a user that were not cached when revoking all their sessions', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const uncached = sessionFor(1)
+      clock.tick(1000)
+
+      security.authenticatedUsers.revokeAllFor(1)
+      security.authenticatedUsers.put(uncached, { data: { id: 1 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
+      expect(security.isLiveSessionToken(uncached)).to.equal(false)
+      expect(security.isLiveSessionToken(sessionFor(1))).to.equal(true)
+    })
+
+    it('forgets per-user revocation cut-offs once all affected tokens have expired', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const current = sessionFor(1)
+      security.authenticatedUsers.revokeAllFor(1, current)
+      expect(security.authenticatedUsers.isRevoked(current)).to.equal(false)
+
+      clock.tick(sixHoursAndOneMinute)
+      security.authenticatedUsers.sweep()
+
+      expect(security.authenticatedUsers.sessionsValidAfter).to.deep.equal({})
+      expect(security.authenticatedUsers.exemptTokens).to.deep.equal({})
+    })
+
+    it('sweeps expired tokens on lookups as well', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const stale = sessionFor(1)
+      security.authenticatedUsers.put(stale, { data: { id: 1 } as unknown as UserModel })
+      clock.tick(sixHoursAndOneMinute)
+
+      security.authenticatedUsers.get('unknown')
+
+      expect(security.authenticatedUsers.tokenMap).to.deep.equal({})
+    })
+
+    it('denies accounting access to a revoked token', () => {
+      const token = security.authorize({ data: { id: 1, role: 'accounting' } })
+      const res = { status: sinon.stub().returns({ json: sinon.spy() }) }
+      const next = sinon.spy()
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+
+      security.isAccounting()(req, res as unknown as Response, next)
+      expect(next.calledOnce).to.equal(true)
+
+      security.authenticatedUsers.revoke(token)
+      security.isAccounting()(req, res as unknown as Response, next)
+      expect(next.calledOnce).to.equal(true)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
 
     it('answers 401 in appendUserId for an expired token', () => {
