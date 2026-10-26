@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -123,10 +125,14 @@ void describe('/file-upload', () => {
 
   void it('POST zip file with directory traversal payload', async () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const legalFile = path.resolve('ftp/legal.md')
+    const legalContentBefore = fs.readFileSync(legalFile, 'utf8')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    await sleep(500)
+    assert.equal(fs.readFileSync(legalFile, 'utf8'), legalContentBefore)
   })
 
   void it('POST zip file with password protection', async () => {
