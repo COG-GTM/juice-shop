@@ -145,13 +145,17 @@ const queryParamKey = (param: string) => {
   return separator === -1 ? param : param.substring(0, separator)
 }
 
-const isSensitiveQueryParam = (param: string) => {
+// Returns the canonical name of a sensitive parameter, '' for an undecodable name, or undefined if not sensitive
+const sensitiveQueryParamName = (param: string) => {
   let key = queryParamKey(param)
   try {
     key = decodeURIComponent(key.replace(/\+/g, ' '))
-  } catch {}
+  } catch {
+    return ''
+  }
   const bracket = key.indexOf('[')
-  return sensitiveQueryParams.has((bracket === -1 ? key : key.substring(0, bracket)).trim().toLowerCase())
+  const name = (bracket === -1 ? key : key.substring(0, bracket)).trim().toLowerCase()
+  return sensitiveQueryParams.has(name) ? name : undefined
 }
 
 // An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too
@@ -159,9 +163,9 @@ export const redactSensitiveQueryParams = (url?: string) => {
   if (!url) return url
   const queryStart = url.indexOf('?')
   if (queryStart === -1) return url
-  const params = url.substring(queryStart + 1).split('&')
-  if (!params.some(isSensitiveQueryParam)) return url
-  return url.substring(0, queryStart + 1) + params.map((param) => isSensitiveQueryParam(param) ? `${queryParamKey(param)}=[REDACTED]` : '[REDACTED]').join('&')
+  const names = url.substring(queryStart + 1).split('&').map(sensitiveQueryParamName)
+  if (names.every((name) => name === undefined)) return url
+  return url.substring(0, queryStart + 1) + names.map((name) => name ? `${name}=[REDACTED]` : '[REDACTED]').join('&')
 }
 
 export const randomHexString = (length: number): string => {
