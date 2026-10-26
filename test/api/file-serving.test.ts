@@ -251,11 +251,14 @@ void describe('/support/logs', () => {
     assert.ok(res.text.includes('access.log'))
   })
 
-  void it('does not write change-password credentials from the query string into the access log', async () => {
+  void it('does not write change-password credentials or query strings into the access log', async () => {
     const marker = 'LogLeak' + utils.randomHexString(8)
     await request(app)
+      .post('/rest/user/change-password')
+      .send({ current: `${marker}cur`, new: `${marker}new`, repeat: `${marker}new` })
+    await request(app)
       .get(`/rest/user/change-password?current=${marker}cur&new=${marker}new&repeat=${marker}new`)
-      .set({ Referer: `http://localhost/rest/user/change-password?cur%72ent=${marker}ref` })
+      .set({ Referer: `http://localhost/rest/user/change-password?current=${marker}ref` })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     const res = await request(app)
@@ -263,7 +266,8 @@ void describe('/support/logs', () => {
       .set(await adminAuthHeader())
     assert.equal(res.status, 200)
     const log = res.body instanceof Buffer ? res.body.toString() : res.text
-    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    assert.ok(log.includes('"POST /rest/user/change-password HTTP/'))
+    assert.ok(log.includes('"GET /rest/user/change-password HTTP/'))
     assert.ok(!log.includes(marker))
   })
 })

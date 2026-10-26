@@ -138,29 +138,10 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
-const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password', 'token', 'access_token'])
-
-const queryParamKey = (param: string) => {
-  const separator = param.indexOf('=')
-  return separator === -1 ? param : param.substring(0, separator)
-}
-
-const isSensitiveQueryParam = (param: string) => {
-  let key = queryParamKey(param)
-  try {
-    key = decodeURIComponent(key.replace(/\+/g, ' '))
-  } catch {}
-  return sensitiveQueryParams.has(key.replace(/\[.*$/, '').trim().toLowerCase())
-}
-
-// An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too
-export const redactSensitiveQueryParams = (url?: string) => {
+export const stripQueryString = (url?: string) => {
   if (!url) return url
-  const queryStart = url.indexOf('?')
-  if (queryStart === -1) return url
-  const params = url.substring(queryStart + 1).split('&')
-  if (!params.some(isSensitiveQueryParam)) return url
-  return url.substring(0, queryStart + 1) + params.map((param) => isSensitiveQueryParam(param) ? `${queryParamKey(param)}=[REDACTED]` : '[REDACTED]').join('&')
+  const end = url.search(/[?#]/)
+  return end === -1 ? url : url.substring(0, end)
 }
 
 export const randomHexString = (length: number): string => {
