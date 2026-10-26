@@ -209,12 +209,12 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
-  for (const quantity of [0, -1, -100000]) {
+  for (const [quantity, ProductId] of [[0, 7], [-1, 11], [-100000, 13]]) {
     void it(`PUT update basket item to quantity ${quantity} is forbidden`, async () => {
       const createRes = await request(app)
         .post('/api/BasketItems')
         .set(authHeader)
-        .send({ BasketId: 2, ProductId: 7, quantity: 1 })
+        .send({ BasketId: 2, ProductId, quantity: 1 })
       assert.equal(createRes.status, 200)
 
       const res = await request(app)
