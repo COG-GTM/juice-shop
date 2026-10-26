@@ -25,7 +25,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status).to.have.callCount(0)
     expect(res.json).to.have.been.calledWith(sinon.match({ cid: 'JS0815DE', orderNo: sinon.match.string, paymentDue: sinon.match.string }))
   })
 
@@ -34,13 +34,13 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status).to.have.callCount(0)
   })
 
   it('accepts orders without orderLinesData', () => {
     b2bOrder()(req, res)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status).to.have.callCount(0)
     expect(res.json).to.have.been.calledWith(sinon.match({ orderNo: sinon.match.string }))
   })
 
