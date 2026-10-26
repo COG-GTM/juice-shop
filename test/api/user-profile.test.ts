@@ -51,4 +51,23 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+  for (const payload of ['#{7*7}', 'x#{7*7}', 'x!{7*7}']) {
+    void it(`GET user profile renders template syntax in username "${payload}" as literal text`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(`>${payload}</p>`))
+      assert.ok(!res.text.includes('>49</p>'))
+      assert.ok(!res.text.includes('x49'))
+    })
+  }
 })
