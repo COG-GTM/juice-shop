@@ -203,4 +203,39 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('isAdmin', () => {
+    const run = (authorization?: string) => {
+      const result: { status?: number, nextCalled: boolean } = { nextCalled: false }
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res: any = { status: (code: number) => { result.status = code; return res }, json: () => res }
+      security.isAdmin()(req, res, () => { result.nextCalled = true })
+      return result
+    }
+
+    it('rejects requests without token with 401', () => {
+      const result = run()
+      expect(result.status).to.equal(401)
+      expect(result.nextCalled).to.equal(false)
+    })
+
+    it('rejects requests with non-admin token with 403', () => {
+      const result = run('Bearer ' + security.authorize({ data: { role: security.roles.customer } }))
+      expect(result.status).to.equal(403)
+      expect(result.nextCalled).to.equal(false)
+    })
+
+    it('rejects requests with forged unsigned admin token with 401', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { role: security.roles.admin } })).toString('base64url')
+      const result = run(`Bearer ${header}.${payload}.`)
+      expect(result.status).to.equal(401)
+      expect(result.nextCalled).to.equal(false)
+    })
+
+    it('passes requests with admin token', () => {
+      const result = run('Bearer ' + security.authorize({ data: { role: security.roles.admin } }))
+      expect(result.nextCalled).to.equal(true)
+    })
+  })
 })

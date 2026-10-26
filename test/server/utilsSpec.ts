@@ -208,4 +208,14 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password values from query string', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret')).to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('leaves non-sensitive query parameters unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&newest=1')).to.equal('/rest/products/search?q=apple&newest=1')
+    })
+  })
 })

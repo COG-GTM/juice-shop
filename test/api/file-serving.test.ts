@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
 
@@ -201,10 +202,32 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file for "Access Log" challenge as admin', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set({ Authorization: 'Bearer ' + token })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('GET access log file without authentication is denied', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET access log directory listing without authentication is denied', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET access log file as non-admin customer is denied', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 403)
   })
 })
