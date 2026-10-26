@@ -8,14 +8,20 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let authHeader: { Authorization: string, 'content-type': string }
+let benderAuthHeader: { Authorization: string, 'content-type': string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+  benderAuthHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Recycles', () => {
@@ -58,6 +64,7 @@ void describe('/api/Recycles', () => {
 
     const res = await request(app)
       .get('/api/Recycles/1')
+      .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     const items = res.body.data
@@ -72,6 +79,29 @@ void describe('/api/Recycles', () => {
       assert.equal(typeof item.createdAt, 'string')
       assert.equal(typeof item.updatedAt, 'string')
     }
+  })
+
+  void it('GET existing recycle without login is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET recycle of another user returns no items', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1')
+      .set(benderAuthHeader)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('POST new recycle is always stored for the logged-in user', async () => {
+    const res = await request(app)
+      .post('/api/Recycles')
+      .set(authHeader)
+      .send({ UserId: 3, quantity: 10, AddressId: '1', isPickup: false, date: '2017-06-02' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 2)
   })
 
   void it('PUT update existing recycle is forbidden', async () => {
