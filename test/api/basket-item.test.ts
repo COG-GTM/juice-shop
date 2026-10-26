@@ -184,6 +184,28 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update basket item with non-scalar basket ID is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: [2], ProductId: 13, quantity: 1 })
+    assert.equal(createRes.status, 401)
+  })
+
   void it('PUT update basket item to negative quantity is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')

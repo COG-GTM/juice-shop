@@ -55,6 +55,21 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item != null && !isOwnBasket(security.authenticatedUsers.from(req), item.BasketId)) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -79,7 +94,16 @@ export function quantityCheckBeforeBasketItemUpdate () {
 }
 
 function isOwnBasket (user: { bid?: number } | undefined, basketId: unknown) {
-  return user?.bid !== undefined && basketId !== undefined && basketId !== null && basketId !== '' && Number(basketId) === Number(user.bid)
+  if (user?.bid === undefined) {
+    return false
+  }
+  if (typeof basketId === 'number') {
+    return Number.isInteger(basketId) && basketId === Number(user.bid)
+  }
+  if (typeof basketId === 'string') {
+    return /^\d+$/.test(basketId) && Number(basketId) === Number(user.bid)
+  }
+  return false
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: unknown) {
