@@ -75,8 +75,18 @@ export class FailedAttemptLockout {
     if (record.pending === 0 && record.failures === 0 && record.lockedUntil <= this.now()) this.records.delete(key)
   }
 
+  /* Ends a successful attempt and clears failures and lock, but keeps other in-flight attempts reserved so their failures still count */
   reset (key: string) {
-    this.records.delete(key)
+    const record = this.records.get(key)
+    if (record == null) return
+    record.pending = Math.max(0, record.pending - 1)
+    if (record.pending === 0) {
+      this.records.delete(key)
+      return
+    }
+    record.failures = 0
+    record.lockedUntil = 0
+    record.windowStart = this.now()
   }
 
   private expireWindow (record: AttemptRecord, now: number) {

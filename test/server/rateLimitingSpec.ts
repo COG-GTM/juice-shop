@@ -84,6 +84,18 @@ describe('rateLimiting', () => {
       expect(lockout.retryAfterSeconds('a')).to.equal(0)
     })
 
+    it('keeps counting failures of attempts that were in flight during a successful reset', () => {
+      expect(lockout.admit('a')).to.equal(0)
+      expect(lockout.admit('a')).to.equal(0)
+      expect(lockout.admit('a')).to.equal(0)
+      lockout.reset('a')
+      lockout.recordFailure('a')
+      lockout.recordFailure('a')
+      expect(lockout.admit('a')).to.equal(0)
+      lockout.recordFailure('a')
+      expect(lockout.retryAfterSeconds('a')).to.equal(300)
+    })
+
     it('counts in-flight attempts so parallel attempts cannot exceed the threshold', () => {
       const admitted = [0, 1, 2, 3, 4].map(() => lockout.admit('a')).filter(retryAfter => retryAfter === 0)
       expect(admitted).to.have.length(3)
