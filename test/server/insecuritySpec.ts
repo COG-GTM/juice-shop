@@ -211,7 +211,7 @@ describe('insecurity', () => {
     })
 
     it('rejects tokens signed with any other RSA private key', () => {
-      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, publicKeyEncoding: { type: 'spki', format: 'pem' }, privateKeyEncoding: { type: 'pkcs1', format: 'pem' } })
       const forged = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256', expiresIn: '6h' })
       expect(security.verify(forged)).to.equal(false)
     })
