@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -15,6 +16,7 @@ import { type NextFunction, type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
@@ -24,29 +26,48 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDirectory = path.resolve('uploads/complaints')
+
+function resolveComplaintEntryPath (entryPath: unknown): string | null {
+  if (typeof entryPath !== 'string' || entryPath.length === 0 || entryPath.includes('\0')) {
+    return null
+  }
+  const segments = entryPath.split(/[\\/]/)
+  if (path.posix.isAbsolute(entryPath) || path.win32.isAbsolute(entryPath) || /^[a-zA-Z]:/.test(entryPath) || segments.includes('..')) {
+    return null
+  }
+  const targetPath = path.resolve(complaintsDirectory, ...segments)
+  return targetPath.startsWith(complaintsDirectory + path.sep) && path.dirname(targetPath) === complaintsDirectory ? targetPath : null
+}
+
+function reportExtractionError (err: unknown) {
+  logger.warn('Complaint ZIP extraction failed (' + utils.getErrorMessage(err) + ')')
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
-      fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
+      const tempFile = path.join(os.tmpdir(), `juice-shop-complaint-${crypto.randomUUID()}.zip`)
+      const removeTempFile = () => { fs.rm(tempFile, { force: true }, () => {}) }
+      fs.open(tempFile, 'wx', 0o600, function (err, fd) {
+        if (err != null) { reportExtractionError(err); return }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
+          if (err != null) { fs.close(fd, removeTempFile); reportExtractionError(err); return }
           fs.close(fd, function () {
             fs.createReadStream(tempFile)
+              .on('close', removeTempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
+                if (targetPath !== null) {
+                  entry.pipe(fs.createWriteStream(targetPath).on('error', reportExtractionError))
                 } else {
                   entry.autodrain()
                 }
-              }).on('error', function (err: unknown) { next(err) })
+              }).on('error', reportExtractionError)
           })
         })
       })
@@ -144,5 +165,6 @@ export {
   checkUploadSize,
   checkFileType,
   handleXmlUpload,
-  handleYamlUpload
+  handleYamlUpload,
+  resolveComplaintEntryPath
 }
