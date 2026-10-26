@@ -35,6 +35,32 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isSafeInteger(BasketItem.quantity) && BasketItem.quantity > 0))) {
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
+          const subtotal = (basket.Products ?? []).reduce((sum, { BasketItem, price, deluxePrice }) => BasketItem != null ? sum + (security.isDeluxe(req) ? deluxePrice : price) * BasketItem.quantity : sum, 0)
+          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const deliveryMethod = {
+            deluxePrice: 0,
+            price: 0,
+            eta: 5
+          }
+          if (req.body.orderDetails?.deliveryMethodId) {
+            const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id: req.body.orderDetails.deliveryMethodId } })
+            if (deliveryMethodFromModel != null) {
+              deliveryMethod.deluxePrice = deliveryMethodFromModel.deluxePrice
+              deliveryMethod.price = deliveryMethodFromModel.price
+              deliveryMethod.eta = deliveryMethodFromModel.eta
+            }
+          }
+          const deliveryAmount = security.isDeluxe(req) ? deliveryMethod.deluxePrice : deliveryMethod.price
+          const expectedTotal = subtotal - (discount > 0 ? parseFloat((subtotal * (discount / 100)).toFixed(2)) : 0) + deliveryAmount
+          if (expectedTotal < 0) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => true)
+            res.status(400).json({ error: res.__('Order total must not be negative.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -104,7 +130,6 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
@@ -112,20 +137,6 @@ export function placeOrder () {
             doc.moveDown()
             totalPrice -= parseFloat(discountAmount)
           }
-          const deliveryMethod = {
-            deluxePrice: 0,
-            price: 0,
-            eta: 5
-          }
-          if (req.body.orderDetails?.deliveryMethodId) {
-            const deliveryMethodFromModel = await DeliveryModel.findOne({ where: { id: req.body.orderDetails.deliveryMethodId } })
-            if (deliveryMethodFromModel != null) {
-              deliveryMethod.deluxePrice = deliveryMethodFromModel.deluxePrice
-              deliveryMethod.price = deliveryMethodFromModel.price
-              deliveryMethod.eta = deliveryMethodFromModel.eta
-            }
-          }
-          const deliveryAmount = security.isDeluxe(req) ? deliveryMethod.deluxePrice : deliveryMethod.price
           totalPrice += deliveryAmount
           doc.text(`${req.__('Delivery Price')}: ${deliveryAmount.toFixed(2)}¤`)
           doc.moveDown()

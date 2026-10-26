@@ -68,11 +68,11 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (req.body.quantity) {
+      if (req.body.quantity !== undefined) {
         if (item == null) {
           throw new Error('No such item found!')
         }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+        await quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
       }
@@ -82,15 +82,26 @@ export function quantityCheckBeforeBasketItemUpdate () {
   }
 }
 
-async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
+function isPositiveInteger (value: unknown) {
+  const number = typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value
+  return typeof number === 'number' && Number.isSafeInteger(number) && number > 0
+}
+
+async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: unknown) {
+  if (!isPositiveInteger(quantity)) {
+    challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return Number(quantity) < 0 })
+    res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+    return
+  }
+
   const product = await QuantityModel.findOne({ where: { ProductId: id } })
   if (product == null) {
     throw new Error('No such product found!')
   }
 
   // is product limited per user and order, except if user is deluxe?
-  if (!product.limitPerUser || (product.limitPerUser && product.limitPerUser >= quantity) || security.isDeluxe(req)) {
-    if (product.quantity >= quantity) { // enough in stock?
+  if (!product.limitPerUser || (product.limitPerUser && product.limitPerUser >= Number(quantity)) || security.isDeluxe(req)) {
+    if (product.quantity >= Number(quantity)) { // enough in stock?
       next()
     } else {
       res.status(400).json({ error: res.__('We are out of stock! Sorry for the inconvenience.') })
