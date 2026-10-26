@@ -53,6 +53,7 @@ export function changePassword () {
 
       await user.update({ password: newPassword })
       loggedInUser.data.password = user.password
+      security.authenticatedUsers.revokeOtherSessions(user.id, token)
       res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
