@@ -21,7 +21,7 @@ export function retrieveLoggedInUser () {
         // Parse the fields parameter into an array, splitting by comma.
         // If not provided, both these variables will be undefined.
         const fieldsParam = req.query?.fields as string | undefined
-        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : []
+        const requestedFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()).filter(f => f !== 'totpSecret') : []
 
         let baseUser: any = {}
 
