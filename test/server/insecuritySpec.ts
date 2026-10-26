@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +108,20 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    it('sets the token cookie with SameSite=Strict for a newly seen valid token', async () => {
+      const token = security.authorize({ data: { id: 4711, email: 'samesite@juice-sh.op' } })
+      const cookies: any[] = []
+      const req = { cookies: { token }, headers: {} } as unknown as Request
+      const res = { cookie: (...args: any[]) => cookies.push(args) } as unknown as Response
+
+      security.updateAuthenticatedUsers()(req, res, () => {})
+      await new Promise(resolve => setImmediate(resolve))
+
+      expect(cookies).to.deep.equal([['token', token, { sameSite: 'strict' }]])
     })
   })
 
