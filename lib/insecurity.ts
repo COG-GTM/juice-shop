@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -24,7 +25,11 @@ const loadPrivateKey = (): string => {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
-    return fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+    const keyFile = fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE)
+    if (keyFile.startsWith(fs.realpathSync('encryptionkeys') + path.sep)) {
+      throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys/ folder')
+    }
+    return fs.readFileSync(keyFile, 'utf8')
   }
   return crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
 }
@@ -33,8 +38,13 @@ const privateKey = loadPrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 const deluxeTokenSecret = crypto.createHash('sha256').update('deluxe-token:' + privateKey).digest()
 
-export const publishPublicKey = () => {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+export const publishPublicKey = (): boolean => {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+    return true
+  } catch {
+    return false
+  }
 }
 
 interface ResponseWithUser {

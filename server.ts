@@ -163,7 +163,9 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 /* Sets view engine to hbs */
 app.set('view engine', 'hbs')
 
-security.publishPublicKey()
+if (!security.publishPublicKey()) {
+  logger.warn('Could not write encryptionkeys/jwt.pub (read-only file system?); public key is served from memory only')
+}
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
@@ -275,6 +277,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/.well-known', express.static('.well-known'))
 
   /* /encryptionkeys directory browsing */
+  app.get('/encryptionkeys/jwt.pub', (req: Request, res: Response) => { res.type('text/plain').send(security.publicKey) })
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
