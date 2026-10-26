@@ -132,6 +132,13 @@ describe('LoginComponent', () => {
         expect(localStorage.getItem('token')).toBe('token')
     })
 
+    it('stores the returned authentication token in a SameSite=Strict cookie', () => {
+        const putSpy = vi.spyOn(TestBed.inject(CookieService), 'put')
+        userService.login.mockReturnValue(of({ token: 'token' }))
+        component.login()
+        expect(putSpy).toHaveBeenCalledWith('token', 'token', expect.objectContaining({ sameSite: 'strict' }))
+    })
+
     it('puts the returned basket id into browser session storage', () => {
         userService.login.mockReturnValue(of({ bid: 4711 }))
         component.login()
