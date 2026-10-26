@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +203,36 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs tokens that verify against the published public key', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+
+      expect(security.verify(token)).to.equal(true)
+      expect(security.publicKey).to.contain('-----BEGIN RSA PUBLIC KEY-----')
+    })
+
+    it('rejects RS256 tokens signed with any other private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is not keyed with the JWT signing key', () => {
+      const token = security.deluxeToken('admin@juice-sh.op')
+
+      expect(token).to.match(/^[0-9a-f]{64}$/)
+      expect(token).to.equal(security.deluxeToken('admin@juice-sh.op'))
+      expect(token).to.not.equal(crypto.createHmac('sha256', security.publicKey).update('admin@juice-sh.opdeluxe').digest('hex'))
     })
   })
 })
