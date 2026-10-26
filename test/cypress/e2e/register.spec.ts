@@ -11,7 +11,7 @@ describe('/#/register', () => {
       })
     })
 
-    it('should be possible to bypass validation by directly using Rest API', async () => {
+    it('should not render an XSS email registered via the REST API as HTML', async () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.window().then(async () => {
@@ -36,10 +36,11 @@ describe('/#/register', () => {
             }
           })
 
-          cy.visit('/#/administration')
           cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
+            throw new Error(`email payload executed: ${t}`)
           })
+          cy.visit('/#/administration')
+          cy.get('iframe[src^="javascript:"]').should('not.exist')
           cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
         }
       })
