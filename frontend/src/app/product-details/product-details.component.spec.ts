@@ -142,6 +142,31 @@ describe('ProductDetailsComponent', () => {
         fixture.destroy()
     })
 
+    it('should keep the review text when posting fails', () => {
+        component.data = { productData: { id: 42 } as Product }
+        userService.whoAmI.mockReturnValue(of({}))
+        productReviewService.create.mockReturnValue(throwError(() => ({ status: 401 })))
+        console.log = vi.fn()
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(textArea.value).toBe('Great product!')
+    })
+
+    it('should clear the review text after posting succeeds', () => {
+        component.data = { productData: { id: 42 } as Product }
+        userService.whoAmI.mockReturnValue(of({}))
+        productReviewService.create.mockReturnValue(of({}))
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(textArea.value).toBe('')
+    })
+
     it('should refresh reviews after posting a review', () => {
         component.data = { productData: { id: 42 } as Product }
         productReviewService.create.mockReturnValue(of({}))
