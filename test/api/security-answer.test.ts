@@ -24,7 +24,7 @@ void describe('/api/SecurityAnswers', () => {
       .get('/api/SecurityAnswers')
       .set(authHeader)
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('POST new security answer for existing user fails from unique constraint', async () => {
@@ -49,7 +49,7 @@ void describe('/api/SecurityAnswers/:id', () => {
       .get('/api/SecurityAnswers/1')
       .set(authHeader)
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('POST security answer for a newly registered user', async () => {
@@ -87,7 +87,7 @@ void describe('/api/SecurityAnswers/:id', () => {
         answer: 'Blurp'
       })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing security answer is forbidden via public API even when authenticated', async () => {
@@ -95,6 +95,6 @@ void describe('/api/SecurityAnswers/:id', () => {
       .delete('/api/SecurityAnswers/1')
       .set(authHeader)
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })

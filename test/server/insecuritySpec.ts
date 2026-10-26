@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -79,6 +81,40 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('verify', () => {
+    const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64({ data: { email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })
+
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg: none"', () => {
+      expect(security.verify(`${b64({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const header = b64({ alg: 'HS256', typ: 'JWT' })
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('always responds with 403 even for a validly signed token', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      const res: any = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.denyAll()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, res)
+      expect(res.status.calledWith(403)).to.equal(true)
+      expect(next.called).to.equal(false)
     })
   })
 

@@ -111,13 +111,13 @@ void describe('/api/Products/:id', () => {
   void it('DELETE existing product is forbidden via public API', async () => {
     const res = await request(app)
       .delete('/api/Products/1')
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing product is forbidden via API even when authenticated', async () => {
     const res = await request(app)
       .delete('/api/Products/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })

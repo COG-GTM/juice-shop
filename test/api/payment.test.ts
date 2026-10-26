@@ -108,7 +108,7 @@ void describe('/api/Cards/:id', () => {
 
   void it('PUT update card is forbidden via public API', async () => {
     const res = await request(app).put('/api/Cards/' + cardId).send({ quantity: 2 })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE card by id is forbidden via public API', async () => {
@@ -137,7 +137,7 @@ void describe('/api/Cards/:id', () => {
 
   void it('PUT update card by id is forbidden via authorized API call', async () => {
     const res = await request(app).put('/api/Cards/' + cardId).set(authHeader).send({ fullName: 'Jimy' })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE card by id', async () => {

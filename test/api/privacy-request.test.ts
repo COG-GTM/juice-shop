@@ -46,14 +46,14 @@ void describe('/api/PrivacyRequests/:id', () => {
     const res = await request(app)
       .get('/api/PrivacyRequests')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('GET existing privacy request by id is forbidden', async () => {
     const res = await request(app)
       .get('/api/PrivacyRequests/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing privacy request is forbidden', async () => {
@@ -63,13 +63,13 @@ void describe('/api/PrivacyRequests/:id', () => {
       .send({
         message: 'Should not work...'
       })
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing privacy request is forbidden', async () => {
     const res = await request(app)
       .delete('/api/PrivacyRequests/1')
       .set(authHeader)
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
