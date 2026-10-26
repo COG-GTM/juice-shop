@@ -78,7 +78,19 @@ describe('insecurity', () => {
 
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
-      expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+      expect(security.discountFromCoupon(security.generateCoupon(security.MAX_COUPON_DISCOUNT))).to.equal(security.MAX_COUPON_DISCOUNT)
+    })
+
+    it('returns undefined for coupon code above the maximum discount', () => {
+      expect(security.discountFromCoupon(security.generateCoupon(security.MAX_COUPON_DISCOUNT + 1))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(100))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(100000))).to.equal(undefined)
+    })
+
+    it('returns undefined for coupon code with trailing characters after the discount', () => {
+      const validPrefix = z85.decode(security.generateCoupon(10)).toString()
+      expect(security.discountFromCoupon(z85.encode(validPrefix + '0abc'))).to.equal(undefined)
     })
   })
 
