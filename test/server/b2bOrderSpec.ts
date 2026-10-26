@@ -109,6 +109,15 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.callCount(0)
   })
 
+  it('rejects order lines with a nonpositive productId', () => {
+    req.body.orderLinesData = '[{"productId": 0,"quantity": 1},{"productId": -5,"quantity": 1}]'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
   it('deserializing JSON as documented in Swagger should not solve "rceChallenge"', () => {
     req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
 
