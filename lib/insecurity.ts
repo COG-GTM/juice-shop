@@ -88,7 +88,7 @@ export const expiryOf = (token: string): number | undefined => {
   const claims = claimsOf(token)
   if (typeof claims?.exp === 'number') return claims.exp
   if (typeof claims?.iat === 'number') return claims.iat + sessionLifetimeInSeconds
-  return undefined
+  return claims === undefined ? undefined : 0
 }
 
 const isExpired = (token: string) => {
@@ -245,7 +245,8 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const token = utils.jwtFrom(req)
+    const decodedToken = verify(token) && !isExpired(token) && !authenticatedUsers.isRevoked(token) && decode(token)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
