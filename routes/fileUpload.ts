@@ -33,7 +33,7 @@ export function resolveComplaintUploadPath (entryName: unknown): string | null {
   if (typeof entryName !== 'string' || entryName.length === 0) return null
   if (entryName.includes('\0') || /[\\/]/.test(entryName) || entryName === '.' || entryName === '..') return null
   const absolutePath = path.resolve(COMPLAINT_UPLOAD_DIR, entryName)
-  return path.dirname(absolutePath) === COMPLAINT_UPLOAD_DIR ? absolutePath : null
+  return absolutePath.startsWith(COMPLAINT_UPLOAD_DIR + path.sep) && path.dirname(absolutePath) === COMPLAINT_UPLOAD_DIR ? absolutePath : null
 }
 
 const NO_FOLLOW_WRITE_FLAGS = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
