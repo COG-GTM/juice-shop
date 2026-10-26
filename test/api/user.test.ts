@@ -211,12 +211,6 @@ void describe('/api/Users', () => {
       .set({ Authorization: `Bearer ${token}` })
     assert.equal(res.status, 403)
   })
-    assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
-    assert.equal(res.body.errors[0].field, 'role')
-    assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
-  })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
     void it('POST new user with XSS attack in email address', async () => {
