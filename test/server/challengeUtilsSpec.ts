@@ -68,5 +68,12 @@ describe('challengeUtils', () => {
       expect(notification.isRestore).to.equal(true)
       expect(notifications[0]).to.not.have.property('flag')
     })
+
+    it('includes the CTF flag when explicitly requested for a repeated notification', () => {
+      challengeUtils.sendNotification(solvedChallenge, true, true)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification.flag).to.equal(utils.ctfFlag('Score Board'))
+      expect(notification.isRestore).to.equal(true)
+    })
   })
 })
