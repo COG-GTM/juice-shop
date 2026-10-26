@@ -97,7 +97,7 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.body.updated[0].message, 'Lorem Ipsum')
   })
 
-  void it('PATCH own product review can be edited with a valid token unknown to the server', async () => {
+  void it('PATCH own product review can be edited with a valid bearer token unknown to the server despite a different token cookie', async () => {
     const email = 'bjoern.kimminich@gmail.com'
     const { token } = await login(app, {
       email,
@@ -111,10 +111,12 @@ void describe('/rest/products/reviews', () => {
     const reviews = await request(app).get('/rest/products/3/reviews')
     const ownReview = reviews.body.data.find((review: { author: string, message: string }) => review.author === email && review.message === 'Own review after restart')
     delete security.authenticatedUsers.tokenMap[token]
+    const otherToken = security.authorize({ data: { id: 4711, email: 'other@juice-sh.op' } })
 
     const res = await request(app)
       .patch('/rest/products/reviews')
       .set(userAuthHeader)
+      .set('Cookie', `token=${otherToken}`)
       .send({
         id: ownReview._id,
         message: 'Edited after restart'
