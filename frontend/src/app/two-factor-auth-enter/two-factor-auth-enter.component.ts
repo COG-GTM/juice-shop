@@ -53,7 +53,7 @@ export class TwoFactorAuthEnterComponent {
         localStorage.setItem('token', authentication.token)
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
-        this.cookieService.put('token', authentication.token, { expires, sameSite: 'strict' })
+        this.cookieService.put('token', authentication.token, { expires, sameSite: 'lax' })
         sessionStorage.setItem('bid', authentication.bid?.toString())
         /* Use userService to notifiy if user has logged in */
         /* this.userService.isLoggedIn = true; */
