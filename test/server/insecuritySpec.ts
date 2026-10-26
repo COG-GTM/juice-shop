@@ -261,6 +261,35 @@ describe('insecurity', () => {
       expect(security.isLiveSessionToken(sessionFor(1))).to.equal(true)
     })
 
+    it('issues a distinct token for every login and tracks only session tokens', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const first = sessionFor(1)
+      const second = sessionFor(1)
+      security.authorize({ userId: 1, type: 'password_valid_needs_second_factor_token' })
+
+      expect(first).to.not.equal(second)
+      expect(Object.keys(security.authenticatedUsers.issuedTokens)).to.have.members([first, second])
+    })
+
+    it('sweeps expired issued tokens when issuing new ones', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      const stale = sessionFor(1)
+      clock.tick(sixHoursAndOneMinute)
+
+      const fresh = sessionFor(1)
+
+      expect(Object.keys(security.authenticatedUsers.issuedTokens)).to.deep.equal([fresh])
+      expect(stale).to.not.equal(fresh)
+    })
+
+    it('keeps a login made right after a revocation in the same second usable', () => {
+      clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      sessionFor(1)
+      security.authenticatedUsers.revokeAllFor(1)
+
+      expect(security.isLiveSessionToken(sessionFor(1))).to.equal(true)
+    })
+
     it('revokes uncached sessions issued within the same second as the revocation', () => {
       clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       const sameSecond = sessionFor(1)
