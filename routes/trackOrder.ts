@@ -13,7 +13,7 @@ export function trackOrder () {
   return (req: Request, res: Response) => {
     const id = String(req.params.id).replace(/[^\w-]+/g, '')
 
-    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(String(req.params.id), '<iframe src="javascript:alert(`xss`)">') })
+    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.isChallengeEnabled(challenges.reflectedXssChallenge) && utils.contains(String(req.params.id), '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ orderId: id }).then((order: any) => {
       const result = utils.queryResultToJson(order)
       if (result.data[0] === undefined) {
