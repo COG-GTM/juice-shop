@@ -78,6 +78,16 @@ describe('fileUpload', () => {
       expect(containsXmlDtd('<!ENTITY x "y">')).to.equal(true)
     })
 
+    it('should not flag declaration text inside comments, CDATA sections or processing instructions', () => {
+      expect(containsXmlDtd('<complaint><![CDATA[The manual says <!DOCTYPE invoice>]]></complaint>')).to.equal(false)
+      expect(containsXmlDtd('<!-- <!DOCTYPE foo> --><complaint/>')).to.equal(false)
+      expect(containsXmlDtd('<?note <!ENTITY x "y"> ?><complaint/>')).to.equal(false)
+    })
+
+    it('should detect a DTD that follows a comment', () => {
+      expect(containsXmlDtd('<?xml version="1.0"?><!-- hi --><!DOCTYPE foo [<!ENTITY x "y">]><foo>&x;</foo>')).to.equal(true)
+    })
+
     it('should not flag plain XML', () => {
       expect(containsXmlDtd('<?xml version="1.0"?><complaint>XML all the way!</complaint>')).to.equal(false)
     })

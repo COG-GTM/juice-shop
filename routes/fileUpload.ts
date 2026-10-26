@@ -75,8 +75,22 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
 const MAX_YAML_NODES = 10000
 const MAX_YAML_DEPTH = 100
 
+const XML_SKIPPED_SECTIONS: Array<[string, string]> = [['<!--', '-->'], ['<![CDATA[', ']]>'], ['<?', '?>']]
+
 export function containsXmlDtd (data: string) {
-  return /<!\s*(DOCTYPE|ENTITY)/i.test(data)
+  let i = data.indexOf('<')
+  while (i !== -1) {
+    const section = XML_SKIPPED_SECTIONS.find(([start]) => data.startsWith(start, i))
+    if (section) {
+      const end = data.indexOf(section[1], i + section[0].length)
+      if (end === -1) return false
+      i = data.indexOf('<', end + section[1].length)
+    } else {
+      if (/^<!\s*(DOCTYPE|ENTITY)/i.test(data.slice(i, i + 64))) return true
+      i = data.indexOf('<', i + 1)
+    }
+  }
+  return false
 }
 
 export function assertYamlWithinLimits (document: unknown) {
