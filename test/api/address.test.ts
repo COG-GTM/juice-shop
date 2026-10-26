@@ -154,6 +154,36 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data.fullName, 'Jimy')
   })
 
+  void it('PUT update address by id of another user is rejected without leaking or reassigning it', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Mallory', UserId: 1 })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.equal(ownerRes.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address by id cannot change its id or owner', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ id: 1, UserId: 1, city: 'Boston' })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, addressId)
+    assert.equal(res.body.data.city, 'Boston')
+    assert.notEqual(res.body.data.UserId, 1)
+  })
+
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)
