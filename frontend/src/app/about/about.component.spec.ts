@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -20,6 +21,7 @@ describe('AboutComponent', () => {
     let component: AboutComponent
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
+    let feedbackService
     let translateService
 
     beforeEach(async () => {
@@ -27,6 +29,10 @@ describe('AboutComponent', () => {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: {} }))
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
         }
@@ -43,6 +49,7 @@ describe('AboutComponent', () => {
                 TranslateModule.forRoot()],
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
+                { provide: FeedbackService, useValue: feedbackService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -115,5 +122,17 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the gallery as plain text instead of trusted HTML', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        feedbackService.find.mockReturnValue(of([{ comment: payload, rating: 5 }]))
+        const addImage = vi.spyOn(component['galleryRef'], 'addImage')
+        component.populateSlideshowFromFeedbacks()
+
+        expect(addImage).toHaveBeenCalledWith(expect.objectContaining({
+            args: expect.objectContaining({ comment: payload })
+        }))
+        expect(typeof addImage.mock.calls[0][0].args.comment).toBe('string')
     })
 })
