@@ -65,7 +65,7 @@ void describe('/api/Quantitys', () => {
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
       .send({ ProductId: 1, quantity: 100 })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('POST quantity forbidden for admin', async () => {
@@ -78,7 +78,7 @@ void describe('/api/Quantitys', () => {
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
       .send({ ProductId: 1, quantity: 100 })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('POST quantity is forbidden for accounting users', async () => {
@@ -91,7 +91,7 @@ void describe('/api/Quantitys', () => {
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
       .send({ ProductId: 1, quantity: 100 })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
 
@@ -210,7 +210,7 @@ void describe('/api/Quantitys/:ids', () => {
       .delete('/api/Quantitys/1')
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE quantity is forbidden for admin', async () => {
@@ -222,7 +222,7 @@ void describe('/api/Quantitys/:ids', () => {
       .delete('/api/Quantitys/1')
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE quantity is forbidden for users', async () => {
@@ -234,6 +234,6 @@ void describe('/api/Quantitys/:ids', () => {
       .delete('/api/Quantitys/1')
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 403)
   })
 })
