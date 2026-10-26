@@ -55,6 +55,38 @@ export function addBasketItem () {
   }
 }
 
+export function getOwnBasketItems () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = security.authenticatedUsers.from(req)
+    if (!user?.bid) {
+      res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
+      return
+    }
+    try {
+      const items = await BasketItemModel.findAll({ where: { BasketId: user.bid } })
+      res.json({ status: 'success', data: items })
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = security.authenticatedUsers.from(req)
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (!user?.bid || item == null || Number(item.BasketId) !== Number(user.bid)) {
+        res.status(403).json({ status: 'error', message: 'Malicious activity detected.' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
     void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
