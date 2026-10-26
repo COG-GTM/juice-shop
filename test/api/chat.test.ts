@@ -12,6 +12,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as db from '../../data/mongodb'
+import * as security from '../../lib/insecurity'
 import { challenges } from '../../data/datacache'
 
 const MOCK_LLM_PORT = 43210
@@ -323,12 +324,13 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(!toolResult?.includes('error'), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
   })
 
-  void it('POST rejects an order whose id does not match the customer email hash', { timeout: 30000 }, async () => {
+  void it('POST rejects an order of another customer with the same masked email and order id prefix', { timeout: 30000 }, async () => {
     const { token } = await login(app, { email: adminEmail, password: 'admin123' })
-    const orderId = 'ffff-' + Date.now().toString(16)
+    const orderId = security.hash(adminEmail).slice(0, 4) + '-' + Date.now().toString(16)
     await db.ordersCollection.insert({
       orderId,
       email: adminEmail.replace(/[aeiou]/gi, '*'),
+      UserId: 999,
       totalPrice: 1.99,
       products: [],
       eta: '0',

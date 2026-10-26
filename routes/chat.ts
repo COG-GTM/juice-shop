@@ -177,7 +177,7 @@ export function chat () {
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
-          if (order.email !== maskedEmail || !orderId.startsWith(security.hash(user.email).slice(0, 4) + '-')) {
+          if (order.UserId !== userId || order.email !== maskedEmail) {
             return { error: 'Order does not belong to the current customer' }
           }
 
