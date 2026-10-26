@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import fileType from 'file-type'
 import { MemoryModel } from '../models/memory'
@@ -13,7 +14,12 @@ const allowedImageTypes = ['image/png', 'image/jpeg']
 
 export function ensureMemoryImageContent () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const filePath = req.file?.path
+    const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
+    const filePath = req.file ? path.resolve(uploadsDir, path.basename(req.file.filename)) : undefined
+    if (filePath && !filePath.startsWith(uploadsDir + path.sep)) {
+      res.status(400).json({ status: 'error', message: 'Invalid upload path' })
+      return
+    }
     const detectedType = filePath ? await fileType.fromFile(filePath) : undefined
     if (detectedType && allowedImageTypes.includes(detectedType.mime)) {
       next()
