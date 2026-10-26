@@ -185,8 +185,16 @@ export const appendUserId = () => {
   }
 }
 
+const isRs256Signed = (token?: string) => {
+  try {
+    return !!token && jws.decode(token)?.header?.alg === 'RS256'
+  } catch {
+    return false
+  }
+}
+
 export const bindUserId = () => (req: Request, res: Response, next: NextFunction) => {
-  const tokens = [utils.jwtFrom(req), req.cookies?.token].filter(Boolean)
+  const tokens = [utils.jwtFrom(req), req.cookies?.token].filter(isRs256Signed)
   const bindFrom = (i: number) => {
     if (i >= tokens.length) {
       if (req.body) req.body.UserId = null

@@ -190,6 +190,30 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
+  void it('POST feedback with an unsigned token claiming another user is stored without user association', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
+    const unsignedToken = `${header}.${payload}.`
+
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + unsignedToken, 'content-type': 'application/json' })
+      .send({
+        comment: 'Signed by nobody',
+        rating: 1,
+        UserId: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.UserId, null)
+  })
+
   void it('POST feedback can be created without actually supplying comment', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
