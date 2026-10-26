@@ -72,15 +72,51 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+const MAX_YAML_NODES = 10000
+const MAX_YAML_DEPTH = 100
+
+export function containsXmlDtd (data: string) {
+  return /<!\s*(DOCTYPE|ENTITY)/i.test(data)
+}
+
+export function assertYamlWithinLimits (document: unknown) {
+  const ancestors = new Set<object>()
+  const seen = new Set<object>()
+  let nodes = 0
+  const visit = (node: unknown, depth: number) => {
+    if (++nodes > MAX_YAML_NODES) throw new Error('YAML document exceeds ' + MAX_YAML_NODES + ' nodes')
+    if (depth > MAX_YAML_DEPTH) throw new Error('YAML document exceeds a nesting depth of ' + MAX_YAML_DEPTH)
+    if (node === null || typeof node !== 'object') return
+    if (seen.has(node) || ancestors.has(node)) throw new Error('YAML aliases are not allowed')
+    seen.add(node)
+    ancestors.add(node)
+    for (const child of Object.values(node)) visit(child, depth + 1)
+    ancestors.delete(node)
+  }
+  visit(document, 0)
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
+    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
       const data = file.buffer.toString()
+      // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes, so entities are only expanded while an XXE challenge is enabled
+      const xxeChallengeEnabled = utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)
+      if (!xxeChallengeEnabled && containsXmlDtd(data)) {
+        res.status(410)
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: XML document type declarations are not allowed (' + file.originalname + ')'))
+        return
+      }
       try {
         const sandbox = { libxml, data }
         vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
+        const xmlDoc = xxeChallengeEnabled
+          ? vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
+          : vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nocdata: true, nonet: true, huge: false, dtdload: false, dtdvalid: false })', sandbox, { timeout: 2000 })
+        if (!xxeChallengeEnabled && xmlDoc.getDtd() != null) {
+          throw new Error('XML document type declarations are not allowed')
+        }
         const xmlString = xmlDoc.toString(false)
         challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
         res.status(410)
@@ -112,9 +148,16 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { yaml, data }
-        vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        let yamlString: string
+        if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
+          const sandbox = { yaml, data }
+          vm.createContext(sandbox)
+          yamlString = vm.runInContext('JSON.stringify(yaml.safeLoad(data))', sandbox, { timeout: 2000 })
+        } else {
+          const document = yaml.safeLoad(data, { schema: yaml.JSON_SCHEMA })
+          assertYamlWithinLimits(document)
+          yamlString = JSON.stringify(document)
+        }
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: unknown) {

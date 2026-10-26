@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
+import yaml from 'js-yaml'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, containsXmlDtd, assertYamlWithinLimits } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +65,43 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('containsXmlDtd', () => {
+    it('should detect the DTD of the Billion Laughs attack file', () => {
+      const data = fs.readFileSync(path.resolve(__dirname, '../files/xxeBillionLaughs.xml'), 'utf8')
+      expect(containsXmlDtd(data)).to.equal(true)
+    })
+
+    it('should detect lowercase or entity-only declarations', () => {
+      expect(containsXmlDtd('<!doctype foo><foo/>')).to.equal(true)
+      expect(containsXmlDtd('<!ENTITY x "y">')).to.equal(true)
+    })
+
+    it('should not flag plain XML', () => {
+      expect(containsXmlDtd('<?xml version="1.0"?><complaint>XML all the way!</complaint>')).to.equal(false)
+    })
+  })
+
+  describe('assertYamlWithinLimits', () => {
+    it('should reject the YAML bomb attack file without expanding it', () => {
+      const document = yaml.safeLoad(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8'), { schema: yaml.JSON_SCHEMA })
+      expect(() => { assertYamlWithinLimits(document) }).to.throw('YAML aliases are not allowed')
+    })
+
+    it('should reject documents with more than 10000 nodes', () => {
+      expect(() => { assertYamlWithinLimits(new Array(10000).fill('lol')) }).to.throw('exceeds 10000 nodes')
+    })
+
+    it('should reject documents nested deeper than 100 levels', () => {
+      let document: unknown = 'lol'
+      for (let i = 0; i < 101; i++) document = [document]
+      expect(() => { assertYamlWithinLimits(document) }).to.throw('nesting depth')
+    })
+
+    it('should accept regular complaint documents', () => {
+      const document = yaml.safeLoad('complaint:\n  customer: jim\n  items: [1, 2, 3]\n  message: "the juice was sour"\n', { schema: yaml.JSON_SCHEMA })
+      expect(() => { assertYamlWithinLimits(document) }).to.not.throw()
+    })
   })
 })
