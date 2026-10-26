@@ -69,7 +69,7 @@ import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
 import * as feedback from './routes/feedback'
-import { getOwnComplaints } from './routes/complaint'
+import { getOwnComplaints, bindComplaintToCurrentUser } from './routes/complaint'
 import { restrictHintUpdateToUnlocking } from './routes/hint'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
@@ -460,8 +460,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/BasketItems', utils.asyncHandler(basketItems.getOwnBasketItems()))
   app.use('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
   app.put('/api/Addresss/:id', utils.asyncHandler(address.ensureAddressOwnership()))
-  app.get('/api/Complaints', security.appendUserId(), utils.asyncHandler(getOwnComplaints()))
-  app.post('/api/Complaints', security.appendUserId())
+  app.get('/api/Complaints', bindComplaintToCurrentUser(), utils.asyncHandler(getOwnComplaints()))
+  app.post('/api/Complaints', bindComplaintToCurrentUser())
   app.post('/api/Feedbacks', feedback.bindFeedbackToCurrentUser())
   app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.ensureFeedbackDeletionAllowed()))
   app.put('/api/Hints/:id', restrictHintUpdateToUnlocking())
