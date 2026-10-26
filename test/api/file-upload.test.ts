@@ -50,6 +50,25 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('Apple Juice'))
+  })
+
+  void it('POST file type XML with XXE attack against Linux never discloses the file', async () => {
+    const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.doesNotMatch(res.text, /root:x?:0:0:/)
+  })
+
+  void it('POST file type XML with XXE attack against Windows never discloses the file', async () => {
+    const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('16-bit app support'))
   })
 
   void it('POST large XML file near upload size limit', async () => {
@@ -77,13 +96,22 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 410)
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST file type XML with Billion Laughs attack is rejected', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
         .attach('file', file)
+      assert.ok(res.status >= 410)
+      assert.ok(!res.text.includes('entity reference loop'))
+    })
+
+    void it('POST malformed XML does not reflect parser errors', async () => {
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from('<foo><bar></foo>'), 'malformed.xml')
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(res.text.includes('invalid XML document'))
+      assert.ok(!res.text.includes('mismatch'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
