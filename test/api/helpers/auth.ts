@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import request from 'supertest'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../../lib/insecurity'
+import { UserModel } from '../../../models/user'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -79,4 +81,15 @@ export async function register (app: Express, { email, password, totpSecret }: {
   }
 
   return res
+}
+
+export async function assignTestPassword (email: string) {
+  const user = await UserModel.findOne({ where: { email } })
+  if (user == null) {
+    throw new Error(`No user '${email}' to assign a test password to`)
+  }
+  const password = crypto.randomBytes(16).toString('hex')
+  user.password = password
+  await user.save()
+  return password
 }
