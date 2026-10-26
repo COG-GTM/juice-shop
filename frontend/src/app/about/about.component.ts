@@ -114,7 +114,7 @@ export class AboutComponent implements OnInit {
         for (let i = 0; i < feedbacks.length; i++) {
 
           feedbacks[i].comment = `<figcaption><p class="feedback-comment">${
-            feedbacks[i].comment
+            this.escapeHtml(feedbacks[i].comment)
           }</p><div class="feedback-stars">(${this.stars[feedbacks[i].rating]})</div></figcaption>`
           feedbacks[i].comment = this.sanitizer.bypassSecurityTrustHtml(
             feedbacks[i].comment
@@ -126,5 +126,14 @@ export class AboutComponent implements OnInit {
           })
         }
       })
+  }
+
+  private escapeHtml (text: string): string {
+    return String(text ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
   }
 }
