@@ -164,6 +164,26 @@ export const isAccounting = () => {
   }
 }
 
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    let decodedToken
+    try {
+      decodedToken = jws.decode(token as string)?.header?.alg === 'RS256' && verify(token as string) && decode(token as string)
+    } catch {
+      decodedToken = undefined
+    }
+    const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp * 1000 <= Date.now()
+    if (!decodedToken || isExpired) {
+      res.status(401).json({ error: 'Authentication required' })
+    } else if (decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)

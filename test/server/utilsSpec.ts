@@ -208,4 +208,31 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password values from query string', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret')).to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('leaves non-sensitive query parameters unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&newest=1')).to.equal('/rest/products/search?q=apple&newest=1')
+    })
+
+    it('redacts percent-encoded sensitive parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?pass%77ord=secret&n%65w=secret')).to.equal('/rest/user/change-password?pass%77ord=[REDACTED]&n%65w=[REDACTED]')
+    })
+
+    it('redacts other credential-like parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/api?access_token=abc&apiKey=def&user[password]=ghi&new[]=jkl')).to.equal('/api?access_token=[REDACTED]&apiKey=[REDACTED]&user[password]=[REDACTED]&new[]=[REDACTED]')
+    })
+
+    it('redacts parameters with undecodable names', () => {
+      expect(utils.redactSensitiveQueryParams('/api?%E0%A4%A=secret&q=apple')).to.equal('/api?%E0%A4%A=[REDACTED]&q=apple')
+    })
+
+    it('keeps fragment and path unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/path?token=abc#frag')).to.equal('/path?token=[REDACTED]#frag')
+      expect(utils.redactSensitiveQueryParams('/path/without/query')).to.equal('/path/without/query')
+    })
+  })
 })

@@ -123,6 +123,33 @@ export const downloadToFile = async (url: string, dest: string) => {
   }
 }
 
+const sensitiveQueryParamNames = new Set(['current', 'new', 'repeat'])
+const sensitiveQueryParamPattern = /pass|pwd|token|secret|key|auth|session|credential/i
+
+const isSensitiveQueryParam = (rawKey: string) => {
+  let key: string
+  try {
+    key = decodeURIComponent(rawKey.replace(/\+/g, ' ')).trim()
+  } catch {
+    return true
+  }
+  return sensitiveQueryParamNames.has(key.toLowerCase().replace(/\[.*$/, '')) || sensitiveQueryParamPattern.test(key)
+}
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const hashStart = url.indexOf('#', queryStart)
+  const queryEnd = hashStart === -1 ? url.length : hashStart
+  const query = url.slice(queryStart + 1, queryEnd).split('&').map(pair => {
+    const separator = pair.indexOf('=')
+    if (separator === -1) return pair
+    const rawKey = pair.slice(0, separator)
+    return isSensitiveQueryParam(rawKey) ? `${rawKey}=[REDACTED]` : pair
+  }).join('&')
+  return url.slice(0, queryStart + 1) + query + url.slice(queryEnd)
+}
+
 export const jwtFrom = ({ headers }: { headers: any }) => {
   if (headers?.authorization) {
     const parts = headers.authorization.split(' ')
