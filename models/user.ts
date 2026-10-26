@@ -66,7 +66,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
               )
             })
           }
-          this.setDataValue('email', security.sanitizeSecure(email))
+          this.setDataValue('email', security.sanitizeSecure(email).replace(/&amp;/g, '&'))
         }
       }, // vuln-code-snippet hide-end
       password: {
