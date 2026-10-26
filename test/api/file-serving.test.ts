@@ -158,6 +158,13 @@ void describe('/encryptionkeys', () => {
     assert.equal(res.status, 403)
     assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
   })
+
+  void it('GET a key file whose name contains a "\\" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/..%5Cpackage.json')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Invalid file name!'))
+  })
 })
 
 void describe('Hidden URL', () => {
@@ -206,5 +213,12 @@ void describe('Hidden URL', () => {
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('GET a log file whose name contains a "\\" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/support/logs/..%5Cdata%5Cjuiceshop.sqlite')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Invalid file name!'))
   })
 })
