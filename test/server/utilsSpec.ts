@@ -208,4 +208,16 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('stripQueryString', () => {
+    it('removes the query string carrying change-password credentials', () => {
+      expect(utils.stripQueryString('/rest/user/change-password?current=old&new=s3cr3t&repeat=s3cr3t')).to.equal('/rest/user/change-password')
+    })
+
+    it('removes fragments and keeps URLs without query string unchanged', () => {
+      expect(utils.stripQueryString('http://localhost:3000/#/search?q=apple')).to.equal('http://localhost:3000/')
+      expect(utils.stripQueryString('/support/logs')).to.equal('/support/logs')
+      expect(utils.stripQueryString(undefined)).to.equal(undefined)
+    })
+  })
 })

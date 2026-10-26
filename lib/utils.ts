@@ -138,6 +138,12 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
+export const stripQueryString = (url?: string) => {
+  if (!url) return url
+  const end = url.search(/[?#]/)
+  return end === -1 ? url : url.substring(0, end)
+}
+
 export const randomHexString = (length: number): string => {
   return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
 }
