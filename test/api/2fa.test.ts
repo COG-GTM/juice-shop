@@ -55,6 +55,11 @@ void describe('/rest/2fa/verify', () => {
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
     assert.equal(res.body.authentication.umail, `wurstbrot@${config.get<string>('application.domain')}`)
+
+    const { data } = JSON.parse(Buffer.from(res.body.authentication.token.split('.')[1], 'base64').toString())
+    assert.equal(data.id, 10)
+    assert.equal(data.password, undefined)
+    assert.equal(data.totpSecret, undefined)
   })
 
   void it('POST should fail if a invalid totp token is used', async () => {
