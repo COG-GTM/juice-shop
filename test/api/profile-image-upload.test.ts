@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -99,6 +100,27 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const imageUrl of ['http://127.0.0.1:3000/', 'http://169.254.169.254/latest/meta-data/iam/security-credentials/', 'https://127.0.0.1:3000/rest/admin/application-configuration', "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"]) {
+    void it(`POST profile image URL ${imageUrl} is neither fetched nor stored as profile image`, async () => {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+      const before = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', imageUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      const after = await UserModel.findByPk(before?.id)
+      assert.equal(after?.profileImage, before?.profileImage)
+      assert.ok(!after?.profileImage.includes(imageUrl))
+    })
+  }
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
