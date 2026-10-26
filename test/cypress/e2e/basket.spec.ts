@@ -4,8 +4,8 @@ describe('/#/basket', () => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
 
-    describe('challenge "negativeOrder"', () => {
-      it('should be possible to update a basket to a negative quantity via the Rest API', () => {
+    describe('negative quantity', () => {
+      it('should not be possible to update a basket item to a negative quantity via the Rest API', () => {
         cy.window().then(async () => {
           const response = await fetch(
             `${Cypress.config('baseUrl')}/api/BasketItems/1`,
@@ -19,24 +19,8 @@ describe('/#/basket', () => {
               body: JSON.stringify({ quantity: -100000 })
             }
           )
-          if (response.status === 200) {
-            console.log('Success')
-          }
+          expect(response.status).to.equal(400)
         })
-        cy.visit('/#/order-summary')
-
-        cy.get('mat-cell.mat-column-quantity > span')
-          .first()
-          .then(($ele) => {
-            const quantity = $ele.text()
-            expect(quantity).to.match(/-100000/)
-          })
-      })
-
-      it('should be possible to place an order with a negative total amount', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Payback Time' })
       })
     })
 
@@ -53,10 +37,10 @@ describe('/#/basket', () => {
       })
     })
 
-    describe('challenge "basketManipulateChallenge"', () => {
-      it('should manipulate basket of other user instead of the one associated to logged-in user', () => {
+    describe('basket manipulation', () => {
+      it('should not be possible to add an item to the basket of another user via duplicate BasketId', () => {
         cy.window().then(async () => {
-          await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
+          const response = await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
             method: 'POST',
             cache: 'no-cache',
             headers: {
@@ -65,8 +49,8 @@ describe('/#/basket', () => {
             },
             body: '{ "ProductId": 14,"BasketId":"1","quantity":1,"BasketId":"2" }'
           })
+          expect(response.status).to.equal(400)
         })
-        cy.expectChallengeSolved({ challenge: 'Manipulate Basket' })
       })
     })
   })
