@@ -41,6 +41,12 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
+
+    const { data } = JSON.parse(Buffer.from(res.body.authentication.token.split('.')[1], 'base64').toString())
+    assert.equal(data.email, 'kalli@kasper.le')
+    assert.equal(data.role, 'customer')
+    assert.equal(data.password, undefined)
+    assert.equal(data.totpSecret, undefined)
   })
 
   void it('POST login non-existing user', async () => {
@@ -152,7 +158,7 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
+  void it('POST login with WHERE-clause disabling SQL injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -161,12 +167,11 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
-  void it('POST login with known email "admin@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "admin@juice-sh.op" in SQL injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -175,12 +180,11 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
-  void it('POST login with known email "jim@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "jim@juice-sh.op" in SQL injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -189,12 +193,11 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
-  void it('POST login with known email "bender@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "bender@juice-sh.op" in SQL injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -203,12 +206,11 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
-  void it('POST login with non-existing email "acc0unt4nt@juice-sh.op" via UNION SELECT injection attack', async () => {
+  void it('POST login with non-existing email "acc0unt4nt@juice-sh.op" via UNION SELECT injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -217,9 +219,35 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
+
+  void it('POST login with UNION SELECT injection blanking totpSecret does not bypass 2FA', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: '\' UNION SELECT id, username, email, password, role, deluxeToken, lastLoginIp, profileImage, \'\', isActive, createdAt, updatedAt, deletedAt FROM Users WHERE email=\'wurstbrot@juice-sh.op\'--',
+        password: 'x'
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+    assert.equal(res.body.data?.tmpToken, undefined)
+  })
+
+  void it('POST login for deleted user via "deletedAt IS NOT NULL" SQL injection is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: '\' or deletedAt IS NOT NULL--',
+        password: undefined
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with query-breaking SQL Injection attack', async () => {
