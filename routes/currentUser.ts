@@ -7,9 +7,10 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { type Request, type Response } from 'express'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { UserModel } from '../models/user'
 
 export function retrieveLoggedInUser () {
-  return (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     let user
     let response: any
     const emptyUser = { id: undefined, email: undefined, lastLoginIp: undefined, profileImage: undefined }
@@ -26,9 +27,15 @@ export function retrieveLoggedInUser () {
 
         if (requestedFields.length > 0) {
           // When fields are specified, return only those fields
+          let userData: any = user?.data
+          if (userData?.id !== undefined && requestedFields.some(field => userData[field] === undefined)) {
+            // Sessions restored from a token only carry its claims, so look up the remaining fields
+            const userRow = await UserModel.findByPk(userData.id)
+            userData = { ...userRow?.get({ plain: true }), ...userData }
+          }
           for (const field of requestedFields) {
-            if (user?.data[field as keyof typeof user.data] !== undefined) {
-              baseUser[field] = user?.data[field as keyof typeof user.data]
+            if (userData?.[field] !== undefined) {
+              baseUser[field] = userData[field]
             }
           }
         } else {
