@@ -62,16 +62,54 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (rejectUnlessOwnBasketItem(req, res, item)) {
+        next()
+      }
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
+export function scopeBasketItemListToOwnBasket () {
+  return (req: Request, res: Response, context: { criteria?: Record<string, unknown>, continue: unknown }) => {
+    const user = security.authenticatedUsers.from(req)
+    context.criteria = { ...context.criteria, BasketId: user?.bid ?? null }
+    return context.continue
+  }
+}
+
+function rejectUnlessOwnBasketItem (req: Request, res: Response, item: BasketItemModel | null): item is BasketItemModel {
+  if (item == null) {
+    res.status(404).json({ status: 'error', message: 'No such item found!' })
+    return false
+  }
+  const user = security.authenticatedUsers.from(req)
+  if (!user?.bid || item.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+    res.status(403).json({ status: 'error', message: 'Access to basket item of another user is forbidden' })
+    return false
+  }
+  return true
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
+      if (!rejectUnlessOwnBasketItem(req, res, item)) {
+        return
+      }
+      if (req.body.BasketId !== undefined || req.body.ProductId !== undefined) {
+        res.status(400).json({ status: 'error', message: 'BasketId and ProductId of a basket item cannot be updated' })
+        return
+      }
       if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
         void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
