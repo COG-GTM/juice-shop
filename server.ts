@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import * as objectAuthorization from './routes/objectAuthorization'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -452,6 +453,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Object-level authorization for generated API endpoints */
+  app.get('/api/Users', security.isAdmin())
+  app.get('/api/Users/:id', objectAuthorization.checkUserAccess())
+  app.get('/api/BasketItems', security.isAdmin())
+  app.use('/api/BasketItems/:id', utils.asyncHandler(objectAuthorization.checkBasketItemOwnership()))
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(objectAuthorization.checkFeedbackOwnership()))
+  app.get('/api/Complaints', security.isAdmin())
+  app.put('/api/Addresss/:id', utils.asyncHandler(objectAuthorization.checkAddressOwnership()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
