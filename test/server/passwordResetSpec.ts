@@ -68,6 +68,25 @@ describe('passwordReset', () => {
       expect(passwordReset.pendingResetTokenCount()).to.equal(1)
     })
 
+    it('keeps the newest token valid when an older delivery finishes last', async () => {
+      let releaseFirst: () => void = () => {}
+      const delivered: string[] = []
+      passwordReset.setPasswordResetMailer(async (email, token) => {
+        if (delivered.length === 0) {
+          delivered.push(token)
+          await new Promise<void>(resolve => { releaseFirst = resolve })
+        } else {
+          delivered.push(token)
+        }
+      })
+      const first = passwordReset.issueResetToken(1, 'jim@juice-sh.op')
+      await passwordReset.issueResetToken(1, 'jim@juice-sh.op')
+      releaseFirst()
+      await first
+      expect(passwordReset.isValidResetToken(delivered[0], 1)).to.equal(false)
+      expect(passwordReset.isValidResetToken(delivered[1], 1)).to.equal(true)
+    })
+
     it('removes expired tokens when new tokens are issued', async () => {
       await passwordReset.issueResetToken(1, 'jim@juice-sh.op')
       clock.tick(passwordReset.RESET_TOKEN_TTL_MS + 1)

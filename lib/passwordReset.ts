@@ -26,6 +26,8 @@ interface FailedAttemptsEntry {
 
 const resetTokens = new Map<string, ResetTokenEntry>()
 const failedAttempts = new Map<string, FailedAttemptsEntry>()
+const issuedGeneration = new Map<number, number>()
+const registeredGeneration = new Map<number, number>()
 
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex')
 const accountKey = (email: string) => email.trim().toLowerCase()
@@ -76,8 +78,14 @@ const removeExpiredEntries = (now: number) => {
 
 export const issueResetToken = async (userId: number, email: string) => {
   removeExpiredEntries(Date.now())
+  const generation = (issuedGeneration.get(userId) ?? 0) + 1
+  issuedGeneration.set(userId, generation)
   const token = crypto.randomBytes(32).toString('hex')
   await mailer(email, token)
+  if (generation < (registeredGeneration.get(userId) ?? 0)) {
+    return
+  }
+  registeredGeneration.set(userId, generation)
   invalidateResetTokens(userId)
   resetTokens.set(hashToken(token), { userId, expiresAt: Date.now() + RESET_TOKEN_TTL_MS })
 }
@@ -125,4 +133,6 @@ export const pendingResetTokenCount = () => resetTokens.size
 export const resetPasswordResetState = () => {
   resetTokens.clear()
   failedAttempts.clear()
+  issuedGeneration.clear()
+  registeredGeneration.clear()
 }
