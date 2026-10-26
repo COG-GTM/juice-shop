@@ -34,12 +34,8 @@ export function emailOf (req: Request) {
 }
 
 export function secondFactorUserOf (req: Request) {
-  const tmpToken = req.body?.tmpToken
-  if (typeof tmpToken !== 'string') return undefined
   try {
-    const payload = security.verify(tmpToken) && security.decode(tmpToken)
-    if (payload?.type !== 'password_valid_needs_second_factor_token') return undefined
-    const userId = payload.userId
+    const userId = security.verifySecondFactorToken(req.body?.tmpToken).userId
     return typeof userId === 'number' || (typeof userId === 'string' && userId !== '') ? String(userId) : undefined
   } catch {
     return undefined
