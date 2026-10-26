@@ -70,6 +70,7 @@ export class BasketService {
         } else {
           window.location.href = url
         }
+        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
       },
       error: (err) => {
         pdfWindow?.close()

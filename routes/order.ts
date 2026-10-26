@@ -33,7 +33,12 @@ const orderConfirmationsDir = 'orders'
 const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
 
 function orderConfirmationPath (userId: number | undefined, orderId: string) {
-  return path.resolve(orderConfirmationsDir, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
+  const baseDir = path.resolve(orderConfirmationsDir)
+  const pdfFile = path.resolve(baseDir, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
+  if (!pdfFile.startsWith(baseDir + path.sep)) {
+    throw new Error('Invalid order confirmation path')
+  }
+  return pdfFile
 }
 
 export function serveOrderConfirmation () {
