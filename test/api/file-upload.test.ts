@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -121,12 +122,16 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 500)
   })
 
-  void it('POST zip file with directory traversal payload', async () => {
+  void it('POST zip file with directory traversal payload does not write outside upload directory', async () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const legalFile = path.resolve('ftp/legal.md')
+    const before = fs.readFileSync(legalFile, 'utf8')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.equal(fs.readFileSync(legalFile, 'utf8'), before)
   })
 
   void it('POST zip file with password protection', async () => {

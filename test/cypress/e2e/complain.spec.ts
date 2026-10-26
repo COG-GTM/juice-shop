@@ -133,35 +133,21 @@ describe('/#/complain', () => {
     })
   })
 
-  describe('challenge "arbitraryFileWrite"', () => {
-    it('should be possible to upload zip file with filenames having path traversal', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('Zip Slip!')
-          cy.get('#file').selectFile('test/files/arbitraryFileWrite.zip')
-          cy.get('#submitButton').click()
-          cy.expectChallengeSolved({ challenge: 'Arbitrary File Write' })
-        }
-      })
+  describe('zip uploads with path traversal entries', () => {
+    it('should not write archive entries outside of the upload directory', () => {
+      cy.get('#complaintMessage').type('Zip Slip!')
+      cy.get('#file').selectFile('test/files/arbitraryFileWrite.zip')
+      cy.get('#submitButton').click()
+      cy.wait(1000)
+      cy.request('/ftp/legal.md').its('body').should('not.contain', 'h4cked')
     })
-  })
 
-  describe('challenge "videoXssChallenge"', () => {
-    it('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('Here we go!')
-          cy.get('#file').selectFile('test/files/videoExploit.zip')
-          cy.get('#submitButton').click()
-          cy.visit('/promotion')
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.visit('/')
-          cy.expectChallengeSolved({ challenge: 'Video XSS' })
-        }
-      })
+    it('should not overwrite frontend assets via archive entries', () => {
+      cy.get('#complaintMessage').type('Here we go!')
+      cy.get('#file').selectFile('test/files/videoExploit.zip')
+      cy.get('#submitButton').click()
+      cy.wait(1000)
+      cy.request('/assets/public/videos/owasp_promo.vtt').its('body').should('not.contain', 'alert(`xss`)')
     })
   })
 })
