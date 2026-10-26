@@ -208,6 +208,26 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, null)
   })
 
+  void it('POST feedback with an expired login token is stored without user association', async () => {
+    const expiredToken = security.authorize({ data: { id: 3 }, iat: Math.floor(Date.now() / 1000) - 7 * 60 * 60 })
+    security.authenticatedUsers.put(expiredToken, { data: { id: 3 } } as any)
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + expiredToken })
+      .send({
+        comment: 'Bender left long ago.',
+        rating: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, null)
+  })
+
   void it('POST feedback can be created without actually supplying comment', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
