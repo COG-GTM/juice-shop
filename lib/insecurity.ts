@@ -164,11 +164,17 @@ export const isAccounting = () => {
   }
 }
 
+const tokenLifetimeSeconds = 6 * 60 * 60
+const isExpired = ({ exp, iat }: { exp?: number, iat?: number }) => {
+  const expiry = typeof exp === 'number' ? exp : typeof iat === 'number' ? iat + tokenLifetimeSeconds : undefined
+  return expiry === undefined || expiry <= Math.floor(Date.now() / 1000)
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
     const decodedToken = token && jws.decode(token)?.header?.alg === 'RS256' && verify(token) && decode(token)
-    if (!decodedToken || typeof decodedToken.exp !== 'number' || decodedToken.exp <= Math.floor(Date.now() / 1000)) {
+    if (!decodedToken || isExpired(decodedToken)) {
       res.status(401).json({ error: 'Unauthorized' })
     } else if (decodedToken.data?.role === roles.admin) {
       next()
