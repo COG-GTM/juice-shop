@@ -164,7 +164,7 @@ export const isAccounting = () => {
   }
 }
 
-const hasValidRs256Signature = (token: string) => {
+export const hasValidRs256Signature = (token: string) => {
   const [header, payload, signature] = token.split('.')
   if (!header || !payload || !signature) return false
   try {

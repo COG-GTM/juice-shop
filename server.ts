@@ -532,6 +532,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       })
     }
 
+    if (name === 'Complaint') {
+      resource.list.fetch.after((req: Request, res: Response, context: { instance: any[], continue: any }) => {
+        const token = utils.jwtFrom(req)
+        const caller = token && security.hasValidRs256Signature(token) && security.decode(token)
+        if (caller?.data?.role !== security.roles.admin) {
+          context.instance = context.instance.filter((complaint) => caller?.data?.id !== undefined && complaint.UserId === caller.data.id)
+        }
+        return context.continue
+      })
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
