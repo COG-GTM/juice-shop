@@ -111,6 +111,37 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const callMiddleware = (middleware: any, req: any) => {
+      const result = { nextCalled: false, status: 0 }
+      const res = { status: (code: number) => { result.status = code; return { json: () => {} } } }
+      middleware(req, res, () => { result.nextCalled = true })
+      return result
+    }
+
+    it('allows requests with an admin token', () => {
+      const token = security.authorize({ data: { id: 1, role: 'admin' } })
+      const result = callMiddleware(security.isAdmin(), { headers: { authorization: `Bearer ${token}` } })
+      expect(result.nextCalled).to.equal(true)
+    })
+
+    it('rejects requests with a customer token', () => {
+      const token = security.authorize({ data: { id: 2, role: 'customer' } })
+      const result = callMiddleware(security.isAdmin(), { headers: { authorization: `Bearer ${token}` } })
+      expect(result.nextCalled).to.equal(false)
+      expect(result.status).to.equal(403)
+    })
+
+    it('allows customers to access their own user id only', () => {
+      const token = security.authorize({ data: { id: 2, role: 'customer' } })
+      const own = callMiddleware(security.isSelfOrAdmin(), { headers: { authorization: `Bearer ${token}` }, params: { id: '2' } })
+      const other = callMiddleware(security.isSelfOrAdmin(), { headers: { authorization: `Bearer ${token}` }, params: { id: '1' } })
+      expect(own.nextCalled).to.equal(true)
+      expect(other.nextCalled).to.equal(false)
+      expect(other.status).to.equal(403)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

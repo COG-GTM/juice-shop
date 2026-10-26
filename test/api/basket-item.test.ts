@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let adminHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +25,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: adminToken } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    adminHeader = {
+      Authorization: 'Bearer ' + adminToken,
       'content-type': 'application/json'
     }
   },
@@ -43,8 +53,13 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all basket items', async () => {
+  void it('GET all basket items is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all basket items as admin', async () => {
+    const res = await request(app).get('/api/BasketItems').set(adminHeader)
     assert.equal(res.status, 200)
   })
 
@@ -137,7 +152,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT update basket item without basket ID is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -149,8 +164,36 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/1')
+      .set(authHeader)
+      .send({ quantity: 2 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET own basket item as basket owner', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/1')
+      .set(adminHeader)
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
