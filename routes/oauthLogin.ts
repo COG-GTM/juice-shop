@@ -38,7 +38,7 @@ async function verifyGoogleAccessToken (accessToken: string): Promise<string | n
   if (!issuedForThisApp || !emailVerified || !notExpired || typeof tokenInfo.email !== 'string' || tokenInfo.email === '') {
     return null
   }
-  return tokenInfo.email.toLowerCase()
+  return tokenInfo.email
 }
 
 export function oauthLogin () {
