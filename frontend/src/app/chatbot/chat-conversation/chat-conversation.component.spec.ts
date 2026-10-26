@@ -167,6 +167,17 @@ describe('ChatConversationComponent', () => {
         expect(component.messages()[1].content.length).toBe(15000)
     })
 
+    it('should cap an overly long new prompt so the displayed and sent text match', async () => {
+        async function* emptyStream () {}
+        chatService.streamMessages.mockReturnValue(emptyStream())
+
+        await component.sendMessage('x'.repeat(4001))
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent[sent.length - 1].content.length).toBe(4000)
+        expect(component.messages()[0].content).toBe(sent[sent.length - 1].content)
+    })
+
     it('should shorten an overly long stored user prompt before sending a follow-up', async () => {
         async function* emptyHistoryStream () {}
         chatService.streamMessages.mockReturnValue(emptyHistoryStream())
