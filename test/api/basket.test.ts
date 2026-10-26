@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -56,15 +57,24 @@ void describe('/rest/basket/:id', () => {
     assert.equal(res.body.data.Products.length, 3)
   })
 
-  void it.skip('GET basket should accept forged JWTs', async () => {
-    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
-    const payload = Buffer.from(JSON.stringify({ data: { email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
-    const unsignedToken = `${header}.${payload}.`
+  const forgedToken = (alg: string, sign: (unsigned: string) => string) => {
+    const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
+    return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+  }
+
+  void it('GET basket rejects unsigned JWTs with alg "none"', async () => {
     const res = await request(app)
       .get('/rest/basket/1')
-      .set({ Authorization: 'Bearer ' + unsignedToken, 'content-type': 'application/json' })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+      .set({ Authorization: 'Bearer ' + forgedToken('none', () => ''), 'content-type': 'application/json' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET basket rejects HS256 JWTs HMAC-signed with the RSA public key', async () => {
+    const res = await request(app)
+      .get('/rest/basket/1')
+      .set({ Authorization: 'Bearer ' + forgedToken('HS256', (unsigned) => crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')), 'content-type': 'application/json' })
+    assert.equal(res.status, 401)
   })
 })
 

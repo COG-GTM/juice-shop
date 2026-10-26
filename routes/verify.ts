@@ -116,6 +116,10 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
       return
     }
 
+    if (!security.hasPinnedAlgorithm(token)) {
+      return
+    }
+
     jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
       if (err === null) {
         challengeUtils.solveIf(challenge, () => {

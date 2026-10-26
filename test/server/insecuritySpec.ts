@@ -237,6 +237,36 @@ describe('insecurity', () => {
     })
   })
 
+  describe('JWT algorithm pinning', () => {
+    const forge = (alg: string, signature: string) => {
+      const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+      const unsigned = `${encode({ alg, typ: 'JWT' })}.${encode({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`
+      return { unsigned, token: `${unsigned}.${signature}` }
+    }
+
+    it('accepts RS256 tokens signed with the runtime key', () => {
+      expect(security.hasPinnedAlgorithm(security.authorize({ data: {} }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with alg "none"', () => {
+      const { token } = forge('none', '')
+      expect(security.hasPinnedAlgorithm(token)).to.equal(false)
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the RSA public key', () => {
+      const { unsigned } = forge('HS256', '')
+      const token = `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+      expect(security.hasPinnedAlgorithm(token)).to.equal(false)
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.hasPinnedAlgorithm('not-a-jwt')).to.equal(false)
+      expect(security.hasPinnedAlgorithm(undefined)).to.equal(false)
+    })
+  })
+
   describe('secretOrRandom', () => {
     it('uses a configured secret', () => {
       expect(security.secretOrRandom('configured')).to.equal('configured')
