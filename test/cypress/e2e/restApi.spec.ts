@@ -63,7 +63,7 @@ describe('/api', () => {
                 })
               }
             )
-            assert.equal(response.status, 403)
+            assert.equal(response.status, 401)
           })
         })
       })

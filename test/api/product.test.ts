@@ -103,7 +103,7 @@ void describe('/api/Products/:id', () => {
         description: '<iframe src="javascript:alert(`xss`)">',
         price: 0.01
       })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 401)
     const product = (await request(app).get('/api/Products/1')).body.data
     assert.equal(product.description, original.description)
     assert.equal(product.price, original.price)
