@@ -60,6 +60,12 @@ void describe('/api/BasketItems', () => {
     assert.ok(res.body.data.every((item: { BasketId: number }) => item.BasketId === 2), 'Expected only basket items of own basket')
   })
 
+  void it('GET all basket items ignores client-supplied BasketId filter', async () => {
+    const res = await request(app).get('/api/BasketItems?BasketId=1').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.every((item: { BasketId: number }) => item.BasketId === 2), 'Expected only basket items of own basket')
+  })
+
   void it('POST new basket item', async () => {
     const res = await request(app)
       .post('/api/BasketItems')

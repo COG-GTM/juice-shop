@@ -6,6 +6,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
+import { BasketModel } from '../models/basket'
 import * as challengeUtils from '../lib/challengeUtils'
 
 import * as utils from '../lib/utils'
@@ -66,7 +67,7 @@ export function checkBasketItemOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      if (rejectUnlessOwnBasketItem(req, res, item)) {
+      if (await rejectUnlessOwnBasketItem(req, res, item)) {
         next()
       }
     } catch (error) {
@@ -75,21 +76,30 @@ export function checkBasketItemOwnership () {
   }
 }
 
-export function scopeBasketItemListToOwnBasket () {
-  return (req: Request, res: Response, context: { criteria?: Record<string, unknown>, continue: unknown }) => {
-    const user = security.authenticatedUsers.from(req)
-    context.criteria = { ...context.criteria, BasketId: user?.bid ?? null }
+export function filterBasketItemListToOwnBasket () {
+  return async (req: Request, res: Response, context: { instance: BasketItemModel[], continue: unknown }) => {
+    const basketId = await ownBasketIdOf(req)
+    context.instance = context.instance.filter(item => basketId !== undefined && item.BasketId != null && Number(item.BasketId) === basketId)
     return context.continue
   }
 }
 
-function rejectUnlessOwnBasketItem (req: Request, res: Response, item: BasketItemModel | null): item is BasketItemModel {
+async function ownBasketIdOf (req: Request): Promise<number | undefined> {
+  const user = security.authenticatedUsers.from(req)
+  if (user?.data?.id === undefined) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
+}
+
+async function rejectUnlessOwnBasketItem (req: Request, res: Response, item: BasketItemModel | null): Promise<boolean> {
   if (item == null) {
     res.status(404).json({ status: 'error', message: 'No such item found!' })
     return false
   }
-  const user = security.authenticatedUsers.from(req)
-  if (!user?.bid || item.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+  const basketId = await ownBasketIdOf(req)
+  if (basketId === undefined || item.BasketId == null || Number(item.BasketId) !== basketId) {
     res.status(403).json({ status: 'error', message: 'Access to basket item of another user is forbidden' })
     return false
   }
@@ -102,7 +112,7 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (!rejectUnlessOwnBasketItem(req, res, item)) {
+      if (!(await rejectUnlessOwnBasketItem(req, res, item)) || item == null) {
         return
       }
       if (req.body.BasketId !== undefined || req.body.ProductId !== undefined) {

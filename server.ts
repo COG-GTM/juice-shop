@@ -520,7 +520,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     // vuln-code-snippet end registerAdminChallenge
 
     if (name === 'BasketItem') {
-      resource.list.fetch.before(basketItems.scopeBasketItemListToOwnBasket())
+      resource.list.fetch.after(basketItems.filterBasketItemListToOwnBasket())
     }
 
     // translate challenge descriptions on-the-fly
