@@ -31,7 +31,8 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+    if (!hasStringCredentials(req.body)) { res.status(401).send(res.__('Invalid email or password.')); return } // vuln-code-snippet hide-line
+    models.sequelize.query('SELECT * FROM Users WHERE email = $1 AND password = $2 AND deletedAt IS NULL', { bind: [req.body.email || '', security.hash(req.body.password || '')], model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
@@ -55,6 +56,10 @@ export function login () {
       })
   }
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
+
+  function hasStringCredentials (body: { email?: unknown, password?: unknown } | undefined) {
+    return body != null && (body.email === undefined || typeof body.email === 'string') && (body.password === undefined || typeof body.password === 'string')
+  }
 
   function verifyPreLoginChallenges (req: Request) {
     challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })
