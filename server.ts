@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Created only during user registration. Everything else forbidden entirely */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -515,6 +516,28 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer submitted with the registration for the newly created user
+    if (name === 'User') {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any, stop: any }) => {
+        const securityQuestionId = req.body.securityQuestion?.id
+        const securityAnswer = req.body.securityAnswer
+        if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          try {
+            if (await SecurityQuestionModel.findByPk(securityQuestionId) == null) {
+              await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+              res.status(400).json({ status: 'error', message: 'Invalid security question' })
+              return context.stop
+            }
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+          } catch (error) {
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+            throw error
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
