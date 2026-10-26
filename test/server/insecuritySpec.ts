@@ -111,6 +111,39 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin / isAdminOrSelf', () => {
+    const run = (middleware: any, token: string | undefined, id = '2') => {
+      let status = 200
+      const req = { headers: token ? { authorization: `Bearer ${token}` } : {}, params: { id } }
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } }
+      middleware(req, res, () => {})
+      return status
+    }
+    const forge = (data: any) => `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ data })).toString('base64url')}.`
+    const admin = security.authorize({ data: { id: 1, role: security.roles.admin } })
+    const customer = security.authorize({ data: { id: 2, role: security.roles.customer } })
+
+    it('isAdmin allows only signed admin tokens', () => {
+      expect(run(security.isAdmin(), admin)).to.equal(200)
+      expect(run(security.isAdmin(), customer)).to.equal(403)
+      expect(run(security.isAdmin(), undefined)).to.equal(403)
+      expect(run(security.isAdmin(), forge({ id: 1, role: security.roles.admin }))).to.equal(403)
+    })
+
+    it('isAdmin rejects expired admin tokens', () => {
+      const expired = security.authorize({ data: { id: 1, role: security.roles.admin }, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(run(security.isAdmin(), expired)).to.equal(403)
+    })
+
+    it('isAdminOrSelf allows admins and the user themselves only', () => {
+      expect(run(security.isAdminOrSelf(), admin, '2')).to.equal(200)
+      expect(run(security.isAdminOrSelf(), customer, '2')).to.equal(200)
+      expect(run(security.isAdminOrSelf(), customer, '1')).to.equal(403)
+      expect(run(security.isAdminOrSelf(), undefined, '2')).to.equal(403)
+      expect(run(security.isAdminOrSelf(), forge({ id: 1, role: security.roles.customer }), '1')).to.equal(403)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
