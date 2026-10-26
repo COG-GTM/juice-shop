@@ -9,7 +9,6 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
@@ -94,7 +93,7 @@ before(async () => {
   })
   const result = await createTestApp()
   app = result.app
-  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } })
   authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
@@ -416,7 +415,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
   })
 
   void it('POST is rate limited per user', { timeout: 30000 }, async () => {
-    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const token = security.authorize({ data: { id: 3, email: 'bender@juice-sh.op' } })
     const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     for (let i = 0; i < 30; i++) {
