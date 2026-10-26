@@ -282,8 +282,10 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
           finishChunk('tool_calls')
         ])
       } else {
-        const toolMsg = JSON.parse(body).messages.find((m: { role: string, tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === 'call_coupon')
-        toolResult = toolMsg?.content ?? ''
+        let parsed: { messages?: Array<{ role: string, tool_call_id?: string, content?: string }> } | undefined
+        try { parsed = JSON.parse(body) } catch { parsed = undefined }
+        const toolMsg = parsed?.messages?.find((m) => m.role === 'tool' && m.tool_call_id === 'call_coupon')
+        if (toolMsg) toolResult = toolMsg.content ?? ''
         sendSSE(res, [contentChunk('Done.'), finishChunk()])
       }
     }
