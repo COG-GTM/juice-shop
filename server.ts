@@ -519,11 +519,32 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // create the security answer server-side as part of user registration
     if (name === 'User') {
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+      const securityAnswerFromBody = (req: Request) => {
         const securityQuestionId = req.body.securityQuestion?.id
         const securityAnswer = req.body.securityAnswer
         if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
-          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+          return { securityQuestionId, securityAnswer }
+        }
+        return null
+      }
+
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any }) => {
+        const answer = securityAnswerFromBody(req)
+        if (answer != null && !(await SecurityQuestionModel.findByPk(answer.securityQuestionId))) {
+          throw new finale.Errors.BadRequestError('Invalid security question.')
+        }
+        return context.continue
+      })
+
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: UserModel, continue: any }) => {
+        const answer = securityAnswerFromBody(req)
+        if (answer != null) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: answer.securityQuestionId, answer: answer.securityAnswer })
+          } catch (err) {
+            await context.instance.destroy({ force: true })
+            throw err
+          }
         }
         return context.continue
       })
