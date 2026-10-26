@@ -106,7 +106,8 @@ export function quantityCheckBeforeBasketItemUpdate () {
         res.status(403).json({ error: 'Not allowed' })
         return
       }
-      const quantity = req.body?.quantity
+      const rawQuantity = req.body?.quantity
+      const quantity = typeof rawQuantity === 'string' && /^-?\d+$/.test(rawQuantity) ? Number(rawQuantity) : rawQuantity
       const otherFields = Object.keys(req.body ?? {}).filter(key => key !== 'quantity' && key !== 'UserId')
       if (otherFields.length > 0 || !Number.isSafeInteger(quantity)) {
         res.status(400).json({ error: 'Only the quantity of a basket item can be updated.' })
