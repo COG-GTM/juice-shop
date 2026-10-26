@@ -32,7 +32,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.pdf/))
+    expect(res.sendFile).to.have.been.calledWith('test.pdf', sinon.match.has('root', sinon.match(/ftp$/)))
   })
 
   it('should serve Markdown files from folder /ftp', () => {
@@ -40,7 +40,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.md/))
+    expect(res.sendFile).to.have.been.calledWith('test.md', sinon.match.has('root', sinon.match(/ftp$/)))
   })
 
   it('should serve incident-support.kdbx files from folder /ftp', () => {
@@ -48,11 +48,30 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]incident-support\.kdbx/))
+    expect(res.sendFile).to.have.been.calledWith('incident-support.kdbx', sinon.match.has('root', sinon.match(/ftp$/)))
   })
 
   it('should raise error for slashes in filename', () => {
     req.params.file = '../../../../nice.try'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should raise error for backslashes in filename', () => {
+    req.params.file = '..\\..\\data\\juiceshop.sqlite%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should raise error for drive-relative filename', () => {
+    req.params.file = 'C:juiceshop.md'
 
     servePublicFiles()(req, res, next)
 
@@ -75,7 +94,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md/))
+    expect(res.sendFile).to.have.been.calledWith('acquisitions.md', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.directoryListingChallenge.solved).to.equal(true)
   })
 
@@ -85,7 +104,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]eastere\.gg/))
+    expect(res.sendFile).to.have.been.calledWith('eastere.gg', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.easterEggLevelOneChallenge.solved).to.equal(true)
   })
 
@@ -95,7 +114,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]package\.json\.bak/))
+    expect(res.sendFile).to.have.been.calledWith('package.json.bak', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.forgottenDevBackupChallenge.solved).to.equal(true)
   })
 
@@ -105,7 +124,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]coupons_2013\.md\.bak/))
+    expect(res.sendFile).to.have.been.calledWith('coupons_2013.md.bak', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.forgottenBackupChallenge.solved).to.equal(true)
   })
 
@@ -115,7 +134,7 @@ describe('fileServer', () => {
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]suspicious_errors\.yml/))
+    expect(res.sendFile).to.have.been.calledWith('suspicious_errors.yml', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
   })
 })
