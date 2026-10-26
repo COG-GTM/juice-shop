@@ -85,6 +85,8 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { enforceResourceOwnership } from './routes/resourceOwnership'
+import { restrictHintUpdate } from './routes/hintUpdate'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -403,6 +405,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
   /* Captcha Bypass challenge verification */
   app.post('/api/Feedbacks', verify.captchaBypassChallenge())
+  /* Feedback is always attributed to the authenticated user (or nobody) instead of a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
   /* User registration challenge verifications before finale takes over */
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body.email !== undefined && req.body.password !== undefined && req.body.passwordRepeat !== undefined) {
@@ -452,6 +456,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.put('/api/Addresss/:id', utils.asyncHandler(address.updateAddressById()))
+
+  /* Hints: anonymous updates may only unlock a hint */
+  app.put('/api/Hints/:id', restrictHintUpdate())
+  /* Complaints: always filed under the authenticated user */
+  app.post('/api/Complaints', security.bindUserId())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +525,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    enforceResourceOwnership(name, resource)
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {

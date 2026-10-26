@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
@@ -33,17 +34,62 @@ void describe('/api/Complaints', () => {
     assert.equal(typeof res.body.data.updatedAt, 'string')
   })
 
+  void it('POST complaint ignores a passed user ID of another user', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ message: 'Filed in jim\'s name?', UserId: 2 })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 3)
+  })
+
   void it('GET all complaints is forbidden via public API', async () => {
     const res = await request(app)
       .get('/api/Complaints')
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints only lists own complaints', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
     const res = await request(app)
       .get('/api/Complaints')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token })
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 3)
+    }
+  })
+
+  void it('GET all complaints does not list complaints of other users', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.filter((complaint: { UserId: number }) => complaint.UserId !== 2).length, 0)
+  })
+
+  void it('GET all complaints lists complaints of all users for admin', async () => {
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((complaint: { UserId: number }) => complaint.UserId === 3))
   })
 })
 

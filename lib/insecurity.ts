@@ -185,6 +185,22 @@ export const appendUserId = () => {
   }
 }
 
+const sessionUserOf = (token?: string) => {
+  if (!token) return undefined
+  try {
+    jwt.verify(utils.unquote(token), publicKey)
+  } catch {
+    return undefined
+  }
+  return authenticatedUsers.get(token)
+}
+
+export const bindUserId = () => (req: Request, res: Response, next: NextFunction) => {
+  const user = [utils.jwtFrom(req), req.cookies?.token].map(sessionUserOf).find((user) => user?.data?.id)
+  if (req.body) req.body.UserId = user?.data.id ?? null
+  next()
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
