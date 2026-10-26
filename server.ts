@@ -417,6 +417,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const body = req.body ?? {}
+    req.body = Object.fromEntries(['email', 'password', 'passwordRepeat'].filter((key) => body[key] !== undefined).map((key) => [key, body[key]]))
+    req.body.role = security.roles.customer
+    next()
+  })
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
   /* Unauthorized users are not allowed to access B2B API */
