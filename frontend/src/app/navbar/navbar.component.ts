@@ -10,6 +10,7 @@ import { UserService } from '../Services/user.service'
 import { AdministrationService } from '../Services/administration.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { CookieService } from 'ngy-cookie'
+import { finalize } from 'rxjs/operators'
 import { TranslateService, TranslateModule } from '@ngx-translate/core'
 import { Router, RouterLink } from '@angular/router'
 import { SocketIoService } from '../Services/socket-io.service'
@@ -236,7 +237,8 @@ export class NavbarComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    const token = localStorage.getItem('token')
+    this.userService.saveLastLoginIp().pipe(finalize(() => { this.revokeSession(token) })).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     localStorage.removeItem('token')
     this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
@@ -244,6 +246,12 @@ export class NavbarComponent implements OnInit {
     sessionStorage.removeItem('guestBasket')
     this.userService.isLoggedIn.next(false)
     this.ngZone.run(async () => await this.router.navigate(['/']))
+  }
+
+  revokeSession (token: string | null) {
+    if (token) {
+      this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    }
   }
 
   changeLanguage (langKey: string) {

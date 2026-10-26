@@ -38,6 +38,34 @@ void describe('/rest/user/change-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET password change revokes all other sessions of the user but keeps the current one', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'revoke.others@juice-sh.op', password: 'kunigunde' })
+      .expect(201)
+    const { token: otherToken } = await login(app, { email: 'revoke.others@juice-sh.op', password: 'kunigunde' })
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+    const { token: currentToken } = await login(app, { email: 'revoke.others@juice-sh.op', password: 'kunigunde' })
+    assert.notEqual(otherToken, currentToken)
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foo&repeat=foo')
+      .set({ Authorization: 'Bearer ' + currentToken })
+      .expect(200)
+
+    const revoked = await request(app)
+      .get('/rest/user/change-password?new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + otherToken })
+    assert.equal(revoked.status, 500)
+    assert.ok(revoked.text.includes('Error: Blocked illegal activity'))
+
+    const kept = await request(app)
+      .get('/rest/user/change-password?current=foo&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + currentToken })
+    assert.equal(kept.status, 200)
+  })
+
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),

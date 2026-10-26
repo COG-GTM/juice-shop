@@ -70,11 +70,13 @@ describe('NavbarComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of(undefined))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -295,6 +297,19 @@ describe('NavbarComponent', () => {
     it('should save the last login IP address', () => {
         component.logout()
         expect(userService.saveLastLoginIp).toHaveBeenCalled()
+    })
+
+    it('should revoke the session token on the server after saving the last login IP address', () => {
+        localStorage.setItem('token', 'session-token')
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('session-token')
+        expect(userService.saveLastLoginIp.mock.invocationCallOrder[0]).toBeLessThan(userService.logout.mock.invocationCallOrder[0])
+    })
+
+    it('should not call the server logout without a session token', () => {
+        localStorage.removeItem('token')
+        component.logout()
+        expect(userService.logout).not.toHaveBeenCalled()
     })
 
     it('should forward to main page', async () => {

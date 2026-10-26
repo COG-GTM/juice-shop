@@ -327,3 +327,29 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.password, 'string')
   })
 })
+
+void describe('/rest/user/logout', () => {
+  void it('POST logout revokes the session token', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const bearer = { Authorization: `Bearer ${token}` }
+    await request(app).get('/rest/order-history').set(bearer).expect(200)
+    await request(app).get('/api/Cards').set(bearer).expect(200)
+
+    await request(app).post('/rest/user/logout').set(jsonHeader).send({ token }).expect(204)
+
+    const orderHistory = await request(app).get('/rest/order-history').set(bearer)
+    assert.equal(orderHistory.status, 500)
+    assert.ok(orderHistory.text.includes('Error: Blocked illegal activity'))
+    const cards = await request(app).get('/api/Cards').set(bearer)
+    assert.equal(cards.status, 401)
+    const whoami = await request(app).get('/rest/user/whoami').set({ Cookie: `token=${token}` })
+    assert.deepEqual(whoami.body.user, {})
+  })
+
+  void it('POST logout without a token succeeds without revoking anything', async () => {
+    await request(app).post('/rest/user/logout').expect(204)
+  })
+})
