@@ -26,7 +26,10 @@ export function orderConfirmationPath (userId: number | undefined, orderId: stri
 async function findOrderConfirmation (userId: number, orderId: string) {
   const userDirectory = path.resolve(orderConfirmationsDirectory, String(userId))
   const fileName = `order_${orderId}.pdf`
-  const files = await fs.promises.readdir(userDirectory).catch(() => [] as string[])
+  const files = await fs.promises.readdir(userDirectory).catch((err: NodeJS.ErrnoException) => {
+    if (err.code === 'ENOENT') return [] as string[]
+    throw err
+  })
   const match = files.find(file => file === fileName)
   return match ? path.join(userDirectory, match) : undefined
 }
