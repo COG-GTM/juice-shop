@@ -3,49 +3,26 @@ describe('/#/login', () => {
     cy.visit('/#/login')
   })
 
-  describe('challenge "loginAdmin"', () => {
-    it('should log in Admin with SQLI attack on email field using "\' or 1=1--"', () => {
+  describe('SQL injection on email field', () => {
+    it('should not log in with "\' or 1=1--"', () => {
       cy.get('#email').type("' or 1=1--")
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
+      cy.get('.error').should('contain.text', 'Invalid email or password.')
     })
 
-    it('should log in Admin with SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`admin@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Admin' })
-    })
-  })
-
-  describe('challenge "loginJim"', () => {
-    it('should log in Jim with SQLI attack on email field using "jim@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`jim@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Jim' })
-    })
-  })
-
-  describe('challenge "loginBender"', () => {
-    it('should log in Bender with SQLI attack on email field using "bender@<juice-sh.op>\'--"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`bender@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Login Bender' })
-    })
+    for (const user of ['admin', 'jim', 'bender']) {
+      it(`should not log in ${user} with "${user}@<juice-sh.op>'--"`, () => {
+        cy.task<string>('GetFromConfig', 'application.domain').then(
+          (appDomain: string) => {
+            cy.get('#email').type(`${user}@${appDomain}'--`)
+            cy.get('#password').type('a')
+            cy.get('#loginButton').click()
+          }
+        )
+        cy.get('.error').should('contain.text', 'Invalid email or password.')
+      })
+    }
   })
 
   describe('challenge "adminCredentials"', () => {
@@ -117,8 +94,8 @@ describe('/#/login', () => {
     it('should be able to log into a existing 2fa protected account given the right token', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`wurstbrot@${appDomain}'--`)
-          cy.get('#password').type('Never mind...')
+          cy.get('#email').type(`wurstbrot@${appDomain}`)
+          cy.get('#password').type('EinBelegtesBrotMitSchinkenSCHINKEN!')
           cy.get('#loginButton').click()
         }
       )
@@ -143,33 +120,21 @@ describe('/#/login', () => {
     })
   })
 
-  describe('challenge "ghostLogin"', () => {
-    it('should be able to log in as chris.pike@juice-sh.op by using "\' or deletedAt IS NOT NULL --"', () => {
+  describe('SQL injection against deleted and non-existing users', () => {
+    it('should not log in with "\' or deletedAt IS NOT NULL--"', () => {
       cy.get('#email').type("' or deletedAt IS NOT NULL--")
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
+      cy.get('.error').should('contain.text', 'Invalid email or password.')
     })
 
-    it('should be able to log in as chris.pike@juice-sh.op by using "chris.pike@juice-sh.op\' --"', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`chris.pike@${appDomain}'--`)
-          cy.get('#password').type('a')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'GDPR Data Erasure' })
-    })
-  })
-
-  describe('challenge "ephemeralAccountant"', () => {
-    it('should log in non-existing accountant user with SQLI attack on email field using UNION SELECT payload', () => {
+    it('should not log in with UNION SELECT payload', () => {
       cy.get('#email').type(
         "' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '12345' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--"
       )
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
-      cy.expectChallengeSolved({ challenge: 'Ephemeral Accountant' })
+      cy.get('.error').should('contain.text', 'Invalid email or password.')
     })
   })
 
