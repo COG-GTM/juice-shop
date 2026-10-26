@@ -92,7 +92,7 @@ export function quantityCheckBeforeBasketItemAddition () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const { ambiguous, basketIds } = inspectBasketItemBody(req)
     const user = security.authenticatedUsers.from(req)
-    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user?.bid && basketIds.length > 1 && basketIds.some((id) => id && id !== 'undefined' && Number(id) !== Number(user.bid)) })
+    challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user?.bid && req.body?.ProductId !== undefined && req.body?.quantity !== undefined && basketIds.length > 1 && Number(basketIds[0]) === Number(user.bid) && basketIds.slice(1).some((id) => id && id !== 'undefined' && Number(id) !== Number(user.bid)) })
     if (ambiguous) {
       sendAmbiguousBodyError(res)
       return
