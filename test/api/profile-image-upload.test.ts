@@ -110,6 +110,43 @@ void describe('/profile/image/url', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
+  void it('POST profile image URL rejects overlong imageUrl for anonymous user without regex backtracking', async () => {
+    const start = Date.now()
+    const res = await request(app)
+      .post('/profile/image/url')
+      .type('form')
+      .send({ imageUrl: 'a'.repeat(100000) })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+    assert.ok(Date.now() - start < 2000)
+  })
+
+  void it('POST profile image URL rejects overlong imageUrl for logged-in user', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'https://example.com/' + 'a'.repeat(2048))
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST profile image URL rejects non-string imageUrl', async () => {
+    const res = await request(app)
+      .post('/profile/image/url')
+      .type('form')
+      .send('imageUrl[]=a&imageUrl[]=b')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
   void it('POST valid image with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
 
