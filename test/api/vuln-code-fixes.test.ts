@@ -47,6 +47,16 @@ void describe('/snippets/fixes/:key', () => {
     assert.equal(res.body.error, 'No fixes found for the snippet!')
   })
 
+  void it('GET fixes for inherited or oversized keys throws error', async () => {
+    for (const key of ['__proto__', 'constructor', 'toString', 'x'.repeat(8000)]) {
+      const res = await request(app)
+        .get(`/snippets/fixes/${key}`)
+
+      assert.equal(res.status, 404)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    }
+  })
+
   void it('GET fixes for existing challenge key', async () => {
     const res = await request(app)
       .get('/snippets/fixes/resetPasswordBenderChallenge')
@@ -91,6 +101,17 @@ void describe('/snippets/fixes', () => {
 
     assert.equal(res.status, 404)
     assert.equal(res.body.error, 'No fixes found for the snippet!')
+  })
+
+  void it('POST fix for inherited, oversized or non-string key throws error', async () => {
+    for (const key of ['__proto__', 'constructor', 'x'.repeat(50000), ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }, 42]) {
+      const res = await request(app)
+        .post('/snippets/fixes')
+        .send({ key, selectedFix: 0 })
+
+      assert.equal(res.status, 404)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    }
   })
 
   void it('POST wrong fix for existing challenge key gives negative verdict and explanation', async () => {
