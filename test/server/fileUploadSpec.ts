@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
+import yaml from 'js-yaml'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, estimateJsonLength, handleYamlUpload, yamlAliasLimiter } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +65,159 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('estimateJsonLength', () => {
+    it('should not underestimate the serialized length of a document without aliases', () => {
+      const document = yaml.load('a: 1\nb:\n  - two\n  - 3\n')
+
+      expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
+    })
+
+    it('should count aliased nodes once per reference', () => {
+      const document = yaml.load('a: &x [1, 2, 3]\nb: *x\nc: *x\n')
+
+      expect(estimateJsonLength(document)).to.be.at.least(JSON.stringify(document).length)
+    })
+
+    it('should exceed the limit for a Billion Laughs-style YAML bomb', () => {
+      const bomb = fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'), 'utf8')
+
+      expect(estimateJsonLength(yaml.load(bomb))).to.be.above(1000000)
+    })
+
+    it('should exceed the limit when a long scalar is aliased only a few thousand times', () => {
+      const levels = ['a: &a "' + 'x'.repeat(60000) + '"']
+      for (const [level, previous] of [['b', 'a'], ['c', 'b'], ['d', 'c'], ['e', 'd']]) {
+        levels.push(`${level}: &${level} [${Array(9).fill('*' + previous).join(',')}]`)
+      }
+
+      expect(estimateJsonLength(yaml.load(levels.join('\n')))).to.be.above(1000000)
+    })
+
+    it('should account for escaped characters in aliased strings', () => {
+      const document = yaml.load('a: &a "' + '\\0'.repeat(1000) + '"\nb: [*a, *a, *a]\n')
+
+      expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
+    })
+
+    it('should account for the serialized form of aliased timestamps', () => {
+      const document = yaml.load('a: &a 2001-12-14t21:59:43.10-05:00\nb: [*a, *a, *a]\n')
+
+      expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
+    })
+
+    it('should treat cyclic aliases as exceeding the limit', () => {
+      const cyclic: any[] = []
+      cyclic.push(cyclic)
+
+      expect(estimateJsonLength(cyclic)).to.equal(Number.POSITIVE_INFINITY)
+    })
+  })
+
+  describe('yamlAliasLimiter', () => {
+    const aliasedDocument = (aliases: number) => 'a: &a {x: 1}\nl:\n' + '- *a\n'.repeat(aliases)
+
+    it('should allow aliases dereferencing up to 1000 nodes in total', () => {
+      expect(() => yaml.load(aliasedDocument(500), { listener: yamlAliasLimiter() })).not.to.throw()
+    })
+
+    it('should abort parsing once aliases dereference more than 1000 nodes', () => {
+      expect(() => yaml.load(aliasedDocument(501), { listener: yamlAliasLimiter() })).to.throw('YAML document contains too many aliases')
+    })
+
+    it('should charge a single alias for every entry of the aliased collection', () => {
+      const document = (entries: number) => 'a: &a {' + Array.from({ length: entries }, (_, i) => `k${i}: 1`).join(', ') + '}\nb: *a\n'
+
+      expect(() => yaml.load(document(999), { listener: yamlAliasLimiter() })).not.to.throw()
+      expect(() => yaml.load(document(1000), { listener: yamlAliasLimiter() })).to.throw('YAML document contains too many aliases')
+    })
+
+    it('should count every alias in block and flow collections once', () => {
+      const document = (flowAliases: string) => 'a: &a 1\nb: [*a, *a]\nc:\n  - *a\n  - *a\nd: {' + flowAliases + '}\n'
+
+      expect(() => yaml.load(document('x: *a'), { listener: yamlAliasLimiter(5) })).not.to.throw()
+      expect(() => yaml.load(document('x: *a, y: *a'), { listener: yamlAliasLimiter(5) })).to.throw('YAML document contains too many aliases')
+    })
+
+    it('should not count anchors, empty values, nulls or scalars as aliases', () => {
+      const document = Array.from({ length: 50 }, (_, i) => `a${i}: &a${i}\nb${i}: ~\nc${i}: null\nd${i}: [1, "two", {f: }]\n`).join('')
+
+      expect(() => yaml.load(document, { listener: yamlAliasLimiter(0) })).not.to.throw()
+    })
+  })
+
+  describe('handleYamlUpload', () => {
+    const upload = (buffer: Buffer) => {
+      const statusCodes: number[] = []
+      const response: any = { status: (code: number) => { statusCodes.push(code); return response }, end: () => {} }
+      const errors: Error[] = []
+
+      handleYamlUpload({ file: { originalname: 'complaint.yml', buffer } } as any, response, (err?: any) => { errors.push(err) })
+
+      return { statusCode: statusCodes[0], error: errors[0] }
+    }
+
+    let originalChallenges: Pick<typeof challenges, 'deprecatedInterfaceChallenge' | 'yamlBombChallenge'>
+
+    before(() => {
+      originalChallenges = { deprecatedInterfaceChallenge: challenges.deprecatedInterfaceChallenge, yamlBombChallenge: challenges.yamlBombChallenge }
+    })
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    after(() => {
+      Object.assign(challenges, originalChallenges)
+    })
+
+    it('should reject YAML files above the size limit without parsing them', () => {
+      const { statusCode, error } = upload(Buffer.from('a: '.padEnd(100001, 'b')))
+
+      expect(statusCode).to.equal(413)
+      expect(error.message).to.contain('too large')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should solve "yamlBombChallenge" without serializing a YAML bomb', () => {
+      const stringify = JSON.stringify
+      let longestSerialization = 0
+      JSON.stringify = ((...args: Parameters<typeof JSON.stringify>) => {
+        const json = stringify(...args)
+        longestSerialization = Math.max(longestSerialization, json?.length ?? 0)
+        return json
+      }) as typeof JSON.stringify
+      try {
+        const { statusCode } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
+
+        expect(statusCode).to.equal(503)
+      } finally {
+        JSON.stringify = stringify
+      }
+      expect(longestSerialization).to.be.below(100)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should reject a merge key bomb before the parser copies the merged mapping thousands of times', () => {
+      const keys = Array.from({ length: 4000 }, (_, i) => `k${i}: 1`).join(', ')
+      const bomb = 'a: &a {' + keys + '}\nl:\n' + '- <<: *a\n'.repeat(5000)
+      const start = Date.now()
+
+      const { statusCode } = upload(Buffer.from(bomb))
+
+      expect(statusCode).to.equal(503)
+      expect(Date.now() - start).to.be.below(500)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should still echo a harmless aliased document', () => {
+      const { statusCode, error } = upload(Buffer.from('a: &x [1, 2, 3]\nb: *x\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(error.message).to.contain('{"a":[1,2,3],"b":[1,2,3]}')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
   })
 })
