@@ -46,9 +46,38 @@ void describe('isAuthorized middleware', () => {
   })
 })
 
+void describe('GET /api/Users', () => {
+  const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+
+  void it('rejects an unsigned alg:none admin token', async () => {
+    const res = await request(app).get('/api/Users').set(bearer(unsigned(admin)))
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects an HS256 admin token signed with encryptionkeys/jwt.pub', async () => {
+    const res = await request(app).get('/api/Users').set(bearer(hs256WithPublicKey(admin)))
+    assert.equal(res.status, 401)
+  })
+
+  void it('accepts a real RS256 login token', async () => {
+    const res = await request(app).get('/api/Users').set(bearer(security.authorize({ data: admin })))
+    assert.equal(res.status, 200)
+  })
+})
+
 void describe('denyAll middleware', () => {
   void it('rejects even an RS256 token issued by the server', async () => {
     const res = await request(app).get('/api/Complaints/1').set(bearer(security.authorize({ data: accountant })))
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects an unsigned alg:none token', async () => {
+    const res = await request(app).get('/api/Complaints/1').set(bearer(unsigned(accountant)))
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects requests without a token', async () => {
+    const res = await request(app).get('/api/Complaints/1')
     assert.equal(res.status, 401)
   })
 })

@@ -235,6 +235,21 @@ describe('insecurity', () => {
     })
   })
 
+  describe('denyAll', () => {
+    it('rejects requests carrying a valid RS256 token', () => {
+      let error: any
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      security.denyAll()({ headers: { authorization: 'Bearer ' + token } } as any, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+
+    it('rejects requests without a token', () => {
+      let error: any
+      security.denyAll()({ headers: {} } as any, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+  })
+
   describe('updateAuthenticatedUsers', () => {
     const forgedAdmin = (alg: string, sign: (input: string) => string) => {
       const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
