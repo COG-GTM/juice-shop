@@ -192,10 +192,27 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'strict' })
         }
       }
     })
   }
   next()
+}
+
+export const isCrossSiteRequest = (req: Request) => {
+  const fetchSite = req.get('sec-fetch-site')
+  if (fetchSite !== undefined) {
+    return fetchSite !== 'same-origin' && fetchSite !== 'none'
+  }
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) {
+    return false
+  }
+  try {
+    const sourceUrl = new URL(source)
+    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${req.headers.host ?? ''}`).host
+  } catch {
+    return true
+  }
 }
