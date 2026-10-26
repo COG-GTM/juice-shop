@@ -70,11 +70,12 @@ describe('fileUpload', () => {
 
     it('should resolve plain entry names inside the complaints upload directory', () => {
       expect(resolveComplaintUploadPath('complaint.pdf')).to.equal(path.join(uploadDir, 'complaint.pdf'))
-      expect(resolveComplaintUploadPath('sub/complaint.pdf')).to.equal(path.join(uploadDir, 'sub', 'complaint.pdf'))
     })
 
     const maliciousNames = [
       '../marker.txt',
+      'sub/complaint.pdf',
+      'sub\\complaint.pdf',
       '../../ftp/legal.md',
       '../../frontend/dist/frontend/index.html',
       'sub/../../marker.txt',

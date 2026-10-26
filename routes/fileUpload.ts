@@ -31,20 +31,9 @@ const MAX_ZIP_TOTAL_BYTES = 10 * 1024 * 1024
 
 export function resolveComplaintUploadPath (entryName: unknown): string | null {
   if (typeof entryName !== 'string' || entryName.length === 0) return null
-  if (entryName.includes('\0') || path.isAbsolute(entryName) || /^[\\/]/.test(entryName)) return null
-  if (entryName.split(/[\\/]/).includes('..')) return null
+  if (entryName.includes('\0') || /[\\/]/.test(entryName) || entryName === '.' || entryName === '..') return null
   const absolutePath = path.resolve(COMPLAINT_UPLOAD_DIR, entryName)
-  return absolutePath.startsWith(COMPLAINT_UPLOAD_DIR + path.sep) ? absolutePath : null
-}
-
-function isInsideRealComplaintUploadDir (absolutePath: string) {
-  try {
-    const realUploadDir = fs.realpathSync(COMPLAINT_UPLOAD_DIR)
-    const realParentDir = fs.realpathSync(path.dirname(absolutePath))
-    return realParentDir === realUploadDir || realParentDir.startsWith(realUploadDir + path.sep)
-  } catch {
-    return false
-  }
+  return path.dirname(absolutePath) === COMPLAINT_UPLOAD_DIR ? absolutePath : null
 }
 
 const NO_FOLLOW_WRITE_FLAGS = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | (fs.constants.O_NOFOLLOW ?? 0)
@@ -63,13 +52,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             let entryCount = 0
             let totalBytes = 0
             let aborted = false
-            const writtenFiles: string[] = []
             const parser = unzipper.Parse()
             const abort = (err: unknown) => {
               if (aborted) return
               aborted = true
               parser.destroy()
-              writtenFiles.forEach(writtenFile => { fs.rm(writtenFile, { force: true }, () => {}) })
               next(err)
             }
             fs.createReadStream(tempFile)
@@ -87,12 +74,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                   }
                 })
                 const absolutePath = entry.type === 'File' ? resolveComplaintUploadPath(entry.path) : null
-                let destination: Writable
-                if (absolutePath !== null && isInsideRealComplaintUploadDir(absolutePath)) {
-                  writtenFiles.push(absolutePath)
-                  destination = fs.createWriteStream(absolutePath, { flags: NO_FOLLOW_WRITE_FLAGS })
-                } else {
-                  destination = new Writable({ write (_chunk, _encoding, callback) { callback() } })
+                let destination: Writable = new Writable({ write (_chunk, _encoding, callback) { callback() } })
+                if (absolutePath !== null) {
+                  try {
+                    destination = fs.createWriteStream(absolutePath, { fd: fs.openSync(absolutePath, NO_FOLLOW_WRITE_FLAGS) })
+                  } catch {}
                 }
                 pipeline(entry, sizeLimiter, destination, function (err) { if (err != null) { abort(err) } })
               }).on('error', function (err: unknown) { abort(err) })
