@@ -94,14 +94,7 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    this.basketService.getOrderConfirmationPdf(this.orderId).subscribe({
-      next: (pdf: Blob) => {
-        const pdfUrl = URL.createObjectURL(pdf)
-        window.open(pdfUrl, '_blank')
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
-      },
-      error: (err) => { console.log(err) }
-    })
+    this.basketService.openOrderConfirmationPdf(this.orderId)
   }
 
   truncateTweet = (tweet: string, maxLength = 140) => {

@@ -111,14 +111,7 @@ export class OrderHistoryComponent implements OnInit {
   }
 
   openConfirmationPDF (orderId: string) {
-    this.basketService.getOrderConfirmationPdf(orderId).subscribe({
-      next: (pdf: Blob) => {
-        const pdfUrl = URL.createObjectURL(pdf)
-        window.open(pdfUrl, '_blank')
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
-      },
-      error: (err) => { console.log(err) }
-    })
+    this.basketService.openOrderConfirmationPdf(orderId)
   }
 
   trackOrder (orderId) {
