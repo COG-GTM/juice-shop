@@ -97,7 +97,7 @@ function tamperedTokenFor (validToken: string, payload: object): string {
 async function systemPromptFor (token?: string): Promise<string> {
   let systemPrompt = ''
   onLlmRequest = (_req, body, res) => {
-    systemPrompt = JSON.parse(body).messages[0].content
+    systemPrompt = JSON.parse(body).messages?.[0]?.content ?? ''
     sendSSE(res, [contentChunk('Hi'), finishChunk()])
   }
   const req = request(app).post('/rest/chat').set({ 'content-type': 'application/json' })
@@ -115,7 +115,8 @@ async function getOrderByIdResultFor (orderId: string, token: string): Promise<s
     if (callCount === 1) {
       sendSSE(res, [toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })), finishChunk('tool_calls')])
     } else {
-      toolResult = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool').content
+      const toolMessage = JSON.parse(body).messages?.find((m: { role: string }) => m.role === 'tool')
+      toolResult = typeof toolMessage?.content === 'string' ? toolMessage.content : JSON.stringify(toolMessage?.content ?? body)
       sendSSE(res, [contentChunk('Done'), finishChunk()])
     }
   }
