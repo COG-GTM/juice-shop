@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: No direct access allowed. Answers are created during user registration. */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -515,6 +516,39 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // create the security answer server-side as part of user registration
+    if (name === 'User') {
+      const securityAnswerFromBody = (req: Request) => {
+        const securityQuestionId = req.body.securityQuestion?.id
+        const securityAnswer = req.body.securityAnswer
+        if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          return { securityQuestionId, securityAnswer }
+        }
+        return null
+      }
+
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any }) => {
+        const answer = securityAnswerFromBody(req)
+        if (answer != null && !(await SecurityQuestionModel.findByPk(answer.securityQuestionId))) {
+          throw new finale.Errors.BadRequestError('Invalid security question.')
+        }
+        return context.continue
+      })
+
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: UserModel, continue: any }) => {
+        const answer = securityAnswerFromBody(req)
+        if (answer != null) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: answer.securityQuestionId, answer: answer.securityAnswer })
+          } catch (err) {
+            await context.instance.destroy({ force: true })
+            throw err
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
