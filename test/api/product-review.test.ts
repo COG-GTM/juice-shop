@@ -58,6 +58,16 @@ void describe('/rest/products/:id/reviews', () => {
     assert.ok(res.body.data.some((review: { message: string }) => review.message === 'String product id review'))
   })
 
+  void it('GET product reviews includes reviews created under a non-canonical numeric id', async () => {
+    await request(app)
+      .put('/rest/products/03/reviews')
+      .send({ message: 'Non-canonical product id review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/03/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Non-canonical product id review'))
+  })
+
   void it('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
