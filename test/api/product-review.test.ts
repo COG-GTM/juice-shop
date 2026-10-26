@@ -97,6 +97,32 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.body.updated[0].message, 'Lorem Ipsum')
   })
 
+  void it('PATCH own product review can be edited with a valid token unknown to the server', async () => {
+    const email = 'bjoern.kimminich@gmail.com'
+    const { token } = await login(app, {
+      email,
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const userAuthHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+    await request(app)
+      .put('/rest/products/3/reviews')
+      .set(userAuthHeader)
+      .send({ message: 'Own review after restart', author: email })
+    const reviews = await request(app).get('/rest/products/3/reviews')
+    const ownReview = reviews.body.data.find((review: { author: string, message: string }) => review.author === email && review.message === 'Own review after restart')
+    delete security.authenticatedUsers.tokenMap[token]
+
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set(userAuthHeader)
+      .send({
+        id: ownReview._id,
+        message: 'Edited after restart'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.modified, 1)
+  })
+
   void it('PATCH product review of another user cannot be edited', async () => {
     const { token } = await login(app, {
       email: 'mc.safesearch@juice-sh.op',
