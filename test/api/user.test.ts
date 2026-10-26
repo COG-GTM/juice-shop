@@ -180,7 +180,7 @@ void describe('/api/Users', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-    void it('POST new user with XSS attack in email address', async () => {
+    void it('POST new user with XSS attack in email address stores it sanitized', async () => {
       const res = await request(app)
         .post('/api/Users')
         .set(jsonHeader)
@@ -190,9 +190,22 @@ void describe('/api/Users', () => {
         })
       assert.equal(res.status, 201)
       assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.email, '<iframe src="javascript:alert(`xss`)">')
+      assert.equal(res.body.data.email, '')
     })
   }
+
+  void it('POST new user with nested script payload in username stores no working tag', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'nested.username@juice-sh.op',
+        password: 'does.not.matter',
+        username: '<<a|ascript>alert(`xss`)</script>'
+      })
+    assert.equal(res.status, 201)
+    assert.doesNotMatch(res.body.data.username, /<\s*script/i)
+  })
 })
 
 void describe('/api/Users/:id', () => {
