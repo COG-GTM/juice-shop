@@ -36,7 +36,8 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should return a valid authentication when a valid tmp token is passed', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
-      type: 'password_valid_needs_second_factor_token'
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
     })
 
     const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
@@ -60,7 +61,8 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should fail if a invalid totp token is used', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
-      type: 'password_valid_needs_second_factor_token'
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
     })
 
     const totpToken = generateSync({ secret: 'BI6KJAURX3LL5VQI2ZBFVLUWSBYBDX4H' })
@@ -90,6 +92,43 @@ void describe('/rest/2fa/verify', () => {
       .send({
         tmpToken: tmpTokenWurstbrot,
         totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
+})
+
+void describe('/rest/2fa/verify tmp token expiry', () => {
+  void it('POST should fail if an expired tmp token is used', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: Date.now() - 1000
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token without expiry is used', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
       })
 
     assert.equal(res.status, 401)
