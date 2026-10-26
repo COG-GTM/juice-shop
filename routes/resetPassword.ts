@@ -12,6 +12,26 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import * as passwordReset from '../lib/passwordReset'
+
+export function requestPasswordReset () {
+  return async ({ body }: Request, res: Response, next: NextFunction) => {
+    const email = body.email
+    if (typeof email !== 'string' || !email) {
+      res.status(400).send(res.__('Email address is required.'))
+      return
+    }
+    try {
+      const user = await UserModel.findOne({ where: { email } })
+      if (user) {
+        await passwordReset.issueResetToken(user.id, user.email)
+      }
+      res.json({ status: 'success' })
+    } catch (error) {
+      next(error)
+    }
+  }
+}
 
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
@@ -19,7 +39,8 @@ export function resetPassword () {
     const answer = body.answer
     const newPassword = body.new
     const repeatPassword = body.repeat
-    if (!email || !answer) {
+    const token = body.token
+    if (!email || !answer || typeof email !== 'string' || typeof answer !== 'string') {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
     }
@@ -31,6 +52,10 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
+    if (passwordReset.isLockedOut(email)) {
+      res.status(429).send(res.__('Too many failed password reset attempts. Please try again later.'))
+      return
+    }
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -38,15 +63,24 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
-        const user = await UserModel.findByPk(data.UserId)
-        if (user) {
-          const updatedUser = await user.update({ password: newPassword })
-          verifySecurityAnswerChallenges(updatedUser, answer)
-          res.json({ user: updatedUser })
-        }
-      } else {
+      if (data == null || typeof token !== 'string' || !passwordReset.isValidResetToken(token, data.UserId)) {
+        passwordReset.registerFailedAttempt(email)
+        res.status(401).send(res.__('Invalid or expired password reset code.'))
+        return
+      }
+      if (security.hmac(answer) !== data.answer) {
+        passwordReset.registerFailedAttempt(email)
         res.status(401).send(res.__('Wrong answer to security question.'))
+        return
+      }
+      const user = await UserModel.findByPk(data.UserId)
+      if (user) {
+        const updatedUser = await user.update({ password: newPassword })
+        passwordReset.invalidateResetTokens(user.id)
+        passwordReset.clearFailedAttempts(email)
+        security.revokeSessionsOf(user.id)
+        verifySecurityAnswerChallenges(updatedUser, answer)
+        res.json({ user: updatedUser })
       }
     } catch (error) {
       next(error)

@@ -51,7 +51,42 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+const sessionsRevokedAt: Record<number, number> = {}
+
+export const isRevokedSession = (payload: any) => {
+  const userId = payload?.data?.id
+  if (userId === undefined || sessionsRevokedAt[userId] === undefined) {
+    return false
+  }
+  return typeof payload.iat !== 'number' || payload.iat <= sessionsRevokedAt[userId]
+}
+
+export const revokeSessionsOf = (userId: number) => {
+  sessionsRevokedAt[userId] = Math.floor(Date.now() / 1000)
+  for (const [token, user] of Object.entries(authenticatedUsers.tokenMap)) {
+    if (user?.data?.id === userId) {
+      delete authenticatedUsers.tokenMap[token]
+    }
+  }
+  delete authenticatedUsers.idMap[userId]
+}
+
+export const isAuthorized = () => {
+  const verifyJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    verifyJwt(req, res, (err?: any) => {
+      if (err) {
+        next(err)
+        return
+      }
+      if (isRevokedSession(decode(utils.jwtFrom(req)))) {
+        res.status(401).json({ status: 'error', message: 'Session has been revoked' })
+        return
+      }
+      next()
+    })
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
@@ -77,7 +112,11 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    if (!token) {
+      return undefined
+    }
+    const user = this.tokenMap[utils.unquote(token)]
+    return user && isRevokedSession({ data: user.data, iat: decode(utils.unquote(token))?.iat }) ? undefined : user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -189,7 +228,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isRevokedSession(decoded)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)

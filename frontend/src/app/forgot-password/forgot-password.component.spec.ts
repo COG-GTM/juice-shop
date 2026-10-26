@@ -33,9 +33,11 @@ describe('ForgotPasswordComponent', () => {
         }
         securityQuestionService.findBy.mockReturnValue(of({}))
         userService = {
-            resetPassword: vi.fn().mockName("UserService.resetPassword")
+            resetPassword: vi.fn().mockName("UserService.resetPassword"),
+            requestPasswordReset: vi.fn().mockName("UserService.requestPasswordReset")
         }
         userService.resetPassword.mockReturnValue(of({}))
+        userService.requestPasswordReset.mockReturnValue(of({ status: 'success' }))
 
         TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -131,6 +133,7 @@ describe('ForgotPasswordComponent', () => {
     it('should reset form on calling resetForm', () => {
         component.emailControl.setValue('email')
         component.securityQuestionControl.setValue('security question')
+        component.resetCodeControl.setValue('reset code')
         component.passwordControl.setValue('password')
         component.repeatPasswordControl.setValue('repeat password')
         component.resetForm()
@@ -140,12 +143,47 @@ describe('ForgotPasswordComponent', () => {
         expect(component.securityQuestionControl.pristine).toBe(true)
         expect(component.securityQuestionControl.untouched).toBe(true)
         expect(component.securityQuestionControl.value).toBe('')
+        expect(component.resetCodeControl.pristine).toBe(true)
+        expect(component.resetCodeControl.untouched).toBe(true)
+        expect(component.resetCodeControl.value).toBe('')
         expect(component.passwordControl.pristine).toBe(true)
         expect(component.passwordControl.untouched).toBe(true)
         expect(component.passwordControl.value).toBe('')
         expect(component.repeatPasswordControl.pristine).toBe(true)
         expect(component.repeatPasswordControl.untouched).toBe(true)
         expect(component.repeatPasswordControl.value).toBe('')
+    })
+
+    it('should be compulsory to provide the emailed reset code', () => {
+        component.resetCodeControl.enable()
+        component.resetCodeControl.setValue('')
+        expect(component.resetCodeControl.valid).toBeFalsy()
+        component.resetCodeControl.setValue('abc123')
+        expect(component.resetCodeControl.valid).toBe(true)
+    })
+
+    it('should request a reset code for the entered email address and show confirmation', () => {
+        component.emailControl.setValue('known@user.test')
+        component.sendResetCode()
+        expect(userService.requestPasswordReset).toHaveBeenCalledWith('known@user.test')
+        expect(component.confirmation).toBeDefined()
+        expect(component.error).toBeUndefined()
+    })
+
+    it('should gracefully handle error when requesting a reset code', () => {
+        userService.requestPasswordReset.mockReturnValue(throwError({ error: 'Error' }))
+        component.emailControl.setValue('known@user.test')
+        component.sendResetCode()
+        expect(component.error).toBe('Error')
+        expect(component.confirmation).toBeUndefined()
+    })
+
+    it('should send the reset code along with the password reset', () => {
+        component.emailControl.setValue('known@user.test')
+        component.resetCodeControl.enable()
+        component.resetCodeControl.setValue('abc123')
+        component.resetPassword()
+        expect(userService.resetPassword).toHaveBeenCalledWith(expect.objectContaining({ email: 'known@user.test', token: 'abc123' }))
     })
 
     it('should clear form and show confirmation after changing password', () => {

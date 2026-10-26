@@ -67,3 +67,6 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# Password reset outbox
+mail/
