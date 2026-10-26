@@ -14,7 +14,12 @@ export const orderConfirmationsDirectory = 'orders'
 const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
 
 export function orderConfirmationPath (userId: number | undefined, orderId: string) {
-  return path.resolve(orderConfirmationsDirectory, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
+  const baseDirectory = path.resolve(orderConfirmationsDirectory)
+  const filePath = path.resolve(baseDirectory, String(userId ?? 'anonymous'), `order_${orderId}.pdf`)
+  if (!filePath.startsWith(baseDirectory + path.sep)) {
+    throw new Error('Invalid order confirmation path')
+  }
+  return filePath
 }
 
 function isValidToken (token: string) {
@@ -47,7 +52,7 @@ export function retrieveOrderConfirmation () {
     }
 
     res.set('Cache-Control', 'private, no-store')
-    res.sendFile(`order_${orderId}.pdf`, { root: path.resolve(orderConfirmationsDirectory, String(userId)) }, (err: any) => {
+    res.sendFile(orderConfirmationPath(userId, orderId), (err: any) => {
       if (!err) return
       if (err.status === 404 || err.code === 'ENOENT') {
         res.removeHeader('Cache-Control')
