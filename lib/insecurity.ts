@@ -34,8 +34,10 @@ const loadSigningKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
-  if (fs.existsSync(privateKeyFile)) {
+  try {
     return fs.readFileSync(privateKeyFile, 'utf8')
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err
   }
   const generatedKey = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
