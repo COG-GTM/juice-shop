@@ -51,4 +51,26 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of ['x#{7*7}', '#{1}#{7*7}', 'x!{7*7}', "x#{global.process.mainModule.require('child_process').execSync('id')}"]) {
+    void it(`GET user profile renders username ${payload} as literal text instead of evaluating it`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      const escaped = payload.replace(/'/g, '&#39;')
+      assert.ok(res.text.includes(`text-align: center;">${escaped}</p>`) || res.text.includes(`text-align: center;">${payload}</p>`))
+      assert.ok(!res.text.includes('>x49<'))
+      assert.ok(!res.text.includes('>149<'))
+      assert.ok(!res.text.includes('uid='))
+    })
+  }
 })
