@@ -107,11 +107,11 @@ describe('fileUpload', () => {
       expect(estimateJsonLength(document)).to.be.within(JSON.stringify(document).length, JSON.stringify(document).length + 5)
     })
 
-    it('should treat cyclic aliases as exceeding the limit', () => {
+    it('should reject cyclic aliases like JSON.stringify does', () => {
       const cyclic: any[] = []
       cyclic.push(cyclic)
 
-      expect(estimateJsonLength(cyclic)).to.equal(Number.POSITIVE_INFINITY)
+      expect(() => estimateJsonLength(cyclic)).to.throw(TypeError, 'Converting circular structure to JSON')
     })
   })
 
@@ -210,6 +210,14 @@ describe('fileUpload', () => {
       expect(statusCode).to.equal(503)
       expect(Date.now() - start).to.be.below(500)
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should not solve "yamlBombChallenge" for a tiny self-referencing document', () => {
+      const { statusCode, error } = upload(Buffer.from('a: &a {self: *a}\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(error.message).to.contain('Converting circular structure to JSON')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
     })
 
     it('should still echo a harmless aliased document', () => {
