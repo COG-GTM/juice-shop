@@ -43,7 +43,8 @@ const appName = config.get<string>('application.name')
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
   if (!token || jws.decode(token)?.header.alg !== 'RS256' || !security.verify(token)) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
+  const decoded = security.decode(token) as { exp?: number, data?: { id?: number } } | undefined
+  if (decoded?.exp !== undefined && !(Number(decoded.exp) * 1000 > Date.now())) return undefined
   return decoded?.data?.id
 }
 
