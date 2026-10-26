@@ -81,8 +81,8 @@ export class ChatService {
           resolve?.()
         }
       },
-      error: () => {
-        chunks.push({ error: 'connection_failed' })
+      error: (err: { status?: number }) => {
+        chunks.push({ error: err?.status === 429 ? 'rate_limited' : 'connection_failed' })
         done = true
         resolve?.()
       },

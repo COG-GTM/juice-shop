@@ -154,6 +154,28 @@ describe('ChatConversationComponent', () => {
         expect(sent[0].content).toBe('msg 11')
     })
 
+    it('should show a rate limit message when the server throttles the chat', async () => {
+        async function* rateLimitedStream() {
+            yield { error: 'rate_limited' }
+        }
+        chatService.streamMessages.mockReturnValue(rateLimitedStream())
+
+        await component.sendMessage('Hello')
+
+        expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'CHATBOT_ERROR_RATE_LIMITED', error: true })
+    })
+
+    it('should show the LLM unreachable message on connection failure', async () => {
+        async function* failedStream() {
+            yield { error: 'connection_failed' }
+        }
+        chatService.streamMessages.mockReturnValue(failedStream())
+
+        await component.sendMessage('Hello')
+
+        expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'CHATBOT_ERROR_LLM_UNREACHABLE', error: true })
+    })
+
     it('should accumulate streamed content in assistant message', async () => {
         async function* contentStream() {
             yield { deltaContent: 'Hello ' }
