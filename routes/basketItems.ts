@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 
 import * as utils from '../lib/utils'
@@ -36,14 +37,23 @@ function isValidQuantity (quantity: unknown): quantity is number {
   return typeof quantity === 'number' && Number.isSafeInteger(quantity) && quantity >= 1
 }
 
-function sessionBasketId (req: Request) {
+async function sessionBasketId (req: Request) {
   const user = security.authenticatedUsers.from(req)
-  return user?.bid != null ? Number(user.bid) : undefined
+  if (user == null) {
+    return undefined
+  }
+  if (user.bid == null && user.data?.id != null) {
+    const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+    if (basket != null) {
+      user.bid = basket.id
+    }
+  }
+  return user.bid != null ? Number(user.bid) : undefined
 }
 
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const bid = sessionBasketId(req)
+    const bid = await sessionBasketId(req)
     if (bid === undefined) {
       res.status(401).json({ error: 'Invalid BasketId' })
       return
@@ -90,7 +100,7 @@ export function quantityCheckBeforeBasketItemAddition () {
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const bid = sessionBasketId(req)
+      const bid = await sessionBasketId(req)
       if (bid === undefined) {
         res.status(401).json({ error: 'Invalid BasketId' })
         return
