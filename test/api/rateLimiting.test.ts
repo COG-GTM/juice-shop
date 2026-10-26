@@ -10,6 +10,7 @@ import config from 'config'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 import { createTestApp } from './helpers/setup'
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -60,7 +61,8 @@ void describe('/rest/2fa/verify rate limiting', () => {
       type: 'password_valid_needs_second_factor_token',
       expiresAt: security.secondFactorTokenExpiry()
     })
-    const validTotp = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+    const user = await UserModel.findByPk(10)
+    const validTotp = generateSync({ secret: String(user?.totpSecret) })
     const wrongTotp = (i: number) => {
       const code = String(100000 + i)
       return code === validTotp ? String(200000 + i) : code
