@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -23,6 +24,35 @@ before(async () => {
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
+
+const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+const forgedAdminPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+const forgedTokens = {
+  'unsigned (alg none)': `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(forgedAdminPayload)}.`,
+  'HS256 signed with public RSA key': (() => {
+    const unsigned = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(forgedAdminPayload)}`
+    return `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+  })()
+}
+
+void describe('forged JWTs', () => {
+  for (const [kind, token] of Object.entries(forgedTokens)) {
+    void it(`GET /api/Users rejects ${kind} token`, async () => {
+      const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${token}` })
+      assert.equal(res.status, 401)
+    })
+
+    void it(`PUT /api/Users/1 rejects ${kind} token`, async () => {
+      const res = await request(app).put('/api/Users/1').set({ Authorization: `Bearer ${token}`, ...jsonHeader }).send({ role: 'admin' })
+      assert.equal(res.status, 401)
+    })
+
+    void it(`GET /api/SecurityAnswers rejects ${kind} token`, async () => {
+      const res = await request(app).get('/api/SecurityAnswers').set({ Authorization: `Bearer ${token}` })
+      assert.equal(res.status, 401)
+    })
+  }
+})
 
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
