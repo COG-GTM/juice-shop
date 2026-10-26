@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
 
@@ -17,5 +17,17 @@ export function getComplaints () {
     const where = user.role === security.roles.admin ? {} : { UserId: user.id }
     const complaints = await ComplaintModel.findAll({ where })
     res.status(200).json({ status: 'success', data: complaints })
+  }
+}
+
+export function setComplaintAuthor () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = security.loggedInUserFrom(req)
+    if (!user?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    req.body.UserId = user.id
+    next()
   }
 }
