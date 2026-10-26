@@ -35,6 +35,10 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !utils.isPositiveInteger(BasketItem.quantity))) {
+            res.status(400).json({ error: res.__('Quantity must be a positive integer.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -67,14 +71,14 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
+                  stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: quantityRow.quantity - BasketItem.quantity })
                 }
               } catch (error: unknown) {
                 next(error)
@@ -139,6 +143,13 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
+          if (totalPrice < 0) {
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            res.status(400).json({ error: res.__('Order total must not be negative.') })
+            return
+          }
+
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
@@ -155,6 +166,15 @@ export function placeOrder () {
               next(error)
               return
             }
+          }
+
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              await QuantityModel.update({ quantity }, { where: { ProductId } })
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({

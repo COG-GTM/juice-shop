@@ -11,6 +11,19 @@ import chai from 'chai'
 const expect = chai.expect
 
 describe('utils', () => {
+  describe('isPositiveInteger', () => {
+    it('accepts positive integers', () => {
+      expect(utils.isPositiveInteger(1)).to.equal(true)
+      expect(utils.isPositiveInteger(42)).to.equal(true)
+    })
+
+    it('rejects zero, negative, fractional, unsafe and non-numeric values', () => {
+      for (const value of [0, -1, -1000, 1.5, Number.NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '2', null, undefined]) {
+        expect(utils.isPositiveInteger(value), String(value)).to.equal(false)
+      }
+    })
+  })
+
   describe('toSimpleIpAddress', () => {
     it('returns ipv6 address unchanged', () => {
       expect(utils.toSimpleIpAddress('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).to.equal('2001:0db8:85a3:0000:0000:8a2e:0370:7334')
