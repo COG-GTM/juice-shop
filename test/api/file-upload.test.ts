@@ -111,6 +111,16 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
+
+    void it('POST file type YAML with !!js/function payload is rejected by safe schema', async () => {
+      const file = path.resolve(__dirname, '../files/yamlFunctionInjection.yml')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('unknown tag'))
+      assert.ok(!res.text.includes('yamlRceMarker42'))
+    })
   }
 
   void it('POST file too large for API', async () => {

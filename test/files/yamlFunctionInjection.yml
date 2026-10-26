@@ -1,0 +1,2 @@
+toJSON: !!js/function >
+  function () { return 'yamlRceMarker' + (40 + 2) }
