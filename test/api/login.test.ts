@@ -223,6 +223,20 @@ void describe('/rest/user/login', () => {
     assert.equal(res.body.authentication, undefined)
   })
 
+  void it('POST login with UNION SELECT injection blanking totpSecret does not bypass 2FA', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: '\' UNION SELECT id, username, email, password, role, deluxeToken, lastLoginIp, profileImage, \'\', isActive, createdAt, updatedAt, deletedAt FROM Users WHERE email=\'wurstbrot@juice-sh.op\'--',
+        password: 'x'
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+    assert.equal(res.body.data?.tmpToken, undefined)
+  })
+
   void it('POST login for deleted user via "deletedAt IS NOT NULL" SQL injection is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
