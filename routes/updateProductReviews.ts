@@ -14,14 +14,23 @@ import * as db from '../data/mongodb'
 export function updateProductReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = security.authenticatedUsers.from(req) // vuln-code-snippet vuln-line forgedReviewChallenge
+    if (!user?.data?.email) {
+      res.status(401).send()
+      return
+    }
+
+    if (typeof req.body.id !== 'string') {
+      challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return req.body.id !== null && typeof req.body.id === 'object' && !Array.isArray(req.body.id) }) // vuln-code-snippet hide-line
+      res.status(400).send()
+      return
+    }
+
     db.reviewsCollection.update( // vuln-code-snippet neutral-line forgedReviewChallenge
-      { _id: req.body.id }, // vuln-code-snippet vuln-line noSqlReviewsChallenge forgedReviewChallenge
-      { $set: { message: req.body.message } },
-      { multi: true } // vuln-code-snippet vuln-line noSqlReviewsChallenge
+      { _id: req.body.id, author: user.data.email }, // vuln-code-snippet vuln-line noSqlReviewsChallenge forgedReviewChallenge
+      { $set: { message: req.body.message } }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
-        challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return result.modified > 1 }) // vuln-code-snippet hide-line
-        challengeUtils.solveIf(challenges.forgedReviewChallenge, () => { return user?.data && result.original[0] && result.original[0].author !== user.data.email && result.modified === 1 }) // vuln-code-snippet hide-line
+        if (result.modified === 0) void solveForgedReviewIfForeignAuthor(req.body.id, user.data.email) // vuln-code-snippet hide-line
         res.json(result)
       }, (err: unknown) => {
         res.status(500).json(err)
@@ -29,3 +38,10 @@ export function updateProductReviews () {
   }
 }
 // vuln-code-snippet end noSqlReviewsChallenge forgedReviewChallenge
+
+async function solveForgedReviewIfForeignAuthor (id: string, email: string) {
+  try {
+    const review = await db.reviewsCollection.findOne({ _id: id })
+    challengeUtils.solveIf(challenges.forgedReviewChallenge, () => { return review && review.author !== email })
+  } catch {}
+}
