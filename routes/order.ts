@@ -193,11 +193,20 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
     if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+      const now = Date.now()
+      if (isCampaignActive(campaign, now)) {
+        return campaign.discount
+      }
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < now })
     }
   }
   return 0
+}
+
+const campaignDurationMs = 24 * 60 * 60 * 1000
+
+function isCampaignActive (campaign: { validOn: number }, now: number) {
+  return now >= campaign.validOn && now < campaign.validOn + campaignDurationMs
 }
 
 const campaigns = {
