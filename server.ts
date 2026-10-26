@@ -417,7 +417,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
-  app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
+  app.post('/api/Users', verify.passwordRepeatChallenge())
+  /* Prevent mass assignment of privileged attributes during self-registration */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body && typeof req.body === 'object') {
+      for (const field of ['id', 'role', 'deluxeToken', 'isActive', 'totpSecret', 'lastLoginIp', 'profileImage', 'createdAt', 'updatedAt', 'deletedAt']) {
+        delete req.body[field]
+      }
+    }
+    next()
+  }) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
