@@ -71,14 +71,14 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
+                  stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: quantityRow.quantity - BasketItem.quantity })
                 }
               } catch (error: unknown) {
                 next(error)
@@ -144,6 +144,8 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (totalPrice < 0) {
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
             res.status(400).json({ error: res.__('Order total must not be negative.') })
             return
           }
@@ -164,6 +166,15 @@ export function placeOrder () {
               next(error)
               return
             }
+          }
+
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              await QuantityModel.update({ quantity }, { where: { ProductId } })
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
