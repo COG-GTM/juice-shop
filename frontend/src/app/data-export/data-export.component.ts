@@ -35,48 +35,66 @@ export class DataExportComponent implements OnInit {
   private dataRequest: any = undefined
   public confirmation: any
   public error: any
+  public captchaError: any
+  public captchaLoading = false
+  public exportPending = false
+  private captchaRefreshQueued = false
   public lastSuccessfulTry: any
-  public presenceOfCaptcha = false
   public userData: any
   ngOnInit (): void {
-    this.needCaptcha()
+    this.getNewCaptcha()
     this.dataRequest = {}
   }
 
-  needCaptcha () {
-    const nowTime = new Date()
-    const timeOfCaptcha = localStorage.getItem('lstdtxprt') ? new Date(JSON.parse(String(localStorage.getItem('lstdtxprt')))) : new Date(0)
-    if (nowTime.getTime() - timeOfCaptcha.getTime() < 300000) {
-      this.getNewCaptcha()
-      this.presenceOfCaptcha = true
-    }
-  }
-
   getNewCaptcha () {
-    this.imageCaptchaService.getCaptcha().subscribe((data: any) => {
-      this.captcha = this.sanitizer.bypassSecurityTrustHtml(data.image)
+    this.captcha = undefined
+    if (this.captchaLoading) {
+      this.captchaRefreshQueued = true
+      return
+    }
+    this.captchaLoading = true
+    this.imageCaptchaService.getCaptcha().subscribe({
+      next: (data: any) => {
+        this.captchaLoading = false
+        if (this.refreshIfQueued()) return
+        this.captchaError = null
+        this.captcha = this.sanitizer.bypassSecurityTrustHtml(data.image)
+      },
+      error: (error) => {
+        this.captchaLoading = false
+        if (this.refreshIfQueued()) return
+        this.captchaError = error.error
+      }
     })
   }
 
+  private refreshIfQueued () {
+    if (!this.captchaRefreshQueued) return false
+    this.captchaRefreshQueued = false
+    this.getNewCaptcha()
+    return true
+  }
+
   save () {
-    if (this.presenceOfCaptcha) {
-      this.dataRequest.answer = this.captchaControl.value
-    }
+    this.dataRequest.answer = this.captchaControl.value
     this.dataRequest.format = this.formatControl.value
+    this.exportPending = true
     this.dataSubjectService.dataExport(this.dataRequest).subscribe({
       next: (data: any) => {
+        this.exportPending = false
         this.error = null
         this.confirmation = data.confirmation
         this.userData = data.userData
         window.open('', '_blank', 'width=500')?.document.write(this.userData)
         this.lastSuccessfulTry = new Date()
-        localStorage.setItem('lstdtxprt', JSON.stringify(this.lastSuccessfulTry))
         this.ngOnInit()
         this.resetForm()
       },
       error: (error) => {
+        this.exportPending = false
         this.error = error.error
         this.confirmation = null
+        this.getNewCaptcha()
         this.resetFormError()
       }
     })
