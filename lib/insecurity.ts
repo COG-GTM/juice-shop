@@ -51,7 +51,38 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+const revokedPasswordHashes = new Map<number, Set<string>>()
+
+/* Ends all sessions of a user whose tokens were issued for the previous password */
+export const revokeSessions = (userId: number, previousPasswordHash?: string, currentPasswordHash?: string) => {
+  const revoked = revokedPasswordHashes.get(userId) ?? new Set<string>()
+  if (previousPasswordHash) revoked.add(previousPasswordHash)
+  if (currentPasswordHash) revoked.delete(currentPasswordHash)
+  revokedPasswordHashes.set(userId, revoked)
+  for (const [token, session] of Object.entries(authenticatedUsers.tokenMap)) {
+    if (session?.data?.id === userId) delete authenticatedUsers.tokenMap[token]
+  }
+  delete authenticatedUsers.idMap[userId]
+}
+
+export const isRevoked = (decoded?: { data?: { id?: number, password?: string } }) => {
+  const id = decoded?.data?.id
+  const password = decoded?.data?.password
+  return id !== undefined && password !== undefined && (revokedPasswordHashes.get(id)?.has(password) ?? false)
+}
+
+export const isAuthorized = () => {
+  const verifyJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    verifyJwt(req, res, (error?: any) => {
+      if (!error && isRevoked((req as any).user)) {
+        res.status(401).json({ status: 'error', message: 'Session has been revoked' })
+        return
+      }
+      next(error)
+    })
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
@@ -189,7 +220,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isRevoked(decoded)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)

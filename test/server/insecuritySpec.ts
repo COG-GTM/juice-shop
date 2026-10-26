@@ -203,4 +203,24 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+  describe('revokeSessions', () => {
+    it('revokes sessions carrying the previous password hash only', () => {
+      security.authenticatedUsers.put('revoked-token', { data: { id: 4711, password: 'old' } as unknown as UserModel })
+      security.revokeSessions(4711, 'old', 'new')
+
+      expect(security.authenticatedUsers.get('revoked-token')).to.equal(undefined)
+      expect(security.isRevoked({ data: { id: 4711, password: 'old' } })).to.equal(true)
+      expect(security.isRevoked({ data: { id: 4711, password: 'new' } })).to.equal(false)
+      expect(security.isRevoked({ data: { id: 4712, password: 'old' } })).to.equal(false)
+      expect(security.isRevoked({ data: { id: 4711 } })).to.equal(false)
+    })
+
+    it('allows the previous password again after it is reset to it', () => {
+      security.revokeSessions(4713, 'a', 'b')
+      security.revokeSessions(4713, 'b', 'a')
+
+      expect(security.isRevoked({ data: { id: 4713, password: 'a' } })).to.equal(false)
+      expect(security.isRevoked({ data: { id: 4713, password: 'b' } })).to.equal(true)
+    })
+  })
 })

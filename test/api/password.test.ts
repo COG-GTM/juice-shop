@@ -296,3 +296,50 @@ void describe('/rest/user/reset-password brute-force protection', () => {
     assert.equal(res.status, 401)
   })
 })
+
+void describe('/rest/user/reset-password session revocation', () => {
+  void it('invalidates tokens issued before the reset and accepts tokens issued after it', async () => {
+    const email = 'revoke.me@' + config.get<string>('application.domain')
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: 'oldpassword' })
+      .expect(201)
+    await request(app)
+      .post('/api/SecurityAnswers')
+      .set({ 'content-type': 'application/json' })
+      .send({ UserId: userRes.body.data.id, SecurityQuestionId: 1, answer: 'Revoked' })
+      .expect(201)
+
+    const { token: oldToken } = await login(app, { email, password: 'oldpassword' })
+    await request(app).get('/api/Users').set({ Authorization: 'Bearer ' + oldToken }).expect(200)
+
+    await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, answer: 'Revoked', new: 'newpassword', repeat: 'newpassword' })
+      .expect(200)
+
+    const revoked = await request(app).get('/api/Users').set({ Authorization: 'Bearer ' + oldToken })
+    assert.equal(revoked.status, 401)
+    const whoami = await request(app).get('/rest/user/whoami').set({ Cookie: 'token=' + oldToken })
+    assert.equal(whoami.body.user?.email, undefined)
+
+    const { token: newToken } = await login(app, { email, password: 'newpassword' })
+    await request(app).get('/api/Users').set({ Authorization: 'Bearer ' + newToken }).expect(200)
+  })
+})
+
+void describe('/rest/user/reset-password client address rate limit', () => {
+  void it('cannot be bypassed by rotating X-Forwarded-For', async () => {
+    let res
+    for (let i = 0; i < 101; i++) {
+      res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `172.16.${Math.floor(i / 256)}.${i % 256}` })
+        .send({ email: `nobody${i}@` + config.get<string>('application.domain'), answer: 'guess', new: 'p4ssw0rd!', repeat: 'p4ssw0rd!' })
+      if (res.status === 429) break
+    }
+    assert.equal(res?.status, 429)
+  })
+})
