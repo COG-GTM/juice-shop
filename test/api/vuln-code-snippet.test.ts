@@ -98,6 +98,16 @@ void describe('snippets/verdict', () => {
     assert.equal(res.body.verdict, false)
   })
 
+  void it('should reject traversal or unknown keys with 404', async () => {
+    for (const key of ['../../../x', '../codefixes/resetPasswordJimChallenge', '__proto__']) {
+      const res = await request(app)
+        .post('/snippets/verdict')
+        .send({ selectedLines: [2], key })
+
+      assert.equal(res.status, 404, `key ${key}`)
+    }
+  })
+
   void it('should check for the correct lines', async () => {
     const websocketReceivedPromise = new Promise<void>((resolve) => {
       socket.once('code challenge solved', (data: any) => {
