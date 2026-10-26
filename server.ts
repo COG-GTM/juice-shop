@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { enforceResourceOwnership } from './routes/resourceOwnership'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -515,6 +516,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    enforceResourceOwnership(name, resource)
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {

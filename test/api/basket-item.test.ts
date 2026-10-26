@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let adminHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +25,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const admin = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    adminHeader = {
+      Authorization: 'Bearer ' + admin.token,
       'content-type': 'application/json'
     }
   },
@@ -43,9 +53,21 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all basket items', async () => {
+  void it('GET all basket items only lists items in own basket', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const item of res.body.data) {
+      assert.equal(item.BasketId, 2)
+    }
+  })
+
+  void it('GET all basket items lists items of all baskets for admin', async () => {
+    const res = await request(app).get('/api/BasketItems').set(adminHeader)
+    assert.equal(res.status, 200)
+    const basketIds = new Set(res.body.data.map((item: { BasketId: number }) => item.BasketId))
+    assert.ok(basketIds.has(1))
+    assert.ok(basketIds.has(2))
   })
 
   void it('POST new basket item', async () => {
@@ -196,6 +218,30 @@ void describe('/api/BasketItems/:id', () => {
       .send({ quantity: 6 })
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app).get('/api/BasketItems/1').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/1')
+      .set(authHeader)
+      .send({ quantity: 1 })
+    assert.equal(res.status, 403)
+
+    const item = await request(app).get('/api/BasketItems/1').set(adminHeader)
+    assert.equal(item.body.data.quantity, 2)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app).delete('/api/BasketItems/1').set(authHeader)
+    assert.equal(res.status, 403)
+
+    const item = await request(app).get('/api/BasketItems/1').set(adminHeader)
+    assert.equal(item.status, 200)
   })
 
   void it('DELETE newly created basket item', async () => {
