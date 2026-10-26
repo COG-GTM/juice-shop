@@ -169,7 +169,7 @@ export const isAdmin = () => {
     const token = utils.jwtFrom(req)
     let decodedToken
     try {
-      decodedToken = verify(token as string) && decode(token as string)
+      decodedToken = jws.decode(token as string)?.header?.alg === 'RS256' && verify(token as string) && decode(token as string)
     } catch {
       decodedToken = undefined
     }
