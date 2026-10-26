@@ -167,6 +167,20 @@ describe('ChatConversationComponent', () => {
         expect(component.messages()[1].content.length).toBe(15000)
     })
 
+    it('should shorten an overly long stored user prompt before sending a follow-up', async () => {
+        async function* emptyHistoryStream () {}
+        chatService.streamMessages.mockReturnValue(emptyHistoryStream())
+        component.messages.set([{ role: 'user', content: 'u'.repeat(5000) }, { role: 'assistant', content: 'Sure' }])
+
+        await component.sendMessage('Thanks')
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent.length).toBe(3)
+        expect(sent[0].content.length).toBe(4000)
+        expect(sent[2]).toEqual({ role: 'user', content: 'Thanks' })
+        expect(component.messages()[0].content.length).toBe(5000)
+    })
+
     it('should show a rate limit message when the server throttles the chat', async () => {
         async function* rateLimitedStream() {
             yield { error: 'rate_limited' }
