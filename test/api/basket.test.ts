@@ -118,6 +118,11 @@ void describe('/rest/basket/:id', () => {
   })
 })
 
+async function stockOf (ProductId: number): Promise<number> {
+  const res = await request(app).get('/api/Quantitys').set(authHeader)
+  return res.body.data.find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+}
+
 void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a basket is not allowed via public API', async () => {
     const res = await request(app).post('/rest/basket/1/checkout')
@@ -134,6 +139,25 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
+  })
+
+  void it('POST failed wallet payment leaves stock and basket untouched', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const stockBefore = await stockOf(4)
+
+    for (let i = 0; i < 3; i++) {
+      const res = await request(app)
+        .post('/rest/basket/3/checkout')
+        .set(benderHeader)
+        .send({ orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Insufficient wallet balance.'))
+    }
+
+    assert.equal(await stockOf(4), stockBefore)
+    const basketRes = await request(app).get('/rest/basket/3').set(benderHeader)
+    assert.equal(basketRes.body.data.Products.length, 1)
   })
 
   void it('POST placing an order for a basket with a negative total cost is possible', async () => {
@@ -159,6 +183,23 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST checkout never increases stock for negative quantities', async () => {
+    const stockBefore = { 4: await stockOf(4), 10: await stockOf(10) }
+    for (const { ProductId, quantity } of [{ ProductId: 4, quantity: 1 }, { ProductId: 10, quantity: -10 }]) {
+      const itemRes = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId, quantity })
+      assert.equal(itemRes.status, 200)
+    }
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+
+    assert.equal(await stockOf(4), stockBefore[4] - 1)
+    assert.equal(await stockOf(10), stockBefore[10])
   })
 })
 
