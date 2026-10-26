@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import jws from 'jws'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -21,6 +22,9 @@ export default defineConfig({
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
+        },
+        ForgeHs256Token ({ payload, secret }: { payload: object, secret: string }) {
+          return jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret })
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {
