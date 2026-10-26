@@ -4,9 +4,10 @@
  */
 
 import chai from 'chai'
+import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,44 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveComplaintEntryPath', () => {
+    const complaintsDirectory = path.resolve('uploads/complaints')
+
+    it('should resolve top-level entry names inside uploads/complaints', () => {
+      expect(resolveComplaintEntryPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+      expect(resolveComplaintEntryPath('./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+    })
+
+    const maliciousEntries = [
+      '../../ftp/legal.md',
+      '../../views/userProfile.pug',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      '../complaints/../../server.ts',
+      'nested/../../complaints-evil/x.txt',
+      '..\\..\\views\\userProfile.pug',
+      'nested/complaint.pdf',
+      '..',
+      '.',
+      '',
+      '/etc/passwd',
+      path.resolve('views/userProfile.pug'),
+      path.join(complaintsDirectory, 'absolute.txt'),
+      'C:\\Windows\\win.ini',
+      'C:relative.txt',
+      '\\\\server\\share\\x.txt',
+      'complaint.pdf\0.txt'
+    ]
+    maliciousEntries.forEach(entry => {
+      it(`should reject entry ${JSON.stringify(entry)}`, () => {
+        expect(resolveComplaintEntryPath(entry)).to.equal(null)
+      })
+    })
+
+    it('should reject non-string entry names', () => {
+      expect(resolveComplaintEntryPath(undefined)).to.equal(null)
+      expect(resolveComplaintEntryPath(42)).to.equal(null)
+    })
   })
 })
