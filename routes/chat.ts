@@ -55,6 +55,7 @@ const MAX_CHAT_MESSAGE_LENGTH = 4000
 const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
 const MAX_CHAT_TOTAL_LENGTH = 32000
 const MAX_OUTPUT_TOKENS = 2048
+const MAX_CHAT_STEPS = 4
 const CHAT_ROLES = ['user', 'assistant']
 
 interface ChatMessage { role: 'user' | 'assistant', content: string }
@@ -261,7 +262,7 @@ export function chat () {
         tools: chatTools,
         maxRetries: config.get<number>('application.chatBot.llmMaxRetries'),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        stopWhen: stepCountIs(10),
+        stopWhen: stepCountIs(MAX_CHAT_STEPS),
         onError: ({ error }) => {
           logger.warn('Chatbot stream error: ' + summarizeLlmError(error))
         }
