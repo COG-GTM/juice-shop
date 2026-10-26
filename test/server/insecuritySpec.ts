@@ -109,6 +109,83 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    describe('session lifetime', () => {
+      const user = { data: { id: 4711, email: 'session@juice-sh.op' } as unknown as UserModel }
+      const realNow = Date.now
+      const issueAt = (secondsAgo: number) => {
+        Date.now = () => realNow() - secondsAgo * 1000
+        try {
+          const token = security.authorize(user)
+          security.authenticatedUsers.put(token, user)
+          return token
+        } finally {
+          Date.now = realNow
+        }
+      }
+
+      afterEach(() => {
+        Date.now = realNow
+      })
+
+      it('issues tokens with an explicit expiry six hours ahead', () => {
+        const token = security.authorize(user)
+        expect(security.expiryOf(token)).to.be.closeTo(Math.floor(realNow() / 1000) + 6 * 60 * 60, 2)
+      })
+
+      it('issues a distinct token for every login', () => {
+        expect(security.authorize(user)).to.not.equal(security.authorize(user))
+      })
+
+      it('evicts cached tokens once they have expired', () => {
+        const token = issueAt(security.sessionLifetimeInSeconds + 60)
+        expect(security.authenticatedUsers.tokenMap[token]).to.deep.equal(user)
+
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+      })
+
+      it('keeps returning cached tokens that have not expired yet', () => {
+        const token = issueAt(60)
+        expect(security.authenticatedUsers.get(token)).to.deep.equal(user)
+      })
+
+      it('does not cache already expired tokens', () => {
+        Date.now = () => realNow() - (security.sessionLifetimeInSeconds + 60) * 1000
+        const token = security.authorize(user)
+        Date.now = realNow
+        security.authenticatedUsers.put(token, user)
+        expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+      })
+
+      it('revoked tokens cannot be looked up or cached again', () => {
+        const token = issueAt(0)
+        security.authenticatedUsers.revoke(token)
+
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.isRevoked(token)).to.equal(true)
+        security.authenticatedUsers.put(token, user)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      })
+
+      it('does not remember revocations of unsigned tokens', () => {
+        security.authenticatedUsers.revoke('not-a-jwt')
+        expect(security.authenticatedUsers.isRevoked('not-a-jwt')).to.equal(false)
+      })
+
+      it('revokes all sessions of a user except the given one', () => {
+        const kept = issueAt(20)
+        const other = issueAt(10)
+        const stranger = security.authorize({ data: { id: 4712 } })
+        security.authenticatedUsers.put(stranger, { data: { id: 4712 } as unknown as UserModel })
+
+        security.authenticatedUsers.revokeAllFor(4711, kept)
+
+        expect(security.authenticatedUsers.get(kept)).to.deep.equal(user)
+        expect(security.authenticatedUsers.get(other)).to.equal(undefined)
+        expect(security.authenticatedUsers.get(stranger)).to.deep.equal({ data: { id: 4712 } })
+      })
+    })
   })
 
   describe('sanitizeHtml', () => {
