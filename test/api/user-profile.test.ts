@@ -51,4 +51,43 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username is rejected for cross-site Origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'https://attacker.example')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const profile = await request(app).get('/profile').set(authHeader)
+    assert.ok(!profile.text.includes('CSRF'))
+  })
+
+  void it('POST update username is rejected for cross-site Sec-Fetch-Site', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Sec-Fetch-Site', 'cross-site')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username is accepted from same origin', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assert.match(res.headers['set-cookie']?.[0] ?? '', /SameSite=Lax/)
+  })
 })
