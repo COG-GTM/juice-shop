@@ -21,6 +21,12 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
+  void it('GET is unauthorized without a token', async () => {
+    const res = await request(app).get('/rest/user/authentication-details')
+
+    assert.equal(res.status, 401)
+  })
+
   void it('GET is forbidden for non-admin users', async () => {
     const customerAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })}` }
     const res = await request(app)

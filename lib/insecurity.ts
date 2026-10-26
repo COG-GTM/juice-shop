@@ -166,14 +166,18 @@ export const isAccounting = () => {
 
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
+    let decodedToken: any
     try {
-      const decodedToken: any = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
-      if (decodedToken?.data?.role === roles.admin) {
-        next()
-        return
-      }
-    } catch {}
-    res.status(403).json({ error: 'Malicious activity detected' })
+      decodedToken = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
+    } catch {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
+    if (decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
   }
 }
 
