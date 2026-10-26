@@ -188,6 +188,32 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hasRole', () => {
+    const run = (token?: string) => {
+      let nextCalled = false
+      let status: number | undefined
+      const req: any = { headers: token ? { authorization: 'Bearer ' + token } : {}, cookies: {}, query: {} }
+      const res: any = { status: (code: number) => { status = code; return res }, json: () => res }
+      security.hasRole(security.roles.accounting, security.roles.admin)(req, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+
+    it('allows users with one of the given roles', () => {
+      expect(run(security.authorize({ data: { role: 'accounting' } })).nextCalled).to.equal(true)
+      expect(run(security.authorize({ data: { role: 'admin' } })).nextCalled).to.equal(true)
+    })
+
+    it('rejects users without one of the given roles', () => {
+      expect(run(security.authorize({ data: { role: 'customer' } }))).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run(security.authorize({ data: { role: 'deluxe' } }))).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('rejects requests without a valid token', () => {
+      expect(run()).to.deep.equal({ nextCalled: false, status: 403 })
+      expect(run('eyJhbGciOiJub25lIn0.eyJkYXRhIjp7InJvbGUiOiJhZG1pbiJ9fQ.')).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
