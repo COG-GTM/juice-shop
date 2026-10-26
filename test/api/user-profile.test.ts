@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,23 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile with huge repeated script-src profile image responds quickly', async () => {
+    const jim = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const originalProfileImage = jim?.profileImage
+    await jim?.update({ profileImage: ';script-src'.repeat(20000) })
+
+    try {
+      const start = Date.now()
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(Date.now() - start < 2000)
+    } finally {
+      await jim?.update({ profileImage: originalProfileImage })
+    }
   })
 })

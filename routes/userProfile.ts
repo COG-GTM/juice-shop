@@ -17,6 +17,14 @@ import * as utils from '../lib/utils'
 
 const entities = new Entities()
 
+// Linear-time equivalent of /;[ ]*script-src(.)*'unsafe-inline'/ which backtracks catastrophically on long inputs
+export function cspSourceAllowsInlineScripts (value: string) {
+  return value.split(/[\n\r\u2028\u2029]/).some(line => {
+    const directive = /;[ ]*script-src/.exec(line)
+    return directive !== null && line.includes("'unsafe-inline'", directive.index + directive[0].length)
+  })
+}
+
 function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
@@ -88,7 +96,7 @@ export function getUserProfile () {
       const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
 
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
-        return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
+        return username && user?.profileImage && cspSourceAllowsInlineScripts(user.profileImage) && utils.contains(username, '<script>alert(`xss`)</script>')
       })
 
       res.set({
