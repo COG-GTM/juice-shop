@@ -104,7 +104,30 @@ export const verifyPassword = async (password: string, storedHash?: string | nul
   return crypto.timingSafeEqual(key, parsed.key)
 }
 
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+// The database is re-seeded on every startup, so a per-process random key is safe when SECURITY_ANSWER_KEY is unset
+const securityAnswerKey = process.env.SECURITY_ANSWER_KEY !== undefined && process.env.SECURITY_ANSWER_KEY !== ''
+  ? process.env.SECURITY_ANSWER_KEY
+  : crypto.randomBytes(32).toString('hex')
+
+export const hashSecurityAnswer = (answer: string, salt = crypto.randomBytes(16).toString('hex')) => {
+  const peppered = crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
+  return `${salt}:${crypto.scryptSync(peppered, salt, 32).toString('hex')}`
+}
+
+export const verifySecurityAnswer = async (answer: string, stored?: string | null) => {
+  const [salt, digest] = (stored ?? '').split(':')
+  if (!salt || !digest) return false
+  const expected = Buffer.from(digest, 'hex')
+  const peppered = crypto.createHmac('sha256', securityAnswerKey).update(answer).digest()
+  const actual = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(peppered, salt, 32, (err, key) => {
+      if (err) reject(err)
+      else resolve(key)
+    })
+  })
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
