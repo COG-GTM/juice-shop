@@ -204,7 +204,7 @@ export const updateAuthenticatedUserFromBearer = () => (req: Request, res: Respo
   const token = utils.jwtFrom(req)
   if (token && authenticatedUsers.get(token) === undefined) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && decoded?.data) {
         authenticatedUsers.put(token, decoded)
       }
     })
