@@ -81,7 +81,7 @@ void describe('/rest/memories', () => {
       .set('Authorization', 'Bearer ' + token)
       .attach('image', Buffer.alloc(1000001), { filename: 'oversized.png', contentType: 'image/png' })
       .field('caption', 'Oversized Image')
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 413)
     assert.ok(res.text.includes('File too large'))
     assert.deepEqual(uploadedFiles(), filesBefore)
   })
