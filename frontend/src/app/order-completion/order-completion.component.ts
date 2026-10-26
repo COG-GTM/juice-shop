@@ -100,15 +100,18 @@ export class OrderCompletionComponent implements OnInit {
         const pdfUrl = URL.createObjectURL(pdf)
         if (pdfWindow !== null) {
           pdfWindow.location.href = pdfUrl
-          const revokeWhenClosed = setInterval(() => {
-            if (pdfWindow.closed) {
-              clearInterval(revokeWhenClosed)
-              URL.revokeObjectURL(pdfUrl)
-            }
-          }, 5000)
-        } else {
-          window.open(pdfUrl, '_blank')
         }
+        const viewer = pdfWindow ?? window.open(pdfUrl, '_blank')
+        if (viewer === null) {
+          URL.revokeObjectURL(pdfUrl)
+          return
+        }
+        const revokeWhenClosed = setInterval(() => {
+          if (viewer.closed) {
+            clearInterval(revokeWhenClosed)
+            URL.revokeObjectURL(pdfUrl)
+          }
+        }, 5000)
       },
       error: (err) => {
         pdfWindow?.close()
