@@ -12,6 +12,12 @@ import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+const notevilEscapePayload = 'function fn() {};' +
+  'var constructorProperty = Object.getOwnPropertyDescriptors(fn.__proto__).constructor;' +
+  'var properties = Object.values(constructorProperty);' +
+  'properties.pop(); properties.pop(); properties.pop();' +
+  'var Func = properties.pop();' +
+  'Func("globalThis.__b2bSandboxEscaped = true")()'
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 
 before(async () => {
@@ -54,6 +60,33 @@ void describe('/b2b/v2/orders', () => {
       })
 
     assert.equal(res.status, 400)
+  })
+
+  void it('POST CVE-2021-23771 notevil sandbox escape payload is rejected without being evaluated', async () => {
+    const res = await request(app)
+      .post('/b2b/v2/orders')
+      .set(authHeader)
+      .send({
+        orderLinesData: notevilEscapePayload
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal((globalThis as Record<string, unknown>).__b2bSandboxEscaped, undefined)
+  })
+
+  void it('POST long-running payload does not delay a parallel request to another endpoint', async () => {
+    const started = Date.now()
+    const [order, version] = await Promise.all([
+      request(app)
+        .post('/b2b/v2/orders')
+        .set(authHeader)
+        .send({ orderLinesData: '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")' }),
+      request(app).get('/rest/admin/application-version')
+    ])
+
+    assert.equal(order.status, 400)
+    assert.equal(version.status, 200)
+    assert.ok(Date.now() - started < 2000)
   })
 
   void it('POST new B2B order accepts order lines in documented JSON format', async () => {

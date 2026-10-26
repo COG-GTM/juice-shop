@@ -59,6 +59,21 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.callCount(0)
   })
 
+  it('CVE-2021-23771 notevil sandbox escape payload is rejected without being evaluated', () => {
+    req.body.orderLinesData = 'function fn() {};' +
+      'var constructorProperty = Object.getOwnPropertyDescriptors(fn.__proto__).constructor;' +
+      'var properties = Object.values(constructorProperty);' +
+      'properties.pop(); properties.pop(); properties.pop();' +
+      'var Func = properties.pop();' +
+      'Func("globalThis.__b2bSandboxEscaped = true")()'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+    expect((globalThis as Record<string, unknown>).__b2bSandboxEscaped).to.equal(undefined)
+  })
+
   it('non-string orderLinesData is rejected', () => {
     req.body.orderLinesData = { productId: 12, quantity: 1 }
 
