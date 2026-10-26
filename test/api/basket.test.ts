@@ -148,17 +148,11 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing an order for a basket with 99% discount is possible', async () => {
+  void it('PUT applying a forged 99% discount coupon is rejected', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
       .set(authHeader)
-    assert.equal(couponRes.status, 200)
-    assert.ok(couponRes.headers['content-type']?.includes('application/json'))
-    assert.equal(couponRes.body.discount, 99)
-
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(couponRes.status, 404)
   })
 })
 
