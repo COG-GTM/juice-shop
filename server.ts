@@ -164,7 +164,7 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 app.set('view engine', 'hbs')
 
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
-void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
+const cleanupFtpFolderReady = collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
@@ -730,6 +730,7 @@ export async function start (readyCallback?: () => void) {
   const datacreatorEnd = startupGauge.startTimer({ task: 'datacreator' })
   await sequelize.sync({ force: true })
   await preconditionsReady
+  await cleanupFtpFolderReady
   await datacreator()
   datacreatorEnd()
   const port = process.env.PORT ?? config.get('server.port')

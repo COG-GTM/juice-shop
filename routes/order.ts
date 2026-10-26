@@ -41,9 +41,16 @@ function orderConfirmationPath (userId: number | undefined, orderId: string) {
   return pdfFile
 }
 
+function verifiedUserIdFrom (req: Request): number | undefined {
+  const token = utils.jwtFrom(req)
+  if (token === undefined || !security.verify(token)) return undefined
+  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
+  return decoded?.data?.id
+}
+
 export function serveOrderConfirmation () {
   return (req: Request, res: Response) => {
-    const userId = security.authenticatedUsers.from(req)?.data?.id
+    const userId = verifiedUserIdFrom(req)
     const orderId = req.params.orderId
     if (userId === undefined) {
       res.status(401).json({ error: 'Unauthorized' })
@@ -71,7 +78,7 @@ export function placeOrder () {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = orderConfirmationPath(customer?.data?.id, orderId)
+          const pdfFile = orderConfirmationPath(verifiedUserIdFrom(req), orderId)
           await fs.promises.mkdir(path.dirname(pdfFile), { recursive: true })
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()

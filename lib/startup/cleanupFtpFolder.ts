@@ -18,11 +18,7 @@ const cleanupFtpFolder = async () => {
     logger.warn('Error listing PDF files in /ftp folder: ' + utils.getErrorMessage(err))
   }
   try {
-    if (await fs.pathExists('orders')) {
-      const staleOrders = `orders.stale-${Date.now()}`
-      await fs.rename('orders', staleOrders)
-      await fs.remove(staleOrders)
-    }
+    await fs.remove('orders')
   } catch (err) {
     logger.warn('Error removing order confirmations folder: ' + utils.getErrorMessage(err))
   }
