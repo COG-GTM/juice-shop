@@ -58,11 +58,12 @@ export const isRevokedSession = (payload: any) => {
   if (userId === undefined || sessionsRevokedAt[userId] === undefined) {
     return false
   }
-  return typeof payload.iat !== 'number' || payload.iat <= sessionsRevokedAt[userId]
+  const issuedAtMs = typeof payload.iatMs === 'number' ? payload.iatMs : typeof payload.iat === 'number' ? payload.iat * 1000 : undefined
+  return issuedAtMs === undefined || issuedAtMs <= sessionsRevokedAt[userId]
 }
 
 export const revokeSessionsOf = (userId: number) => {
-  sessionsRevokedAt[userId] = Math.floor(Date.now() / 1000)
+  sessionsRevokedAt[userId] = Date.now()
   for (const [token, user] of Object.entries(authenticatedUsers.tokenMap)) {
     if (user?.data?.id === userId) {
       delete authenticatedUsers.tokenMap[token]
@@ -88,7 +89,7 @@ export const isAuthorized = () => {
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ ...user, iatMs: Date.now() }, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -116,7 +117,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
       return undefined
     }
     const user = this.tokenMap[utils.unquote(token)]
-    return user && isRevokedSession({ data: user.data, iat: decode(utils.unquote(token))?.iat }) ? undefined : user
+    return user && isRevokedSession({ ...decode(utils.unquote(token)), data: user.data }) ? undefined : user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -195,7 +196,7 @@ export const deluxeToken = (email: string) => {
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.accounting) {
+    if (decodedToken?.data?.role === roles.accounting && !isRevokedSession(decodedToken)) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
@@ -205,12 +206,12 @@ export const isAccounting = () => {
 
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
+  return !isRevokedSession(decodedToken) && decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.customer
+  return !isRevokedSession(decodedToken) && decodedToken?.data?.role === roles.customer
 }
 
 export const appendUserId = () => {

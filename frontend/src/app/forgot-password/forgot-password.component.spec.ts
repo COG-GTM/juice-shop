@@ -168,6 +168,7 @@ describe('ForgotPasswordComponent', () => {
         expect(userService.requestPasswordReset).toHaveBeenCalledWith('known@user.test')
         expect(component.confirmation).toBeDefined()
         expect(component.error).toBeUndefined()
+        expect(component.emailControl.dirty).toBe(false)
     })
 
     it('should gracefully handle error when requesting a reset code', () => {

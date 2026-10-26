@@ -73,11 +73,11 @@ export function resetPassword () {
         res.status(401).send(res.__('Wrong answer to security question.'))
         return
       }
+      passwordReset.invalidateResetTokens(data.UserId)
+      passwordReset.clearFailedAttempts(email)
       const user = await UserModel.findByPk(data.UserId)
       if (user) {
         const updatedUser = await user.update({ password: newPassword })
-        passwordReset.invalidateResetTokens(user.id)
-        passwordReset.clearFailedAttempts(email)
         security.revokeSessionsOf(user.id)
         verifySecurityAnswerChallenges(updatedUser, answer)
         res.json({ user: updatedUser })

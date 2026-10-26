@@ -61,7 +61,21 @@ export const invalidateResetTokens = (userId: number) => {
   }
 }
 
+const removeExpiredEntries = (now: number) => {
+  for (const [hash, entry] of resetTokens) {
+    if (entry.expiresAt <= now) {
+      resetTokens.delete(hash)
+    }
+  }
+  for (const [key, entry] of failedAttempts) {
+    if (entry.lockedUntil <= now && now - entry.windowStart > RESET_LOCKOUT_MS) {
+      failedAttempts.delete(key)
+    }
+  }
+}
+
 export const issueResetToken = async (userId: number, email: string) => {
+  removeExpiredEntries(Date.now())
   invalidateResetTokens(userId)
   const token = crypto.randomBytes(32).toString('hex')
   resetTokens.set(hashToken(token), { userId, expiresAt: Date.now() + RESET_TOKEN_TTL_MS })
@@ -88,6 +102,7 @@ export const isLockedOut = (email: string) => {
 export const registerFailedAttempt = (email: string) => {
   const key = accountKey(email)
   const now = Date.now()
+  removeExpiredEntries(now)
   let entry = failedAttempts.get(key)
   if (!entry || (entry.lockedUntil <= now && now - entry.windowStart > RESET_LOCKOUT_MS)) {
     entry = { count: 0, windowStart: now, lockedUntil: 0 }
@@ -104,6 +119,8 @@ export const registerFailedAttempt = (email: string) => {
 export const clearFailedAttempts = (email: string) => {
   failedAttempts.delete(accountKey(email))
 }
+
+export const pendingResetTokenCount = () => resetTokens.size
 
 export const resetPasswordResetState = () => {
   resetTokens.clear()

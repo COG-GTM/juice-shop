@@ -57,6 +57,13 @@ describe('passwordReset', () => {
       expect(passwordReset.isValidResetToken(sentTokens['jim@juice-sh.op'], 1)).to.equal(true)
     })
 
+    it('removes expired tokens when new tokens are issued', async () => {
+      await passwordReset.issueResetToken(1, 'jim@juice-sh.op')
+      clock.tick(passwordReset.RESET_TOKEN_TTL_MS + 1)
+      await passwordReset.issueResetToken(2, 'bender@juice-sh.op')
+      expect(passwordReset.pendingResetTokenCount()).to.equal(1)
+    })
+
     it('invalidates tokens after use', async () => {
       await passwordReset.issueResetToken(1, 'jim@juice-sh.op')
       const token = sentTokens['jim@juice-sh.op']

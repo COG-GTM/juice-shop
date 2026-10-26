@@ -222,6 +222,23 @@ void describe('/rest/user/reset-password', () => {
       .get('/rest/basket/' + authentication.bid)
       .set({ Authorization: 'Bearer ' + authentication.token })
     assert.equal(after.status, 401)
+
+    const freshAuthentication = await login(app, { email, password: 'OhG0dPlease1nsertLiquor!' })
+    const fresh = await request(app)
+      .get('/rest/basket/' + freshAuthentication.bid)
+      .set({ Authorization: 'Bearer ' + freshAuthentication.token })
+    assert.equal(fresh.status, 200)
+  })
+
+  void it('POST password reset code is consumed by the first of concurrent resets', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const token = await requestResetToken(email)
+    const results = await Promise.all([
+      resetPassword({ email, token, answer: 'Samuel', new: 'ncc-1701', repeat: 'ncc-1701' }),
+      resetPassword({ email, token, answer: 'Samuel', new: 'hijacked1', repeat: 'hijacked1' })
+    ])
+
+    assert.deepEqual(results.map(res => res.status).sort(), [200, 401])
   })
 
   void it('POST password reset with wrong answer to security question', async () => {
