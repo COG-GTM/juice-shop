@@ -380,6 +380,25 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST stops a runaway tool-call loop after 4 model steps', { timeout: 15000 }, async () => {
+    let callCount = 0
+    onLlmRequest = (_req, _body, res) => {
+      callCount++
+      sendSSE(res, [
+        toolCallChunk(`call_${callCount}`, 'searchProducts', '{"query":"apple"}'),
+        finishChunk('tool_calls')
+      ])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(authHeader)
+      .send({ messages: [{ role: 'user', content: 'Search forever' }] })
+
+    assert.equal(res.status, 200)
+    assert.equal(callCount, 4)
+  })
+
   void it('POST caps output tokens requested from the LLM', { timeout: 15000 }, async () => {
     let parsedBody: any
     onLlmRequest = (_req, body, res) => {
