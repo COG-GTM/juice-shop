@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -79,6 +80,42 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('isAdmin', () => {
+    function runIsAdmin (token?: string) {
+      const req = { headers: token ? { authorization: `Bearer ${token}` } : {} } as unknown as Request
+      const res: any = { status: sinon.stub(), json: sinon.spy() }
+      res.status.returns(res)
+      const next = sinon.spy()
+      security.isAdmin()(req, res as Response, next)
+      return { res, next }
+    }
+
+    it('allows a signed admin token', () => {
+      const { next, res } = runIsAdmin(security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } }))
+      expect(next.calledOnce).to.equal(true)
+      expect(res.status.called).to.equal(false)
+    })
+
+    it('rejects a signed customer token with 403', () => {
+      const { next, res } = runIsAdmin(security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } }))
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects a request without token with 403', () => {
+      const { next, res } = runIsAdmin()
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects an unsigned alg:none admin token with 403', () => {
+      const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+      const { next, res } = runIsAdmin(`${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { role: 'admin' } })}.`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 

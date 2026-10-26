@@ -13,19 +13,12 @@ interface ConfigResponse {
   config: Config
 }
 export interface Config {
-  server: {
-    port: number
-  }
   application: {
     domain: string
     name: string
     logo: string
-    favicon: string
     theme: string
-    showVersionNumber: boolean
     showGitHubLinks: boolean
-    localBackupEnabled: boolean
-    numberOfRandomFakeUsers: number
     altcoinName: string
     privacyContactEmail: string
     social: {
@@ -37,7 +30,6 @@ export interface Config {
       redditUrl: string
       pressKitUrl: string
       nftUrl: string
-      questionnaireUrl: string
     }
     chatBot: {
       name: string
@@ -53,49 +45,22 @@ export interface Config {
       title: string
       message: string
     }
-    cookieConsent: {
-      message: string
-      dismissText: string
-      linkText: string
-      linkUrl: string
-    }
-    securityTxt: {
-      contact: string
-      encryption: string
-      acknowledgements: string
-    }
-    promotion: {
-      video: string
-      subtitles: string
-    }
-    easterEggPlanet: {
-      name: string
-      overlayMap: string
-    }
     googleOauth: {
       clientId: string
       authorizedRedirects: any[]
     }
   }
   challenges: {
-    showSolvedNotifications: boolean
-    showHints: boolean
-    showMitigations: boolean
     codingChallengesEnabled: string
     restrictToTutorialsFirst: boolean
-    safetyMode: string
-    overwriteUrlForProductTamperingChallenge: string
   }
   hackingInstructor: {
     isEnabled: boolean
-    avatarImage: string
+    hintPlaybackSpeed: string
   }
-  products: any[]
-  memories: any[]
   ctf: {
     showFlagsInNotifications: boolean
     showCountryDetailsInNotifications: string
-    countryMapping: any[]
     systemWideNotifications?: {
       url?: string
       pollFrequencySeconds?: number
@@ -110,7 +75,7 @@ export class ConfigurationService {
   private readonly http = inject(HttpClient)
 
   private readonly hostServer = environment.hostServer
-  private readonly host = this.hostServer + '/rest/admin'
+  private readonly host = this.hostServer + '/rest'
   private configObservable: any
 
   getApplicationConfiguration (): Observable<Config> {

@@ -164,6 +164,18 @@ export const isAccounting = () => {
   }
 }
 
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    const decoded = token && verify(token) ? jws.decode(token) : null
+    if (decoded?.header?.alg === 'RS256' && decoded.payload?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Forbidden' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
