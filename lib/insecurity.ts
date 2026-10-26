@@ -166,7 +166,8 @@ export const isAccounting = () => {
 
 export const isAdminOrAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const token = utils.jwtFrom(req)
+    const decodedToken = token && jws.verify(token, 'RS256', publicKey) && decode(token)
     if (decodedToken?.data?.role === roles.admin || decodedToken?.data?.role === roles.accounting) {
       next()
     } else {

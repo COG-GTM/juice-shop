@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -226,6 +227,11 @@ describe('insecurity', () => {
       expect(run(tokenFor(security.roles.customer))).to.deep.equal({ nextCalled: false, status: 403 })
       expect(run(tokenFor(security.roles.deluxe))).to.deep.equal({ nextCalled: false, status: 403 })
       expect(run()).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('rejects accounting tokens HMAC-signed with the public key', () => {
+      const forged = jws.sign({ header: { alg: 'HS256' }, payload: { data: { role: security.roles.accounting } }, secret: security.publicKey })
+      expect(run(`Bearer ${forged}`)).to.deep.equal({ nextCalled: false, status: 403 })
     })
 
     it('rejects unsigned admin tokens', () => {
