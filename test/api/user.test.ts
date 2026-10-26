@@ -326,4 +326,16 @@ void describe('/rest/user/whoami', () => {
     assert.equal(typeof res.body.user.email, 'string')
     assert.equal(typeof res.body.user.password, 'string')
   })
+
+  void it('GET who-am-i leaked password is a salted scrypt hash rather than crackable MD5', async () => {
+    const password = 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password })
+    const res = await request(app)
+      .get('/rest/user/whoami?fields=password')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.notEqual(res.body.user.password, security.hash(password))
+    assert.match(res.body.user.password, /^scrypt\$/)
+    assert.ok(await security.verifyPassword(password, res.body.user.password))
+  })
 })
