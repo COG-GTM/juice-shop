@@ -70,7 +70,7 @@ import * as verify from './routes/verify'
 import * as address from './routes/address'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
-import { placeOrder } from './routes/order'
+import { placeOrder, serveOrderConfirmation } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
@@ -601,6 +601,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
   app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
   app.post('/rest/basket/:id/checkout', placeOrder())
+  app.get('/rest/order-confirmation/:orderId', security.isAuthorized(), serveOrderConfirmation())
   app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
