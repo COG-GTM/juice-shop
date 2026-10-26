@@ -1,8 +1,7 @@
 describe('/ftp', () => {
-  describe('challenge "confidentialDocument"', () => {
-    it('should be able to access file /ftp/acquisitions.md', () => {
-      cy.request('/ftp/acquisitions.md')
-      cy.expectChallengeSolved({ challenge: 'Confidential Document' })
+  describe('confidential documents', () => {
+    it('should not serve file /ftp/acquisitions.md', () => {
+      cy.request({ url: '/ftp/acquisitions.md', failOnStatusCode: false }).its('status').should('equal', 404)
     })
   })
 
@@ -18,38 +17,11 @@ describe('/ftp', () => {
     })
   })
 
-  describe('challenge "forgottenBackup"', () => {
-    it('should be able to access file /ftp/coupons_2013.md.bak with poison null byte attack', () => {
-      cy.request('/ftp/coupons_2013.md.bak%2500.md')
-      cy.expectChallengeSolved({ challenge: 'Forgotten Sales Backup' })
-    })
-  })
-
-  describe('challenge "forgottenDevBackup"', () => {
-    it('should be able to access file /ftp/package.json.bak with poison null byte attack', () => {
-      cy.request('/ftp/package.json.bak%2500.md')
-      cy.expectChallengeSolved({ challenge: 'Forgotten Developer Backup' })
-    })
-  })
-
-  describe('challenge "easterEgg1"', () => {
-    it('should be able to access file /ftp/easter.egg with poison null byte attack', () => {
-      cy.request('/ftp/eastere.gg%2500.md')
-      cy.expectChallengeSolved({ challenge: 'Easter Egg' })
-    })
-  })
-
-  describe('challenge "misplacedSiemFileChallenge"', () => {
-    it('should be able to access file /ftp/suspicious_errors.yml with poison null byte attack', () => {
-      cy.request('/ftp/suspicious_errors.yml%2500.md')
-      cy.expectChallengeSolved({ challenge: 'Misplaced Signature File' })
-    })
-  })
-
-  describe('challenge "nullByteChallenge"', () => {
-    it('should be able to access file other than Markdown or PDF in /ftp with poison null byte attack', () => {
-      cy.request('/ftp/encrypt.pyc%2500.md')
-      cy.expectChallengeSolved({ challenge: 'Poison Null Byte' })
-    })
+  describe('poison null byte', () => {
+    for (const file of ['coupons_2013.md.bak', 'package.json.bak', 'eastere.gg', 'suspicious_errors.yml', 'encrypt.pyc']) {
+      it(`should not serve /ftp/${file} through a poison null byte attack`, () => {
+        cy.request({ url: `/ftp/${file}%2500.md`, failOnStatusCode: false }).its('status').should('equal', 403)
+      })
+    }
   })
 })
