@@ -17,7 +17,7 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { OAuthComponent } from './oauth.component'
 import { LoginComponent } from '../login/login.component'
 import { ReactiveFormsModule } from '@angular/forms'
-import { ActivatedRoute } from '@angular/router'
+import { ActivatedRoute, Router } from '@angular/router'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { UserService } from '../Services/user.service'
@@ -83,6 +83,16 @@ describe('OAuthComponent', () => {
         component.ngOnInit()
         expect(localStorage.getItem('token')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
+    })
+
+    it('continues to the 2FA form when the server requires a TOTP token', () => {
+        const router = TestBed.inject(Router)
+        vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        localStorage.removeItem('totp_tmp_token')
+        userService.oauthLogin.mockReturnValue(throwError(() => ({ error: { status: 'totp_token_required', data: { tmpToken: 'TMP' } } })))
+        component.ngOnInit()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('TMP')
+        expect(router.navigate).toHaveBeenCalledWith(['/2fa/enter'])
     })
 
     it('passes the OAuth access token to the server-side login', () => {

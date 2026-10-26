@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { challenges } from '../../data/datacache'
 import { UserModel } from '../../models/user'
+import { WalletModel } from '../../models/wallet'
 import { googleTokenInfoUrl } from '../../routes/oauth'
 
 let app: Express
@@ -61,6 +62,9 @@ void describe('/rest/user/oauth', () => {
       .get('/rest/user/whoami')
       .set({ Authorization: 'Bearer ' + res.body.authentication.token, Cookie: 'token=' + res.body.authentication.token })
     assert.equal(whoami.body.user.email, 'oauth.newbie@gmail.com')
+
+    const user = await UserModel.findOne({ where: { email: 'oauth.newbie@gmail.com' } })
+    assert.equal(await WalletModel.count({ where: { UserId: user?.id } }), 1)
   })
 
   void it('POST login with btoa(reverse(email)) fails for an account created through OAuth', async () => {
