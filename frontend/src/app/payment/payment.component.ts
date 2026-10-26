@@ -230,7 +230,7 @@ export class PaymentComponent implements OnInit {
       this.userService.upgradeToDeluxe(this.paymentMode, this.paymentId).subscribe({
         next: (data) => {
           localStorage.setItem('token', data.token)
-          this.cookieService.put('token', data.token)
+          this.cookieService.put('token', data.token, { sameSite: 'strict' })
           this.ngZone.run(async () => await this.router.navigate(['/deluxe-membership']))
         },
         error: (err) => { console.log(err) }
