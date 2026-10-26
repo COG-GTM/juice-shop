@@ -51,10 +51,31 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+const jwtAlgorithm = 'RS256'
+
+export const hasPinnedAlgorithm = (token?: string) => {
+  if (typeof token !== 'string') return false
+  try {
+    const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString('utf8'))
+    return header?.alg === jwtAlgorithm
+  } catch {
+    return false
+  }
+}
+
+const requirePinnedAlgorithm = (middleware: (req: Request, res: Response, next: NextFunction) => void) => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (token !== undefined && !hasPinnedAlgorithm(token)) {
+    next(Object.assign(new Error('invalid algorithm'), { name: 'UnauthorizedError', status: 401, code: 'invalid_token' }))
+    return
+  }
+  middleware(req, res, next)
+}
+
+export const isAuthorized = () => requirePinnedAlgorithm(expressJwt(({ secret: publicKey, algorithms: [jwtAlgorithm] }) as any))
+export const denyAll = () => requirePinnedAlgorithm(expressJwt({ secret: '' + Math.random(), algorithms: [jwtAlgorithm] } as any))
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm })
+export const verify = (token: string) => token && hasPinnedAlgorithm(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -187,8 +208,8 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+  if (token && hasPinnedAlgorithm(token)) {
+    jwt.verify(token, publicKey, { algorithms: [jwtAlgorithm] }, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
