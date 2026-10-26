@@ -60,6 +60,12 @@ export const decode = (token: string) => { return jws.decode(token)?.payload }
 const secondFactorTokenLifetimeMs = 5 * 60 * 1000
 export const secondFactorTokenExpiry = () => Date.now() + secondFactorTokenLifetimeMs
 export const isSecondFactorTokenExpired = (payload: { expiresAt?: unknown } | undefined) => typeof payload?.expiresAt !== 'number' || payload.expiresAt <= Date.now()
+export const verifySecondFactorToken = (token: unknown) => {
+  const payload = typeof token === 'string' && verify(token) ? decode(token) : undefined
+  if (payload?.type !== 'password_valid_needs_second_factor_token') throw new Error('Invalid token type')
+  if (isSecondFactorTokenExpired(payload)) throw new Error('Temporary token expired')
+  return payload
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
