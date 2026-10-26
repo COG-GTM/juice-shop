@@ -91,6 +91,35 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('nocurrent@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST password change from a second session with the superseded password is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'twosessions@be.rt',
+        password: 'first-secret'
+      })
+      .expect(201)
+
+    const { token: tokenA } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    const { token: tokenB } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenA })
+      .send({ current: 'first-secret', new: 'second-secret', repeat: 'second-secret' })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenB })
+      .send({ current: 'first-secret', new: 'hijacked', repeat: 'hijacked' })
+
+    assert.equal(res.status, 401)
+    assert.equal(await loginStatus('twosessions@be.rt', 'second-secret'), 200)
+    assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
