@@ -26,10 +26,12 @@
         @if (showCtfFlagsInNotifications) {
           <br/>
           <div>
-            <span class="icon-box flag-box" (click)="copyToClipboard(notification.flag)" [matTooltip]="'COPY_TO_CLIPBOARD' | translate">
-              <mat-icon>outlined_flag</mat-icon> {{notification.flag}}
-            </span>
-            <br/>
+            @if (notification.flag) {
+              <span class="icon-box flag-box" (click)="copyToClipboard(notification.flag)" [matTooltip]="'COPY_TO_CLIPBOARD' | translate">
+                <mat-icon>outlined_flag</mat-icon> {{notification.flag}}
+              </span>
+              <br/>
+            }
             @if (showCtfCountryDetailsInNotifications !== 'none') {
               <span class="icon-box">
                 @if (showCtfCountryDetailsInNotifications === 'flag' || showCtfCountryDetailsInNotifications === 'both') {
