@@ -774,11 +774,16 @@ async function createOrders () {
     }
   ]
 
+  const adminUser = await UserModel.findOne({ where: { email: adminEmail } })
+  const demoUser = await UserModel.findOne({ where: { email: 'demo' } })
+  const userIds = [adminUser?.id, adminUser?.id, demoUser?.id]
+
   return await Promise.all(
-    orders.map(({ orderId, email, totalPrice, bonus, products, eta, delivered }) =>
+    orders.map(({ orderId, email, totalPrice, bonus, products, eta, delivered }, index) =>
       ordersCollection.insert({
         orderId,
         email,
+        UserId: userIds[index],
         totalPrice,
         bonus,
         products,
