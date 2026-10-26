@@ -14,7 +14,9 @@ const exists = async (path: string) => await access(path).then(() => true).catch
 
 const restoreOverwrittenFilesWithOriginals = async () => {
   await copyFile(path.resolve('data/static/legal.md'), path.resolve('ftp/legal.md'))
-  await writeFile(path.resolve('encryptionkeys/jwt.pub'), security.publicKey)
+  await writeFile(path.resolve('encryptionkeys/jwt.pub'), security.publicKey).catch((err) => {
+    logger.warn('Could not publish JWT public key to encryptionkeys/jwt.pub: ' + utils.getErrorMessage(err))
+  })
 
   if (await exists(path.resolve('frontend/dist'))) {
     await copyFile(
