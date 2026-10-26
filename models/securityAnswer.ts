@@ -41,10 +41,7 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
         autoIncrement: true
       },
       answer: {
-        type: DataTypes.STRING,
-        set (answer: string) {
-          this.setDataValue('answer', security.hashSecurityAnswer(answer))
-        }
+        type: DataTypes.STRING
       }
     },
     {
@@ -52,6 +49,12 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
       sequelize
     }
   )
+
+  SecurityAnswer.addHook('beforeSave', async (securityAnswer: SecurityAnswer) => {
+    if (securityAnswer.changed('answer') && securityAnswer.answer != null) {
+      securityAnswer.answer = await security.hashSecurityAnswer(String(securityAnswer.answer))
+    }
+  })
 }
 
 export { SecurityAnswer as SecurityAnswerModel, SecurityAnswerModelInit }
