@@ -210,8 +210,10 @@ export const isCrossSiteRequest = (req: Request) => {
     return false
   }
   try {
-    const sourceUrl = new URL(source)
-    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${req.get('host') ?? ''}`).host
+    const sourceOrigin = new URL(source).origin
+    const host = req.get('host') ?? ''
+    const protocols = [req.protocol, req.get('x-forwarded-proto')?.split(',')[0].trim()]
+    return !protocols.some(protocol => protocol && sourceOrigin === new URL(`${protocol}://${host}`).origin)
   } catch {
     return true
   }
