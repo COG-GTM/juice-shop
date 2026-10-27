@@ -148,13 +148,13 @@ describe('AdministrationComponent', () => {
         expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
     })
 
-    it('should render a feedback comment containing markup as text', () => {
-        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">', rating: 1 }]))
+    it('should keep safe feedback formatting but drop active markup', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<strong>Great</strong><iframe src="javascript:alert(`xss`)"></iframe>', rating: 1 }]))
         component.findAllFeedbacks()
         fixture.detectChanges()
 
         expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
-        expect(fixture.nativeElement.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
+        expect(fixture.nativeElement.querySelector('strong')?.textContent).toBe('Great')
     })
 
     it('should have three columns in the user table', () => {
