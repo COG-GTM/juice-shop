@@ -419,14 +419,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
-  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
-    if (req.body !== null && typeof req.body === 'object') {
-      for (const field of ['id', 'role', 'deluxeToken', 'isActive', 'totpSecret']) {
-        delete req.body[field] // eslint-disable-line @typescript-eslint/no-dynamic-delete
-      }
-    }
-    next()
-  })
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
   /* Check if the quantity is available in stock and limit per user not exceeded, then add item to basket */
@@ -460,6 +452,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Users: Privileged fields cannot be chosen during registration */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body !== null && typeof req.body === 'object') {
+      for (const field of ['id', 'role', 'deluxeToken', 'isActive', 'totpSecret']) {
+        delete req.body[field] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+      }
+    }
+    next()
+  })
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
