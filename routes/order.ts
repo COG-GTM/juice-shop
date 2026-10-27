@@ -187,7 +187,9 @@ async function updateStockQuantities (basket: BasketModel) {
       updatedStock.set(ProductId, newQuantity)
     }
   }
-  await Promise.all([...updatedStock].map(async ([ProductId, quantity]) => await QuantityModel.update({ quantity }, { where: { ProductId } })))
+  for (const [ProductId, quantity] of updatedStock) {
+    await QuantityModel.update({ quantity }, { where: { ProductId } })
+  }
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
