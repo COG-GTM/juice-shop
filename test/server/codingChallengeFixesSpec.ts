@@ -60,15 +60,15 @@ describe('codingChallengeFixes', () => {
       for (const challenge of codingChallenges) {
         expect(getCodingChallengeInfo(challenge)).to.equal(getCodingChallengeInfo(challenge))
       }
-      expect(readFileSync).to.not.have.been.called
-      expect(existsSync).to.not.have.been.called
+      expect(readFileSync.callCount).to.equal(0)
+      expect(existsSync.callCount).to.equal(0)
     })
 
     it('should return null for a challenge without info YAML file', () => {
       expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
       const existsSync = sinon.spy(nodeFs, 'existsSync')
       expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
-      expect(existsSync).to.not.have.been.called
+      expect(existsSync.callCount).to.equal(0)
     })
   })
 })
