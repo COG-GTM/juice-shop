@@ -174,6 +174,50 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST password reset response does not disclose user data', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        answer: 'Samuel',
+        new: 'ncc-1701-a',
+        repeat: 'ncc-1701-a'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body, { status: 'success' })
+    assert.ok(!res.text.includes('password'))
+    assert.ok(!res.text.includes('totpSecret'))
+  })
+
+  void it('POST password reset lockout cannot be bypassed with parallel requests', async () => {
+    const email = 'mc.safesearch@' + config.get<string>('application.domain')
+    const responses = await Promise.all(Array.from({ length: 10 }, async (_, i) => await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, answer: 'guess' + i, new: 'abcdef', repeat: 'abcdef' })))
+    assert.equal(responses.filter(res => res.status === 401).length, 5)
+    assert.equal(responses.filter(res => res.status === 429).length, 5)
+  })
+
+  void it('POST password reset locks out account after repeated wrong answers regardless of X-Forwarded-For', async () => {
+    const email = 'amy@' + config.get<string>('application.domain')
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ email, answer: 'wrong' + i, new: 'abcdef', repeat: 'abcdef' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.99' })
+      .send({ email, answer: 'wrong', new: 'abcdef', repeat: 'abcdef' })
+    assert.equal(res.status, 429)
+  })
+
   void it('POST password reset with wrong answer to security question', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
