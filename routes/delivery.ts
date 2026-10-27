@@ -12,12 +12,13 @@ export function getDeliveryMethods () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const methods = await DeliveryModel.findAll()
     if (methods) {
+      const deluxe = security.isDeluxe(req)
       const sendMethods = []
       for (const method of methods) {
         sendMethods.push({
           id: method.id,
           name: method.name,
-          price: security.isDeluxe(req) ? method.deluxePrice : method.price,
+          price: deluxe ? method.deluxePrice : method.price,
           eta: method.eta,
           icon: method.icon
         })
