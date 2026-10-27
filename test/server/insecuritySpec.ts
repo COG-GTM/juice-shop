@@ -235,6 +235,15 @@ describe('insecurity', () => {
     })
   })
 
+  describe('denyAll', () => {
+    it('passes a 401 UnauthorizedError to next() even for valid RS256 tokens', () => {
+      let error: any
+      const req: any = { headers: { authorization: 'Bearer ' + security.authorize({ data: { id: 1 } }) } }
+      security.denyAll()(req, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+  })
+
   describe('updateAuthenticatedUsers', () => {
     const forgedAdmin = (alg: string, sign: (input: string) => string) => {
       const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')

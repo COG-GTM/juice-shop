@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import { expressjwt } from 'express-jwt'
+import { expressjwt, UnauthorizedError } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -61,7 +61,9 @@ const jwtMiddleware = (secret: string, algorithms: jwt.Algorithm[]) => {
 }
 
 export const isAuthorized = () => jwtMiddleware(publicKey, jwtAlgorithms)
-export const denyAll = () => jwtMiddleware(crypto.randomBytes(32).toString('hex'), ['HS256'])
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(new UnauthorizedError('credentials_required', { message: 'Access denied' }))
+}
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
 export const verify = (token: string) => {
   if (!token) return false

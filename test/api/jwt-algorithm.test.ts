@@ -51,6 +51,24 @@ void describe('denyAll middleware', () => {
     const res = await request(app).get('/api/Complaints/1').set(bearer(security.authorize({ data: accountant })))
     assert.equal(res.status, 401)
   })
+
+  void it('rejects alg:none and HS256/public-key tokens on DELETE /api/Products/1', async () => {
+    const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+    for (const token of [unsigned(admin), hs256WithPublicKey(admin)]) {
+      const res = await request(app).delete('/api/Products/1').set(bearer(token))
+      assert.equal(res.status, 401)
+    }
+  })
+})
+
+void describe('basket access', () => {
+  void it('rejects alg:none and HS256/public-key tokens on GET /rest/basket/1', async () => {
+    const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+    for (const token of [unsigned(admin), hs256WithPublicKey(admin)]) {
+      const res = await request(app).get('/rest/basket/1').set(bearer(token))
+      assert.equal(res.status, 401)
+    }
+  })
 })
 
 void describe('isAccounting middleware', () => {
