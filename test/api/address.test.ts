@@ -155,7 +155,7 @@ void describe('/api/Addresss/:id', () => {
   })
 
   void it('PUT update address of another user is forbidden', async () => {
-    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
     const res = await request(app)
       .put('/api/Addresss/' + addressId)
       .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
