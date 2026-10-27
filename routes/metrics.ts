@@ -10,7 +10,6 @@ import { UserModel } from '../models/user'
 import { WalletModel } from '../models/wallet'
 import { FeedbackModel } from '../models/feedback'
 import { ComplaintModel } from '../models/complaint'
-import { Op } from 'sequelize'
 import * as challengeUtils from '../lib/challengeUtils'
 import logger from '../lib/logger'
 import config from 'config'
@@ -80,129 +79,160 @@ export function observeMetrics () {
   Prometheus.collectDefaultMetrics({})
   register.setDefaultLabels({ app })
 
+  // All gauges of one scrape share a single refresh, so nothing is queried unless /metrics is requested
+  let pendingUpdate: Promise<void> | undefined
+  async function collect () {
+    pendingUpdate ??= updateMetrics()
+      .catch((e: unknown) => { logger.warn('Error during metrics update: ' + utils.getErrorMessage(e)) })
+      .finally(() => { pendingUpdate = undefined })
+    await pendingUpdate
+  }
+
   const versionMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_version_info`,
     help: `Release version of ${config.get<string>('application.name')}.`,
     labelNames: ['version', 'major', 'minor', 'patch']
   })
 
   const challengeSolvedMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_challenges_solved`,
     help: 'Number of solved challenges grouped by difficulty and category.',
     labelNames: ['difficulty', 'category']
   })
 
   const challengeTotalMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_challenges_total`,
     help: 'Total number of challenges grouped by difficulty and category.',
     labelNames: ['difficulty', 'category']
   })
 
   const codingChallengesProgressMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_coding_challenges_progress`,
     help: 'Number of coding challenges grouped by progression phase.',
     labelNames: ['phase']
   })
 
   const cheatScoreMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_cheat_score`,
     help: 'Overall probability that any hacking or coding challenges were solved by cheating.'
   })
 
   const accuracyMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_coding_challenges_accuracy`,
     help: 'Overall accuracy while solving coding challenges grouped by phase.',
     labelNames: ['phase']
   })
 
   const orderMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_orders_placed_total`,
     help: `Number of orders placed in ${config.get<string>('application.name')}.`
   })
 
   const userMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_users_registered`,
     help: 'Number of registered users grouped by customer type.',
     labelNames: ['type']
   })
 
   const userTotalMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_users_registered_total`,
     help: 'Total number of registered users.'
   })
 
   const walletMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_wallet_balance_total`,
     help: 'Total balance of all users\' digital wallets.'
   })
 
   const interactionsMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_user_social_interactions`,
     help: 'Number of social interactions with users grouped by type.',
     labelNames: ['type']
   })
 
-  const updateLoop = () => setInterval(() => {
-    void (async () => {
-      try {
-        const version = utils.version()
-        const { major, minor, patch } = version.match(/(?<major>\d+).(?<minor>\d+).(?<patch>\d+)/).groups
-        versionMetrics.set({ version, major, minor, patch }, 1)
+  const updateMetrics = async () => {
+    const version = utils.version()
+    const { major, minor, patch } = version.match(/(?<major>\d+).(?<minor>\d+).(?<patch>\d+)/).groups
+    versionMetrics.set({ version, major, minor, patch }, 1)
 
-        const challengeStatuses = new Map()
-        const challengeCount = new Map()
+    const challengeStatuses = new Map()
+    const challengeCount = new Map()
 
-        for (const { difficulty, category, solved } of Object.values<ChallengeModel>(challenges)) {
-          const key = `${difficulty}:${category}`
+    for (const { difficulty, category, solved } of Object.values<ChallengeModel>(challenges)) {
+      const key = `${difficulty}:${category}`
 
-          // Increment by one if solved, when not solved increment by 0. This ensures that even unsolved challenges are set to , instead of not being set at all
-          challengeStatuses.set(key, (challengeStatuses.get(key) || 0) + (solved ? 1 : 0))
-          challengeCount.set(key, (challengeCount.get(key) || 0) + 1)
-        }
+      // Increment by one if solved, when not solved increment by 0. This ensures that even unsolved challenges are set to , instead of not being set at all
+      challengeStatuses.set(key, (challengeStatuses.get(key) || 0) + (solved ? 1 : 0))
+      challengeCount.set(key, (challengeCount.get(key) || 0) + 1)
+    }
 
-        for (const key of challengeStatuses.keys()) {
-          const [difficulty, category] = key.split(':', 2)
+    for (const key of challengeStatuses.keys()) {
+      const [difficulty, category] = key.split(':', 2)
 
-          challengeSolvedMetrics.set({ difficulty, category }, challengeStatuses.get(key))
-          challengeTotalMetrics.set({ difficulty, category }, challengeCount.get(key))
-        }
+      challengeSolvedMetrics.set({ difficulty, category }, challengeStatuses.get(key))
+      challengeTotalMetrics.set({ difficulty, category }, challengeCount.get(key))
+    }
 
-        const [codingChallenges, findItCount, fixItCount, solvedCount, orderCount, reviewCount, customerCount, deluxeCount, totalUserCount, totalBalance, feedbackCount, complaintCount] = await Promise.all([
-          retrieveChallengesWithCodeSnippet(),
-          ChallengeModel.count({ where: { codingChallengeStatus: { [Op.eq]: 1 } } }),
-          ChallengeModel.count({ where: { codingChallengeStatus: { [Op.eq]: 2 } } }),
-          ChallengeModel.count({ where: { codingChallengeStatus: { [Op.ne]: 0 } } }),
-          ordersCollection.count({}),
-          reviewsCollection.count({}),
-          UserModel.count({ where: { role: { [Op.eq]: 'customer' } } }),
-          UserModel.count({ where: { role: { [Op.eq]: 'deluxe' } } }),
-          UserModel.count(),
-          WalletModel.sum('balance'),
-          FeedbackModel.count(),
-          ComplaintModel.count()
-        ])
+    const [codingChallenges, codingChallengeStatusCounts, orderCount, reviewCount, userRoleCounts, totalBalance, feedbackCount, complaintCount] = await Promise.all([
+      retrieveChallengesWithCodeSnippet(),
+      ChallengeModel.count({ group: ['codingChallengeStatus'] }),
+      ordersCollection.count({}),
+      reviewsCollection.count({}),
+      UserModel.count({ group: ['role'] }),
+      WalletModel.sum('balance'),
+      FeedbackModel.count(),
+      ComplaintModel.count()
+    ])
 
-        codingChallengesProgressMetrics.set({ phase: 'find it' }, findItCount)
-        codingChallengesProgressMetrics.set({ phase: 'fix it' }, fixItCount)
-        codingChallengesProgressMetrics.set({ phase: 'unsolved' }, codingChallenges.length - solvedCount)
+    let findItCount = 0
+    let fixItCount = 0
+    let solvedCount = 0
+    for (const { codingChallengeStatus, count } of codingChallengeStatusCounts) {
+      if (codingChallengeStatus === 1) findItCount += count
+      if (codingChallengeStatus === 2) fixItCount += count
+      if (codingChallengeStatus != null && codingChallengeStatus !== 0) solvedCount += count
+    }
 
-        cheatScoreMetrics.set(totalCheatScore())
-        accuracyMetrics.set({ phase: 'find it' }, accuracy.totalFindItAccuracy())
-        accuracyMetrics.set({ phase: 'fix it' }, accuracy.totalFixItAccuracy())
+    let customerCount = 0
+    let deluxeCount = 0
+    let totalUserCount = 0
+    for (const { role, count } of userRoleCounts) {
+      if (role === 'customer') customerCount += count
+      if (role === 'deluxe') deluxeCount += count
+      totalUserCount += count
+    }
 
-        if (orderCount) orderMetrics.set(orderCount)
-        if (reviewCount) interactionsMetrics.set({ type: 'review' }, reviewCount)
-        if (customerCount) userMetrics.set({ type: 'standard' }, customerCount)
-        if (deluxeCount) userMetrics.set({ type: 'deluxe' }, deluxeCount)
-        if (totalUserCount) userTotalMetrics.set(totalUserCount)
-        if (totalBalance) walletMetrics.set(totalBalance)
-        if (feedbackCount) interactionsMetrics.set({ type: 'feedback' }, feedbackCount)
-        if (complaintCount) interactionsMetrics.set({ type: 'complaint' }, complaintCount)
-      } catch (e: unknown) {
-        logger.warn('Error during metrics update loop: + ' + utils.getErrorMessage(e))
-      }
-    })()
-  }, 5000)
+    codingChallengesProgressMetrics.set({ phase: 'find it' }, findItCount)
+    codingChallengesProgressMetrics.set({ phase: 'fix it' }, fixItCount)
+    codingChallengesProgressMetrics.set({ phase: 'unsolved' }, codingChallenges.length - solvedCount)
+
+    cheatScoreMetrics.set(totalCheatScore())
+    accuracyMetrics.set({ phase: 'find it' }, accuracy.totalFindItAccuracy())
+    accuracyMetrics.set({ phase: 'fix it' }, accuracy.totalFixItAccuracy())
+
+    if (orderCount) orderMetrics.set(orderCount)
+    if (reviewCount) interactionsMetrics.set({ type: 'review' }, reviewCount)
+    if (customerCount) userMetrics.set({ type: 'standard' }, customerCount)
+    if (deluxeCount) userMetrics.set({ type: 'deluxe' }, deluxeCount)
+    if (totalUserCount) userTotalMetrics.set(totalUserCount)
+    if (totalBalance) walletMetrics.set(totalBalance)
+    if (feedbackCount) interactionsMetrics.set({ type: 'feedback' }, feedbackCount)
+    if (complaintCount) interactionsMetrics.set({ type: 'complaint' }, complaintCount)
+  }
+
+  // Kept for server.ts compatibility: metrics are now refreshed on scrape instead of on a timer
+  const updateLoop = (): NodeJS.Timeout | undefined => undefined
 
   return {
     register,
