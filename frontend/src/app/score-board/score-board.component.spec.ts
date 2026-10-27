@@ -19,6 +19,7 @@ import { ChallengeService } from '../Services/challenge.service'
 import { type Challenge } from '../Models/challenge.model'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { HintService } from '../Services/hint.service'
+import { SocketIoService } from '../Services/socket-io.service'
 
 // allows to easily create a challenge with some overwrites
 function createChallenge(challengeOverwrites: Partial<Challenge>): Challenge {
@@ -47,6 +48,7 @@ describe('ScoreBoardComponent', () => {
     let challengeService
     let hintService
     let configService
+    let socket
 
     beforeEach(async () => {
         challengeService = {
@@ -58,6 +60,10 @@ describe('ScoreBoardComponent', () => {
         }
         configService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
+        }
+        socket = {
+            on: vi.fn().mockName("Socket.on"),
+            off: vi.fn().mockName("Socket.off")
         }
         await TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -76,6 +82,7 @@ describe('ScoreBoardComponent', () => {
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: HintService, useValue: hintService },
                 { provide: ConfigurationService, useValue: configService },
+                { provide: SocketIoService, useValue: { socket: () => socket } },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -83,6 +90,7 @@ describe('ScoreBoardComponent', () => {
 
         challengeService.find.mockReturnValue(of([
             createChallenge({
+                id: 1,
                 name: 'Challenge 1',
                 key: 'challenge-1',
                 category: 'category-blue',
@@ -90,6 +98,7 @@ describe('ScoreBoardComponent', () => {
                 solved: true
             }),
             createChallenge({
+                id: 2,
                 name: 'Challenge 2',
                 key: 'challenge-2',
                 category: 'category-blue',
@@ -99,6 +108,7 @@ describe('ScoreBoardComponent', () => {
                 codingChallengeStatus: 1
             }),
             createChallenge({
+                id: 3,
                 name: 'Challenge 3',
                 key: 'challenge-3',
                 category: 'category-red',
@@ -176,5 +186,55 @@ describe('ScoreBoardComponent', () => {
         })
 
         expect(component.filteredChallenges.find((challenge) => challenge.key === 'challenge-2').codingChallengeStatus).toBe(2)
+    })
+
+    it('should remove the same socket handlers on destroy that were registered on init', (): void => {
+        expect(socket.on).toHaveBeenCalledTimes(2)
+        component.ngOnDestroy()
+        expect(socket.off).toHaveBeenCalledTimes(2)
+        for (const [event, handler] of socket.on.mock.calls) {
+            expect(socket.off).toHaveBeenCalledWith(event, handler)
+        }
+    })
+
+    it('should only refresh hints when unlocking a hint', (): void => {
+        hintService.put.mockReturnValue(of({}))
+        hintService.getAll.mockReturnValue(of([
+            { id: 1, ChallengeId: 3, order: 1, text: 'first', unlocked: true },
+            { id: 3, ChallengeId: 3, order: 3, text: 'third', unlocked: false },
+            { id: 2, ChallengeId: 3, order: 2, text: 'second', unlocked: false }
+        ]))
+        challengeService.find.mockClear()
+        configService.getApplicationConfiguration.mockClear()
+        socket.on.mockClear()
+
+        component.unlockHint(1, 'challenge-3')
+
+        expect(challengeService.find).not.toHaveBeenCalled()
+        expect(configService.getApplicationConfiguration).not.toHaveBeenCalled()
+        expect(socket.on).not.toHaveBeenCalled()
+        expect(component.lastUnlockedChallengeKey).toBe('challenge-3')
+        expect(component.allChallenges.find((challenge) => challenge.key === 'challenge-3')).toEqual(expect.objectContaining({
+            hintText: '1. first',
+            nextHint: 2,
+            hintsUnlocked: 1,
+            hintsAvailable: 3
+        }))
+    })
+
+    it('should keep solved state from websocket events after unlocking a hint', (): void => {
+        hintService.put.mockReturnValue(of({}))
+        component.onChallengeSolvedWebsocket({
+            key: 'challenge-3',
+            name: '',
+            challenge: '',
+            flag: '',
+            hidden: false,
+            isRestore: false
+        })
+
+        component.unlockHint(1, 'challenge-3')
+
+        expect(component.filteredChallenges.find((challenge) => challenge.key === 'challenge-3').solved).toBe(true)
     })
 })
