@@ -5,29 +5,27 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { nftABI } from '../data/static/contractABIs'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
+import { ContractEventListener } from '../lib/contractEventListener'
 
 const nftAddress = '0x41427790c94E7a592B17ad694eD9c06A02bb9C39'
 const addressesMinted = new Set()
-let isEventListenerCreated = false
+
+export const nftMintEventListener = new ContractEventListener('NFT Mint Listener', async () => {
+  const { WebSocketProvider, Contract } = await import('ethers')
+  const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
+  const contract = new Contract(nftAddress, nftABI, provider as any)
+  contract.on('NFTMinted', (minter: string) => {
+    if (!addressesMinted.has(minter)) {
+      addressesMinted.add(minter)
+    }
+  }).catch((error: any) => { logger.warn(`NFT Mint Listener subscription failed: ${error?.message ?? error}`) })
+  return provider as any
+})
 
 export function nftMintListener () {
   return async (req: Request, res: Response) => {
     try {
-      if (!isEventListenerCreated) {
-        const { WebSocketProvider, Contract } = await import('ethers')
-        const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
-        provider.websocket.onerror = (error: any) => {
-          logger.error(`WebSocket error (NFT Mint Listener): ${error.message || error}`)
-          isEventListenerCreated = false
-        }
-        const contract = new Contract(nftAddress, nftABI, provider as any)
-        void contract.on('NFTMinted', (minter: string) => {
-          if (!addressesMinted.has(minter)) {
-            addressesMinted.add(minter)
-          }
-        })
-        isEventListenerCreated = true
-      }
+      await nftMintEventListener.ensureStarted()
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
       res.status(500).json(utils.getErrorMessage(error))
