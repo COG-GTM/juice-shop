@@ -111,4 +111,43 @@ describe('contractEventListener', () => {
     expect(() => { providers[0].fail() }).to.not.throw()
     expect(listener.isActive()).to.equal(false)
   })
+
+  it('releases the provider when the event subscription fails after connecting', async () => {
+    let failSubscription: (error: unknown) => void = () => {}
+    listener = new ContractEventListener('Test Listener', async (fail) => {
+      failSubscription = fail
+      const provider = new FakeProvider()
+      providers.push(provider)
+      return provider
+    }, 1000, () => clock)
+    await listener.ensureStarted()
+    failSubscription(new Error('eth_subscribe rejected'))
+    expect(providers[0].destroyed).to.equal(1)
+    expect(listener.isActive()).to.equal(false)
+    await listener.ensureStarted()
+    expect(providers.length).to.equal(1)
+    clock = 1000
+    await listener.ensureStarted()
+    expect(providers.length).to.equal(2)
+    expect(listener.isActive()).to.equal(true)
+  })
+
+  it('rejects and destroys the provider when the subscription fails before connecting completes', async () => {
+    listener = new ContractEventListener('Test Listener', async (fail) => {
+      const provider = new FakeProvider()
+      providers.push(provider)
+      fail(new Error('eth_subscribe rejected'))
+      return provider
+    }, 1000, () => clock)
+    try {
+      await listener.ensureStarted()
+      chai.assert.fail('Expected error was not thrown')
+    } catch (error) {
+      expect((error as Error).message).to.equal('eth_subscribe rejected')
+    }
+    expect(providers[0].destroyed).to.equal(1)
+    expect(listener.isActive()).to.equal(false)
+    await listener.ensureStarted()
+    expect(providers.length).to.equal(1)
+  })
 })
