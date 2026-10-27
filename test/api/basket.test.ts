@@ -277,19 +277,25 @@ void describe('/rest/basket/:id/checkout with campaign couponData', () => {
   const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
 
   async function checkoutWithCampaignCoupon (productId: number) {
+    const { token, bid } = await login(app, {
+      email: 'accountant@juice-sh.op',
+      password: 'i am an awesome accountant'
+    })
+    const accountantHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
     const itemRes = await request(app)
       .post('/api/BasketItems')
-      .set(authHeader)
-      .send({ BasketId: 2, ProductId: productId, quantity: 1 })
+      .set(accountantHeader)
+      .send({ BasketId: bid, ProductId: productId, quantity: 1 })
     assert.equal(itemRes.status, 200)
 
     const res = await request(app)
-      .post('/rest/basket/2/checkout')
-      .set(authHeader)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(accountantHeader)
       .send({ couponData: expiredCampaignCouponData })
     assert.equal(res.status, 200)
 
-    const historyRes = await request(app).get('/rest/order-history').set(authHeader)
+    const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
     return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
   }
 
