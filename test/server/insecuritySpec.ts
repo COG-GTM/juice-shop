@@ -137,7 +137,7 @@ describe('insecurity', () => {
     })
 
     it('stops treating a revoked token as revoked once it has expired', () => {
-      const expired = security.authorize({ data: { id: 45 } })
+      const expired = security.authorize({ data: { id: 45 }, exp: Math.floor(Date.now() / 1000) + 6 * 60 * 60 })
       const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       try {
         security.authenticatedUsers.put(expired, { data: { id: 45 } as unknown as UserModel })
@@ -147,6 +147,20 @@ describe('insecurity', () => {
 
         clock.tick(6 * 60 * 60 * 1000 + 1000)
         expect(security.isRevoked(expired)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('keeps a revoked token without exp claim revoked indefinitely', () => {
+      const noExp = security.authorize({ data: { id: 48 } })
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
+        security.authenticatedUsers.revokeOtherSessions(48, 'rev-keep-48')
+
+        clock.tick(7 * 24 * 60 * 60 * 1000)
+        expect(security.isRevoked(noExp)).to.equal(true)
       } finally {
         clock.restore()
       }
