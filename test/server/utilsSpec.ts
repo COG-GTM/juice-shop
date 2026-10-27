@@ -250,6 +250,8 @@ describe('utils', () => {
       expect(utils.redactSensitiveQueryParams('/rest/user/change-password%3Fcurrent=old&new=s3cr3t'))
         .to.equal('/rest/user/change-password%3Fcurrent=[REDACTED]&new=[REDACTED]')
       expect(utils.redactSensitiveQueryParams('/x%3fpassword=a')).to.equal('/x%3fpassword=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x%3Ffoo=bar?password=hunter2')).to.equal('/x%3F[REDACTED]&password=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?q=a?new=b')).to.equal('/x?[REDACTED]&new=[REDACTED]')
     })
 
     it('redacts token query parameters', () => {
