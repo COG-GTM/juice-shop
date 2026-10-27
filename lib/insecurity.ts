@@ -104,7 +104,6 @@ export const verifyPassword = async (password: string, storedHash?: string | nul
   return crypto.timingSafeEqual(key, parsed.key)
 }
 
-
 // The database is re-seeded on every startup, so a per-process random key is safe when SECURITY_ANSWER_KEY is unset
 const securityAnswerKey = process.env.SECURITY_ANSWER_KEY !== undefined && process.env.SECURITY_ANSWER_KEY !== ''
   ? process.env.SECURITY_ANSWER_KEY
