@@ -419,7 +419,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     const email = req.body?.email
     if (email !== undefined && (typeof email !== 'string' || (email.trim().length !== 0 && !utils.isValidEmail(email.trim())))) {
-      res.status(400).json({ status: 'error', message: 'Invalid email address' })
+      res.status(400).json({ errors: [{ field: 'email', message: 'Invalid email address' }] })
       return
     }
     next()
