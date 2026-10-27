@@ -217,6 +217,30 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.get(other)).to.equal(undefined)
         expect(security.authenticatedUsers.get(stranger)).to.deep.equal({ data: { id: 4712 } })
       })
+
+      it('keeps every given session when revoking all others of a user', () => {
+        const bearer = issueAt(30)
+        const cookie = issueAt(20)
+        const other = issueAt(10)
+
+        security.authenticatedUsers.revokeAllFor(4711, bearer, cookie)
+
+        expect(security.authenticatedUsers.get(bearer)).to.deep.equal(user)
+        expect(security.authenticatedUsers.get(cookie)).to.deep.equal(user)
+        expect(security.authenticatedUsers.get(other)).to.equal(undefined)
+      })
+
+      it('points the user index at a remaining session when the indexed one ends', () => {
+        const bob = { data: { id: 4713 } as unknown as UserModel }
+        const older = security.authorize(bob)
+        security.authenticatedUsers.put(older, bob)
+        const newer = security.authorize(bob)
+        security.authenticatedUsers.put(newer, bob)
+
+        security.authenticatedUsers.revoke(newer)
+
+        expect(security.authenticatedUsers.tokenOf(bob.data)).to.equal(older)
+      })
     })
   })
 
