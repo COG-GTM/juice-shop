@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherUserHeader: { Authorization: string, 'content-type': string }
 let addressId: string
 
 before(
@@ -25,6 +26,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherUserHeader = {
+      Authorization: 'Bearer ' + otherToken,
       'content-type': 'application/json'
     }
   },
@@ -152,6 +162,39 @@ void describe('/api/Addresss/:id', () => {
       .send({ fullName: 'Jimy' })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address of another user is forbidden and leaves it unchanged', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherUserHeader)
+      .send({ streetAddress: 'Mallory Lane', UserId: 3 })
+    assert.equal(res.status, 403)
+
+    const getRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(getRes.status, 200)
+    assert.equal(getRes.body.data.streetAddress, 'Bakers Street')
+    assert.equal(getRes.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address cannot reassign it to another user', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ city: 'Boston', UserId: 3 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.city, 'Boston')
+    assert.equal(res.body.data.UserId, 2)
+  })
+
+  void it('PUT update non-existing address is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/999999')
+      .set(authHeader)
+      .send({ fullName: 'Nobody' })
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
