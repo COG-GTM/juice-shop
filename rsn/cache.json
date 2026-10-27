@@ -130,7 +130,11 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105,
+			106
 		],
 		"removed": [
 			4,
@@ -263,7 +267,11 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105,
+			106
 		],
 		"removed": [
 			31,
@@ -328,7 +336,11 @@
 			52,
 			53,
 			54,
-			55
+			55,
+			56,
+			57,
+			58,
+			59
 		]
 	},
 	"chatbotGreedyInjectionChallenge_3.ts": {
@@ -395,7 +407,11 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105,
+			106
 		],
 		"removed": [
 			31,
@@ -534,7 +550,11 @@
 			99,
 			100,
 			101,
-			102
+			102,
+			103,
+			104,
+			105,
+			106
 		],
 		"removed": [
 			20,
@@ -605,27 +625,26 @@
 	},
 	"chatbotPromptInjectionChallenge_1.ts": {
 		"added": [
-			1
-		],
-		"removed": [
-			1
-		]
-	},
-	"chatbotPromptInjectionChallenge_2_correct.ts": {
-		"added": [
 			1,
-			6
+			5,
+			7,
+			8,
+			9,
+			10
 		],
 		"removed": [
 			1,
 			3,
 			5,
-			6,
-			9,
-			10,
-			11,
-			12,
-			13,
+			6
+		]
+	},
+	"chatbotPromptInjectionChallenge_2_correct.ts": {
+		"added": [
+			1
+		],
+		"removed": [
+			1,
 			14,
 			15,
 			16,
@@ -641,15 +660,28 @@
 			26,
 			27,
 			28,
-			29
+			29,
+			30,
+			31,
+			32,
+			33,
+			34
 		]
 	},
 	"chatbotPromptInjectionChallenge_3.ts": {
 		"added": [
-			1
+			1,
+			5,
+			7,
+			8,
+			9,
+			10
 		],
 		"removed": [
 			1,
+			3,
+			5,
+			6,
 			3,
 			5,
 			6
@@ -658,12 +690,18 @@
 	"chatbotPromptInjectionChallenge_4.ts": {
 		"added": [
 			1,
-			6
+			5,
+			7,
+			8,
+			9,
+			10
 		],
 		"removed": [
 			1,
 			5,
 			6,
+			7,
+			8,
 			9,
 			10
 		]
