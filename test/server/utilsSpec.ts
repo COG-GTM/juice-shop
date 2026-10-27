@@ -169,6 +169,7 @@ describe('utils', () => {
     it('accepts plain email addresses', () => {
       expect(utils.isValidEmail('admin@juice-sh.op')).to.equal(true)
       expect(utils.isValidEmail('a&b@kasper.le')).to.equal(true)
+      expect(utils.isValidEmail("o'brien@juice-sh.op")).to.equal(true)
     })
 
     it('rejects strings without exactly one @', () => {
@@ -180,6 +181,7 @@ describe('utils', () => {
       expect(utils.isValidEmail('<iframe src="javascript:alert(`xss`)">')).to.equal(false)
       expect(utils.isValidEmail('<img src=x onerror=alert(1)>@juice-sh.op')).to.equal(false)
       expect(utils.isValidEmail('a b@juice-sh.op')).to.equal(false)
+      expect(utils.isValidEmail("admin@juice-sh.op'")).to.equal(false)
     })
 
     it('rejects non-string values', () => {
