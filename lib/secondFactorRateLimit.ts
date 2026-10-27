@@ -9,8 +9,19 @@ import * as security from './insecurity'
 
 export const maxFailedAttemptsPerAccount = 5
 
-/* Keyed on the socket address because req.ip follows the client-controlled X-Forwarded-For header while 'trust proxy' is enabled */
-export const clientKey = (req: Request) => req.socket?.remoteAddress ?? 'unknown'
+/* Number of reverse proxies in front of the server; only the X-Forwarded-For entries they appended are trusted */
+export const trustedProxyHops = (value = process.env.JUICE_SHOP_TRUSTED_PROXY_HOPS) => {
+  const hops = Number(value)
+  return value !== undefined && Number.isInteger(hops) && hops > 0 ? hops : 0
+}
+
+/* Resolved independently of req.ip, which follows the client-controlled X-Forwarded-For header while 'trust proxy' is enabled */
+export const clientKey = (req: Request, hops = trustedProxyHops()) => {
+  const forwardedFor = req.headers['x-forwarded-for']
+  const forwarded = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '').split(',').map(address => address.trim()).filter(address => address !== '')
+  const chain = [req.socket?.remoteAddress ?? 'unknown', ...forwarded.reverse()]
+  return chain[Math.min(hops, chain.length - 1)]
+}
 
 export const accountKey = (req: Request) => {
   const userId = security.verifySecondFactorToken(req.body?.tmpToken)?.userId
@@ -20,7 +31,7 @@ export const accountKey = (req: Request) => {
 export const perClient = () => rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 100,
-  keyGenerator: clientKey,
+  keyGenerator: (req: Request) => clientKey(req),
   validate: { trustProxy: false }
 })
 
