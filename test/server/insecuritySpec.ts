@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +108,35 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('sameOriginOnly', () => {
+    function check (headers: Record<string, string>) {
+      let status = 200
+      let passed = false
+      const res = { status (code: number) { status = code; return this }, send () { return this } } as unknown as Response
+      security.sameOriginOnly()({ headers } as unknown as Request, res, () => { passed = true })
+      return passed ? 'next' : status
+    }
+
+    it('allows requests without Origin or Referer', () => {
+      expect(check({ host: 'localhost:3000' })).to.equal('next')
+    })
+
+    it('allows same-origin Origin and Referer', () => {
+      expect(check({ host: 'localhost:3000', origin: 'http://localhost:3000' })).to.equal('next')
+      expect(check({ host: 'localhost:3000', referer: 'http://localhost:3000/profile' })).to.equal('next')
+    })
+
+    it('allows the forwarded host behind a reverse proxy', () => {
+      expect(check({ host: 'juice-shop:3000', 'x-forwarded-host': 'shop.example', origin: 'https://shop.example' })).to.equal('next')
+    })
+
+    it('blocks cross-origin, opaque and malformed origins', () => {
+      expect(check({ host: 'localhost:3000', origin: 'https://htmledit.squarefree.com' })).to.equal(403)
+      expect(check({ host: 'localhost:3000', referer: 'https://attacker.example/localhost:3000' })).to.equal(403)
+      expect(check({ host: 'localhost:3000', origin: 'null' })).to.equal(403)
     })
   })
 
