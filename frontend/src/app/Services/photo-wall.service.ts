@@ -5,7 +5,7 @@
 
 import { environment } from '../../environments/environment'
 import { Injectable, inject } from '@angular/core'
-import { HttpClient } from '@angular/common/http'
+import { HttpClient, HttpParams } from '@angular/common/http'
 import { catchError, map } from 'rxjs/operators'
 
 @Injectable({
@@ -26,5 +26,13 @@ export class PhotoWallService {
 
   get () {
     return this.http.get(this.host + '/').pipe(map((response: any) => response.data), catchError((err: Error) => { throw err }))
+  }
+
+  getPage (limit: number, offset: number) {
+    const params = new HttpParams().set('limit', limit).set('offset', offset)
+    return this.http.get(this.host + '/', { params }).pipe(
+      map((response: any) => ({ memories: response.data, total: response.meta?.total ?? response.data.length })),
+      catchError((err: Error) => { throw err })
+    )
   }
 }

@@ -29,6 +29,11 @@
             </span>
           }
         </div>
+        @if (totalMemories > pageSizeOptions[0]) {
+          <mat-paginator [length]="totalMemories" [pageSize]="pageSize" [pageIndex]="pageIndex"
+            [pageSizeOptions]="pageSizeOptions" (page)="onPageChange($event)"
+            aria-label="Photo wall pages"></mat-paginator>
+        }
       } @else {
         <mat-card appearance="outlined" class="mat-elevation-z0 emptyState">
           <div class="mdc-card">

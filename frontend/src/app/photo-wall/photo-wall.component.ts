@@ -20,6 +20,7 @@ import { MatIconButton, MatButtonModule } from '@angular/material/button'
 import { MatIconModule } from '@angular/material/icon'
 
 import { MatCardModule, MatCardTitle, MatCardContent } from '@angular/material/card'
+import { MatPaginatorModule, type PageEvent } from '@angular/material/paginator'
 
 library.add(faTwitter)
 
@@ -27,7 +28,7 @@ library.add(faTwitter)
   selector: 'app-photo-wall',
   templateUrl: './photo-wall.component.html',
   styleUrls: ['./photo-wall.component.scss'],
-  imports: [MatCardModule, MatIconModule, MatIconButton, MatCardTitle, TranslateModule, MatCardContent, FormsModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatLabel, MatInputModule, MatError]
+  imports: [MatCardModule, MatIconModule, MatIconButton, MatCardTitle, TranslateModule, MatCardContent, FormsModule, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatLabel, MatInputModule, MatError, MatPaginatorModule]
 })
 export class PhotoWallComponent implements OnInit {
   private readonly photoWallService = inject(PhotoWallService)
@@ -43,27 +44,14 @@ export class PhotoWallComponent implements OnInit {
 
   public slideshowDataSource: { url: string, caption: string }[] = []
   public twitterHandle = null
+  public pageSizeOptions = [12, 24, 48, 96]
+  public pageSize = 24
+  public pageIndex = 0
+  public totalMemories = 0
 
   ngOnInit (): void {
-    this.slideshowDataSource = []
-    this.photoWallService.get().pipe(catchError(err => {
-      console.log(err)
-
-      return EMPTY
-    })).subscribe((memories) => {
-      if (memories.length === 0) {
-        this.emptyState = true
-      } else {
-        this.emptyState = false
-      }
-      for (const memory of memories) {
-        if (memory.User?.username) {
-
-          memory.caption = `${memory.caption} (© ${memory.User.username})`
-        }
-        this.slideshowDataSource.push({ url: memory.imagePath, caption: memory.caption })
-      }
-    })
+    this.pageIndex = 0
+    this.loadMemories()
 
     this.configurationService.getApplicationConfiguration().pipe(catchError(err => {
       console.log(err)
@@ -74,6 +62,31 @@ export class PhotoWallComponent implements OnInit {
         if (config.application.social.twitterUrl) {
           this.twitterHandle = config.application.social.twitterUrl.replace('https://twitter.com/', '@')
         }
+      }
+    })
+  }
+
+  onPageChange (event: PageEvent) {
+    this.pageSize = event.pageSize
+    this.pageIndex = event.pageIndex
+    this.loadMemories()
+  }
+
+  loadMemories () {
+    this.photoWallService.getPage(this.pageSize, this.pageIndex * this.pageSize).pipe(catchError(err => {
+      console.log(err)
+
+      return EMPTY
+    })).subscribe(({ memories, total }) => {
+      this.totalMemories = total
+      this.emptyState = total === 0
+      this.slideshowDataSource = []
+      for (const memory of memories) {
+        if (memory.User?.username) {
+
+          memory.caption = `${memory.caption} (© ${memory.User.username})`
+        }
+        this.slideshowDataSource.push({ url: memory.imagePath, caption: memory.caption })
       }
     })
   }

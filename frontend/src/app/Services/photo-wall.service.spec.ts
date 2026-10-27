@@ -35,6 +35,19 @@ describe('PhotoWallService', () => {
         httpMock.verify()
     })
 
+    it('should get a page of memories with its total from the api', () => {
+        const service = TestBed.inject(PhotoWallService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res
+        service.getPage(24, 48).subscribe((data) => (res = data))
+        const req = httpMock.expectOne('http://localhost:3000/rest/memories/?limit=24&offset=48')
+        req.flush({ data: ['memory'], meta: { total: 49, limit: 24, offset: 48 } })
+        expect(req.request.method).toBe('GET')
+        expect(res).toEqual({ memories: ['memory'], total: 49 })
+        httpMock.verify()
+    })
+
     it('should create memories directly from the api', () => {
         const service = TestBed.inject(PhotoWallService)
         const httpMock = TestBed.inject(HttpTestingController)
