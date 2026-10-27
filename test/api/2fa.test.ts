@@ -36,6 +36,7 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should return a valid authentication when a valid tmp token is passed', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
+      expiresAt: security.secondFactorTokenExpiry(),
       type: 'password_valid_needs_second_factor_token'
     })
 
@@ -60,6 +61,7 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should fail if a invalid totp token is used', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
+      expiresAt: security.secondFactorTokenExpiry(),
       type: 'password_valid_needs_second_factor_token'
     })
 
@@ -93,6 +95,72 @@ void describe('/rest/2fa/verify', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an expired tmp token is used', async () => {
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: security.authorize({
+          userId: 10,
+          expiresAt: Date.now() - 1000,
+          type: 'password_valid_needs_second_factor_token'
+        }),
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token without expiry is used', async () => {
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: security.authorize({
+          userId: 10,
+          type: 'password_valid_needs_second_factor_token'
+        }),
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should lock the account after 5 wrong codes regardless of X-Forwarded-For', async () => {
+    const email = 'brute2fa@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+    await register(app, { email, password, totpSecret })
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email, password })
+    assert.equal(loginRes.body.status, 'totp_token_required')
+    const { tmpToken } = loginRes.body.data
+
+    for (let i = 1; i <= 5; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `203.0.113.${i}` })
+        .send({ tmpToken, totpToken: generateSync({ secret: 'BI6KJAURX3LL5VQI2ZBFVLUWSBYBDX4H' }) })
+      assert.equal(res.status, 401)
+    }
+
+    const lockedRes = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ ...jsonHeader, 'X-Forwarded-For': '198.51.100.7' })
+      .send({ tmpToken, totpToken: generateSync({ secret: totpSecret }) })
+    assert.equal(lockedRes.status, 429)
+
+    const otherAccount = await login(app, {
+      email: `wurstbrot@${config.get<string>('application.domain')}`,
+      password: 'EinBelegtesBrotMitSchinkenSCHINKEN!',
+      totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'
+    })
+    assert.equal(typeof otherAccount.token, 'string')
   })
 })
 

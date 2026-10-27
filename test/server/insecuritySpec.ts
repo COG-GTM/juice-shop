@@ -203,4 +203,39 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+  describe('verifySecondFactorToken', () => {
+    const tokenWith = (claims: Record<string, unknown>) => security.authorize({ userId: 42, type: 'password_valid_needs_second_factor_token', ...claims })
+
+    it('returns the payload of a signed and unexpired token', () => {
+      const payload = security.verifySecondFactorToken(tokenWith({ expiresAt: security.secondFactorTokenExpiry() }))
+      expect(payload?.userId).to.equal(42)
+    })
+
+    it('rejects an expired token', () => {
+      expect(security.verifySecondFactorToken(tokenWith({ expiresAt: Date.now() - 1 }))).to.equal(undefined)
+    })
+
+    it('rejects a token without expiry', () => {
+      expect(security.verifySecondFactorToken(tokenWith({}))).to.equal(undefined)
+    })
+
+    it('rejects a token whose expiry exceeds the allowed lifetime', () => {
+      expect(security.verifySecondFactorToken(tokenWith({ expiresAt: Date.now() + security.secondFactorTokenLifetimeMs + 60000 }))).to.equal(undefined)
+    })
+
+    it('rejects a token of another type', () => {
+      expect(security.verifySecondFactorToken(tokenWith({ type: 'totp_setup_secret', expiresAt: security.secondFactorTokenExpiry() }))).to.equal(undefined)
+    })
+
+    it('rejects a tampered token', () => {
+      const [header, , signature] = tokenWith({ expiresAt: security.secondFactorTokenExpiry() }).split('.')
+      const forgedPayload = Buffer.from(JSON.stringify({ userId: 1, type: 'password_valid_needs_second_factor_token', expiresAt: security.secondFactorTokenExpiry() })).toString('base64url')
+      expect(security.verifySecondFactorToken(`${header}.${forgedPayload}.${signature}`)).to.equal(undefined)
+    })
+
+    it('rejects non-string input', () => {
+      expect(security.verifySecondFactorToken(undefined)).to.equal(undefined)
+      expect(security.verifySecondFactorToken({ userId: 42 })).to.equal(undefined)
+    })
+  })
 })

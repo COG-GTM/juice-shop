@@ -57,6 +57,27 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+const secondFactorTokenType = 'password_valid_needs_second_factor_token'
+export const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+export const secondFactorTokenExpiry = () => Date.now() + secondFactorTokenLifetimeMs
+
+/* Returns the payload of a signed, unexpired second-factor token issued by the login step, otherwise undefined */
+export const verifySecondFactorToken = (token: unknown): { userId: number | string, type: string, expiresAt: number } | undefined => {
+  if (typeof token !== 'string') return undefined
+  try {
+    if (!verify(token)) return undefined
+    const payload = decode(token)
+    if (payload?.type !== secondFactorTokenType) return undefined
+    const now = Date.now()
+    const { expiresAt, exp } = payload
+    if (typeof expiresAt !== 'number' || expiresAt <= now || expiresAt > now + secondFactorTokenLifetimeMs) return undefined
+    if (exp !== undefined && (typeof exp !== 'number' || exp * 1000 <= now)) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
