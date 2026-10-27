@@ -37,14 +37,13 @@ describe('videoHandler', () => {
     sinon.restore()
   })
 
-  function givenSubtitles (content: string, mtimeMs: number) {
-    stat.withArgs(subtitlesFile).resolves({ mtimeMs, size: content.length } as any)
+  function givenSubtitles (content: string) {
     readFile.withArgs(subtitlesFile, 'utf8').resolves(content as any)
   }
 
   describe('promotionVideo', () => {
     it('should embed the subtitles into the rendered page', async () => {
-      givenSubtitles('WEBVTT\n\n00:00.000 --> 00:01.000\nJuice', 1)
+      givenSubtitles('WEBVTT\n\n00:00.000 --> 00:01.000\nJuice')
 
       await promotionVideo()(req, res, next)
 
@@ -53,26 +52,26 @@ describe('videoHandler', () => {
       expect(res.send).to.have.been.calledWith(sinon.match('<source src="./video" type="video/mp4">'))
     })
 
-    it('should serve the cached page without reading any file while the subtitles are unchanged', async () => {
-      givenSubtitles('WEBVTT cached', 2)
+    it('should serve the cached page without recompiling the template while the subtitles are unchanged', async () => {
+      givenSubtitles('WEBVTT cached')
       await promotionVideo()(req, res, next)
       readFile.resetHistory()
 
       await promotionVideo()(req, res, next)
       await promotionVideo()(req, res, next)
 
-      expect(readFile).to.have.callCount(0)
+      expect(readFile).to.not.have.been.calledWith('views/promotionVideo.pug')
       expect(res.send).to.have.callCount(3)
       expect(res.send.secondCall.args[0]).to.equal(res.send.firstCall.args[0])
       expect(res.send.thirdCall.args[0]).to.equal(res.send.firstCall.args[0])
     })
 
     it('should re-render the page when the subtitles file is overwritten and solve "videoXssChallenge"', async () => {
-      givenSubtitles('WEBVTT original', 3)
+      givenSubtitles('WEBVTT original')
       await promotionVideo()(req, res, next)
       expect(challenges.videoXssChallenge.solved).to.equal(false)
 
-      givenSubtitles('WEBVTT\n\n00:00.000 --> 00:01.000\n' + xssPayload, 4)
+      givenSubtitles('WEBVTT\n\n00:00.000 --> 00:01.000\n' + xssPayload)
       await promotionVideo()(req, res, next)
 
       expect(res.send.secondCall.args[0]).to.contain(xssPayload)
@@ -80,21 +79,30 @@ describe('videoHandler', () => {
       expect(challenges.videoXssChallenge.solved).to.equal(true)
     })
 
-    it('should check "videoXssChallenge" on every request against the cached subtitles', async () => {
-      givenSubtitles(xssPayload, 5)
+    it('should check "videoXssChallenge" on every request even when the page is cached', async () => {
+      givenSubtitles(xssPayload)
       await promotionVideo()(req, res, next)
       challenges.videoXssChallenge.solved = false
-      readFile.resetHistory()
 
       await promotionVideo()(req, res, next)
 
-      expect(readFile).to.have.callCount(0)
       expect(challenges.videoXssChallenge.solved).to.equal(true)
+    })
+
+    it('should re-render the page when the subtitles change without changing size or modification time', async () => {
+      givenSubtitles('WEBVTT aaaa')
+      await promotionVideo()(req, res, next)
+
+      givenSubtitles('WEBVTT bbbb')
+      await promotionVideo()(req, res, next)
+
+      expect(res.send.secondCall.args[0]).to.contain('WEBVTT bbbb')
+      expect(res.send.secondCall.args[0]).to.not.contain('WEBVTT aaaa')
     })
 
     it('should pass an error to the next handler when the subtitles file is missing', async () => {
       const error = new Error('ENOENT')
-      stat.withArgs(subtitlesFile).rejects(error)
+      readFile.withArgs(subtitlesFile, 'utf8').rejects(error)
 
       await promotionVideo()(req, res, next)
 

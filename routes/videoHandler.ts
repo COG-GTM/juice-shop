@@ -17,7 +17,7 @@ const entities = new Entities()
 const videosDir = 'frontend/dist/frontend/assets/public/videos/'
 
 let pageShell: Promise<string> | undefined
-let renderedPage: { path: string, mtimeMs: number, size: number, subs: string, html: string } | undefined
+let renderedPage: { subs: string, html: string } | undefined
 
 export const getVideo = () => {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -68,16 +68,15 @@ export const promotionVideo = () => {
   }
 }
 
-// Subtitles can be replaced at runtime (videoXssChallenge, custom subtitles download), so the page is re-rendered whenever the file changes.
+// Subtitles can be replaced at runtime (videoXssChallenge, custom subtitles download), so they are re-read on every request.
 async function renderPromotionPage () {
-  const path = subtitlesPath()
-  const { mtimeMs, size } = await fs.promises.stat(path)
-  if (renderedPage?.path === path && renderedPage.mtimeMs === mtimeMs && renderedPage.size === size) {
+  const subs = await fs.promises.readFile(subtitlesPath(), 'utf8')
+  if (renderedPage?.subs === subs) {
     return renderedPage
   }
-  const [subs, shell] = await Promise.all([fs.promises.readFile(path, 'utf8'), compilePageShell()])
+  const shell = await compilePageShell()
   const html = shell.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
-  renderedPage = { path, mtimeMs, size, subs, html }
+  renderedPage = { subs, html }
   return renderedPage
 }
 
