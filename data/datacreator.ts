@@ -35,6 +35,7 @@ import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
+import { resolveSeedPassword, seedPasswordEnvVar } from '../lib/seedPasswords'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
@@ -189,10 +190,12 @@ async function createUsers () {
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const seedPassword = resolveSeedPassword({ key, role, password })
+        if (seedPassword.randomized) logger.info(`Assigned random password to seeded account ${completeEmail} (set ${seedPasswordEnvVar(key)} to define one)`)
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seedPassword.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,

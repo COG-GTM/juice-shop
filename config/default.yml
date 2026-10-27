@@ -12,6 +12,7 @@ application:
   showGitHubLinks: true
   localBackupEnabled: true
   numberOfRandomFakeUsers: 0
+  useStaticSeedPasswords: false # true restores the well-known passwords of privileged seed accounts from data/static/users.yml
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop
   customMetricsPrefix: juiceshop

@@ -25,6 +25,8 @@ application:
     type: boolean
   numberOfRandomFakeUsers:
     type: number
+  useStaticSeedPasswords:
+    type: boolean
   altcoinName:
     type: string
   privacyContactEmail:
