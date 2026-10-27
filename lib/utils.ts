@@ -10,6 +10,7 @@ import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
+import net from 'node:net'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
 
@@ -212,6 +213,59 @@ export const toSimpleIpAddress = (ipv6: string) => {
   } else {
     return ipv6
   }
+}
+
+const privateNetworks = new net.BlockList()
+privateNetworks.addSubnet('127.0.0.0', 8)
+privateNetworks.addSubnet('10.0.0.0', 8)
+privateNetworks.addSubnet('172.16.0.0', 12)
+privateNetworks.addSubnet('192.168.0.0', 16)
+privateNetworks.addSubnet('169.254.0.0', 16)
+privateNetworks.addAddress('::1', 'ipv6')
+privateNetworks.addSubnet('fc00::', 7, 'ipv6')
+privateNetworks.addSubnet('fe80::', 10, 'ipv6')
+
+const ipv6Groups = (ip: string) => {
+  const [head, tail] = ip.replace(/%.*$/, '').split('::')
+  const toGroups = (part: string | undefined) => (part ?? '').split(':').filter(group => group !== '').flatMap(group => {
+    if (!group.includes('.')) return [parseInt(group, 16)]
+    const [a, b, c, d] = group.split('.').map(Number)
+    return [(a << 8) + b, (c << 8) + d]
+  })
+  const headGroups = toGroups(head)
+  const tailGroups = toGroups(tail)
+  return [...headGroups, ...Array(Math.max(8 - headGroups.length - tailGroups.length, 0)).fill(0), ...tailGroups]
+}
+
+const unmapIPv4 = (address: string) => {
+  if (!net.isIPv6(address)) return address
+  const groups = ipv6Groups(address)
+  if (groups.slice(0, 5).some(group => group !== 0) || groups[5] !== 0xffff) return address
+  return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.')
+}
+
+// A single IPv6 client usually controls a whole /64, so rate-limit it as one key
+const ipv6Subnet64 = (ip: string) => ipv6Groups(ip).slice(0, 4).map(group => group.toString(16)).join(':') + '::/64'
+
+const isPrivateAddress = (address: string) => {
+  const ip = unmapIPv4(address)
+  if (net.isIPv4(ip)) return privateNetworks.check(ip, 'ipv4')
+  if (net.isIPv6(ip)) return privateNetworks.check(ip, 'ipv6')
+  return false
+}
+
+// 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
+// the socket peer and stop at the first address that was not appended by a private-network proxy.
+export const clientIpForRateLimit = ({ headers, socket }: { headers: Record<string, string | string[] | undefined>, socket: { remoteAddress?: string } }) => {
+  const forwardedFor = headers['x-forwarded-for']
+  const hops = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '')
+    .split(',').map(hop => hop.trim()).filter(hop => hop !== '')
+  let address = socket.remoteAddress ?? ''
+  while (isPrivateAddress(address) && hops.length > 0) {
+    address = hops.pop() ?? ''
+  }
+  address = unmapIPv4(address)
+  return net.isIPv6(address) ? ipv6Subnet64(address) : address
 }
 
 export const getErrorMessage = (error: unknown) => {
