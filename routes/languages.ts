@@ -35,14 +35,24 @@ export function getLanguageList () {
   }
 
   async function i18nSignature (): Promise<string> {
-    const mtimes = await Promise.all([frontendI18nDir, backendI18nDir].map(async (dir) => {
+    const dirSignatures = await Promise.all([frontendI18nDir, backendI18nDir].map(async (dir) => {
+      let fileNames: string[]
       try {
-        return (await stat(dir)).mtimeMs
+        fileNames = (await readdir(dir)).sort()
       } catch {
-        return -1
+        return dir + '?'
       }
+      const fileSignatures = await Promise.all(fileNames.map(async (fileName) => {
+        try {
+          const { mtimeMs, size } = await stat(dir + fileName)
+          return `${fileName}@${mtimeMs}/${size}`
+        } catch {
+          return fileName + '?'
+        }
+      }))
+      return dir + '|' + fileSignatures.join('|')
     }))
-    return mtimes.join(':')
+    return dirSignatures.join('\n')
   }
 
   async function buildLanguageList (): Promise<Language[]> {

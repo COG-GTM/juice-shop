@@ -32,6 +32,10 @@ describe('languages', () => {
     fs.utimesSync(dir, fixedTime, fixedTime)
   }
 
+  const touch = (file: string) => {
+    fs.utimesSync(file, new Date(), new Date(Date.now() + 60000))
+  }
+
   const languageKeys = () => res.json.lastCall.args[0].map((lang: { key: string }) => lang.key)
 
   beforeEach(() => {
@@ -61,7 +65,7 @@ describe('languages', () => {
   it('should list all languages except Klingon sorted by name with averaged frontend and backend completion', async () => {
     await getLanguageList()({} as any, res, next)
 
-    expect(next).to.have.not.been.called
+    expect(next.callCount).to.equal(0)
     expect(res.status).to.have.been.calledWith(200)
     expect(res.json.lastCall.args[0]).to.deep.equal([
       { key: 'de_DE', lang: 'Deutsch', icons: ['de'], shortKey: 'DE', percentage: 83, gauge: 'full' },
@@ -69,14 +73,17 @@ describe('languages', () => {
     ])
   })
 
-  it('should not re-read translation files while the i18n folders are unchanged', async () => {
+  it('should not re-read translation files while their size and modification time are unchanged', async () => {
+    const file = path.join(frontendDir, 'de_DE.json')
+    fs.utimesSync(file, fixedTime, fixedTime)
     const handler = getLanguageList()
     await handler({} as any, res, next)
 
-    pinMtime(frontendDir, () => { writeJson(frontendDir, 'de_DE.json', { LANGUAGE: 'Geändert', A: 'a', B: 'b' }) })
+    pinMtime(frontendDir, () => { writeJson(frontendDir, 'de_DE.json', { LANGUAGE: 'Deutsc!', A: 'ä', B: 'b' }) })
+    fs.utimesSync(file, fixedTime, fixedTime)
     await handler({} as any, res, next)
 
-    expect(res.json).to.have.been.calledTwice
+    expect(res.json.callCount).to.equal(2)
     expect(res.json.secondCall.args[0]).to.deep.equal(res.json.firstCall.args[0])
   })
 
@@ -85,19 +92,29 @@ describe('languages', () => {
     await handler({} as any, res, next)
     expect(languageKeys()).to.deep.equal(['de_DE', 'en'])
 
-    writeJson(frontendDir, 'fr_FR.json', { LANGUAGE: 'Français', A: 'à', B: 'bé' })
-    fs.utimesSync(frontendDir, new Date(), new Date(Date.now() + 60000))
+    pinMtime(frontendDir, () => { writeJson(frontendDir, 'fr_FR.json', { LANGUAGE: 'Français', A: 'à', B: 'bé' }) })
     await handler({} as any, res, next)
 
     expect(languageKeys()).to.deep.equal(['de_DE', 'en', 'fr_FR'])
   })
 
-  it('should recompute the list when the backend i18n folder changes', async () => {
+  it('should recompute the list when a frontend translation file is edited in place', async () => {
     const handler = getLanguageList()
     await handler({} as any, res, next)
 
-    writeJson(backendDir, 'de_DE.json', { X: 'x', Y: 'y' })
-    fs.utimesSync(backendDir, new Date(), new Date(Date.now() + 60000))
+    pinMtime(frontendDir, () => { writeJson(frontendDir, 'de_DE.json', { LANGUAGE: 'Deutsch (neu)', A: 'ä', B: 'b' }) })
+    touch(path.join(frontendDir, 'de_DE.json'))
+    await handler({} as any, res, next)
+
+    expect(res.json.lastCall.args[0][0].lang).to.equal('Deutsch (neu)')
+  })
+
+  it('should recompute the list when a backend translation file is edited in place', async () => {
+    const handler = getLanguageList()
+    await handler({} as any, res, next)
+
+    pinMtime(backendDir, () => { writeJson(backendDir, 'de_DE.json', { X: 'x', Y: 'y' }) })
+    touch(path.join(backendDir, 'de_DE.json'))
     await handler({} as any, res, next)
 
     expect(res.json.lastCall.args[0][0].percentage).to.equal(33)
@@ -108,13 +125,13 @@ describe('languages', () => {
     pinMtime(frontendDir, () => { fs.rmSync(path.join(frontendDir, 'en.json')) })
     await handler({} as any, res, next)
 
-    expect(next).to.have.been.calledOnce
-    expect(res.json).to.have.not.been.called
+    expect(next.callCount).to.equal(1)
+    expect(res.json.callCount).to.equal(0)
 
     pinMtime(frontendDir, () => { writeJson(frontendDir, 'en.json', { LANGUAGE: 'English', A: 'a', B: 'b' }) })
     await handler({} as any, res, next)
 
-    expect(next).to.have.been.calledOnce
+    expect(next.callCount).to.equal(1)
     expect(languageKeys()).to.deep.equal(['de_DE', 'en'])
   })
 })
