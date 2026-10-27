@@ -350,6 +350,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/user/security-question', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
+    keyGenerator: utils.clientIpForRateLimit,
     validate: false
   }))
 
