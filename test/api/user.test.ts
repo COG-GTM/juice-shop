@@ -199,6 +199,18 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST new user with an apostrophe in the local part of the email address', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: "o'brien@juice-sh.op",
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.email, "o'brien@juice-sh.op")
+  })
+
   void it('POST new user with non-string email is rejected', async () => {
     const res = await request(app)
       .post('/api/Users')
