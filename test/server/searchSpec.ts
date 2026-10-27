@@ -58,9 +58,9 @@ describe('search', () => {
     searchProducts()(req, res, next)
     await flush()
 
-    expect(res.json).to.have.been.calledOnce
-    expect(query).to.have.been.calledOnce
-    expect(findAll).to.not.have.been.called
+    expect(res.json.callCount).to.equal(1)
+    expect(query.callCount).to.equal(1)
+    expect(findAll.called).to.equal(false)
     expect(challenges.unionSqlInjectionChallenge.solved).to.equal(false)
     expect(challenges.dbSchemaChallenge.solved).to.equal(false)
   })
@@ -93,7 +93,7 @@ describe('search', () => {
 
     expect(query).to.have.been.calledWith('SELECT sql FROM sqlite_master')
     expect(challenges.dbSchemaChallenge.solved).to.equal(true)
-    expect(findAll).to.not.have.been.called
+    expect(findAll.called).to.equal(false)
   })
 
   it('does not solve "dbSchemaChallenge" when only some table definitions are returned', async () => {
@@ -114,7 +114,7 @@ describe('search', () => {
     searchProducts()(req, res, next)
     await flush()
 
-    expect(query).to.have.been.calledOnce
-    expect(findAll).to.not.have.been.called
+    expect(query.callCount).to.equal(1)
+    expect(findAll.called).to.equal(false)
   })
 })
