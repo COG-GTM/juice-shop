@@ -8,6 +8,7 @@ import { DEFAULT_FILTER_SETTING, type FilterSetting } from './filter-settings/Fi
 import { type Config, ConfigurationService } from '../Services/configuration.service'
 import { ChallengeService } from '../Services/challenge.service'
 import { HintService } from '../Services/hint.service'
+import { type Hint } from '../Models/hint.model'
 import { filterChallenges } from './helpers/challenge-filtering'
 import { SocketIoService } from '../Services/socket-io.service'
 import { type EnrichedChallenge } from './types/EnrichedChallenge'
@@ -36,6 +37,32 @@ interface CodeChallengeSolvedWebsocket {
   codingChallengeStatus: 0 | 1 | 2
 }
 
+type HintFields = Pick<EnrichedChallenge, 'hintText' | 'nextHint' | 'hintsUnlocked' | 'hintsAvailable'>
+
+function groupHintsByChallenge (hints: Hint[]): Map<number, Hint[]> {
+  const hintsByChallenge = new Map<number, Hint[]>()
+  for (const hint of hints) {
+    const challengeHints = hintsByChallenge.get(hint.ChallengeId)
+    if (challengeHints) {
+      challengeHints.push(hint)
+    } else {
+      hintsByChallenge.set(hint.ChallengeId, [hint])
+    }
+  }
+  return hintsByChallenge
+}
+
+function hintFields (hints: Hint[]): HintFields {
+  const unlocked = hints.filter((hint) => hint.unlocked)
+  const locked = hints.filter((hint) => !hint.unlocked).sort((a, b) => a.order - b.order)
+  return {
+    hintText: unlocked.map((hint) => hint.order + '. ' + hint.text).join('\n\n'),
+    nextHint: locked[0]?.id,
+    hintsUnlocked: unlocked.length,
+    hintsAvailable: hints.length
+  }
+}
+
 @Component({
   selector: 'app-score-board',
   templateUrl: './score-board.component.html',
@@ -61,33 +88,14 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
   public isInitialized = false
 
   private readonly subscriptions: Subscription[] = []
+  private dataLoaderSubscription: Subscription | null = null
+  private hintRefreshSubscription: Subscription | null = null
+
+  private readonly challengeSolvedHandler = this.onChallengeSolvedWebsocket.bind(this)
+  private readonly codeChallengeSolvedHandler = this.onCodeChallengeSolvedWebsocket.bind(this)
 
   ngOnInit (): void {
-    const dataLoaderSubscription = combineLatest([
-      this.challengeService.find({ sort: 'name' }),
-      this.hintService.getAll(),
-      this.configurationService.getApplicationConfiguration()
-    ]).subscribe(([challenges, hints, applicationConfiguration]) => {
-      this.applicationConfiguration = applicationConfiguration
-
-      const transformedChallenges = challenges.map((challenge) => {
-        return {
-          ...challenge,
-          hintText: hints.filter((hint) => hint.ChallengeId === challenge.id && hint.unlocked).map((hint) => hint.order + '. ' + hint.text).join('\n\n'),
-          nextHint: hints.filter((hint) => hint.ChallengeId === challenge.id && !hint.unlocked).sort((a, b) => a.order - b.order).map((hint) => hint.id)[0],
-          hintsUnlocked: hints.filter((hint) => hint.ChallengeId === challenge.id && hint.unlocked).length,
-          hintsAvailable: hints.filter((hint) => hint.ChallengeId === challenge.id).length,
-          tagList: challenge.tags ? challenge.tags.split(',').map((tag) => tag.trim()) : [],
-          originalDescription: challenge.description as string,
-          description: this.sanitizer.bypassSecurityTrustHtml(challenge.description as string)
-        }
-      })
-
-      this.allChallenges = transformedChallenges
-      this.filterAndUpdateChallenges()
-      this.isInitialized = true
-    })
-    this.subscriptions.push(dataLoaderSubscription)
+    this.loadData()
 
     const routerSubscription = this.route.queryParams.subscribe((queryParams) => {
       this.filterSetting = fromQueryParams(queryParams)
@@ -95,16 +103,57 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
     })
     this.subscriptions.push(routerSubscription)
 
-    this.io.socket().on('challenge solved', this.onChallengeSolvedWebsocket.bind(this))
-    this.io.socket().on('code challenge solved', this.onCodeChallengeSolvedWebsocket.bind(this))
+    this.io.socket().on('challenge solved', this.challengeSolvedHandler)
+    this.io.socket().on('code challenge solved', this.codeChallengeSolvedHandler)
   }
 
   ngOnDestroy (): void {
-    this.io.socket().off('challenge solved', this.onChallengeSolvedWebsocket.bind(this))
-    this.io.socket().off('code challenge solved', this.onCodeChallengeSolvedWebsocket.bind(this))
+    this.io.socket().off('challenge solved', this.challengeSolvedHandler)
+    this.io.socket().off('code challenge solved', this.codeChallengeSolvedHandler)
+    this.dataLoaderSubscription?.unsubscribe()
+    this.hintRefreshSubscription?.unsubscribe()
     for (const subscription of this.subscriptions) {
       subscription.unsubscribe()
     }
+  }
+
+  loadData (): void {
+    this.dataLoaderSubscription?.unsubscribe()
+    this.dataLoaderSubscription = combineLatest([
+      this.challengeService.find({ sort: 'name' }),
+      this.hintService.getAll(),
+      this.configurationService.getApplicationConfiguration()
+    ]).subscribe(([challenges, hints, applicationConfiguration]) => {
+      this.applicationConfiguration = applicationConfiguration
+
+      const hintsByChallenge = groupHintsByChallenge(hints)
+      this.allChallenges = challenges.map((challenge) => {
+        return {
+          ...challenge,
+          ...hintFields(hintsByChallenge.get(challenge.id) ?? []),
+          tagList: challenge.tags ? challenge.tags.split(',').map((tag) => tag.trim()) : [],
+          originalDescription: challenge.description as string,
+          description: this.sanitizer.bypassSecurityTrustHtml(challenge.description as string)
+        }
+      })
+      this.filterAndUpdateChallenges()
+      this.isInitialized = true
+    })
+  }
+
+  refreshHints (): void {
+    this.hintRefreshSubscription?.unsubscribe()
+    this.hintRefreshSubscription = this.hintService.getAll().subscribe({
+      next: (hints) => {
+        const hintsByChallenge = groupHintsByChallenge(hints)
+        this.allChallenges = this.allChallenges.map((challenge) => ({
+          ...challenge,
+          ...hintFields(hintsByChallenge.get(challenge.id) ?? [])
+        }))
+        this.filterAndUpdateChallenges()
+      },
+      error: (err) => { console.log(err) }
+    })
   }
 
   onFilterSettingUpdate (filterSetting: FilterSetting) {
@@ -125,7 +174,7 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
           solved: true
         }
       }
-      return { ...challenge }
+      return challenge
     })
     this.filterAndUpdateChallenges()
     // manually trigger angular change detection... :(
@@ -145,7 +194,7 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
           codingChallengeStatus: data.codingChallengeStatus
         }
       }
-      return { ...challenge }
+      return challenge
     })
     this.filterAndUpdateChallenges()
     // manually trigger angular change detection... :(
@@ -186,7 +235,7 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
     this.lastUnlockedChallengeKey = challengeKey ?? null
     this.hintService.put(hintId, { unlocked: true }).subscribe({
       next: () => {
-        this.ngOnInit()
+        this.refreshHints()
       },
       error: (err) => { console.log(err) }
     })
