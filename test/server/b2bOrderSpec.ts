@@ -36,7 +36,7 @@ describe('b2bOrder', () => {
     b2bOrder()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(400)
-    expect(next).to.have.not.been.called
+    expect(next.called).to.equal(false)
   })
 
   it('rejects sandbox breakout payload with 400', () => {
@@ -53,7 +53,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.have.not.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match({ cid: 'JS0815DE' }))
   })
 
@@ -62,7 +62,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.have.not.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
@@ -95,7 +95,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
-    expect(res.status).to.have.not.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWith(sinon.match({ cid: 'test' }))
   })
 })
