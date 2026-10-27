@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import { reviewsCollection } from '../../data/mongodb'
 
 let app: Express
 
@@ -34,18 +35,40 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects an injected mongoDB sleep command', async () => {
+    const t0 = Date.now()
     const res = await request(app)
-      .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+      .get('/rest/products/sleep(2000)/reviews')
+    assert.equal(res.status, 400)
+    assert.ok(Date.now() - t0 < 2000)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
     assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews does not evaluate a JavaScript expression as product id', async () => {
+    const res = await request(app)
+      .get(`/rest/products/${encodeURIComponent('1 || true')}/reviews`)
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews returns reviews created with a non-canonical numeric product id', async () => {
+    const message = `Leading zero review ${Date.now()}`
+    try {
+      await request(app)
+        .put('/rest/products/01/reviews')
+        .send({ message, author: 'Anonymous' })
+        .expect(201)
+      const res = await request(app)
+        .get('/rest/products/1/reviews')
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.some((review: { message: string }) => review.message === message))
+    } finally {
+      await reviewsCollection.remove({ message })
+    }
   })
 
   void it('PUT single product review can be created', async () => {
