@@ -43,6 +43,7 @@ interface IAuthenticatedUsers {
   revoke: (token?: string) => void
   revokeAllFor: (userId: number, exceptToken?: string) => void
   isRevoked: (token?: string) => boolean
+  evictExpired: () => void
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -58,6 +59,8 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const sessionLifetimeInSeconds = 6 * 60 * 60
 const nowInSeconds = () => Math.floor(Date.now() / 1000)
+const evictionIntervalInSeconds = 60
+let lastEviction = 0
 
 export const isAuthorized = () => {
   const checkJwt = expressJwt(({ secret: publicKey }) as any)
@@ -122,6 +125,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   revokedTokens: {},
   put: function (token: string, user: ResponseWithUser) {
     if (this.isRevoked(token) || isExpired(token)) return
+    this.evictExpired()
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
@@ -179,6 +183,17 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     if (!token) return false
     const key = utils.unquote(token)
     return Object.prototype.hasOwnProperty.call(this.revokedTokens, key) && this.revokedTokens[key] > nowInSeconds()
+  },
+  evictExpired: function () {
+    const now = nowInSeconds()
+    if (now - lastEviction < evictionIntervalInSeconds) return
+    lastEviction = now
+    for (const token of Object.keys(this.tokenMap)) {
+      if (isExpired(token)) this.remove(token)
+    }
+    for (const [token, until] of Object.entries(this.revokedTokens)) {
+      if (until <= now) delete this.revokedTokens[token]
+    }
   }
 }
 
