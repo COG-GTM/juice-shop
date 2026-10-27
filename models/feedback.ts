@@ -16,6 +16,7 @@ import {
 } from 'sequelize'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { changeTrackingHooks } from '../lib/tableChanges'
 
 class Feedback extends Model<
 InferAttributes<Feedback>,
@@ -68,7 +69,8 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
     },
     {
       tableName: 'Feedbacks',
-      sequelize
+      sequelize,
+      hooks: changeTrackingHooks('Feedbacks')
     }
   )
 }
