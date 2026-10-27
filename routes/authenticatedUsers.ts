@@ -11,7 +11,7 @@ export const MAX_PAGE_SIZE = 100
 
 function nonNegativeInteger (value: unknown): number | undefined {
   if (typeof value !== 'string' || !/^\d+$/.test(value)) return undefined
-  return Number(value)
+  return Math.min(Number(value), Number.MAX_SAFE_INTEGER)
 }
 
 export function paginationFrom (query: Request['query']) {

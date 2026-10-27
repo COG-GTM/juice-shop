@@ -54,6 +54,15 @@ void describe('/rest/user/authentication-details', () => {
     assert.deepEqual(page.body.data.map((user: any) => user.id), all.body.data.slice(1, 3).map((user: any) => user.id))
   })
 
+  void it('GET users page with huge offset returns an empty page', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details?limit=2&offset=100000000000000000000')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
   void it('GET users page size is capped', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details?limit=100000')
