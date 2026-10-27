@@ -4,6 +4,7 @@
  */
 
 import { describe, it, before } from 'node:test'
+import crypto from 'node:crypto'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -118,6 +119,25 @@ void describe('/api/Products/:id', () => {
     const res = await request(app)
       .delete('/api/Products/1')
       .set(authHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('DELETE existing product is forbidden with an unsigned alg "none" JWT', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const res = await request(app)
+      .delete('/api/Products/1')
+      .set({ Authorization: `Bearer ${header}.${payload}.` })
+    assert.equal(res.status, 401)
+  })
+
+  void it('DELETE existing product is forbidden with an HS256 JWT signed with the public RSA key', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    const res = await request(app)
+      .delete('/api/Products/1')
+      .set({ Authorization: `Bearer ${header}.${payload}.${signature}` })
     assert.equal(res.status, 401)
   })
 })
