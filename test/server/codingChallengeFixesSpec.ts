@@ -5,9 +5,13 @@
 
 import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
 import { readFixes } from '../../routes/vulnCodeFixes'
+import { getCodingChallengeInfo } from '../../lib/codingChallenges'
 import chai from 'chai'
 import fs from 'graceful-fs'
+import nodeFs from 'node:fs'
+import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
+import yaml from 'js-yaml'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -35,5 +39,36 @@ describe('codingChallengeFixes', () => {
     for (const challenge of codingChallenges) {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
     }
+  })
+
+  describe('getCodingChallengeInfo', () => {
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    it('should return the parsed info YAML file of a coding challenge', () => {
+      for (const challenge of codingChallenges) {
+        expect(getCodingChallengeInfo(challenge), `Coding challenge ${challenge} info YAML file was not parsed correctly`)
+          .to.deep.equal(yaml.load(fs.readFileSync('./data/static/codefixes/' + challenge + '.info.yml', 'utf8')))
+      }
+    })
+
+    it('should read each info YAML file only once', () => {
+      for (const challenge of codingChallenges) getCodingChallengeInfo(challenge)
+      const readFileSync = sinon.spy(nodeFs, 'readFileSync')
+      const readdirSync = sinon.spy(nodeFs, 'readdirSync')
+      for (const challenge of codingChallenges) {
+        expect(getCodingChallengeInfo(challenge)).to.equal(getCodingChallengeInfo(challenge))
+      }
+      expect(readFileSync.callCount).to.equal(0)
+      expect(readdirSync.callCount).to.equal(0)
+    })
+
+    it('should return null for a challenge without info YAML file', () => {
+      expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
+      const readdirSync = sinon.spy(nodeFs, 'readdirSync')
+      expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
+      expect(readdirSync.callCount).to.equal(0)
+    })
   })
 })
