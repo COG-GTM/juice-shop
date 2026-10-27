@@ -154,6 +154,33 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdminOrSelf', () => {
+    const run = (headers: Record<string, string>, id: string) => {
+      let nextCalled = false
+      let statusCode: number | undefined
+      const res = { status: (code: number) => { statusCode = code; return { json: () => {} } } }
+      security.isAdminOrSelf()({ headers, params: { id } } as unknown as Request, res as any, () => { nextCalled = true })
+      return { nextCalled, statusCode }
+    }
+
+    it('lets admins read any user', () => {
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+      expect(run({ authorization: `Bearer ${token}` }, '2')).to.deep.equal({ nextCalled: true, statusCode: undefined })
+    })
+
+    it('lets customers read only their own user', () => {
+      const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })
+      expect(run({ authorization: `Bearer ${token}` }, '2')).to.deep.equal({ nextCalled: true, statusCode: undefined })
+      expect(run({ authorization: `Bearer ${token}` }, '1')).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+
+    it('rejects unsigned tokens claiming the requested id with 403', () => {
+      const unsigned = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url') + '.' +
+        Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'customer' } })).toString('base64url') + '.'
+      expect(run({ authorization: `Bearer ${unsigned}` }, '1')).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
