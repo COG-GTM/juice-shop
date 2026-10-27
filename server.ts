@@ -60,6 +60,7 @@ import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-s
 import customizeApplication from './lib/startup/customizeApplication'
 import validatePreconditions, { preconditionsReady } from './lib/startup/validatePreconditions'
 import registerWebsocketEvents from './lib/startup/registerWebsocketEvents'
+import * as solverContext from './lib/solverContext'
 import restoreOverwrittenFilesWithOriginals from './lib/startup/restoreOverwrittenFilesWithOriginals'
 
 import datacreator from './data/datacreator'
@@ -177,6 +178,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Compression for all requests */
   app.use(compression())
+
+  /* Attribute challenge solves to the requesting user */
+  app.use(solverContext.middleware())
 
   /* Bludgeon solution for possible CORS problems: Allow everything! */
   app.options('*', cors())
