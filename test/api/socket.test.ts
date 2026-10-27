@@ -10,6 +10,9 @@ import * as http from 'http'
 import ioClient from 'socket.io-client'
 import { createTestApp } from './helpers/setup'
 import registerWebsocketEvents from '../../lib/startup/registerWebsocketEvents'
+import * as challengeUtils from '../../lib/challengeUtils'
+import * as security from '../../lib/insecurity'
+import { notifications } from '../../data/datacache'
 
 let app: Express
 let server: http.Server
@@ -81,5 +84,88 @@ void describe('WebSocket', () => {
   void it('server handles empty confirmation message', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
+  })
+})
+
+void describe('WebSocket challenge notifications', () => {
+  const sockets: Array<ReturnType<typeof ioClient>> = []
+  const unsignedToken = (payload: object) => `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.`
+
+  const connect = async (auth?: object) => {
+    const socket = ioClient(`http://localhost:${serverPort}`, { reconnectionDelay: 0, forceNew: true, auth } as any)
+    sockets.push(socket)
+    await new Promise<void>((resolve) => { socket.on('connect', () => { resolve() }) })
+    return socket
+  }
+
+  const nextNotification = async (socket: ReturnType<typeof ioClient>, key: string) => {
+    return await new Promise<any>((resolve) => {
+      const listener = (notification: any) => {
+        if (notification.key === key) {
+          socket.off('challenge solved', listener)
+          resolve(notification)
+        }
+      }
+      socket.on('challenge solved', listener)
+    })
+  }
+
+  const replayedNotification = async (key: string, auth?: object) => {
+    const socket = ioClient(`http://localhost:${serverPort}`, { reconnectionDelay: 0, forceNew: true, auth } as any)
+    sockets.push(socket)
+    return await nextNotification(socket, key)
+  }
+
+  const solvedChallenge = (key: string) => ({ key, name: key, description: 'Test challenge', solved: true }) as any
+
+  beforeEach(() => {
+    notifications.splice(0)
+  })
+
+  afterEach(() => {
+    sockets.splice(0).forEach(socket => socket.disconnect())
+    notifications.splice(0)
+  })
+
+  void it('anonymous sockets receive solved notifications without the flag', async () => {
+    const socket = await connect()
+    const received = nextNotification(socket, 'anonymousViewerTest')
+    challengeUtils.sendNotification(solvedChallenge('anonymousViewerTest'), false, undefined)
+    const notification = await received
+    assert.equal(notification.flag, undefined)
+    assert.equal(notification.solverId, undefined)
+  })
+
+  void it('forged unsigned tokens are treated as anonymous', async () => {
+    const socket = await connect({ token: unsignedToken({ data: { id: 1 }, exp: 9999999999 }) })
+    const received = nextNotification(socket, 'unsignedTokenTest')
+    challengeUtils.sendNotification(solvedChallenge('unsignedTokenTest'), false, undefined)
+    assert.equal((await received).flag, undefined)
+  })
+
+  void it('only the solving user receives the flag of an attributed challenge', async () => {
+    const solver = await connect({ token: security.authorize({ data: { id: 1 } }) })
+    const otherUser = await connect({ token: security.authorize({ data: { id: 2 } }) })
+    const solverReceived = nextNotification(solver, 'attributedSolveTest')
+    const otherReceived = nextNotification(otherUser, 'attributedSolveTest')
+    challengeUtils.sendNotification(solvedChallenge('attributedSolveTest'), false, 1)
+    assert.ok((await solverReceived).flag)
+    assert.equal((await otherReceived).flag, undefined)
+  })
+
+  void it('pending notifications are replayed to new sockets without the flag of other users', async () => {
+    challengeUtils.sendNotification(solvedChallenge('replayTest'), false, 1)
+    assert.equal((await replayedNotification('replayTest')).flag, undefined)
+    assert.ok((await replayedNotification('replayTest', { token: security.authorize({ data: { id: 1 } }) })).flag)
+  })
+
+  void it('acknowledging a notification does not remove it for other clients', async () => {
+    challengeUtils.sendNotification(solvedChallenge('acknowledgeTest'), false, undefined)
+    const pending = notifications.length
+    const socket = await connect({ clientId: 'a'.repeat(32) })
+    socket.emit('notification received', 'acknowledgeTest')
+    await new Promise(resolve => setTimeout(resolve, 100))
+    assert.equal(notifications.length, pending)
+    assert.equal((await replayedNotification('acknowledgeTest', { clientId: 'b'.repeat(32) })).key, 'acknowledgeTest')
   })
 })

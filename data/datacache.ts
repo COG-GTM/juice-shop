@@ -28,6 +28,7 @@ export interface Notification {
   hidden: boolean
   isRestore: boolean
   codingChallenge?: boolean
+  solverId?: number
 }
 export const notifications: Notification[] = []
 
