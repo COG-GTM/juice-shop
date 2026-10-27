@@ -246,6 +246,12 @@ describe('utils', () => {
       expect(Date.now() - start).to.be.below(1000)
     })
 
+    it('redacts sensitive parameters after a percent-encoded question mark', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password%3Fcurrent=old&new=s3cr3t'))
+        .to.equal('/rest/user/change-password%3Fcurrent=[REDACTED]&new=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x%3fpassword=a')).to.equal('/x%3fpassword=[REDACTED]')
+    })
+
     it('redacts token query parameters', () => {
       expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
     })
