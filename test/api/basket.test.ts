@@ -10,6 +10,10 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import * as z85 from 'z85'
+import { QuantityModel } from '../../models/quantity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -17,6 +21,8 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const unsignedCoupon = z85.encode(utils.toMMMYY(new Date()) + '-99')
+const overLimitCoupon = z85.encode(utils.toMMMYY(new Date()) + '-999999')
 
 before(
   async () => {
@@ -160,6 +166,38 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
+
+  void it('POST paying an order with a negative total cost from the wallet is rejected and does not credit the wallet', async () => {
+    const { token, bid } = await login(app, {
+      email: 'uvogin@juice-sh.op',
+      password: 'muda-muda > ora-ora'
+    })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const userId = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).data.id
+
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
+    assert.equal(balanceBefore.status, 200)
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 10 } })
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(uvoginHeader)
+      .send({ BasketId: bid, ProductId: 10, quantity: -100 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(uvoginHeader)
+      .send({ UserId: userId, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Insufficient wallet balance.'))
+
+    const balanceAfter = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+
+    const stockAfter = await QuantityModel.findOne({ where: { ProductId: 10 } })
+    assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
@@ -175,6 +213,20 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/xxxxxxxxxx')
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned z85-encoded coupon for the current month is not accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned coupon with a discount above 100% is not accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(overLimitCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
