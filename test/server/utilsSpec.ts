@@ -189,7 +189,17 @@ describe('utils', () => {
     })
 
     it('falls back to the socket address when no X-Forwarded-For header is present', () => {
-      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::1' } })).to.equal('::1')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '203.0.113.7' } })).to.equal('203.0.113.7')
+    })
+
+    it('groups IPv6 clients by their /64 subnet', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8:1:2:aaaa::1' } })).to.equal('2001:db8:1:2::/64')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8:1:2:bbbb:cccc:dddd:eeee' } })).to.equal('2001:db8:1:2::/64')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8::7' } })).to.equal('2001:db8:0:0::/64')
+    })
+
+    it('unwraps IPv4-mapped IPv6 addresses', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:203.0.113.7' } })).to.equal('203.0.113.7')
     })
   })
 
