@@ -19,7 +19,7 @@ export function trackOrder () {
       const result = utils.queryResultToJson(order)
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
-        result.data[0] = { orderId: id }
+        result.data[0] = { orderId: String(id).replace(/[^\w-]+/g, '') }
       }
       res.json(result)
     }, () => {
