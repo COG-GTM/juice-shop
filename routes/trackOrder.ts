@@ -12,12 +12,14 @@ import { challenges } from '../data/datacache'
 export function trackOrder () {
   return (req: Request, res: Response) => {
     const id = String(req.params.id).replace(/[^\w-]+/g, '')
+    const displayId = utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? utils.trunc(req.params.id, 60) : id
 
+    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(displayId, '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ orderId: id }).then((order: any) => {
       const result = utils.queryResultToJson(order)
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
-        result.data[0] = { orderId: id }
+        result.data[0] = { orderId: displayId }
       }
       res.json(result)
     }, () => {

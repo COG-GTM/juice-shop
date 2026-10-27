@@ -28,8 +28,8 @@ void describe('/rest/track-order/:id', () => {
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
     assert.equal(res.status, 200)
     assert.equal(res.body.data.length, 1)
-    assert.equal(res.body.data[0].orderId, 'true')
     assert.equal(res.body.data[0].email, undefined)
+    assert.equal(res.body.data[0]._id, undefined)
   })
 
   void it('GET does not execute JavaScript injected into orderId', async () => {
@@ -39,6 +39,6 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
     assert.ok(Date.now() - start < 2000)
     assert.equal(res.body.data.length, 1)
-    assert.equal(res.body.data[0].orderId, 'sleep2000')
+    assert.equal(res.body.data[0]._id, undefined)
   })
 })
