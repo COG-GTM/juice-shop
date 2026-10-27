@@ -225,23 +225,33 @@ privateNetworks.addAddress('::1', 'ipv6')
 privateNetworks.addSubnet('fc00::', 7, 'ipv6')
 privateNetworks.addSubnet('fe80::', 10, 'ipv6')
 
-const unmapIPv4 = (address: string) => address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
+const ipv6Groups = (ip: string) => {
+  const [head, tail] = ip.replace(/%.*$/, '').split('::')
+  const toGroups = (part: string | undefined) => (part ?? '').split(':').filter(group => group !== '').flatMap(group => {
+    if (!group.includes('.')) return [parseInt(group, 16)]
+    const [a, b, c, d] = group.split('.').map(Number)
+    return [(a << 8) + b, (c << 8) + d]
+  })
+  const headGroups = toGroups(head)
+  const tailGroups = toGroups(tail)
+  return [...headGroups, ...Array(Math.max(8 - headGroups.length - tailGroups.length, 0)).fill(0), ...tailGroups]
+}
+
+const unmapIPv4 = (address: string) => {
+  if (!net.isIPv6(address)) return address
+  const groups = ipv6Groups(address)
+  if (groups.slice(0, 5).some(group => group !== 0) || groups[5] !== 0xffff) return address
+  return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.')
+}
+
+// A single IPv6 client usually controls a whole /64, so rate-limit it as one key
+const ipv6Subnet64 = (ip: string) => ipv6Groups(ip).slice(0, 4).map(group => group.toString(16)).join(':') + '::/64'
 
 const isPrivateAddress = (address: string) => {
   const ip = unmapIPv4(address)
   if (net.isIPv4(ip)) return privateNetworks.check(ip, 'ipv4')
   if (net.isIPv6(ip)) return privateNetworks.check(ip, 'ipv6')
   return false
-}
-
-// A single IPv6 client usually controls a whole /64, so rate-limit it as one key
-const ipv6Subnet64 = (ip: string) => {
-  const [head, tail] = ip.split('::')
-  const headGroups = head !== '' ? head.split(':') : []
-  const tailGroups = tail !== undefined && tail !== '' ? tail.split(':') : []
-  const tailLength = tailGroups.reduce((length, group) => length + (group.includes('.') ? 2 : 1), 0)
-  const groups = [...headGroups, ...Array(Math.max(8 - headGroups.length - tailLength, 0)).fill('0'), ...tailGroups]
-  return groups.slice(0, 4).map(group => parseInt(group, 16).toString(16)).join(':') + '::/64'
 }
 
 // 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
