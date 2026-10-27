@@ -35,6 +35,7 @@ import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
+import { hasPublishedCredentials, secureSeedUsers, staticSeedCredentialsEnabled } from '../lib/seedCredentials'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
@@ -183,7 +184,8 @@ async function createChallenges () {
 }
 
 async function createUsers () {
-  const users = await loadStaticUserData()
+  const generatedCredentials = !staticSeedCredentialsEnabled()
+  const users = secureSeedUsers(await loadStaticUserData(), !generatedCredentials)
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
@@ -200,6 +202,9 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
+        if (generatedCredentials && hasPublishedCredentials({ key, role }) && !deletedFlag) {
+          logger.info(`Seeded user ${completeEmail} with ${key === 'admin' && password === process.env.JUICE_SHOP_ADMIN_PASSWORD ? 'the password from JUICE_SHOP_ADMIN_PASSWORD' : 'a random password'} instead of the published one`)
+        }
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
