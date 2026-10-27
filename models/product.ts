@@ -17,6 +17,7 @@ import {
 import { type BasketItemModel } from './basketitem'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { changeTrackingHooks } from '../lib/tableChanges'
 
 class Product extends Model<
 InferAttributes<Product>,
@@ -63,7 +64,8 @@ const ProductModelInit = (sequelize: Sequelize) => {
     {
       tableName: 'Products',
       sequelize,
-      paranoid: true
+      paranoid: true,
+      hooks: changeTrackingHooks('Products')
     }
   )
 }

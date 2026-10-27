@@ -17,6 +17,7 @@ import { ComplaintModel } from '../models/complaint'
 import { FeedbackModel } from '../models/feedback'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import { consumeChanges, markChanged, type TableChanges } from '../lib/tableChanges'
 
 export const emptyUserRegistration = () => (req: Request, res: Response, next: NextFunction) => {
   challengeUtils.solveIf(challenges.emptyUserRegistration, () => {
@@ -137,64 +138,77 @@ function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
 
 async function checkPatternInFeedbackAndComplaints (
   challenge: Challenge,
-  fieldCriteria: any
+  fieldCriteria: any,
+  changes: TableChanges
 ): Promise<void> {
-  const feedbackCheck = FeedbackModel.findAndCountAll({
-    where: { comment: fieldCriteria }
-  }).then(({ count }: { count: number }) => {
-    if (count > 0) {
-      challengeUtils.solve(challenge)
-    }
-  }).catch(() => {
-    throw new Error('Unable to retrieve feedback details. Please try again')
-  })
+  const checks: Array<Promise<void>> = []
+  if (changes.Feedbacks) {
+    checks.push(FeedbackModel.count({
+      where: { comment: fieldCriteria }
+    }).then((count: number) => {
+      if (count > 0) {
+        challengeUtils.solve(challenge)
+      }
+    }).catch(() => {
+      markChanged('Feedbacks')
+      throw new Error('Unable to retrieve feedback details. Please try again')
+    }))
+  }
+  if (changes.Complaints) {
+    checks.push(ComplaintModel.count({
+      where: { message: fieldCriteria }
+    }).then((count: number) => {
+      if (count > 0) {
+        challengeUtils.solve(challenge)
+      }
+    }).catch(() => {
+      markChanged('Complaints')
+      throw new Error('Unable to retrieve complaint details. Please try again')
+    }))
+  }
 
-  const complaintCheck = ComplaintModel.findAndCountAll({
-    where: { message: fieldCriteria }
-  }).then(({ count }: { count: number }) => {
-    if (count > 0) {
-      challengeUtils.solve(challenge)
-    }
-  }).catch(() => {
-    throw new Error('Unable to retrieve complaint details. Please try again')
-  })
-
-  await Promise.all([feedbackCheck, complaintCheck])
+  await Promise.all(checks)
 }
 
+/* Solve state only changes when Feedbacks, Complaints or Products are written, so checks run once after such a write */
 export const databaseRelatedChallenges = () => (req: Request, res: Response, next: NextFunction) => {
-  if (challengeUtils.notSolved(challenges.changeProductChallenge) && products.osaft) {
+  const changes = consumeChanges()
+  if (changes.Products && challengeUtils.notSolved(challenges.changeProductChallenge) && products.osaft) {
     changeProductChallenge(products.osaft)
   }
-  if (challengeUtils.notSolved(challenges.feedbackChallenge)) {
+  if (changes.Feedbacks && challengeUtils.notSolved(challenges.feedbackChallenge)) {
     feedbackChallenge()
   }
+  if (!changes.Feedbacks && !changes.Complaints) {
+    next()
+    return
+  }
   if (challengeUtils.notSolved(challenges.knownVulnerableComponentChallenge)) {
-    knownVulnerableComponentChallenge()
+    knownVulnerableComponentChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.weirdCryptoChallenge)) {
-    weirdCryptoChallenge()
+    weirdCryptoChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.typosquattingNpmChallenge)) {
-    typosquattingNpmChallenge()
+    typosquattingNpmChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.typosquattingAngularChallenge)) {
-    typosquattingAngularChallenge()
+    typosquattingAngularChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.hiddenImageChallenge)) {
-    hiddenImageChallenge()
+    hiddenImageChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.supplyChainAttackChallenge)) {
-    supplyChainAttackChallenge()
+    supplyChainAttackChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.dlpPastebinDataLeakChallenge)) {
-    dlpPastebinDataLeakChallenge()
+    dlpPastebinDataLeakChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.csafChallenge)) {
-    csafChallenge()
+    csafChallenge(changes)
   }
   if (challengeUtils.notSolved(challenges.leakedApiKeyChallenge)) {
-    leakedApiKeyChallenge()
+    leakedApiKeyChallenge(changes)
   }
   next()
 }
@@ -215,23 +229,27 @@ function changeProductChallenge (osaft: Product) {
         }
       }
     }
+  }, () => {
+    markChanged('Products')
   })
 }
 
 function feedbackChallenge () {
-  FeedbackModel.findAndCountAll({ where: { rating: 5 } }).then(({ count }: { count: number }) => {
+  FeedbackModel.count({ where: { rating: 5 } }).then((count: number) => {
     if (count === 0) {
       challengeUtils.solve(challenges.feedbackChallenge)
     }
   }).catch(() => {
+    markChanged('Feedbacks')
     throw new Error('Unable to retrieve feedback details. Please try again')
   })
 }
 
-function knownVulnerableComponentChallenge () {
+function knownVulnerableComponentChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.knownVulnerableComponentChallenge,
-    { [Op.or]: knownVulnerableComponents() }
+    { [Op.or]: knownVulnerableComponents() },
+    changes
   )
 }
 
@@ -252,10 +270,11 @@ function knownVulnerableComponents () {
   ]
 }
 
-function weirdCryptoChallenge () {
+function weirdCryptoChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.weirdCryptoChallenge,
-    { [Op.or]: weirdCryptos() }
+    { [Op.or]: weirdCryptos() },
+    changes
   )
 }
 
@@ -269,31 +288,35 @@ function weirdCryptos () {
   ]
 }
 
-function typosquattingNpmChallenge () {
+function typosquattingNpmChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.typosquattingNpmChallenge,
-    { [Op.like]: '%epilogue-js%' }
+    { [Op.like]: '%epilogue-js%' },
+    changes
   )
 }
 
-function typosquattingAngularChallenge () {
+function typosquattingAngularChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.typosquattingAngularChallenge,
-    { [Op.like]: '%ngy-cookie%' }
+    { [Op.like]: '%ngy-cookie%' },
+    changes
   )
 }
 
-function hiddenImageChallenge () {
+function hiddenImageChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.hiddenImageChallenge,
-    { [Op.like]: '%pickle rick%' }
+    { [Op.like]: '%pickle rick%' },
+    changes
   )
 }
 
-function supplyChainAttackChallenge () {
+function supplyChainAttackChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.supplyChainAttackChallenge,
-    { [Op.or]: eslintScopeVulnIds() }
+    { [Op.or]: eslintScopeVulnIds() },
+    changes
   )
 }
 
@@ -304,24 +327,27 @@ function eslintScopeVulnIds () {
   ]
 }
 
-function dlpPastebinDataLeakChallenge () {
+function dlpPastebinDataLeakChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.dlpPastebinDataLeakChallenge,
-    { [Op.and]: dangerousIngredients() }
+    { [Op.and]: dangerousIngredients() },
+    changes
   )
 }
 
-function csafChallenge () {
+function csafChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.csafChallenge,
-    { [Op.like]: '%' + config.get<string>('challenges.csafHashValue') + '%' }
+    { [Op.like]: '%' + config.get<string>('challenges.csafHashValue') + '%' },
+    changes
   )
 }
 
-function leakedApiKeyChallenge () {
+function leakedApiKeyChallenge (changes: TableChanges) {
   void checkPatternInFeedbackAndComplaints(
     challenges.leakedApiKeyChallenge,
-    { [Op.like]: '%6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie%' }
+    { [Op.like]: '%6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie%' },
+    changes
   )
 }
 

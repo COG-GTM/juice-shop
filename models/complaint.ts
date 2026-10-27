@@ -13,6 +13,7 @@ import {
   type CreationOptional,
   type Sequelize
 } from 'sequelize'
+import { changeTrackingHooks } from '../lib/tableChanges'
 
 class Complaint extends Model<
 InferAttributes<Complaint>,
@@ -40,7 +41,8 @@ const ComplaintModelInit = (sequelize: Sequelize) => {
     },
     {
       tableName: 'Complaints',
-      sequelize
+      sequelize,
+      hooks: changeTrackingHooks('Complaints')
     }
   )
 }

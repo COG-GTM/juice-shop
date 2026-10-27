@@ -13,6 +13,9 @@ import type { Product as ProductConfig } from '../../lib/config.types'
 import * as security from '../../lib/insecurity'
 import { type UserModel } from 'models/user'
 import * as verify from '../../routes/verify'
+import { FeedbackModel } from '../../models/feedback'
+import { ComplaintModel } from '../../models/complaint'
+import { changeTrackingHooks, consumeChanges, markChanged } from '../../lib/tableChanges'
 import { isWindows } from '../../lib/utils'
 const expect = chai.expect
 
@@ -214,6 +217,34 @@ describe('verify', () => {
       beforeEach(() => {
         challenges.changeProductChallenge = { solved: false, save } as unknown as Challenge
         products.osaft = { reload () { return { then (cb: any) { cb() } } } } as unknown as Product
+        consumeChanges()
+        markChanged('Products')
+      })
+
+      it('is not re-checked when no product was written since the last check', () => {
+        products.osaft.description = `O-Saft, yeah! <a href="${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}" target="_blank">More...</a>`
+        const reload = sinon.spy(products.osaft, 'reload')
+        consumeChanges()
+
+        verify.databaseRelatedChallenges()(req, res, next)
+
+        expect(reload).to.have.callCount(0)
+        expect(challenges.changeProductChallenge.solved).to.equal(false)
+        expect(next).to.have.been.calledWith()
+      })
+
+      it('is re-checked on the next request when reloading the O-Saft product failed', () => {
+        products.osaft.description = `O-Saft, yeah! <a href="${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}" target="_blank">More...</a>`
+        const reload = sinon.stub(products.osaft, 'reload')
+        reload.onFirstCall().returns({ then (cb: any, onError: any) { onError() } } as any)
+        reload.onSecondCall().returns({ then (cb: any) { cb() } } as any)
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        expect(challenges.changeProductChallenge.solved).to.equal(false)
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        expect(reload).to.have.callCount(2)
+        expect(challenges.changeProductChallenge.solved).to.equal(true)
       })
 
       it(`is solved when the link in the O-Saft product goes to ${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}`, () => {
@@ -245,6 +276,79 @@ describe('verify', () => {
         verify.databaseRelatedChallenges()(req, res, next)
 
         expect(challenges.changeProductChallenge.solved).to.equal(false)
+      })
+    })
+
+    describe('feedback and complaint pattern challenges', () => {
+      let feedbackCount: sinon.SinonStub
+      let complaintCount: sinon.SinonStub
+      let findAndCountAll: sinon.SinonSpy
+
+      const flush = async () => { await new Promise((resolve) => setImmediate(resolve)) }
+
+      beforeEach(() => {
+        challenges.weirdCryptoChallenge = { solved: false, save } as unknown as Challenge
+        challenges.feedbackChallenge = { solved: false, save } as unknown as Challenge
+        feedbackCount = sinon.stub(FeedbackModel, 'count').resolves(0 as any)
+        complaintCount = sinon.stub(ComplaintModel, 'count').resolves(0 as any)
+        findAndCountAll = sinon.spy(FeedbackModel, 'findAndCountAll')
+        consumeChanges()
+      })
+
+      afterEach(() => {
+        sinon.restore()
+        consumeChanges()
+      })
+
+      it('runs no queries when neither feedback nor complaints were written since the last check', async () => {
+        verify.databaseRelatedChallenges()(req, res, next)
+        await flush()
+
+        expect(feedbackCount).to.have.callCount(0)
+        expect(complaintCount).to.have.callCount(0)
+        expect(next).to.have.been.calledWith()
+      })
+
+      it('only queries Complaints after a complaint was written', async () => {
+        complaintCount.resolves(1 as any)
+        changeTrackingHooks('Complaints').afterCreate()
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await flush()
+
+        expect(feedbackCount).to.have.callCount(0)
+        expect(complaintCount.called).to.equal(true)
+        expect(challenges.weirdCryptoChallenge.solved).to.equal(true)
+        expect(challenges.feedbackChallenge.solved).to.equal(false)
+      })
+
+      it('checks Feedbacks once after a feedback was written and not again on the next request', async () => {
+        feedbackCount.resolves(1 as any)
+        changeTrackingHooks('Feedbacks').afterDestroy()
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await flush()
+        const callsAfterFirstRequest = feedbackCount.callCount
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await flush()
+
+        expect(callsAfterFirstRequest).to.be.greaterThan(0)
+        expect(feedbackCount).to.have.callCount(callsAfterFirstRequest)
+        expect(complaintCount).to.have.callCount(0)
+        expect(challenges.weirdCryptoChallenge.solved).to.equal(true)
+        expect(findAndCountAll).to.have.callCount(0)
+      })
+
+      it('solves "feedbackChallenge" when no 5-star feedback is left after a deletion', async () => {
+        feedbackCount.withArgs({ where: { rating: 5 } }).resolves(0 as any)
+        changeTrackingHooks('Feedbacks').afterBulkDestroy()
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        await flush()
+
+        expect(challenges.feedbackChallenge.solved).to.equal(true)
+        expect(challenges.weirdCryptoChallenge.solved).to.equal(false)
       })
     })
   })
