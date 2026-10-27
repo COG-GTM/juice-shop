@@ -192,13 +192,15 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token, { sameSite: 'strict' })
+          res.cookie('token', token, tokenCookieOptions(req))
         }
       }
     })
   }
   next()
 }
+
+export const tokenCookieOptions = (req: Request) => ({ sameSite: 'lax' as const, secure: req.secure })
 
 export const isCrossSiteRequest = (req: Request) => {
   const fetchSite = req.get('sec-fetch-site')
