@@ -153,6 +153,35 @@ void describe('/profile/image/url', () => {
     assert.equal(res.status, 302)
   })
 
+  for (const [name, headers] of [
+    ['cross-site Sec-Fetch-Site', { 'Sec-Fetch-Site': 'cross-site' }],
+    ['foreign Origin', { Origin: 'https://attacker.example' }],
+    ['foreign Referer', { Referer: 'https://attacker.example/csrf.html' }]
+  ] as Array<[string, Record<string, string>]>) {
+    void it(`POST profile image URL with ${name} is rejected without changing the profile image`, async () => {
+      const { token } = await login(app, {
+        email: `bender@${config.get<string>('application.domain')}`,
+        password: 'OhG0dPlease1nsertLiquor!'
+      })
+      const user = await UserModel.findOne({ where: { email: `bender@${config.get<string>('application.domain')}` } })
+      assert.ok(user)
+      const profileImageBefore = user.profileImage
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .set('Host', 'localhost:3000')
+        .set(headers)
+        .field('imageUrl', 'https://attacker.example/mallory.png')
+        .redirects(0)
+
+      assert.equal(res.status, 403)
+      assert.ok(res.text.includes('Error: Cross-site profile image upload rejected'))
+      await user.reload()
+      assert.equal(user.profileImage, profileImageBefore)
+    })
+  }
+
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
       .post('/profile/image/url')
