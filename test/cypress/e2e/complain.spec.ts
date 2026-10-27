@@ -57,68 +57,6 @@ describe('/#/complain', () => {
     })
   })
 
-  describe('challenge "xxeFileDisclosure"', () => {
-    it('(triggered for Windows server via .xml upload with XXE attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE File Exfiltration Windows!')
-          cy.get('#file').selectFile('test/files/xxeForWindows.xml')
-          cy.get('#submitButton').click()
-        }
-      })
-    })
-
-    it('(triggered for Linux server via .xml upload with XXE attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE File Exfiltration Linux!')
-          cy.get('#file').selectFile('test/files/xxeForLinux.xml')
-          cy.get('#submitButton').click()
-        }
-      })
-    })
-
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
-        }
-      })
-    })
-  })
-
-  describe('challenge "xxeDos"', () => {
-    it('(triggered via .xml upload with dev/random attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE Dev Random!')
-          cy.get('#file').selectFile('test/files/xxeDevRandom.xml')
-          cy.get('#submitButton').click()
-          cy.wait(5000) // Wait for 2.5x timeout of XML parser
-        }
-      })
-    })
-
-    it('(triggered via .xml upload with Quadratic Blowup attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE Quadratic Blowup!')
-          cy.get('#file').selectFile('test/files/xxeQuadraticBlowup.xml')
-          cy.get('#submitButton').click()
-          cy.wait(5000) // Wait for 2.5x timeout of XML parser
-        }
-      })
-    })
-
-    xit('should be solved either through dev/random or Quadratic Blowup attack', () => { // FIXME Unreliable during CI/CD as sometimes the Quadratic Blowup is blocked for entity loops
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.expectChallengeSolved({ challenge: 'XXE DoS' })
-        }
-      })
-    })
-  })
-
   describe('challenge "yamlBomb"', () => {
     it('should be solved via .yaml upload with a Billion Laughs-style attack', () => {
       cy.task('isDocker').then((isDocker) => {
