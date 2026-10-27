@@ -10,23 +10,30 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import * as z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let ownBasketId: number
 
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const unsignedCoupon = z85.encode(utils.toMMMYY(new Date()) + '-99')
+const overLimitCoupon = z85.encode(utils.toMMMYY(new Date()) + '-999999')
 
 before(
   async () => {
     const result = await createTestApp()
     app = result.app
 
-    const { token } = await login(app, {
+    const { token, bid } = await login(app, {
       email: 'jim@juice-sh.op',
       password: 'ncc-1701'
     })
+    ownBasketId = bid
     authHeader = {
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
@@ -150,22 +157,50 @@ void describe('/rest/basket/:id/checkout', () => {
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
-      .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(forgedCoupon))
       .set(authHeader)
     assert.equal(couponRes.status, 200)
     assert.ok(couponRes.headers['content-type']?.includes('application/json'))
     assert.equal(couponRes.body.discount, 99)
 
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    const res = await request(app).post(`/rest/basket/${ownBasketId}/checkout`).set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST paying an order with a negative total cost from the wallet is rejected and does not credit the wallet', async () => {
+    const { token, bid } = await login(app, {
+      email: 'uvogin@juice-sh.op',
+      password: 'muda-muda > ora-ora'
+    })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const userId = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).data.id
+
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
+    assert.equal(balanceBefore.status, 200)
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(uvoginHeader)
+      .send({ BasketId: bid, ProductId: 10, quantity: -100 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(uvoginHeader)
+      .send({ UserId: userId, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Insufficient wallet balance.'))
+
+    const balanceAfter = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data)
   })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
-  void it('PUT apply valid coupon to existing basket', async () => {
+  void it('PUT apply valid coupon to own basket', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -174,22 +209,104 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
 
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/xxxxxxxxxx')
+      .put(`/rest/basket/${ownBasketId}/coupon/xxxxxxxxxx`)
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned z85-encoded coupon for the current month is not accepted', async () => {
+    const res = await request(app)
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(unsignedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned coupon with a discount above 100% is not accepted', async () => {
+    const res = await request(app)
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(overLimitCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
 
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(outdatedCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
 
-  void it('PUT apply valid coupon to non-existing basket throws error', async () => {
+  void it('PUT apply valid coupon to another user\'s basket is forbidden', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT invalid coupon to another user\'s basket is forbidden and leaves its coupon untouched', async () => {
+    const { token: adminToken } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const adminHeader = { Authorization: 'Bearer ' + adminToken, 'content-type': 'application/json' }
+    const applied = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .set(adminHeader)
+    assert.equal(applied.status, 200)
+
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/xxxxxxxxxx')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const basket = await request(app)
+      .get('/rest/basket/1')
+      .set(adminHeader)
+    assert.equal(basket.body.data.coupon, validCoupon)
+  })
+
+  void it('PUT apply valid coupon to non-existing basket is forbidden', async () => {
     const res = await request(app)
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 403)
+  })
+})
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number) {
+    const { token, bid } = await login(app, {
+      email: 'accountant@juice-sh.op',
+      password: 'i am an awesome accountant'
+    })
+    const accountantHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(accountantHeader)
+      .send({ BasketId: bid, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(accountantHeader)
+      .send({ couponData: expiredCampaignCouponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its original campaign date grants no discount', async () => {
+    const order = await checkoutWithCampaignCoupon(1)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored while the server clock is within the campaign day', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2)
+    assert.notEqual(order.promotionalAmount, '0')
   })
 })
