@@ -453,6 +453,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* SecurityAnswers: Only allowed for the authenticated user's own account */
+  app.post('/api/SecurityAnswers', security.appendUserId())
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
@@ -515,6 +518,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer of a newly registered user for that user only
+    if (name === 'User') {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const questionId = Number(req.body.securityQuestion?.id)
+        const answer = req.body.securityAnswer
+        if (Number.isInteger(questionId) && typeof answer === 'string' && answer.length > 0) {
+          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: questionId, answer })
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
