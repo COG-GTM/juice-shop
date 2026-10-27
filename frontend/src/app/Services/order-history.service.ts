@@ -25,6 +25,10 @@ export class OrderHistoryService {
     return this.http.get(this.host + '/orders').pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
 
+  getConfirmationPdf (orderId: string) {
+    return this.http.get(`${this.hostServer}/rest/order/${encodeURIComponent(orderId)}/pdf`, { responseType: 'blob' }).pipe(catchError((err) => { throw err }))
+  }
+
   toggleDeliveryStatus (id: number, params) {
     return this.http.put(`${this.host}/${id}/delivery-status`, params).pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }

@@ -162,6 +162,43 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 })
 
+void describe('/rest/order/:orderId/pdf', () => {
+  let orderId: string
+
+  before(async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('order confirmation PDF is not written to the public /ftp folder', async () => {
+    const listing = await request(app).get('/ftp')
+    assert.ok(!listing.text.includes(`order_${orderId}.pdf`))
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF is not allowed via public API', async () => {
+    const res = await request(app).get(`/rest/order/${orderId}/pdf`)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order confirmation PDF for own order', async () => {
+    const res = await request(app).get(`/rest/order/${orderId}/pdf`).set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF of another customer is not possible', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app).get(`/rest/order/${orderId}/pdf`).set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 404)
+  })
+})
+
 void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply valid coupon to existing basket', async () => {
     const res = await request(app)
