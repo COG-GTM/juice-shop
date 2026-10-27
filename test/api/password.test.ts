@@ -115,14 +115,8 @@ void describe('/rest/user/change-password', () => {
   })
 
   void it('GET password change with passwords in the query string is not supported', async () => {
-    const { token } = await login(app, {
-      email: 'bender@' + config.get<string>('application.domain'),
-      password: 'OhG0dPlease1nsertLiquor!'
-    })
-
     const res = await request(app)
       .get('/rest/user/change-password?new=foo&repeat=foo')
-      .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Unexpected path: /rest/user/change-password'))
