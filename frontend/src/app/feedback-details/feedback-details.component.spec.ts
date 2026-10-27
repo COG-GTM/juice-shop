@@ -44,11 +44,11 @@ describe('FeedbackDetailsComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render a feedback comment containing markup as text', () => {
-        component.feedback = '<iframe src="javascript:alert(`xss`)">'
+    it('should keep safe feedback formatting but drop active markup', () => {
+        component.feedback = '<strong>Great</strong><iframe src="javascript:alert(`xss`)"></iframe>'
         fixture.detectChanges()
 
         expect(fixture.nativeElement.querySelector('cite iframe')).toBeNull()
-        expect(fixture.nativeElement.querySelector('cite').textContent).toBe('<iframe src="javascript:alert(`xss`)">')
+        expect(fixture.nativeElement.querySelector('cite strong')?.textContent).toBe('Great')
     })
 })
