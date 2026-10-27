@@ -17,7 +17,9 @@ import * as utils from '../lib/utils'
 const PARSER_TIMEOUT_MS = 2000
 const PARSER_MEMORY_LIMIT_MB = 64
 const MAX_CONCURRENT_PARSERS = 2
+const MAX_PARSER_OUTPUT_LENGTH = 1000000
 const PARSER_TIMEOUT_MESSAGE = 'Script execution timed out'
+const PARSER_EXHAUSTED_MESSAGE = 'Parser ran out of memory'
 
 let activeParsers = 0
 
@@ -41,10 +43,14 @@ process.stdin.on('end', () => {
 })
 `
 
-function parseInSeparateProcess (type: 'xml' | 'yaml', data: string, maxLength: number) {
+function isMemoryExhaustion (errorOutput: string, signal: NodeJS.Signals | null) {
+  return signal != null || errorOutput.includes('heap out of memory') || errorOutput.includes('Invalid string length')
+}
+
+function parseInSeparateProcess (type: 'xml' | 'yaml', data: string) {
   return new Promise<string>((resolve, reject) => {
     const modulePath = require.resolve(type === 'xml' ? 'libxmljs2' : 'js-yaml')
-    const parser = spawn(process.execPath, ['--max-old-space-size=' + PARSER_MEMORY_LIMIT_MB, '-e', parserScript, type, modulePath, String(maxLength)])
+    const parser = spawn(process.execPath, ['--max-old-space-size=' + PARSER_MEMORY_LIMIT_MB, '-e', parserScript, type, modulePath, String(MAX_PARSER_OUTPUT_LENGTH)])
     activeParsers++
     let output = ''
     let errorOutput = ''
@@ -61,11 +67,13 @@ function parseInSeparateProcess (type: 'xml' | 'yaml', data: string, maxLength: 
       activeParsers--
       reject(err)
     })
-    parser.on('close', (code) => {
+    parser.on('close', (code, signal) => {
       clearTimeout(timer)
       activeParsers--
       if (timedOut) {
         reject(new Error(PARSER_TIMEOUT_MESSAGE))
+      } else if (isMemoryExhaustion(errorOutput, signal)) {
+        reject(new Error(PARSER_EXHAUSTED_MESSAGE))
       } else if (code === 0) {
         resolve(output)
       } else {
@@ -78,7 +86,7 @@ function parseInSeparateProcess (type: 'xml' | 'yaml', data: string, maxLength: 
 
 function isResourceExhaustionError (err: unknown) {
   const errorMessage = err instanceof Error ? err.message : String(err)
-  return utils.contains(errorMessage, PARSER_TIMEOUT_MESSAGE) || utils.contains(errorMessage, 'heap out of memory') || utils.contains(errorMessage, 'Invalid string length')
+  return errorMessage === PARSER_TIMEOUT_MESSAGE || errorMessage === PARSER_EXHAUSTED_MESSAGE
 }
 
 function deprecationError (fileName: string, details?: string) {
@@ -140,7 +148,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
         return
       }
       const fileName = file.originalname
-      parseInSeparateProcess('xml', file.buffer.toString(), 401).then((xmlString) => {
+      parseInSeparateProcess('xml', file.buffer.toString()).then((xmlString) => {
         challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
         res.status(410)
         next(deprecationError(fileName, utils.trunc(xmlString, 400)))
@@ -173,7 +181,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
         return
       }
       const fileName = file.originalname
-      parseInSeparateProcess('yaml', file.buffer.toString(), 401).then((yamlString) => {
+      parseInSeparateProcess('yaml', file.buffer.toString()).then((yamlString) => {
         res.status(410)
         next(deprecationError(fileName, utils.trunc(yamlString, 400)))
       }, (err: unknown) => {
