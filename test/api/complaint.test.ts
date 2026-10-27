@@ -8,14 +8,21 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
+let adminHeader: Record<string, string>
+let customerHeader: Record<string, string>
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminHeader = { Authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  const { token: customerToken } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  customerHeader = { Authorization: `Bearer ${customerToken}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -39,11 +46,27 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints is forbidden for customers', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET all complaints is forbidden for tokens without admin role', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all complaints as admin', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(adminHeader)
     assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
   })
 })
 
