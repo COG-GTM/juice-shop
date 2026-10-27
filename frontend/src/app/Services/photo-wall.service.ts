@@ -24,10 +24,6 @@ export class PhotoWallService {
     return this.http.post(this.host, postData).pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
 
-  get () {
-    return this.http.get(this.host + '/').pipe(map((response: any) => response.data), catchError((err: Error) => { throw err }))
-  }
-
   getPage (limit: number, offset: number) {
     const params = new HttpParams().set('limit', limit).set('offset', offset)
     return this.http.get(this.host + '/', { params }).pipe(
