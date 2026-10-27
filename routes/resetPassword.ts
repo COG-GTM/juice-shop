@@ -13,28 +13,24 @@ import { UserModel } from '../models/user'
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000
-const MAX_TRACKED_ACCOUNTS = 10000
-const failedAttempts = new Map<string, { count: number, expiresAt: number }>()
+const PRUNE_THRESHOLD = 10000
+const attempts = new Map<number, { count: number, expiresAt: number }>()
 
 function pruneExpiredAttempts (now: number) {
-  for (const [key, entry] of failedAttempts) {
-    if (entry.expiresAt <= now) failedAttempts.delete(key)
+  for (const [userId, entry] of attempts) {
+    if (entry.expiresAt <= now) attempts.delete(userId)
   }
 }
 
-function reserveAttempt (key: string) {
+function registerAttempt (userId: number) {
   const now = Date.now()
-  let entry = failedAttempts.get(key)
-  if (entry && entry.expiresAt <= now) {
-    failedAttempts.delete(key)
-    entry = undefined
-  }
+  if (attempts.size >= PRUNE_THRESHOLD) pruneExpiredAttempts(now)
+  let entry = attempts.get(userId)
+  if (entry && entry.expiresAt <= now) entry = undefined
   if (entry && entry.count >= MAX_FAILED_ATTEMPTS) return false
   if (!entry) {
-    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneExpiredAttempts(now)
-    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) return false
     entry = { count: 0, expiresAt: 0 }
-    failedAttempts.set(key, entry)
+    attempts.set(userId, entry)
   }
   entry.count++
   entry.expiresAt = now + LOCKOUT_DURATION_MS
@@ -59,11 +55,6 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
-    const attemptKey = String(email).toLowerCase()
-    if (!reserveAttempt(attemptKey)) {
-      res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
-      return
-    }
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -71,16 +62,24 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
-        const user = await UserModel.findByPk(data.UserId)
-        if (user) {
-          failedAttempts.delete(attemptKey)
-          const updatedUser = await user.update({ password: newPassword })
-          verifySecurityAnswerChallenges(updatedUser)
-          res.json({ status: 'success' })
-        }
-      } else {
+      if (data == null) {
         res.status(401).send(res.__('Wrong answer to security question.'))
+        return
+      }
+      if (!registerAttempt(data.UserId)) {
+        res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
+        return
+      }
+      if (security.hmac(answer) !== data.answer) {
+        res.status(401).send(res.__('Wrong answer to security question.'))
+        return
+      }
+      attempts.delete(data.UserId)
+      const user = await UserModel.findByPk(data.UserId)
+      if (user) {
+        const updatedUser = await user.update({ password: newPassword })
+        verifySecurityAnswerChallenges(updatedUser)
+        res.json({ status: 'success' })
       }
     } catch (error) {
       next(error)

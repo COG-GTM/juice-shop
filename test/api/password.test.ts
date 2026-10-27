@@ -192,7 +192,7 @@ void describe('/rest/user/reset-password', () => {
   })
 
   void it('POST password reset lockout cannot be bypassed with parallel requests', async () => {
-    const email = 'parallel-guesser@' + config.get<string>('application.domain')
+    const email = 'mc.safesearch@' + config.get<string>('application.domain')
     const responses = await Promise.all(Array.from({ length: 10 }, async (_, i) => await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
