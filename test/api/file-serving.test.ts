@@ -201,10 +201,17 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET does not serve a directory listing of the access logs', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(!res.text.includes('access.log'))
+  })
+
+  void it('GET does not serve access log files', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+    assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    assert.ok(!res.text.includes('"GET /'))
   })
 })
