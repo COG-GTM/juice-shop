@@ -79,63 +79,83 @@ export function observeMetrics () {
   Prometheus.collectDefaultMetrics({})
   register.setDefaultLabels({ app })
 
+  // All gauges of one scrape share a single refresh, so nothing is queried unless /metrics is requested
+  let pendingUpdate: Promise<void> | undefined
+  async function collect () {
+    pendingUpdate ??= updateMetrics()
+      .catch((e: unknown) => { logger.warn('Error during metrics update: ' + utils.getErrorMessage(e)) })
+      .finally(() => { pendingUpdate = undefined })
+    await pendingUpdate
+  }
+
   const versionMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_version_info`,
     help: `Release version of ${config.get<string>('application.name')}.`,
     labelNames: ['version', 'major', 'minor', 'patch']
   })
 
   const challengeSolvedMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_challenges_solved`,
     help: 'Number of solved challenges grouped by difficulty and category.',
     labelNames: ['difficulty', 'category']
   })
 
   const challengeTotalMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_challenges_total`,
     help: 'Total number of challenges grouped by difficulty and category.',
     labelNames: ['difficulty', 'category']
   })
 
   const codingChallengesProgressMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_coding_challenges_progress`,
     help: 'Number of coding challenges grouped by progression phase.',
     labelNames: ['phase']
   })
 
   const cheatScoreMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_cheat_score`,
     help: 'Overall probability that any hacking or coding challenges were solved by cheating.'
   })
 
   const accuracyMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_coding_challenges_accuracy`,
     help: 'Overall accuracy while solving coding challenges grouped by phase.',
     labelNames: ['phase']
   })
 
   const orderMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_orders_placed_total`,
     help: `Number of orders placed in ${config.get<string>('application.name')}.`
   })
 
   const userMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_users_registered`,
     help: 'Number of registered users grouped by customer type.',
     labelNames: ['type']
   })
 
   const userTotalMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_users_registered_total`,
     help: 'Total number of registered users.'
   })
 
   const walletMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_wallet_balance_total`,
     help: 'Total balance of all users\' digital wallets.'
   })
 
   const interactionsMetrics = new Prometheus.Gauge({
+    collect,
     name: `${app}_user_social_interactions`,
     help: 'Number of social interactions with users grouped by type.',
     labelNames: ['type']
@@ -209,18 +229,6 @@ export function observeMetrics () {
     if (totalBalance) walletMetrics.set(totalBalance)
     if (feedbackCount) interactionsMetrics.set({ type: 'feedback' }, feedbackCount)
     if (complaintCount) interactionsMetrics.set({ type: 'complaint' }, complaintCount)
-  }
-
-  // All gauges of one scrape share a single refresh, so nothing is queried unless /metrics is requested
-  let pendingUpdate: Promise<void> | undefined
-  const collect = async () => {
-    pendingUpdate ??= updateMetrics()
-      .catch((e: unknown) => { logger.warn('Error during metrics update: ' + utils.getErrorMessage(e)) })
-      .finally(() => { pendingUpdate = undefined })
-    await pendingUpdate
-  }
-  for (const gauge of [versionMetrics, challengeSolvedMetrics, challengeTotalMetrics, codingChallengesProgressMetrics, cheatScoreMetrics, accuracyMetrics, orderMetrics, userMetrics, userTotalMetrics, walletMetrics, interactionsMetrics]) {
-    gauge.collect = collect
   }
 
   // Kept for server.ts compatibility: metrics are now refreshed on scrape instead of on a timer
