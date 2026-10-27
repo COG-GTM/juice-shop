@@ -17,7 +17,7 @@ import * as utils from '../lib/utils'
 const PARSER_TIMEOUT_MS = 2000
 const PARSER_MEMORY_LIMIT_MB = 64
 const MAX_CONCURRENT_PARSERS = 2
-const MAX_PARSER_OUTPUT_LENGTH = 1000000
+const PARSER_PREVIEW_LENGTH = 401
 const PARSER_TIMEOUT_MESSAGE = 'Script execution timed out'
 const PARSER_EXHAUSTED_MESSAGE = 'Parser ran out of memory'
 
@@ -29,13 +29,14 @@ const parserScript = `
 const chunks = []
 process.stdin.on('data', (chunk) => chunks.push(chunk))
 process.stdin.on('end', () => {
-  const [type, modulePath, maxLength] = process.argv.slice(1)
+  const [type, modulePath, previewLength, disclosurePatterns] = process.argv.slice(1)
   const data = Buffer.concat(chunks).toString()
   try {
     const parsed = type === 'xml'
       ? require(modulePath).parseXml(data, { noblanks: true, noent: true, nocdata: true }).toString(false)
       : String(JSON.stringify(require(modulePath).safeLoad(data)))
-    process.stdout.write(parsed.slice(0, Number(maxLength)))
+    const fileDisclosed = JSON.parse(disclosurePatterns).some(({ source, flags }) => new RegExp(source, flags).test(parsed))
+    process.stdout.write(JSON.stringify({ preview: parsed.slice(0, Number(previewLength)), fileDisclosed }))
   } catch (err) {
     process.stderr.write(String(err?.message ?? err))
     process.exitCode = 1
@@ -47,10 +48,12 @@ function isMemoryExhaustion (errorOutput: string, signal: NodeJS.Signals | null)
   return signal != null || errorOutput.includes('heap out of memory') || errorOutput.includes('Invalid string length')
 }
 
+const fileDisclosurePatterns = JSON.stringify([utils.etcPasswdFilePattern, utils.systemIniFilePattern].map(({ source, flags }) => ({ source, flags })))
+
 function parseInSeparateProcess (type: 'xml' | 'yaml', data: string) {
-  return new Promise<string>((resolve, reject) => {
+  return new Promise<{ preview: string, fileDisclosed: boolean }>((resolve, reject) => {
     const modulePath = require.resolve(type === 'xml' ? 'libxmljs2' : 'js-yaml')
-    const parser = spawn(process.execPath, ['--max-old-space-size=' + PARSER_MEMORY_LIMIT_MB, '-e', parserScript, type, modulePath, String(MAX_PARSER_OUTPUT_LENGTH)])
+    const parser = spawn(process.execPath, ['--max-old-space-size=' + PARSER_MEMORY_LIMIT_MB, '-e', parserScript, type, modulePath, String(PARSER_PREVIEW_LENGTH), type === 'xml' ? fileDisclosurePatterns : '[]'])
     activeParsers++
     let output = ''
     let errorOutput = ''
@@ -75,7 +78,11 @@ function parseInSeparateProcess (type: 'xml' | 'yaml', data: string) {
       } else if (isMemoryExhaustion(errorOutput, signal)) {
         reject(new Error(PARSER_EXHAUSTED_MESSAGE))
       } else if (code === 0) {
-        resolve(output)
+        try {
+          resolve(JSON.parse(output))
+        } catch (err) {
+          reject(err)
+        }
       } else {
         reject(new Error(utils.trunc(errorOutput, 200) || 'Parser exited with code ' + code))
       }
@@ -148,10 +155,10 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
         return
       }
       const fileName = file.originalname
-      parseInSeparateProcess('xml', file.buffer.toString()).then((xmlString) => {
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
+      parseInSeparateProcess('xml', file.buffer.toString()).then(({ preview, fileDisclosed }) => {
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return fileDisclosed })
         res.status(410)
-        next(deprecationError(fileName, utils.trunc(xmlString, 400)))
+        next(deprecationError(fileName, utils.trunc(preview, 400)))
       }, (err: unknown) => {
         if (isResourceExhaustionError(err)) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
@@ -181,9 +188,9 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
         return
       }
       const fileName = file.originalname
-      parseInSeparateProcess('yaml', file.buffer.toString()).then((yamlString) => {
+      parseInSeparateProcess('yaml', file.buffer.toString()).then(({ preview }) => {
         res.status(410)
-        next(deprecationError(fileName, utils.trunc(yamlString, 400)))
+        next(deprecationError(fileName, utils.trunc(preview, 400)))
       }, (err: unknown) => {
         if (isResourceExhaustionError(err)) {
           challengeUtils.solveIf(challenges.yamlBombChallenge, () => { return true })

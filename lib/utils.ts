@@ -219,13 +219,16 @@ export const getErrorMessage = (error: unknown) => {
   return String(error)
 }
 
+export const systemIniFilePattern = /; for 16-bit app support/gi
+export const etcPasswdFilePattern = /(\w*:\w*:\d*:\d*:\w*:.*)|(Note that this file is consulted directly)/gi
+
 export const matchesSystemIniFile = (text: string) => {
-  const match = text.match(/; for 16-bit app support/gi)
+  const match = text.match(systemIniFilePattern)
   return match !== null && match.length >= 1
 }
 
 export const matchesEtcPasswdFile = (text: string) => {
-  const match = text.match(/(\w*:\w*:\d*:\d*:\w*:.*)|(Note that this file is consulted directly)/gi)
+  const match = text.match(etcPasswdFilePattern)
   return match !== null && match.length >= 1
 }
 
