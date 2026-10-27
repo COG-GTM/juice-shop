@@ -245,6 +245,13 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.body.data, undefined)
   })
 
+  void it('GET own user by id as customer', async () => {
+    const res = await request(app).get('/api/Users/2').set(customerHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.email, 'jim@juice-sh.op')
+    assert.deepEqual(Object.keys(res.body.data).filter((key) => !visibleUserAttributes.includes(key)), [])
+  })
+
   void it('GET existing user by id as admin only returns non-sensitive attributes', async () => {
     const res = await request(app).get('/api/Users/1').set(adminHeader)
     assert.equal(res.status, 200)
