@@ -18,7 +18,7 @@ export function profileImageUrlUpload () {
       const url = req.body.imageUrl
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
-        if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
+        if (typeof url === 'string' && url.includes('solve/challenges/server-side')) req.app.locals.abused_ssrf_bug = true
         try {
           const image = await fetchProfileImage(url)
           const fileName = `${loggedInUser.data.id}.${image.extension}`
