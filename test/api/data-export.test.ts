@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -264,5 +264,23 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.email, 'jim@' + config.get<string>('application.domain'))
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
+  })
+})
+
+void describe('/rest/user/data-export with look-alike email', () => {
+  void it('Export data does not include orders of other users whose email masks identically', async () => {
+    const email = 'odmin@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'lookalike123' })
+    const { token } = await login(app, { email, password: 'lookalike123' })
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, email)
+    assert.deepEqual(parsedData.orders, [])
   })
 })
