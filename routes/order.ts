@@ -67,14 +67,14 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
-          const quantityUpdates: Array<{ ProductId: number, quantity: number }> = []
+          const stockDeductions: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  quantityUpdates.push({ ProductId: BasketItem.ProductId, quantity: quantityRow.quantity - BasketItem.quantity })
+                  stockDeductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
                 }
               } catch (error: unknown) {
                 next(error)
@@ -137,28 +137,34 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
+          const deductedStock: typeof stockDeductions = []
+          const restoreStock = async () => {
+            for (const { ProductId, quantity } of deductedStock) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } })
+            }
+          }
+          try {
+            for (const deduction of stockDeductions) {
+              await QuantityModel.decrement({ quantity: deduction.quantity }, { where: { ProductId: deduction.ProductId } })
+              deductedStock.push(deduction)
+            }
+          } catch (error: unknown) {
+            await restoreStock().catch(() => {})
+            next(error)
+            return
+          }
+
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
               if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
               } else {
+                await restoreStock().catch(() => {})
                 next(new Error('Insufficient wallet balance.'))
                 return
               }
             }
-          }
-
-          try {
-            for (const { ProductId, quantity } of quantityUpdates) {
-              await QuantityModel.update({ quantity }, { where: { ProductId } })
-            }
-          } catch (error: unknown) {
-            next(error)
-            return
-          }
-
-          if (req.body.UserId) {
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
