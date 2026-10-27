@@ -191,6 +191,16 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(!res.text.includes('totpSecret'))
   })
 
+  void it('POST password reset lockout cannot be bypassed with parallel requests', async () => {
+    const email = 'parallel-guesser@' + config.get<string>('application.domain')
+    const responses = await Promise.all(Array.from({ length: 10 }, async (_, i) => await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, answer: 'guess' + i, new: 'abcdef', repeat: 'abcdef' })))
+    assert.equal(responses.filter(res => res.status === 401).length, 5)
+    assert.equal(responses.filter(res => res.status === 429).length, 5)
+  })
+
   void it('POST password reset locks out account after repeated wrong answers regardless of X-Forwarded-For', async () => {
     const email = 'amy@' + config.get<string>('application.domain')
     for (let i = 0; i < 5; i++) {

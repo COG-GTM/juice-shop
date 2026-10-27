@@ -14,28 +14,31 @@ import { UserModel } from '../models/user'
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000
 const MAX_TRACKED_ACCOUNTS = 10000
-const failedAttempts = new Map<string, { count: number, lockedUntil: number }>()
+const failedAttempts = new Map<string, { count: number, expiresAt: number }>()
 
-function isLockedOut (key: string) {
-  const entry = failedAttempts.get(key)
-  if (!entry) return false
-  if (entry.lockedUntil > Date.now()) return true
-  if (entry.lockedUntil !== 0) failedAttempts.delete(key)
-  return false
+function pruneExpiredAttempts (now: number) {
+  for (const [key, entry] of failedAttempts) {
+    if (entry.expiresAt <= now) failedAttempts.delete(key)
+  }
 }
 
-function registerFailedAttempt (key: string) {
-  if (!failedAttempts.has(key) && failedAttempts.size >= MAX_TRACKED_ACCOUNTS) {
-    const oldestKey = failedAttempts.keys().next().value
-    if (oldestKey !== undefined) failedAttempts.delete(oldestKey)
+function reserveAttempt (key: string) {
+  const now = Date.now()
+  let entry = failedAttempts.get(key)
+  if (entry && entry.expiresAt <= now) {
+    failedAttempts.delete(key)
+    entry = undefined
   }
-  const entry = failedAttempts.get(key) ?? { count: 0, lockedUntil: 0 }
+  if (entry && entry.count >= MAX_FAILED_ATTEMPTS) return false
+  if (!entry) {
+    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneExpiredAttempts(now)
+    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) return false
+    entry = { count: 0, expiresAt: 0 }
+    failedAttempts.set(key, entry)
+  }
   entry.count++
-  if (entry.count >= MAX_FAILED_ATTEMPTS) {
-    entry.count = 0
-    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS
-  }
-  failedAttempts.set(key, entry)
+  entry.expiresAt = now + LOCKOUT_DURATION_MS
+  return true
 }
 
 export function resetPassword () {
@@ -57,7 +60,7 @@ export function resetPassword () {
       return
     }
     const attemptKey = String(email).toLowerCase()
-    if (isLockedOut(attemptKey)) {
+    if (!reserveAttempt(attemptKey)) {
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
       return
     }
@@ -77,7 +80,6 @@ export function resetPassword () {
           res.json({ status: 'success' })
         }
       } else {
-        registerFailedAttempt(attemptKey)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
