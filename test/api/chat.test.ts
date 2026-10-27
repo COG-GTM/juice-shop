@@ -207,6 +207,43 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(res.text.includes('data: [DONE]'))
   })
 
+  void it('POST getProductReviews tool returns seeded and user-posted reviews of the product', { timeout: 15000 }, async () => {
+    const userReview = 'Chatbot review lookup probe ' + Date.now()
+    const putRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ 'content-type': 'application/json' })
+      .send({ message: userReview, author: 'Anonymous' })
+    assert.equal(putRes.status, 201)
+
+    let reviews: Array<{ product: number | string, message: string }> = []
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_reviews', 'getProductReviews', '{"id":"1"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        const parsed = JSON.parse(body)
+        const toolMsg = parsed.messages.find((m: { role: string }) => m.role === 'tool')
+        reviews = JSON.parse(toolMsg.content)
+        sendSSE(res, [contentChunk('Here are the reviews.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Show me the reviews of product 1' }] })
+
+    assert.equal(res.status, 200)
+    const messages = reviews.map(r => r.message)
+    assert.ok(messages.includes('One of my favorites!'))
+    assert.ok(messages.includes(userReview))
+    assert.ok(reviews.every(r => String(r.product) === '1'))
+  })
+
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' })
