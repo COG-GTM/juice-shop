@@ -101,6 +101,19 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
+
+    void it('POST file type XML with dev/random attack does not block other requests', async () => {
+      const upload = request(app)
+        .post('/file-upload')
+        .attach('file', path.resolve(__dirname, '../files/xxeDevRandom.xml'))
+        .then(res => res)
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const startedAt = Date.now()
+      const concurrent = await request(app).get('/rest/admin/application-version')
+      assert.equal(concurrent.status, 200)
+      assert.ok(Date.now() - startedAt < 1000)
+      assert.ok((await upload).status >= 410)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
@@ -110,6 +123,27 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.ok(res.status >= 410)
+    })
+
+    void it('POST file type YAML with Billion Laughs-style attack does not block other requests', async () => {
+      const upload = request(app)
+        .post('/file-upload')
+        .attach('file', path.resolve(__dirname, '../files/yamlBomb.yml'))
+        .then(res => res)
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const startedAt = Date.now()
+      const concurrent = await request(app).get('/rest/admin/application-version')
+      assert.equal(concurrent.status, 200)
+      assert.ok(Date.now() - startedAt < 1000)
+      assert.ok((await upload).status >= 410)
+    })
+
+    void it('POST valid YAML file is parsed and echoed back', async () => {
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from('name: complaint\nitems: [1, 2]\n'), 'complaint.yml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('items'))
     })
   }
 
@@ -135,6 +169,19 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with over-long file name does not crash the server', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', path.resolve(__dirname, '../files/passwordProtected.zip'), { filename: 'a'.repeat(300) + '.zip' })
+    assert.equal(res.status, 204)
+
+    await new Promise(resolve => setTimeout(resolve, 200))
+    const followUp = await request(app)
+      .post('/file-upload')
+      .attach('file', path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf'))
+    assert.equal(followUp.status, 204)
   })
 
   void it('POST valid file with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
