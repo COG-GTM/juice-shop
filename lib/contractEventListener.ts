@@ -22,7 +22,7 @@ export class ContractEventListener {
 
   constructor (
     private readonly name: string,
-    private readonly connect: () => Promise<ListenerProvider>,
+    private readonly connect: (fail: (error: unknown) => void) => Promise<ListenerProvider>,
     private readonly retryDelayMs = RETRY_DELAY_MS,
     private readonly now: () => number = Date.now
   ) {}
@@ -44,20 +44,31 @@ export class ContractEventListener {
   }
 
   private async open (): Promise<void> {
-    let provider: ListenerProvider
+    let provider: ListenerProvider | null = null
+    const early: { failed: boolean, error?: unknown } = { failed: false }
+    const fail = (error: unknown) => {
+      logger.error(`Subscription error (${this.name}): ${(error as any)?.message ?? error}`)
+      if (provider !== null) this.release(provider, true)
+      else Object.assign(early, { failed: true, error })
+    }
     try {
-      provider = await this.connect()
+      provider = await this.connect(fail)
     } catch (error) {
       this.lastFailureAt = this.now()
       throw error
     }
-    this.provider = provider
-    provider.websocket.onerror = (error: any) => {
-      logger.error(`WebSocket error (${this.name}): ${error?.message ?? error}`)
-      this.release(provider, true)
+    const current = provider
+    this.provider = current
+    if (early.failed) {
+      this.release(current, true)
+      throw early.error ?? new Error(`${this.name} subscription failed`)
     }
-    provider.websocket.onclose = () => {
-      this.release(provider, true)
+    current.websocket.onerror = (error: any) => {
+      logger.error(`WebSocket error (${this.name}): ${error?.message ?? error}`)
+      this.release(current, true)
+    }
+    current.websocket.onclose = () => {
+      this.release(current, true)
     }
   }
 
