@@ -176,7 +176,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = user
+    this.tokenMap[token] = tokenPayload(user)
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
