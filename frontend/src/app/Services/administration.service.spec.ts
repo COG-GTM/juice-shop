@@ -49,4 +49,33 @@ describe('AdministrationService', () => {
         expect(capturedError.status).toBe(500)
         httpMock.verify()
     })
+
+    it('should share a single application version request between all subscribers', () => {
+        const service = TestBed.inject(AdministrationService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        const results: any[] = []
+        service.getApplicationVersion().subscribe((data) => results.push(data))
+        service.getApplicationVersion().subscribe((data) => results.push(data))
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-version').flush({ version: '19.0.0' })
+        service.getApplicationVersion().subscribe((data) => results.push(data))
+
+        expect(results).toEqual(['19.0.0', '19.0.0', '19.0.0'])
+        httpMock.verify()
+    })
+
+    it('should request the application version again after a failed request', () => {
+        const service = TestBed.inject(AdministrationService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.getApplicationVersion().subscribe({ next: () => { }, error: () => { } })
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-version').flush(null, { status: 500, statusText: 'Server Error' })
+
+        let res: any
+        service.getApplicationVersion().subscribe((data) => (res = data))
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-version').flush({ version: '19.0.0' })
+
+        expect(res).toBe('19.0.0')
+        httpMock.verify()
+    })
 })

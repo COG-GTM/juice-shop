@@ -6,7 +6,7 @@
 import { environment } from '../../environments/environment'
 import { Injectable, inject } from '@angular/core'
 import { HttpClient } from '@angular/common/http'
-import { catchError, map } from 'rxjs/operators'
+import { catchError, map, shareReplay } from 'rxjs/operators'
 import { type Observable } from 'rxjs'
 
 interface ConfigResponse {
@@ -111,14 +111,17 @@ export class ConfigurationService {
 
   private readonly hostServer = environment.hostServer
   private readonly host = this.hostServer + '/rest/admin'
-  private configObservable: any
+  private configObservable?: Observable<Config>
 
   getApplicationConfiguration (): Observable<Config> {
-    if (this.configObservable) {
-      return this.configObservable
-    } else {
-      this.configObservable = this.http.get<ConfigResponse>(this.host + '/application-configuration').pipe(map((response: ConfigResponse) => response.config, catchError((err) => { throw err })))
-      return this.configObservable
-    }
+    this.configObservable ??= this.http.get<ConfigResponse>(this.host + '/application-configuration').pipe(
+      map((response: ConfigResponse) => response.config),
+      catchError((err) => {
+        this.configObservable = undefined
+        throw err
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
+    )
+    return this.configObservable
   }
 }
