@@ -3,6 +3,10 @@ const injectionChars = /"|'|;|and|or|;|#/i;
 export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
     let criteria: any = req.query.q === 'undefined' ? '' : req.query.q ?? ''
+    if (typeof criteria !== 'string') {
+      res.status(400).json({ error: 'Invalid search query' })
+      return
+    }
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
     if (criteria.match(injectionChars)) {
       res.status(400).send()
