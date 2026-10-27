@@ -6,7 +6,8 @@
 import { environment } from '../../environments/environment'
 import { HttpClient } from '@angular/common/http'
 import { Injectable, inject } from '@angular/core'
-import { catchError, map } from 'rxjs/operators'
+import { type Observable } from 'rxjs'
+import { catchError, map, shareReplay } from 'rxjs/operators'
 
 @Injectable({
   providedIn: 'root'
@@ -17,10 +18,17 @@ export class AdministrationService {
   private readonly hostServer = environment.hostServer
   private readonly host = this.hostServer + '/rest/admin'
 
-  getApplicationVersion () {
-    return this.http.get(this.host + '/application-version').pipe(
+  private versionObservable?: Observable<string>
+
+  getApplicationVersion (): Observable<string> {
+    this.versionObservable ??= this.http.get(this.host + '/application-version').pipe(
       map((response: any) => response.version),
-      catchError((error: Error) => { throw error })
+      catchError((error: Error) => {
+        this.versionObservable = undefined
+        throw error
+      }),
+      shareReplay({ bufferSize: 1, refCount: false })
     )
+    return this.versionObservable
   }
 }

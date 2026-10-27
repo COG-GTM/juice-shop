@@ -38,6 +38,36 @@ describe('ChallengeService', () => {
         httpMock.verify()
     })
 
+    it('should share one in-flight Score Board status request between concurrent subscribers', () => {
+        const service = TestBed.inject(ChallengeService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        const results: any[] = []
+        service.findScoreBoard().subscribe((data) => results.push(data))
+        service.findScoreBoard().subscribe((data) => results.push(data))
+
+        const req = httpMock.expectOne('http://localhost:3000/api/Challenges/?name=Score%20Board')
+        req.flush({ data: [{ name: 'Score Board', solved: true }] })
+
+        expect(results).toEqual([[{ name: 'Score Board', solved: true }], [{ name: 'Score Board', solved: true }]])
+        httpMock.verify()
+    })
+
+    it('should fetch fresh Score Board status once the previous request has completed', () => {
+        const service = TestBed.inject(ChallengeService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.findScoreBoard().subscribe()
+        httpMock.expectOne('http://localhost:3000/api/Challenges/?name=Score%20Board').flush({ data: [{ solved: false }] })
+
+        let res: any
+        service.findScoreBoard().subscribe((data) => (res = data))
+        httpMock.expectOne('http://localhost:3000/api/Challenges/?name=Score%20Board').flush({ data: [{ solved: true }] })
+
+        expect(res).toEqual([{ solved: true }])
+        httpMock.verify()
+    })
+
     it('should get current continue code directly from the rest api', () => {
         const service = TestBed.inject(ChallengeService)
         const httpMock = TestBed.inject(HttpTestingController)

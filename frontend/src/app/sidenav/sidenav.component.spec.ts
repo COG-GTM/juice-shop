@@ -49,9 +49,9 @@ describe('SidenavComponent', () => {
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: { welcomeBanner: {} }, hackingInstructor: {} }))
         challengeService = {
-            find: vi.fn().mockName("ChallengeService.find")
+            findScoreBoard: vi.fn().mockName("ChallengeService.findScoreBoard")
         }
-        challengeService.find.mockReturnValue(of([{ solved: false }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ solved: false }]))
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
@@ -143,14 +143,14 @@ describe('SidenavComponent', () => {
     })
 
     it('should hide Score Board link when Score Board was not discovered yet', () => {
-        challengeService.find.mockReturnValue(of([{ name: 'Score Board', solved: false }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ name: 'Score Board', solved: false }]))
         component.getScoreBoardStatus()
 
         expect(component.scoreBoardVisible).toBe(false)
     })
 
     it('should show Score Board link when Score Board was already discovered', () => {
-        challengeService.find.mockReturnValue(of([{ name: 'Score Board', solved: true }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ name: 'Score Board', solved: true }]))
         component.getScoreBoardStatus()
 
         expect(component.scoreBoardVisible).toBe(true)
@@ -202,7 +202,7 @@ describe('SidenavComponent', () => {
     })
 
     it('should handle error when getting scoreboard status', () => {
-        challengeService.find.mockReturnValue(throwError('Error'))
+        challengeService.findScoreBoard.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
         component.getScoreBoardStatus()
         expect(console.log).toHaveBeenCalledWith('Error')

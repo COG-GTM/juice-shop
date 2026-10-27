@@ -80,9 +80,9 @@ describe('NavbarComponent', () => {
         }
         userService.isLoggedIn.next.mockReturnValue({})
         challengeService = {
-            find: vi.fn().mockName("ChallengeService.find")
+            findScoreBoard: vi.fn().mockName("ChallengeService.findScoreBoard")
         }
-        challengeService.find.mockReturnValue(of([{ solved: false }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ solved: false }]))
         cookieService = {
             remove: vi.fn().mockName("CookieService.remove"),
             get: vi.fn().mockName("CookieService.get"),
@@ -235,13 +235,13 @@ describe('NavbarComponent', () => {
     })
 
     it('should hide Score Board menu item when corresponding challenge was not solved yet', () => {
-        challengeService.find.mockReturnValue(of([{ solved: false }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ solved: false }]))
         component.ngOnInit()
         expect(component.scoreBoardVisible).toBeFalsy()
     })
 
     it('should show Score Board menu item if corresponding challenge has been solved', () => {
-        challengeService.find.mockReturnValue(of([{ solved: true }]))
+        challengeService.findScoreBoard.mockReturnValue(of([{ solved: true }]))
         component.ngOnInit()
         expect(component.scoreBoardVisible).toBe(true)
     })

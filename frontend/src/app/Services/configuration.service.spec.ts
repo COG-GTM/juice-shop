@@ -58,4 +58,35 @@ describe('ConfigurationService', () => {
         expect(capturedError.statusText).toBe('Request failed')
         httpMock.verify()
     })
+
+    it('should share a single request between all subscribers', () => {
+        const service = TestBed.inject(ConfigurationService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        const results: any[] = []
+        service.getApplicationConfiguration().subscribe(data => results.push(data))
+        service.getApplicationConfiguration().subscribe(data => results.push(data))
+
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration').flush({ config: { application: { name: 'OWASP Juice Shop' } } })
+        service.getApplicationConfiguration().subscribe(data => results.push(data))
+
+        expect(results.length).toBe(3)
+        expect(results[2].application.name).toBe('OWASP Juice Shop')
+        httpMock.verify()
+    })
+
+    it('should request the configuration again after a failed request', () => {
+        const service = TestBed.inject(ConfigurationService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.getApplicationConfiguration().subscribe({ next: () => { }, error: () => { } })
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration').flush(null, { status: 500, statusText: 'Server Error' })
+
+        let res: any
+        service.getApplicationConfiguration().subscribe(data => { res = data })
+        httpMock.expectOne('http://localhost:3000/rest/admin/application-configuration').flush({ config: { version: '8.0.0' } })
+
+        expect(res.version).toBe('8.0.0')
+        httpMock.verify()
+    })
 })
