@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import path from 'path'
+import fs from 'fs'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -26,6 +28,13 @@ describe('b2bOrder', () => {
       then () { }
     })
     challenges.rceChallenge = { solved: false, save } as unknown as Challenge
+  })
+
+  it('does not import notevil or node:vm', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../routes/b2bOrder.ts'), 'utf8')
+
+    expect(source).to.not.match(/from\s+['"]notevil['"]|require\(['"]notevil['"]\)/)
+    expect(source).to.not.match(/from\s+['"](node:)?vm['"]|require\(['"](node:)?vm['"]\)/)
   })
 
   it('infinite loop payload is rejected without being evaluated', () => {
