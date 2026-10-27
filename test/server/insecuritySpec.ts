@@ -159,6 +159,16 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
       })
 
+      it('drops expired sessions from the cache even if they are never looked up again', () => {
+        const stale = issueAt(0)
+        Date.now = () => realNow() + (security.sessionLifetimeInSeconds + 120) * 1000
+        const fresh = security.authorize(user)
+        security.authenticatedUsers.put(fresh, user)
+
+        expect(security.authenticatedUsers.tokenMap[stale]).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap[fresh]).to.deep.equal(user)
+      })
+
       it('revoked tokens cannot be looked up or cached again', () => {
         const token = issueAt(0)
         security.authenticatedUsers.revoke(token)

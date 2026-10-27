@@ -36,6 +36,18 @@ void describe('/api/Wallets', () => {
     assert.equal(res.body.data, 200)
   })
 
+  void it('GET wallet is rejected for a logged out token', async () => {
+    const { token } = await login(app, { email: 'demo', password: 'demo' })
+    const header = { Authorization: `Bearer ${token}` }
+
+    await request(app).get('/rest/wallet/balance').set(header).expect(200)
+    await request(app).post('/rest/user/logout').set(header).expect(204)
+
+    await request(app).get('/rest/user/whoami').set(header)
+    const res = await request(app).get('/rest/wallet/balance').set(header)
+    assert.equal(res.status, 401)
+  })
+
   void it('PUT wallet is forbidden via public API', async () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
