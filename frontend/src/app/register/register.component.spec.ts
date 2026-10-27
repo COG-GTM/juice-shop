@@ -145,7 +145,6 @@ describe('RegisterComponent', () => {
 
     it('redirects to login page after user registration', async () => {
         userService.save.mockReturnValue(of({ id: 1, question: 'Wat is?' }))
-        securityAnswerService.save.mockReturnValue(of({}))
         component.securityQuestions = [{ id: 1, question: 'Wat is?' }]
         component.emailControl.setValue('x@x.xx')
         component.passwordControl.setValue('password')
@@ -153,11 +152,10 @@ describe('RegisterComponent', () => {
         component.securityQuestionControl.setValue(1)
         component.securityAnswerControl.setValue('Answer')
         const user = { email: 'x@x.xx', password: 'password', passwordRepeat: 'password', securityQuestion: { id: 1, question: 'Wat is?' }, securityAnswer: 'Answer' }
-        const securityAnswerObject = { UserId: 1, answer: 'Answer', SecurityQuestionId: 1 }
         component.save()
         await fixture.whenStable()
         expect(vi.mocked(userService.save).mock.calls[0][0]).toEqual(user)
-        expect(vi.mocked(securityAnswerService.save).mock.calls[0][0]).toEqual(securityAnswerObject)
+        expect(securityAnswerService.save).not.toHaveBeenCalled()
         expect(location.path()).toBe('/login')
         fixture.destroy()
     })
@@ -181,6 +179,20 @@ describe('RegisterComponent', () => {
         console.log = vi.fn()
         component.ngOnInit()
         expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    it('security answer should not accept whitespace only', () => {
+        component.securityAnswerControl.setValue('   ')
+        expect(component.securityAnswerControl.valid).toBeFalsy()
+        component.securityAnswerControl.setValue(' a ')
+        expect(component.securityAnswerControl.valid).toBe(true)
+    })
+
+    it('should show message from backend on rejected registration', () => {
+        userService.save.mockReturnValue(throwError(() => ({ error: { status: 'error', message: 'Invalid security question or answer.' } })))
+        console.log = vi.fn()
+        component.save()
+        expect(component.error).toBe('Invalid security question or answer.')
     })
 
     it('should log error on saving user', () => {
