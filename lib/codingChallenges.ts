@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises'
-import { existsSync, readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import yaml from 'js-yaml'
 import logger from './logger'
@@ -118,11 +118,15 @@ export interface CodingChallengeInfo {
   hints?: string[]
 }
 
-const codingChallengeInfos = new Map<string, CodingChallengeInfo | null>()
+let codingChallengeInfos: Map<string, CodingChallengeInfo> | undefined
 export function getCodingChallengeInfo (challengeKey: string): CodingChallengeInfo | null {
-  if (!codingChallengeInfos.has(challengeKey)) {
-    const infoFile = './data/static/codefixes/' + challengeKey + '.info.yml'
-    codingChallengeInfos.set(challengeKey, existsSync(infoFile) ? yaml.load(readFileSync(infoFile, 'utf8')) ?? null : null)
+  if (!codingChallengeInfos) {
+    codingChallengeInfos = new Map()
+    for (const file of readdirSync('./data/static/codefixes')) {
+      if (file.endsWith('.info.yml')) {
+        codingChallengeInfos.set(file.slice(0, -'.info.yml'.length), yaml.load(readFileSync(path.join('./data/static/codefixes', file), 'utf8')) as CodingChallengeInfo)
+      }
+    }
   }
   return codingChallengeInfos.get(challengeKey) ?? null
 }

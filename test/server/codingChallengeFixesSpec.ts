@@ -56,19 +56,19 @@ describe('codingChallengeFixes', () => {
     it('should read each info YAML file only once', () => {
       for (const challenge of codingChallenges) getCodingChallengeInfo(challenge)
       const readFileSync = sinon.spy(nodeFs, 'readFileSync')
-      const existsSync = sinon.spy(nodeFs, 'existsSync')
+      const readdirSync = sinon.spy(nodeFs, 'readdirSync')
       for (const challenge of codingChallenges) {
         expect(getCodingChallengeInfo(challenge)).to.equal(getCodingChallengeInfo(challenge))
       }
       expect(readFileSync.callCount).to.equal(0)
-      expect(existsSync.callCount).to.equal(0)
+      expect(readdirSync.callCount).to.equal(0)
     })
 
     it('should return null for a challenge without info YAML file', () => {
       expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
-      const existsSync = sinon.spy(nodeFs, 'existsSync')
+      const readdirSync = sinon.spy(nodeFs, 'readdirSync')
       expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
-      expect(existsSync.callCount).to.equal(0)
+      expect(readdirSync.callCount).to.equal(0)
     })
   })
 })
