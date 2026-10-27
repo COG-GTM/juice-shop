@@ -317,7 +317,7 @@ describe('verify', () => {
         await flush()
 
         expect(feedbackCount).to.have.callCount(0)
-        expect(complaintCount).to.have.been.called
+        expect(complaintCount.called).to.equal(true)
         expect(challenges.weirdCryptoChallenge.solved).to.equal(true)
         expect(challenges.feedbackChallenge.solved).to.equal(false)
       })
