@@ -109,13 +109,21 @@ export class OrderHistoryComponent implements OnInit {
   }
 
   openConfirmationPDF (orderId: string) {
+    const pdfWindow = window.open('', '_blank')
     this.orderHistoryService.getConfirmationPdf(orderId).subscribe({
       next: (pdf) => {
         const url = URL.createObjectURL(pdf)
-        window.open(url, '_blank')
+        if (pdfWindow) {
+          pdfWindow.location.href = url
+        } else {
+          window.open(url, '_blank')
+        }
         setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
     })
   }
 

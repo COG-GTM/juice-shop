@@ -44,8 +44,9 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          await fs.promises.mkdir(ORDERS_DIR, { recursive: true })
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join(ORDERS_DIR, pdfFile)))
+          const customerOrdersDir = path.join(ORDERS_DIR, String(customer?.data?.id ?? 'unknown'))
+          await fs.promises.mkdir(customerOrdersDir, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(customerOrdersDir, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -186,18 +187,13 @@ export function placeOrder () {
 
 export function orderConfirmationPdf () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const email = security.authenticatedUsers.from(req)?.data?.email
+    const userId = security.authenticatedUsers.from(req)?.data?.id
     const orderId = req.params.orderId
-    if (!email || typeof orderId !== 'string' || !/^[a-f0-9]{4}-[a-f0-9]{16}$/.test(orderId) || !orderId.startsWith(security.hash(email).slice(0, 4))) {
+    if (!Number.isInteger(userId) || typeof orderId !== 'string' || !/^[a-f0-9]{4}-[a-f0-9]{16}$/.test(orderId)) {
       res.status(404).json({ error: 'Order not found' })
       return
     }
-    const order = await db.ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
-    if (order == null) {
-      res.status(404).json({ error: 'Order not found' })
-      return
-    }
-    res.sendFile(path.join(ORDERS_DIR, `order_${orderId}.pdf`), (err) => {
+    res.sendFile(`order_${orderId}.pdf`, { root: path.join(ORDERS_DIR, String(userId)) }, (err) => {
       if (err && !res.headersSent) {
         res.status(404).json({ error: 'Order not found' })
       }
