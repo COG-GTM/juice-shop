@@ -16,24 +16,38 @@ export const trustedProxyHops = (value = process.env.JUICE_SHOP_TRUSTED_PROXY_HO
   return value !== undefined && Number.isInteger(hops) && hops > 0 ? hops : 0
 }
 
-const privateNetworks = new BlockList()
-for (const [network, prefix] of [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['127.0.0.0', 8], ['169.254.0.0', 16]] as const) privateNetworks.addSubnet(network, prefix, 'ipv4')
-for (const [network, prefix] of [['::1', 128], ['fc00::', 7], ['fe80::', 10]] as const) privateNetworks.addSubnet(network, prefix, 'ipv6')
+const familyOf = (address: string) => {
+  const family = isIP(address)
+  return family === 4 ? 'ipv4' : family === 6 ? 'ipv6' : undefined
+}
 
-/* Proxies must sit on a loopback or private network, so clients connecting directly from outside cannot claim to be one */
-const isPrivateAddress = (address: string) => {
+/* Proxies may connect from loopback/private networks or from addresses listed in JUICE_SHOP_TRUSTED_PROXIES (comma-separated IPs or CIDRs), so other clients connecting directly cannot claim to be one */
+export const trustedProxies = (value = process.env.JUICE_SHOP_TRUSTED_PROXIES) => {
+  const trusted = new BlockList()
+  for (const [network, prefix] of [['10.0.0.0', 8], ['172.16.0.0', 12], ['192.168.0.0', 16], ['127.0.0.0', 8], ['169.254.0.0', 16]] as const) trusted.addSubnet(network, prefix, 'ipv4')
+  for (const [network, prefix] of [['::1', 128], ['fc00::', 7], ['fe80::', 10]] as const) trusted.addSubnet(network, prefix, 'ipv6')
+  for (const entry of (value ?? '').split(',').map(entry => entry.trim()).filter(entry => entry !== '')) {
+    const [network, prefix] = entry.split('/')
+    const family = familyOf(network)
+    const bits = prefix === undefined ? (family === 'ipv4' ? 32 : 128) : Number(prefix)
+    if (family !== undefined && Number.isInteger(bits) && bits >= 0 && bits <= (family === 'ipv4' ? 32 : 128)) trusted.addSubnet(network, bits, family)
+  }
+  return trusted
+}
+
+const isTrustedProxy = (address: string, trusted: BlockList) => {
   const unmapped = address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
-  const family = isIP(unmapped)
-  return family !== 0 && privateNetworks.check(unmapped, family === 4 ? 'ipv4' : 'ipv6')
+  const family = familyOf(unmapped)
+  return family !== undefined && trusted.check(unmapped, family)
 }
 
 /* Resolved independently of req.ip, which follows the client-controlled X-Forwarded-For header while 'trust proxy' is enabled */
-export const clientKey = (req: Request, hops = trustedProxyHops()) => {
+export const clientKey = (req: Request, hops = trustedProxyHops(), trusted = trustedProxies()) => {
   const forwardedFor = req.headers['x-forwarded-for']
   const forwarded = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '').split(',').map(address => address.trim()).filter(address => address !== '')
   const chain = [req.socket?.remoteAddress ?? 'unknown', ...forwarded.reverse()]
   let client = 0
-  while (client < hops && client < chain.length - 1 && isPrivateAddress(chain[client])) client++
+  while (client < hops && client < chain.length - 1 && isTrustedProxy(chain[client], trusted)) client++
   return chain[client]
 }
 
@@ -42,10 +56,10 @@ export const accountKey = (req: Request) => {
   return userId !== undefined && userId !== null && userId !== '' ? `2fa-user:${userId}` : undefined
 }
 
-export const perClient = () => rateLimit({
+export const perClient = (hops = trustedProxyHops(), trusted = trustedProxies()) => rateLimit({
   windowMs: 5 * 60 * 1000,
   max: 100,
-  keyGenerator: (req: Request) => clientKey(req),
+  keyGenerator: (req: Request) => clientKey(req, hops, trusted),
   validate: { trustProxy: false }
 })
 

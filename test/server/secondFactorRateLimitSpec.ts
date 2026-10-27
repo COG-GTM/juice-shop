@@ -5,7 +5,7 @@
 
 import chai from 'chai'
 import type { Request } from 'express'
-import { clientKey, trustedProxyHops } from '../../lib/secondFactorRateLimit'
+import { clientKey, trustedProxies, trustedProxyHops } from '../../lib/secondFactorRateLimit'
 const expect = chai.expect
 
 const requestFrom = (remoteAddress: string, forwardedFor?: string) => ({ socket: { remoteAddress }, headers: forwardedFor === undefined ? {} : { 'x-forwarded-for': forwardedFor } }) as unknown as Request
@@ -50,6 +50,14 @@ describe('secondFactorRateLimit', () => {
 
     it('stops at the first proxy hop outside private networks', () => {
       expect(clientKey(requestFrom('10.0.0.1', '6.6.6.6, 198.51.100.1'), 2)).to.equal('198.51.100.1')
+    })
+
+    it('trusts public proxy addresses listed in JUICE_SHOP_TRUSTED_PROXIES', () => {
+      const trusted = trustedProxies('198.51.100.10, 2001:db8::/32, 203.0.113.0/40, nonsense')
+      expect(clientKey(requestFrom('198.51.100.10', '203.0.113.8'), 1, trusted)).to.equal('203.0.113.8')
+      expect(clientKey(requestFrom('198.51.100.10', '203.0.113.9'), 1, trusted)).to.equal('203.0.113.9')
+      expect(clientKey(requestFrom('2001:db8::5', '203.0.113.8'), 1, trusted)).to.equal('203.0.113.8')
+      expect(clientKey(requestFrom('198.51.100.11', '203.0.113.8'), 1, trusted)).to.equal('198.51.100.11')
     })
 
     it('trusts loopback and IPv4-mapped private proxy addresses', () => {
