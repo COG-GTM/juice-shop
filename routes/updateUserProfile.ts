@@ -21,7 +21,7 @@ export function updateUserProfile () {
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
+      const user = await UserModel.scope('withSecrets').findByPk(loggedInUser.data.id)
       if (!user) {
         next(new Error('User not found'))
         return
