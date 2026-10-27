@@ -10,7 +10,7 @@ import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
+  return async ({ query, headers, cookies, connection }: Request, res: Response, next: NextFunction) => {
     const currentPassword = query.current as string
     const newPassword = query.new as string
     const newPasswordInString = newPassword?.toString()
@@ -49,7 +49,9 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
-      security.authenticatedUsers.revokeAllFor(user.id, token)
+      const cookie = cookies?.token
+      const sameUserCookie = cookie && security.authenticatedUsers.get(cookie)?.data?.id === user.id ? cookie : undefined
+      security.authenticatedUsers.revokeAllFor(user.id, token, sameUserCookie)
       if (typeof loggedInUser.data.setDataValue === 'function') {
         loggedInUser.data.setDataValue('password', user.password)
       } else {
