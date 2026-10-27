@@ -67,25 +67,17 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const deluxe = security.isDeluxe(req)
+          try {
+            await updateStockQuantities(basket)
+          } catch (error: unknown) {
+            next(error)
+            return
+          }
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
-              let itemPrice: number
-              if (security.isDeluxe(req)) {
-                itemPrice = deluxePrice
-              } else {
-                itemPrice = price
-              }
+              const itemPrice = deluxe ? deluxePrice : price
               const itemTotal = itemPrice * BasketItem.quantity
               const itemBonus = Math.round(itemPrice / 10) * BasketItem.quantity
               const product = {
@@ -125,7 +117,7 @@ export function placeOrder () {
               deliveryMethod.eta = deliveryMethodFromModel.eta
             }
           }
-          const deliveryAmount = security.isDeluxe(req) ? deliveryMethod.deluxePrice : deliveryMethod.price
+          const deliveryAmount = deluxe ? deliveryMethod.deluxePrice : deliveryMethod.price
           totalPrice += deliveryAmount
           doc.text(`${req.__('Delivery Price')}: ${deliveryAmount.toFixed(2)}¤`)
           doc.moveDown()
@@ -179,6 +171,23 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function updateStockQuantities (basket: BasketModel) {
+  const basketItems = (basket.Products ?? []).flatMap(({ BasketItem }) => BasketItem != null ? [BasketItem] : [])
+  if (basketItems.length === 0) return
+  const quantityRows = await QuantityModel.findAll({ where: { ProductId: basketItems.map(({ ProductId }) => ProductId) } })
+  const stock = new Map(quantityRows.map(({ ProductId, quantity }) => [ProductId, quantity]))
+  const updatedStock = new Map<number, number>()
+  for (const { ProductId, quantity } of basketItems) {
+    const current = stock.get(ProductId)
+    if (current !== undefined) {
+      const newQuantity = current - quantity
+      stock.set(ProductId, newQuantity)
+      updatedStock.set(ProductId, newQuantity)
+    }
+  }
+  await Promise.all([...updatedStock].map(async ([ProductId, quantity]) => await QuantityModel.update({ quantity }, { where: { ProductId } })))
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
