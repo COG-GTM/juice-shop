@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -185,6 +187,19 @@ describe('insecurity', () => {
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that verify against the public key', () => {
+      const token = security.authorize({ data: { id: 1, role: 'admin' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects tokens signed with any other RSA private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const forgedToken = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(), { algorithm: 'RS256' })
+      expect(security.verify(forgedToken)).to.equal(false)
     })
   })
 
