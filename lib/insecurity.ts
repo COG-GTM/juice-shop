@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type CookieOptions, type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -185,6 +185,8 @@ export const appendUserId = () => {
   }
 }
 
+export const tokenCookieOptions = (req: Request): CookieOptions => ({ sameSite: 'strict', secure: req.secure === true })
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
@@ -192,7 +194,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, tokenCookieOptions(req))
         }
       }
     })
