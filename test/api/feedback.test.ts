@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
@@ -14,12 +15,14 @@ import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 
 let app: Express
+let sequelize: Sequelize
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
 
 void describe('/api/Feedbacks', () => {
@@ -300,5 +303,31 @@ void describe('/api/Feedbacks/:id', () => {
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/rest/captcha', () => {
+  void it('captcha lookup by captchaId uses an index', async () => {
+    const [plan] = await sequelize.query('EXPLAIN QUERY PLAN SELECT * FROM Captchas WHERE captchaId = 1') as [Array<{ detail: string }>, unknown]
+    assert.ok(plan.some(row => /USING (COVERING )?INDEX/.test(row.detail)), JSON.stringify(plan))
+  })
+
+  void it('same captcha can still be answered more than once', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    for (let i = 0; i < 2; i++) {
+      const res = await request(app)
+        .post('/api/Feedbacks')
+        .set(jsonHeader)
+        .send({
+          comment: 'Replayed captcha',
+          rating: 3,
+          captchaId: captchaRes.body.captchaId,
+          captcha: captchaRes.body.answer
+        })
+      assert.equal(res.status, 201)
+    }
   })
 })
