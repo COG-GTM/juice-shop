@@ -134,6 +134,7 @@ describe('insecurity', () => {
 
     it('rejects opaque or malformed origins', () => {
       expect(security.isCrossSiteRequest(requestWith({ origin: 'null' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example@attacker.example' }))).to.equal(true)
     })
 
     it('allows requests without any origin information', () => {
