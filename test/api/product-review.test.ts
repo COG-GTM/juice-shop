@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import { reviewsCollection } from '../../data/mongodb'
 
 let app: Express
 
@@ -56,14 +57,18 @@ void describe('/rest/products/:id/reviews', () => {
 
   void it('GET product reviews returns reviews created with a non-canonical numeric product id', async () => {
     const message = `Leading zero review ${Date.now()}`
-    await request(app)
-      .put('/rest/products/01/reviews')
-      .send({ message, author: 'Anonymous' })
-      .expect(201)
-    const res = await request(app)
-      .get('/rest/products/1/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.body.data.some((review: { message: string }) => review.message === message))
+    try {
+      await request(app)
+        .put('/rest/products/01/reviews')
+        .send({ message, author: 'Anonymous' })
+        .expect(201)
+      const res = await request(app)
+        .get('/rest/products/1/reviews')
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.some((review: { message: string }) => review.message === message))
+    } finally {
+      await reviewsCollection.remove({ message })
+    }
   })
 
   void it('PUT single product review can be created', async () => {
