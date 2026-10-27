@@ -229,6 +229,8 @@ function changeProductChallenge (osaft: Product) {
         }
       }
     }
+  }, () => {
+    markChanged('Products')
   })
 }
 

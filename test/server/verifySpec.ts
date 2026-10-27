@@ -233,6 +233,20 @@ describe('verify', () => {
         expect(next).to.have.been.calledWith()
       })
 
+      it('is re-checked on the next request when reloading the O-Saft product failed', () => {
+        products.osaft.description = `O-Saft, yeah! <a href="${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}" target="_blank">More...</a>`
+        const reload = sinon.stub(products.osaft, 'reload')
+        reload.onFirstCall().returns({ then (cb: any, onError: any) { onError() } } as any)
+        reload.onSecondCall().returns({ then (cb: any) { cb() } } as any)
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        expect(challenges.changeProductChallenge.solved).to.equal(false)
+
+        verify.databaseRelatedChallenges()(req, res, next)
+        expect(reload).to.have.callCount(2)
+        expect(challenges.changeProductChallenge.solved).to.equal(true)
+      })
+
       it(`is solved when the link in the O-Saft product goes to ${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}`, () => {
         products.osaft.description = `O-Saft, yeah! <a href="${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}" target="_blank">More...</a>`
 
