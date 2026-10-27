@@ -33,6 +33,15 @@ describe('LoginGuard', () => {
         expect(guard.canActivate()).toBe(true)
     })
 
+    it('should close and clear the session for users with an expired token', () => {
+        const guard = TestBed.inject(LoginGuard)
+        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
+        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
+
+        expect(guard.canActivate()).toBe(false)
+        expect(localStorage.getItem('token')).toBeNull()
+    })
+
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
