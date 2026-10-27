@@ -20,6 +20,11 @@ export function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
+        if (security.isCrossSiteRequest(req)) {
+          res.status(403)
+          next(new Error('Cross-site profile image upload rejected'))
+          return
+        }
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {
