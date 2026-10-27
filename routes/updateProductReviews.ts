@@ -20,7 +20,7 @@ export function updateProductReviews () {
     }
 
     if (typeof req.body.id !== 'string') {
-      challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return req.body.id !== null && typeof req.body.id === 'object' && Object.keys(req.body.id).some((key: string) => key.startsWith('$')) }) // vuln-code-snippet hide-line
+      challengeUtils.solveIf(challenges.noSqlReviewsChallenge, () => { return isMultiDocumentSelector(req.body.id) }) // vuln-code-snippet hide-line
       res.status(400).send()
       return
     }
@@ -38,6 +38,12 @@ export function updateProductReviews () {
   }
 }
 // vuln-code-snippet end noSqlReviewsChallenge forgedReviewChallenge
+
+const multiDocumentOperators = new Set(['$ne', '$nin', '$in', '$gt', '$gte', '$lt', '$lte', '$exists', '$regex', '$not', '$where'])
+
+function isMultiDocumentSelector (id: unknown) {
+  return id !== null && typeof id === 'object' && Object.keys(id).some((key: string) => multiDocumentOperators.has(key))
+}
 
 async function solveForgedReviewIfForeignAuthor (id: unknown, email: string) {
   if (typeof id !== 'string') return
