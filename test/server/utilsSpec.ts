@@ -175,6 +175,24 @@ describe('utils', () => {
     })
   })
 
+  describe('clientIpForRateLimit', () => {
+    it('uses the socket address of a directly connected client and ignores X-Forwarded-For', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4' }, socket: { remoteAddress: '203.0.113.7' } })).to.equal('203.0.113.7')
+    })
+
+    it('uses the address appended by a private-network proxy and ignores client-supplied entries', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4, 198.51.100.9' }, socket: { remoteAddress: '::ffff:10.0.0.2' } })).to.equal('198.51.100.9')
+    })
+
+    it('skips multiple private-network proxy hops', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4, 198.51.100.9, 172.16.4.4' }, socket: { remoteAddress: '127.0.0.1' } })).to.equal('198.51.100.9')
+    })
+
+    it('falls back to the socket address when no X-Forwarded-For header is present', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::1' } })).to.equal('::1')
+    })
+  })
+
   describe('endsWith', () => {
     it('accepts string ending with another string', () => {
       expect(utils.endsWith('Bla Blubb', 'Blubb')).to.equal(true)
