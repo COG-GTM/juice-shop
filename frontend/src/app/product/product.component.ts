@@ -32,12 +32,11 @@ export class ProductComponent {
   isLoggedIn = input.required<boolean>()
   isDeluxe = input.required<boolean>()
 
-  addToBasket(id?: number) {
+  addToBasket() {
+    const { id, name: productName } = this.item()
     if (id == null) {
       return
     }
-
-    const productName = this.item().name
 
     if (!this.isLoggedIn()) {
       this.basketService.addToGuestBasket(id)
