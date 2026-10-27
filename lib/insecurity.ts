@@ -87,8 +87,9 @@ export const sanitizeSecure = (html: string): string => {
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
-  put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = tokenPayload(user)
+  put: function (token: string, sessionUser: ResponseWithUser) {
+    const user = tokenPayload(sessionUser)
+    this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
