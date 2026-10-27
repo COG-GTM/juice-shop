@@ -31,7 +31,7 @@ export const solve = function (challenge: any, isRestore = false, isCheating = f
   const solverId = solverContext.currentSolverId()
   challenge.save().then(async (solvedChallenge: { difficulty: number, key: string, name: string, id: number }) => {
     logger.info(`${isRestore ? colors.grey('Restored') : colors.green('Solved')} ${solvedChallenge.difficulty}-star ${colors.cyan(solvedChallenge.key)} (${solvedChallenge.name})`)
-    sendNotification(solvedChallenge, isRestore, solverId)
+    sendNotification(solvedChallenge, isRestore, solverId, false)
     if (!isRestore) {
       const cheatScore = calculateCheatScore(challenge, isCheating)
       const hintsAvailable = await HintModel.count({ where: { ChallengeId: solvedChallenge.id } })
@@ -51,7 +51,7 @@ export const notificationFor = (notification: Notification, viewerId?: number) =
   return mayViewFlag ? { ...view, flag } : view
 }
 
-export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, solverId = solverContext.currentSolverId()) {
+export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, solverId = solverContext.currentSolverId(), keepOriginalSolver = true) {
   if (!notSolved(challenge)) {
     const flag = utils.ctfFlag(challenge.name)
 
@@ -72,9 +72,12 @@ export const sendNotification = function (challenge: { difficulty?: number, key:
       hidden: !config.get('challenges.showSolvedNotifications'),
       isRestore,
       codingChallenge: config.get('challenges.codingChallengesEnabled') !== 'never' && hasCodingChallenge,
-      solverId: originalSolverId ?? solverId
+      solverId: keepOriginalSolver ? originalSolverId ?? solverId : solverId
     }
     const wasPreviouslyShown = notifications.some(({ key }) => key === challenge.key)
+    for (let i = notifications.length - 1; i >= 0; i--) {
+      if (notifications[i].key === challenge.key) notifications.splice(i, 1)
+    }
     notifications.push(notification)
 
     if (globalWithSocketIO.io && (isRestore || !wasPreviouslyShown)) {

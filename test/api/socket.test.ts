@@ -168,4 +168,19 @@ void describe('WebSocket challenge notifications', () => {
     assert.equal(notifications.length, pending)
     assert.equal((await replayedNotification('acknowledgeTest', { clientId: 'b'.repeat(32) })).key, 'acknowledgeTest')
   })
+
+  void it('a restored challenge is attributed to the restoring user while repeats keep the original solver', async () => {
+    challengeUtils.sendNotification(solvedChallenge('restoreTest'), false, 1)
+    challengeUtils.sendNotification(solvedChallenge('restoreTest'), true, 2, false)
+    assert.ok((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag)
+    challengeUtils.sendNotification(solvedChallenge('restoreTest'), true, 3)
+    assert.ok((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag)
+  })
+
+  void it('repeated notifications of the same challenge are retained only once', () => {
+    challengeUtils.sendNotification(solvedChallenge('repeatTest'), false, 1)
+    challengeUtils.sendNotification(solvedChallenge('repeatTest'), true, 1)
+    challengeUtils.sendNotification(solvedChallenge('repeatTest'), true, 1)
+    assert.equal(notifications.filter(({ key }) => key === 'repeatTest').length, 1)
+  })
 })
