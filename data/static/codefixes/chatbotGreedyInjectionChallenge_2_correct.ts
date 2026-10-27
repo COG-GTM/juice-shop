@@ -97,7 +97,7 @@ const chatTools = {
       if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
       const eligibility = await claimCouponEligibleOrder(req, orderId)
       if (eligibility.error) return eligibility
-      const couponCode = security.generateCoupon(discount)
+      const couponCode = eligibility.couponCode
       return { couponCode, discount }
     }
   })

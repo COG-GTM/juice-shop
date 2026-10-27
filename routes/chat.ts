@@ -73,13 +73,14 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   if (order.couponCode) return { error: 'A coupon was already issued for this order', couponCode: order.couponCode }
   if (order.couponIssued || couponClaimedOrderIds.has(order.orderId)) return { error: 'A coupon was already issued for this order' }
   couponClaimedOrderIds.add(order.orderId)
+  const couponCode = security.generateCoupon(COUPON_DISCOUNT)
   try {
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponCode: security.generateCoupon(COUPON_DISCOUNT) } })
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponCode } })
   } catch {
     couponClaimedOrderIds.delete(order.orderId)
     return { error: 'The coupon could not be issued right now, please try again' }
   }
-  return {}
+  return { couponCode }
 }
 
 const app = config.get<string>('application.customMetricsPrefix')
@@ -210,7 +211,7 @@ export function chat () {
           if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
           const eligibility = await claimCouponEligibleOrder(req, orderId)
           if (eligibility.error) return eligibility
-          const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
+          const couponCode = eligibility.couponCode // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
       })

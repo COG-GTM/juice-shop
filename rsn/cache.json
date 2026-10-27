@@ -635,7 +635,8 @@
 		"removed": [
 			1,
 			3,
-			5
+			5,
+			6
 		]
 	},
 	"chatbotPromptInjectionChallenge_2_correct.ts": {
@@ -682,7 +683,8 @@
 			5,
 			6,
 			3,
-			5
+			5,
+			6
 		]
 	},
 	"chatbotPromptInjectionChallenge_4.ts": {
