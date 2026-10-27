@@ -3,10 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-/* eslint-disable @typescript-eslint/prefer-for-of */
 import { Component, inject, input } from '@angular/core'
 import { BasketService } from '../Services/basket.service'
-import { ProductService } from '../Services/product.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { Product, ProductTableEntry } from '../Models/product.model'
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
@@ -25,7 +23,6 @@ import { MatDialog } from '@angular/material/dialog'
 })
 export class ProductComponent {
   private readonly basketService = inject(BasketService)
-  private readonly productService = inject(ProductService)
   private readonly translateService = inject(TranslateService)
   private readonly snackBarHelperService = inject(SnackBarHelperService)
   private readonly dialog = inject(MatDialog)
@@ -40,97 +37,31 @@ export class ProductComponent {
       return
     }
 
+    const productName = this.item().name
+
     if (!this.isLoggedIn()) {
       this.basketService.addToGuestBasket(id)
-      this.productService.get(id).subscribe({
-        next: (product) => {
-          this.translateService
-            .get('BASKET_ADD_PRODUCT', { product: product.name })
-            .subscribe({
-              next: (basketAddProduct) => {
-                this.snackBarHelperService.open(
-                  basketAddProduct,
-                  'confirmBar'
-                )
-              },
-              error: (translationId) => {
-                this.snackBarHelperService.open(
-                  translationId,
-                  'confirmBar'
-                )
-              }
-            })
-        },
-        error: (err) => {
-          console.log(err)
-        }
-      })
+      this.confirm('BASKET_ADD_PRODUCT', productName, false)
       return
     }
 
     this.basketService.find(Number(sessionStorage.getItem('bid'))).subscribe({
       next: (basket) => {
         const productsInBasket: any = basket.Products
-        let found = false
-        for (let i = 0; i < productsInBasket.length; i++) {
-          if (productsInBasket[i].id === id) {
-            found = true
-            this.basketService
-              .get(productsInBasket[i].BasketItem.id)
-              .subscribe({
-                next: (existingBasketItem) => {
-                  const newQuantity = existingBasketItem.quantity + 1
-                  this.basketService
-                    .put(existingBasketItem.id, { quantity: newQuantity })
-                    .subscribe({
-                      next: (updatedBasketItem) => {
-                        this.productService
-                          .get(updatedBasketItem.ProductId)
-                          .subscribe({
-                            next: (product) => {
-                              this.translateService
-                                .get('BASKET_ADD_SAME_PRODUCT', {
-                                  product: product.name
-                                })
-                                .subscribe({
-                                  next: (basketAddSameProduct) => {
-                                    this.snackBarHelperService.open(
-                                      basketAddSameProduct,
-                                      'confirmBar'
-                                    )
-                                    this.basketService.updateNumberOfCartItems()
-                                  },
-                                  error: (translationId) => {
-                                    this.snackBarHelperService.open(
-                                      translationId,
-                                      'confirmBar'
-                                    )
-                                    this.basketService.updateNumberOfCartItems()
-                                  }
-                                })
-                            },
-                            error: (err) => {
-                              console.log(err)
-                            }
-                          })
-                      },
-                      error: (err) => {
-                        this.snackBarHelperService.open(
-                          err.error?.error,
-                          'errorBar'
-                        )
-                        console.log(err)
-                      }
-                    })
-                },
-                error: (err) => {
-                  console.log(err)
-                }
-              })
-            break
-          }
-        }
-        if (!found) {
+        const existingBasketItem = productsInBasket.find((product) => product.id === id)?.BasketItem
+        if (existingBasketItem) {
+          this.basketService
+            .put(existingBasketItem.id, { quantity: existingBasketItem.quantity + 1 })
+            .subscribe({
+              next: () => {
+                this.confirm('BASKET_ADD_SAME_PRODUCT', productName, true)
+              },
+              error: (err) => {
+                this.snackBarHelperService.open(err.error?.error, 'errorBar')
+                console.log(err)
+              }
+            })
+        } else {
           this.basketService
             .save({
               ProductId: id,
@@ -138,32 +69,8 @@ export class ProductComponent {
               quantity: 1
             })
             .subscribe({
-              next: (newBasketItem) => {
-                this.productService.get(newBasketItem.ProductId).subscribe({
-                  next: (product) => {
-                    this.translateService
-                      .get('BASKET_ADD_PRODUCT', { product: product.name })
-                      .subscribe({
-                        next: (basketAddProduct) => {
-                          this.snackBarHelperService.open(
-                            basketAddProduct,
-                            'confirmBar'
-                          )
-                          this.basketService.updateNumberOfCartItems()
-                        },
-                        error: (translationId) => {
-                          this.snackBarHelperService.open(
-                            translationId,
-                            'confirmBar'
-                          )
-                          this.basketService.updateNumberOfCartItems()
-                        }
-                      })
-                  },
-                  error: (err) => {
-                    console.log(err)
-                  }
-                })
+              next: () => {
+                this.confirm('BASKET_ADD_PRODUCT', productName, true)
               },
               error: (err) => {
                 this.snackBarHelperService.open(err.error?.error, 'errorBar')
@@ -176,6 +83,21 @@ export class ProductComponent {
         console.log(err)
       }
     })
+  }
+
+  private confirm(translationKey: string, productName: string, updateCartItems: boolean) {
+    this.translateService
+      .get(translationKey, { product: productName })
+      .subscribe({
+        next: (message) => {
+          this.snackBarHelperService.open(message, 'confirmBar')
+          if (updateCartItems) this.basketService.updateNumberOfCartItems()
+        },
+        error: (translationId) => {
+          this.snackBarHelperService.open(translationId, 'confirmBar')
+          if (updateCartItems) this.basketService.updateNumberOfCartItems()
+        }
+      })
   }
 
   showDetail(product: Product) {
