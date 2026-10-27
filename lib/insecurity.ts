@@ -192,10 +192,32 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'lax', secure: req.secure })
         }
       }
     })
   }
   next()
+}
+
+const firstHeaderValue = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)?.split(',')[0].trim()
+
+export const sameOriginOnly = () => (req: Request, res: Response, next: NextFunction) => {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) {
+    next()
+    return
+  }
+  let sourceHost: string | undefined
+  try {
+    sourceHost = new URL(source).host
+  } catch {
+    sourceHost = undefined
+  }
+  const allowedHosts = [firstHeaderValue(req.headers.host), firstHeaderValue(req.headers['x-forwarded-host'])]
+  if (sourceHost && allowedHosts.includes(sourceHost)) {
+    next()
+  } else {
+    res.status(403).send('Cross-origin request blocked')
+  }
 }
