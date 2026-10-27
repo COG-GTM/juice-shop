@@ -23,7 +23,7 @@ export async function verify (req: Request, res: Response) {
       throw new Error('Invalid token type')
     }
 
-    const user = await UserModel.findByPk(userId)
+    const user = await UserModel.scope('withSecrets').findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
     }
@@ -121,7 +121,7 @@ export async function setup (req: Request, res: Response) {
     }
 
     // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
+    const userModel = await UserModel.scope('withSecrets').findByPk(user.id)
     if (userModel == null) {
       throw new Error('No such user found!')
     }
@@ -154,7 +154,7 @@ export async function disable (req: Request, res: Response) {
     }
 
     // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
+    const userModel = await UserModel.scope('withSecrets').findByPk(user.id)
     if (userModel == null) {
       throw new Error('No such user found!')
     }
