@@ -68,6 +68,12 @@ void describe('Server', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET does not serve a directory listing of the well-known subfolder', async () => {
+    const res = await request(app)
+      .get('/.well-known')
+    assert.ok(!res.text.includes('listing directory /.well-known'))
+  })
+
   void it('GET serves a robots.txt file', async () => {
     const res = await request(app)
       .get('/robots.txt')
