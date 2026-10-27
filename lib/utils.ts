@@ -158,13 +158,14 @@ const sensitiveQueryParamName = (param: string) => {
   return sensitiveQueryParams.has(name) ? name : undefined
 }
 
-// An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too
+// An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too.
+// Literal and percent-encoded '?' also count as separators so a decoy '%3F' in the path cannot hide a later real query string.
 export const redactSensitiveQueryParams = (url?: string) => {
   if (!url) return url
   const delimiter = /\?|%3f/i.exec(url)
   if (!delimiter) return url
   const queryStart = delimiter.index + delimiter[0].length
-  const names = url.substring(queryStart).split('&').map(sensitiveQueryParamName)
+  const names = url.substring(queryStart).split(/&|\?|%3f/i).map(sensitiveQueryParamName)
   if (names.every((name) => name === undefined)) return url
   return url.substring(0, queryStart) + names.map((name) => name ? `${name}=[REDACTED]` : '[REDACTED]').join('&')
 }
