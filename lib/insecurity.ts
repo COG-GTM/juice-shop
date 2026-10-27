@@ -50,7 +50,7 @@ const pruneExpiredRevocations = (now = Date.now()) => {
 const revokeToken = (token: string) => {
   pruneExpiredRevocations()
   const exp = jws.decode(token)?.payload?.exp
-  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + 6 * 60 * 60 * 1000)
+  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Infinity)
 }
 export const isRevoked = (token?: string | null) => {
   if (!token) return false
