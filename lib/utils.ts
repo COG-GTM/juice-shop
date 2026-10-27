@@ -225,11 +225,23 @@ privateNetworks.addAddress('::1', 'ipv6')
 privateNetworks.addSubnet('fc00::', 7, 'ipv6')
 privateNetworks.addSubnet('fe80::', 10, 'ipv6')
 
+const unmapIPv4 = (address: string) => address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
+
 const isPrivateAddress = (address: string) => {
-  const ip = address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
+  const ip = unmapIPv4(address)
   if (net.isIPv4(ip)) return privateNetworks.check(ip, 'ipv4')
   if (net.isIPv6(ip)) return privateNetworks.check(ip, 'ipv6')
   return false
+}
+
+// A single IPv6 client usually controls a whole /64, so rate-limit it as one key
+const ipv6Subnet64 = (ip: string) => {
+  const [head, tail] = ip.split('::')
+  const headGroups = head !== '' ? head.split(':') : []
+  const tailGroups = tail !== undefined && tail !== '' ? tail.split(':') : []
+  const tailLength = tailGroups.reduce((length, group) => length + (group.includes('.') ? 2 : 1), 0)
+  const groups = [...headGroups, ...Array(Math.max(8 - headGroups.length - tailLength, 0)).fill('0'), ...tailGroups]
+  return groups.slice(0, 4).map(group => parseInt(group, 16).toString(16)).join(':') + '::/64'
 }
 
 // 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
@@ -242,7 +254,8 @@ export const clientIpForRateLimit = ({ headers, socket }: { headers: Record<stri
   while (isPrivateAddress(address) && hops.length > 0) {
     address = hops.pop() ?? ''
   }
-  return address
+  address = unmapIPv4(address)
+  return net.isIPv6(address) ? ipv6Subnet64(address) : address
 }
 
 export const getErrorMessage = (error: unknown) => {
