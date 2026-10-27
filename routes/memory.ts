@@ -19,9 +19,28 @@ export function addMemory () {
   }
 }
 
+export const DEFAULT_MEMORIES_PAGE_SIZE = 24
+export const MAX_MEMORIES_PAGE_SIZE = 100
+
+function parseNonNegativeInt (value: unknown): number | undefined {
+  if (typeof value !== 'string' || !/^\d{1,9}$/.test(value)) return undefined
+  return Number.parseInt(value, 10)
+}
+
 export function getMemories () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const memories = await MemoryModel.findAll({ include: [UserModel] })
-    res.status(200).json({ status: 'success', data: memories })
+    const requestedLimit = parseNonNegativeInt(req.query.limit)
+    const limit = requestedLimit === undefined || requestedLimit < 1
+      ? DEFAULT_MEMORIES_PAGE_SIZE
+      : Math.min(requestedLimit, MAX_MEMORIES_PAGE_SIZE)
+    const offset = parseNonNegativeInt(req.query.offset) ?? 0
+
+    const { count, rows } = await MemoryModel.findAndCountAll({
+      include: [{ model: UserModel, attributes: ['id', 'username'] }],
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+      limit,
+      offset
+    })
+    res.status(200).json({ status: 'success', data: rows, meta: { total: count, limit, offset } })
   }
 }

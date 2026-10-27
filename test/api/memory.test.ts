@@ -26,6 +26,52 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories only exposes id and username of the posting user', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const memory of res.body.data) {
+      assert.deepEqual(Object.keys(memory.User).sort(), ['id', 'username'])
+    }
+    for (const key of ['password', 'totpSecret', 'deluxeToken', 'lastLoginIp', 'email']) {
+      assert.ok(!res.text.includes(`"${key}"`), `response must not contain ${key}`)
+    }
+  })
+
+  void it('GET memories is paginated with a default page size and total count', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.meta.limit, 24)
+    assert.equal(res.body.meta.offset, 0)
+    assert.ok(res.body.meta.total >= res.body.data.length)
+    assert.ok(res.body.data.length <= 24)
+  })
+
+  void it('GET memories honours limit and offset', async () => {
+    const all = await request(app)
+      .get('/rest/memories?limit=100')
+    const page = await request(app)
+      .get('/rest/memories?limit=2&offset=1')
+    assert.equal(page.status, 200)
+    assert.equal(page.body.meta.limit, 2)
+    assert.equal(page.body.meta.offset, 1)
+    assert.equal(page.body.meta.total, all.body.meta.total)
+    assert.deepEqual(page.body.data.map((m: { id: number }) => m.id), all.body.data.slice(1, 3).map((m: { id: number }) => m.id))
+  })
+
+  void it('GET memories clamps oversized or invalid paging parameters', async () => {
+    const oversized = await request(app)
+      .get('/rest/memories?limit=100000')
+    assert.equal(oversized.body.meta.limit, 100)
+    const invalid = await request(app)
+      .get('/rest/memories?limit=-5&offset=abc')
+    assert.equal(invalid.status, 200)
+    assert.equal(invalid.body.meta.limit, 24)
+    assert.equal(invalid.body.meta.offset, 0)
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),

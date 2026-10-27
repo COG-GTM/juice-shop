@@ -42,10 +42,10 @@ describe('PhotoWallComponent', () => {
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({}))
         photoWallService = {
-            get: vi.fn().mockName("PhotoWallService.get"),
+            getPage: vi.fn().mockName("PhotoWallService.getPage"),
             addMemory: vi.fn().mockName("PhotoWallService.addMemory")
         }
-        photoWallService.get.mockReturnValue(of([]))
+        photoWallService.getPage.mockReturnValue(of({ memories: [], total: 0 }))
         photoWallService.addMemory.mockReturnValue(of({}))
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
@@ -100,20 +100,39 @@ describe('PhotoWallComponent', () => {
     })
 
     it('should make emptyState true and hold no memories when get API gives empty response', () => {
-        photoWallService.get.mockReturnValue(of([]))
+        photoWallService.getPage.mockReturnValue(of({ memories: [], total: 0 }))
         component.ngOnInit()
         expect(component.emptyState).toBe(true)
         expect(component.slideshowDataSource).toEqual([])
     })
 
     it('should make emptyState false when get API gives non empty response', () => {
-        photoWallService.get.mockReturnValue(of([{ imagePath: '', caption: '' }]))
+        photoWallService.getPage.mockReturnValue(of({ memories: [{ imagePath: '', caption: '' }], total: 1 }))
         component.ngOnInit()
         expect(component.emptyState).toBe(false)
     })
 
+    it('should request the first page of memories on init', () => {
+        component.ngOnInit()
+        expect(photoWallService.getPage).toHaveBeenLastCalledWith(24, 0)
+    })
+
+    it('should append the uploader name to the caption', () => {
+        photoWallService.getPage.mockReturnValue(of({ memories: [{ imagePath: 'a.jpg', caption: 'Juice', User: { username: 'bjoern' } }], total: 1 }))
+        component.ngOnInit()
+        expect(component.slideshowDataSource).toEqual([{ url: 'a.jpg', caption: 'Juice (© bjoern)' }])
+    })
+
+    it('should load the requested page when the paginator changes', () => {
+        photoWallService.getPage.mockReturnValue(of({ memories: [{ imagePath: 'b.jpg', caption: 'Page 3' }], total: 60 }))
+        component.onPageChange({ pageIndex: 2, pageSize: 12, length: 60 })
+        expect(photoWallService.getPage).toHaveBeenLastCalledWith(12, 24)
+        expect(component.totalMemories).toBe(60)
+        expect(component.slideshowDataSource).toEqual([{ url: 'b.jpg', caption: 'Page 3' }])
+    })
+
     it('should log error from get API call directly to browser console', () => {
-        photoWallService.get.mockReturnValue(throwError('Error'))
+        photoWallService.getPage.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
         component.ngOnInit()
         fixture.detectChanges()
