@@ -13,6 +13,7 @@ import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
+import { QuantityModel } from '../../models/quantity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -176,6 +177,7 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const balanceBefore = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
     assert.equal(balanceBefore.status, 200)
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 10 } })
 
     const itemRes = await request(app)
       .post('/api/BasketItems')
@@ -192,6 +194,9 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const balanceAfter = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
     assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+
+    const stockAfter = await QuantityModel.findOne({ where: { ProductId: 10 } })
+    assert.equal(stockAfter?.quantity, stockBefore?.quantity)
   })
 })
 

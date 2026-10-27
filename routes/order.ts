@@ -67,14 +67,14 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const quantityUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
+                  quantityUpdates.push({ ProductId: BasketItem.ProductId, quantity: quantityRow.quantity - BasketItem.quantity })
                 }
               } catch (error: unknown) {
                 next(error)
@@ -147,6 +147,18 @@ export function placeOrder () {
                 return
               }
             }
+          }
+
+          try {
+            for (const { ProductId, quantity } of quantityUpdates) {
+              await QuantityModel.update({ quantity }, { where: { ProductId } })
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
+          }
+
+          if (req.body.UserId) {
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
