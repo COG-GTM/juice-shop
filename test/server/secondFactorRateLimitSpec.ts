@@ -42,5 +42,19 @@ describe('secondFactorRateLimit', () => {
       expect(clientKey(requestFrom('10.0.0.1', '203.0.113.9'), 3)).to.equal('203.0.113.9')
       expect(clientKey(requestFrom('10.0.0.1'), 1)).to.equal('10.0.0.1')
     })
+
+    it('ignores X-Forwarded-For from a direct connection outside private networks', () => {
+      expect(clientKey(requestFrom('198.51.100.1', '6.6.6.6'), 1)).to.equal('198.51.100.1')
+      expect(clientKey(requestFrom('::ffff:198.51.100.1', '6.6.6.6'), 1)).to.equal('::ffff:198.51.100.1')
+    })
+
+    it('stops at the first proxy hop outside private networks', () => {
+      expect(clientKey(requestFrom('10.0.0.1', '6.6.6.6, 198.51.100.1'), 2)).to.equal('198.51.100.1')
+    })
+
+    it('trusts loopback and IPv4-mapped private proxy addresses', () => {
+      expect(clientKey(requestFrom('::1', '203.0.113.9'), 1)).to.equal('203.0.113.9')
+      expect(clientKey(requestFrom('::ffff:172.18.0.2', '203.0.113.9'), 1)).to.equal('203.0.113.9')
+    })
   })
 })
