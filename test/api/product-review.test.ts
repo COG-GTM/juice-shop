@@ -54,6 +54,18 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('GET product reviews returns reviews created with a non-canonical numeric product id', async () => {
+    const message = `Leading zero review ${Date.now()}`
+    await request(app)
+      .put('/rest/products/01/reviews')
+      .send({ message, author: 'Anonymous' })
+      .expect(201)
+    const res = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === message))
+  })
+
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
