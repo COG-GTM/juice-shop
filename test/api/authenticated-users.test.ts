@@ -21,14 +21,46 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
-  void it('GET all users with password replaced by asterisks', async () => {
+  void it('GET all users returns only id, email and lastLoginTime', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    const userWithAsterisks = res.body.data.find((user: any) => user.password === '********************************')
-    assert.ok(userWithAsterisks, 'Expected at least one user with password replaced by asterisks')
+    assert.ok(res.body.data.length > 1)
+    for (const user of res.body.data) {
+      assert.deepEqual(Object.keys(user).sort(), ['email', 'id', 'lastLoginTime'])
+    }
+  })
+
+  void it('GET all users ordered by id when no limit is given', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    const ids = res.body.data.map((user: any) => user.id)
+    assert.deepEqual(ids, [...ids].sort((a: number, b: number) => a - b))
+  })
+
+  void it('GET users page with limit and offset', async () => {
+    const all = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+    const page = await request(app)
+      .get('/rest/user/authentication-details?limit=2&offset=1')
+      .set(authHeader)
+
+    assert.equal(page.status, 200)
+    assert.deepEqual(page.body.data.map((user: any) => user.id), all.body.data.slice(1, 3).map((user: any) => user.id))
+  })
+
+  void it('GET users page size is capped', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details?limit=100000')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length <= 100)
   })
 
   void it('GET returns lastLoginTime for users with active sessions', async () => {

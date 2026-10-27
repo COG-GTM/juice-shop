@@ -7,27 +7,44 @@ import { UserModel } from '../models/user'
 import { decode } from 'jsonwebtoken'
 import * as security from '../lib/insecurity'
 
+export const MAX_PAGE_SIZE = 100
+
+function nonNegativeInteger (value: unknown): number | undefined {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) return undefined
+  return Number(value)
+}
+
+export function paginationFrom (query: Request['query']) {
+  const limit = nonNegativeInteger(query.limit)
+  if (limit === undefined) return {}
+  return {
+    limit: Math.min(Math.max(limit, 1), MAX_PAGE_SIZE),
+    offset: nonNegativeInteger(query.offset) ?? 0
+  }
+}
+
+function lastLoginTimeOf (user: UserModel): number | null {
+  const userToken = security.authenticatedUsers.tokenOf(user)
+  if (!userToken) return null
+  const parsedToken = decode(userToken, { json: true })
+  return typeof parsedToken?.iat === 'number' ? parsedToken.iat : null
+}
+
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
   try {
-    const users = await UserModel.findAll()
+    const users = await UserModel.findAll({
+      attributes: ['id', 'email'],
+      order: [['id', 'ASC']],
+      ...paginationFrom(req.query)
+    })
 
     res.json({
       status: 'success',
-      data: users.map((user) => {
-        const userToken = security.authenticatedUsers.tokenOf(user)
-        let lastLoginTime: number | null = null
-        if (userToken) {
-          const parsedToken = decode(userToken, { json: true })
-          lastLoginTime = parsedToken ? Math.floor(new Date(parsedToken?.iat ?? 0 * 1000).getTime()) : null
-        }
-
-        return {
-          ...user.dataValues,
-          password: user.password?.replace(/./g, '*'),
-          totpSecret: user.totpSecret?.replace(/./g, '*'),
-          lastLoginTime
-        }
-      })
+      data: users.map((user) => ({
+        id: user.id,
+        email: user.email,
+        lastLoginTime: lastLoginTimeOf(user)
+      }))
     })
   } catch (error) {
     next(error)
