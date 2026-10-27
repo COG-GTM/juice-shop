@@ -41,7 +41,7 @@ interface IAuthenticatedUsers {
   revokedTokens: Record<string, number>
   remove: (token: string) => void
   revoke: (token?: string) => void
-  revokeAllFor: (userId: number, exceptToken?: string) => void
+  revokeAllFor: (userId: number, ...exceptTokens: Array<string | undefined>) => void
   isRevoked: (token?: string) => boolean
   evictExpired: () => void
 }
@@ -156,6 +156,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     delete this.tokenMap[token]
     if (userId !== undefined && this.idMap[userId] === token) {
       delete this.idMap[userId]
+      const other = Object.keys(this.tokenMap).find(t => this.tokenMap[t]?.data?.id === userId && !this.isRevoked(t) && !isExpired(t))
+      if (other !== undefined) this.idMap[userId] = other
     }
   },
   revoke: function (token?: string) {
@@ -171,10 +173,10 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     }
     this.remove(key)
   },
-  revokeAllFor: function (userId: number, exceptToken?: string) {
-    const keep = exceptToken ? utils.unquote(exceptToken) : undefined
+  revokeAllFor: function (userId: number, ...exceptTokens: Array<string | undefined>) {
+    const keep = exceptTokens.filter((t): t is string => !!t).map(t => utils.unquote(t))
     for (const [token, user] of Object.entries(this.tokenMap)) {
-      if (token !== keep && user?.data?.id === userId) {
+      if (!keep.includes(token) && user?.data?.id === userId) {
         this.revoke(token)
       }
     }
