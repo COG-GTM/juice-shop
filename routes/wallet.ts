@@ -90,11 +90,12 @@ export function addWalletBalance () {
       const amount = cents / 100
       try {
         await WalletModel.increment({ balance: amount }, { where: { UserId: card.UserId } })
-        res.status(200).json({ status: 'success', data: amount })
       } catch {
         release()
         res.status(404).json({ status: 'error' })
+        return
       }
+      res.status(200).json({ status: 'success', data: amount })
     } else {
       res.status(402).json({ status: 'error', message: 'Payment not accepted.' })
     }
