@@ -1,6 +1,5 @@
 import { type Request, type Response } from 'express'
 
-import logger from '../lib/logger'
 import * as utils from '../lib/utils'
 import { ContractEventListener } from '../lib/contractEventListener'
 import { challenges } from '../data/datacache'
@@ -10,7 +9,7 @@ import { web3WalletABI } from '../data/static/contractABIs'
 const web3WalletAddress = '0x413744D59d31AFDC2889aeE602636177805Bd7b0'
 const walletsConnected = new Set()
 
-export const contractExploitEventListener = new ContractEventListener('Contract Exploit Listener', async () => {
+export const contractExploitEventListener = new ContractEventListener('Contract Exploit Listener', async (fail) => {
   const { WebSocketProvider, Contract } = await import('ethers')
   const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
   const contract = new Contract(web3WalletAddress, web3WalletABI, provider as any)
@@ -19,7 +18,7 @@ export const contractExploitEventListener = new ContractEventListener('Contract 
       walletsConnected.delete(exploiter)
       challengeUtils.solveIf(challenges.web3WalletChallenge, () => true)
     }
-  }).catch((error: any) => { logger.warn(`Contract Exploit Listener subscription failed: ${error?.message ?? error}`) })
+  }).catch(fail)
   return provider as any
 })
 
