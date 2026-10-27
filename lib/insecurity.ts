@@ -136,7 +136,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
     if (isRevoked(token)) return
-    this.tokenMap[token] = user
+    this.tokenMap[token] = tokenPayload(user)
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
