@@ -278,7 +278,14 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
+  void it('DELETE existing feedback is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE existing feedback as admin', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -298,7 +305,7 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: 'admin' } }), 'content-type': 'application/json' })
     assert.equal(res.status, 200)
   })
 })

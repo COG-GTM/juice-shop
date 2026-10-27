@@ -62,6 +62,18 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = security.authenticatedUsers.from(req)
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (user?.bid != null && item != null && Number(item.BasketId) === Number(user.bid)) {
+      next()
+    } else {
+      res.status(403).json({ status: 'error', data: 'Malicious activity detected.' })
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
