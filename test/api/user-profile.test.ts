@@ -51,7 +51,7 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
-  for (const payload of ['x#{7*7}', '#{7*7}', "#{global.process.exit()}"]) {
+  for (const payload of ['x#{7*7}', '#{7*7}', '#{global.process.exit()}']) {
     void it(`GET user profile renders username ${payload} as literal text`, async () => {
       await request(app)
         .post('/profile')
