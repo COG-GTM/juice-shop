@@ -457,7 +457,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body !== null && typeof req.body === 'object') {
       for (const field of ['id', 'role', 'deluxeToken', 'isActive', 'totpSecret']) {
-        delete req.body[field] // eslint-disable-line @typescript-eslint/no-dynamic-delete
+        delete req.body[field]
       }
     }
     next()
