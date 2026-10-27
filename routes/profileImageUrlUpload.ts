@@ -18,15 +18,22 @@ export function profileImageUrlUpload () {
       const url = req.body.imageUrl
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
-        if (typeof url === 'string' && url.includes('solve/challenges/server-side')) req.app.locals.abused_ssrf_bug = true
+        let image
         try {
-          const image = await fetchProfileImage(url)
-          const fileName = `${loggedInUser.data.id}.${image.extension}`
-          await fs.promises.writeFile(`frontend/dist/frontend/assets/public/images/uploads/${fileName}`, image.data)
-          const user = await UserModel.findByPk(loggedInUser.data.id)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${fileName}` })
+          image = await fetchProfileImage(url)
         } catch (error) {
           logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error).replace(/[\r\n]+/g, ' ')}; keeping current profile image`)
+        }
+        if (image) {
+          try {
+            const fileName = `${loggedInUser.data.id}.${image.extension}`
+            await fs.promises.writeFile(`frontend/dist/frontend/assets/public/images/uploads/${fileName}`, image.data)
+            const user = await UserModel.findByPk(loggedInUser.data.id)
+            await user?.update({ profileImage: `/assets/public/images/uploads/${fileName}` })
+          } catch (error) {
+            next(error)
+            return
+          }
         }
       } else {
         next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
