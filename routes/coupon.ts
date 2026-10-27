@@ -8,17 +8,16 @@ import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 
 export function applyCoupon () {
-  return async ({ params }: Request, res: Response, next: NextFunction) => {
+  return async ({ params, body }: Request, res: Response, next: NextFunction) => {
     try {
       const id = params.id
       let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
 
-      const basket = await BasketModel.findByPk(id)
+      const basket = body?.UserId !== undefined ? await BasketModel.findOne({ where: { id, UserId: body.UserId } }) : null
       if (!basket) {
-        next(new Error(`Basket with id=${id} does not exist.`))
-        return
+        return res.status(403).json({ status: 'error', message: 'You are not allowed to modify this basket.' })
       }
 
       await basket.update({ coupon: coupon?.toString() })
