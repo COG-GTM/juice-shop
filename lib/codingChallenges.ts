@@ -118,15 +118,16 @@ export interface CodingChallengeInfo {
   hints?: string[]
 }
 
-let codingChallengeInfos: Map<string, CodingChallengeInfo> | undefined
+let codingChallengeInfoFiles: Map<string, string> | undefined
+const codingChallengeInfos = new Map<string, CodingChallengeInfo | null>()
 export function getCodingChallengeInfo (challengeKey: string): CodingChallengeInfo | null {
-  if (!codingChallengeInfos) {
-    codingChallengeInfos = new Map()
-    for (const file of readdirSync('./data/static/codefixes')) {
-      if (file.endsWith('.info.yml')) {
-        codingChallengeInfos.set(file.slice(0, -'.info.yml'.length), yaml.load(readFileSync(path.join('./data/static/codefixes', file), 'utf8')) as CodingChallengeInfo)
-      }
-    }
+  codingChallengeInfoFiles ??= new Map(readdirSync('./data/static/codefixes')
+    .filter(file => file.endsWith('.info.yml'))
+    .map(file => [file.slice(0, -'.info.yml'.length), path.join('./data/static/codefixes', file)]))
+  if (!codingChallengeInfos.has(challengeKey)) {
+    const infoFile = codingChallengeInfoFiles.get(challengeKey)
+    if (infoFile === undefined) return null
+    codingChallengeInfos.set(challengeKey, (yaml.load(readFileSync(infoFile, 'utf8')) ?? null) as CodingChallengeInfo | null)
   }
   return codingChallengeInfos.get(challengeKey) ?? null
 }
