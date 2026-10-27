@@ -60,6 +60,13 @@ describe('secondFactorRateLimit', () => {
       expect(clientKey(requestFrom('198.51.100.11', '203.0.113.8'), 1, trusted)).to.equal('198.51.100.11')
     })
 
+    it('trusts public proxies listed as IPv4-mapped IPv6 addresses or ranges', () => {
+      expect(clientKey(requestFrom('::ffff:198.51.100.10', '203.0.113.8'), 1, trustedProxies('::ffff:198.51.100.10'))).to.equal('203.0.113.8')
+      expect(clientKey(requestFrom('::ffff:198.51.100.10', '203.0.113.9'), 1, trustedProxies('::ffff:198.51.100.0/120'))).to.equal('203.0.113.9')
+      expect(clientKey(requestFrom('::ffff:198.51.100.10', '203.0.113.8'), 1, trustedProxies('198.51.100.10'))).to.equal('203.0.113.8')
+      expect(clientKey(requestFrom('::ffff:198.51.100.11', '203.0.113.8'), 1, trustedProxies('::ffff:198.51.100.10'))).to.equal('::ffff:198.51.100.11')
+    })
+
     it('trusts loopback and IPv4-mapped private proxy addresses', () => {
       expect(clientKey(requestFrom('::1', '203.0.113.9'), 1)).to.equal('203.0.113.9')
       expect(clientKey(requestFrom('::ffff:172.18.0.2', '203.0.113.9'), 1)).to.equal('203.0.113.9')

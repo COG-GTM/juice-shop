@@ -35,11 +35,10 @@ export const trustedProxies = (value = process.env.JUICE_SHOP_TRUSTED_PROXIES) =
   return trusted
 }
 
-const isTrustedProxy = (address: string, trusted: BlockList) => {
-  const unmapped = address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')
-  const family = familyOf(unmapped)
-  return family !== undefined && trusted.check(unmapped, family)
-}
+const isTrustedProxy = (address: string, trusted: BlockList) => [address, address.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/i, '')].some(candidate => {
+  const family = familyOf(candidate)
+  return family !== undefined && trusted.check(candidate, family)
+})
 
 /* Resolved independently of req.ip, which follows the client-controlled X-Forwarded-For header while 'trust proxy' is enabled */
 export const clientKey = (req: Request, hops = trustedProxyHops(), trusted = trustedProxies()) => {
