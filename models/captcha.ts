@@ -24,7 +24,8 @@ const CaptchaModelInit = (sequelize: Sequelize) => {
   Captcha.init(
     {
       captchaId: {
-        type: DataTypes.INTEGER
+        type: DataTypes.INTEGER,
+        unique: true
       },
       captcha: DataTypes.STRING,
       answer: DataTypes.STRING
