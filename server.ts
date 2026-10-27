@@ -361,7 +361,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Users: Only POST is allowed in order to register a new user, reading users is admin-only */
   app.get('/api/Users', security.isAuthorized(), security.isAdmin())
   app.route('/api/Users/:id')
-    .get(security.isAuthorized(), security.isAdmin())
+    .get(security.isAuthorized(), security.isAdminOrSelf())
     .put(security.denyAll())
     .delete(security.denyAll())
   /* Products: Only GET is allowed in order to view products */ // vuln-code-snippet neutral-line changeProductChallenge
@@ -376,8 +376,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.route('/api/Hints/:id')
     .get(security.denyAll())
     .delete(security.denyAll())
-  /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
+  /* Complaints: POST allowed when logged in, listing is admin-only */
+  app.get('/api/Complaints', security.isAuthorized(), security.isAdmin())
   app.post('/api/Complaints', security.isAuthorized())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
