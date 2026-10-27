@@ -174,12 +174,27 @@ const hasValidRs256Signature = (token: string) => {
   }
 }
 
+const verifiedAdminOrUserClaims = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  const decodedToken = token && hasValidRs256Signature(token) && decode(token)
+  const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp <= Math.floor(Date.now() / 1000)
+  return isExpired ? undefined : decodedToken?.data
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const token = utils.jwtFrom(req)
-    const decodedToken = token && hasValidRs256Signature(token) && decode(token)
-    const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp <= Math.floor(Date.now() / 1000)
-    if (!isExpired && decodedToken?.data?.role === roles.admin) {
+    if (verifiedAdminOrUserClaims(req)?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const isAdminOrSelf = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const claims = verifiedAdminOrUserClaims(req)
+    if (claims?.role === roles.admin || (claims?.id !== undefined && String(claims.id) === req.params.id)) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
