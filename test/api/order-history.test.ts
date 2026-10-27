@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -131,5 +131,20 @@ void describe('/rest/order-history/:id/delivery-status', () => {
       .send({ delivered: false })
 
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/rest/order-history with look-alike email', () => {
+  void it('GET does not include orders of other users whose email masks identically', async () => {
+    const email = 'odmon@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'lookalike123' })
+    const { token } = await login(app, { email, password: 'lookalike123' })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 })
