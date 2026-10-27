@@ -31,8 +31,8 @@ interface ResponseWithUser {
 }
 
 interface IAuthenticatedUsers {
-  tokenMap: Record<string, ResponseWithUser>
-  idMap: Record<string, string>
+  tokenMap: Map<string, ResponseWithUser>
+  idMap: Map<string, string>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
   tokenOf: (user: UserModel) => string | undefined
@@ -112,10 +112,10 @@ export const revokeToken = (token?: string) => {
   }
   const exp = decode(token)?.exp
   revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + 6 * 60 * 60 * 1000)
-  const user = authenticatedUsers.tokenMap[token]
-  delete authenticatedUsers.tokenMap[token]
-  if (user?.data?.id !== undefined && authenticatedUsers.idMap[user.data.id] === token) {
-    delete authenticatedUsers.idMap[user.data.id]
+  const user = authenticatedUsers.tokenMap.get(token)
+  authenticatedUsers.tokenMap.delete(token)
+  if (user?.data?.id !== undefined && authenticatedUsers.idMap.get(String(user.data.id)) === token) {
+    authenticatedUsers.idMap.delete(String(user.data.id))
   }
 }
 
@@ -132,19 +132,18 @@ export const sanitizeSecure = (html: string): string => {
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
-  tokenMap: {},
-  idMap: {},
-  put: function (token: string, sessionUser: ResponseWithUser) {
+  tokenMap: new Map(),
+  idMap: new Map(),
+  put: function (token: string, user: ResponseWithUser) {
     if (isRevoked(token)) return
-    const user = tokenPayload(sessionUser)
-    this.tokenMap[token] = user
-    this.idMap[user.data.id] = token
+    this.tokenMap.set(token, tokenPayload(user))
+    this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    return token ? this.tokenMap.get(utils.unquote(token)) : undefined
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    return user ? this.idMap.get(String(user.id)) : undefined
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
@@ -241,7 +240,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.tokenMap.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
