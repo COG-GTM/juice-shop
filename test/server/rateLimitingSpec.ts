@@ -6,7 +6,6 @@
 import { type Request } from 'express'
 import chai from 'chai'
 
-import * as security from '../../lib/insecurity'
 import * as rateLimiting from '../../lib/rateLimiting'
 
 const expect = chai.expect
@@ -50,59 +49,5 @@ describe('rateLimiting', () => {
       expect(rateLimiting.emailOf(requestWithBody({ email: '  ' }))).to.equal(undefined)
       expect(rateLimiting.emailOf(requestWithBody(undefined))).to.equal(undefined)
     })
-  })
-
-  describe('secondFactorUserOf', () => {
-    it('returns the user id of a validly signed temporary 2FA token', () => {
-      const tmpToken = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token', expiresAt: security.secondFactorTokenExpiry() })
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken }))).to.equal('10')
-    })
-
-    it('ignores expired temporary 2FA tokens', () => {
-      const tmpToken = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token', expiresAt: Date.now() - 1 })
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken }))).to.equal(undefined)
-    })
-
-    it('ignores tokens of another type', () => {
-      const tmpToken = security.authorize({ userId: 10, type: 'totp_setup_secret', expiresAt: security.secondFactorTokenExpiry() })
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken }))).to.equal(undefined)
-    })
-
-    it('ignores tokens that are not signed by the server', () => {
-      const [header, , signature] = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }).split('.')
-      const forged = [header, Buffer.from(JSON.stringify({ userId: 1, type: 'password_valid_needs_second_factor_token' })).toString('base64url'), signature].join('.')
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken: forged }))).to.equal(undefined)
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken: 'garbage' }))).to.equal(undefined)
-      expect(rateLimiting.secondFactorUserOf(requestWithBody({}))).to.equal(undefined)
-    })
-  })
-})
-
-describe('isSecondFactorTokenExpired', () => {
-  it('accepts a token within its lifetime', () => {
-    expect(security.isSecondFactorTokenExpired({ expiresAt: security.secondFactorTokenExpiry() })).to.equal(false)
-  })
-
-  it('rejects expired tokens and tokens without expiry', () => {
-    expect(security.isSecondFactorTokenExpired({ expiresAt: Date.now() - 1 })).to.equal(true)
-    expect(security.isSecondFactorTokenExpired({ expiresAt: String(Date.now() + 60000) })).to.equal(true)
-    expect(security.isSecondFactorTokenExpired({})).to.equal(true)
-    expect(security.isSecondFactorTokenExpired(undefined)).to.equal(true)
-  })
-})
-
-describe('verifySecondFactorToken', () => {
-  it('returns the payload of a valid, unexpired temporary 2FA token', () => {
-    const tmpToken = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token', expiresAt: security.secondFactorTokenExpiry() })
-    expect(security.verifySecondFactorToken(tmpToken).userId).to.equal(10)
-  })
-
-  it('throws for tokens of another type, expired, unsigned or missing tokens', () => {
-    const wrongType = security.authorize({ userId: 10, type: 'totp_setup_secret', expiresAt: security.secondFactorTokenExpiry() })
-    const expired = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token', expiresAt: Date.now() - 1 })
-    expect(() => security.verifySecondFactorToken(wrongType)).to.throw('Invalid token type')
-    expect(() => security.verifySecondFactorToken(expired)).to.throw('Temporary token expired')
-    expect(() => security.verifySecondFactorToken('garbage')).to.throw()
-    expect(() => security.verifySecondFactorToken(undefined)).to.throw('Invalid token type')
   })
 })

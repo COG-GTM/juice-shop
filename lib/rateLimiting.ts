@@ -6,8 +6,6 @@
 import { type Request } from 'express'
 import { rateLimit } from 'express-rate-limit'
 
-import * as security from './insecurity'
-
 /* Number of reverse proxies in front of the server. Without any, req.ip is the socket address and cannot be spoofed via X-Forwarded-For */
 export function trustedProxyHops (value = process.env.JUICE_SHOP_TRUSTED_PROXY_HOPS): number | false {
   const hops = Number(value)
@@ -31,13 +29,4 @@ export function emailOf (req: Request) {
   const email = req.body?.email
   if (typeof email === 'string') return email.trim() !== '' ? email.trim().toLowerCase() : undefined
   return email ? '<non-string>' : undefined
-}
-
-export function secondFactorUserOf (req: Request) {
-  try {
-    const userId = security.verifySecondFactorToken(req.body?.tmpToken).userId
-    return typeof userId === 'number' || (typeof userId === 'string' && userId !== '') ? String(userId) : undefined
-  } catch {
-    return undefined
-  }
 }
