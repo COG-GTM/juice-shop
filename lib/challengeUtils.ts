@@ -31,7 +31,7 @@ export const solve = function (challenge: any, isRestore = false, isCheating = f
   const solverId = solverContext.currentSolverId()
   challenge.save().then(async (solvedChallenge: { difficulty: number, key: string, name: string, id: number }) => {
     logger.info(`${isRestore ? colors.grey('Restored') : colors.green('Solved')} ${solvedChallenge.difficulty}-star ${colors.cyan(solvedChallenge.key)} (${solvedChallenge.name})`)
-    sendNotification(solvedChallenge, isRestore, solverId, false)
+    sendNotification(solvedChallenge, isRestore, solverId)
     if (!isRestore) {
       const cheatScore = calculateCheatScore(challenge, isCheating)
       const hintsAvailable = await HintModel.count({ where: { ChallengeId: solvedChallenge.id } })

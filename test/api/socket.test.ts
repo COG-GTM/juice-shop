@@ -169,12 +169,16 @@ void describe('WebSocket challenge notifications', () => {
     assert.equal((await replayedNotification('acknowledgeTest', { clientId: 'b'.repeat(32) })).key, 'acknowledgeTest')
   })
 
-  void it('a restored challenge is attributed to the restoring user while repeats keep the original solver', async () => {
+  void it('restoring or repeating an already solved challenge does not hand its flag to another user', async () => {
     challengeUtils.sendNotification(solvedChallenge('restoreTest'), false, 1)
-    challengeUtils.sendNotification(solvedChallenge('restoreTest'), true, 2, false)
-    assert.ok((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag)
-    challengeUtils.sendNotification(solvedChallenge('restoreTest'), true, 3)
-    assert.ok((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag)
+    challengeUtils.sendNotification(solvedChallenge('restoreTest'), true, 2)
+    assert.equal((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag, undefined)
+    assert.ok((await replayedNotification('restoreTest', { token: security.authorize({ data: { id: 1 } }) })).flag)
+  })
+
+  void it('a restored challenge without a known solver is attributed to the restoring user', async () => {
+    challengeUtils.sendNotification(solvedChallenge('freshRestoreTest'), true, 2)
+    assert.ok((await replayedNotification('freshRestoreTest', { token: security.authorize({ data: { id: 2 } }) })).flag)
   })
 
   void it('repeated notifications of the same challenge are retained only once', () => {
