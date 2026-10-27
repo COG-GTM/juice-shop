@@ -392,5 +392,6 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.equal(security.discountFromCoupon(couponCode), 10)
     const second = await couponToolResult({ discount: 10, orderId }, token)
     assert.ok(second.includes('A coupon was already issued for this order'))
+    assert.ok(second.includes(couponCode))
   })
 })

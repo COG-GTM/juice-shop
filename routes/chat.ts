@@ -64,16 +64,17 @@ function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'ass
 const COUPON_DISCOUNT = 10
 const couponClaimedOrderIds = new Set<string>()
 
-async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
+async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string, couponCode?: string }> {
   const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
   if (!email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
-  if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
+  if (!order || order.email !== email.replace(/[aeiou]/gi, '*') || !order.orderId.startsWith(security.hash(email).slice(0, 4) + '-')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
+  if (order.couponCode) return { error: 'A coupon was already issued for this order', couponCode: order.couponCode }
   if (order.couponIssued || couponClaimedOrderIds.has(order.orderId)) return { error: 'A coupon was already issued for this order' }
   couponClaimedOrderIds.add(order.orderId)
   try {
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponCode: security.generateCoupon(COUPON_DISCOUNT) } })
   } catch {
     couponClaimedOrderIds.delete(order.orderId)
     return { error: 'The coupon could not be issued right now, please try again' }
