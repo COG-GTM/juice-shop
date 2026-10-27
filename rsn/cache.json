@@ -674,12 +674,12 @@
 	},
 	"dbSchemaChallenge_2_correct.ts": {
 		"added": [
-			6
+			10
 		],
 		"removed": [
-			6,
-			7,
-			8
+			10,
+			11,
+			12
 		]
 	},
 	"dbSchemaChallenge_3.ts": {
@@ -687,9 +687,10 @@
 		"removed": [
 			1,
 			2,
-			6,
-			7,
-			8
+			10,
+			11,
+			12,
+			13
 		]
 	},
 	"directoryListingChallenge_1_correct.ts": {
@@ -1267,25 +1268,28 @@
 	},
 	"unionSqlInjectionChallenge_1.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			10
+		]
 	},
 	"unionSqlInjectionChallenge_2_correct.ts": {
 		"added": [
-			6
+			10
 		],
 		"removed": [
-			6,
-			7,
-			8
+			10,
+			11,
+			12
 		]
 	},
 	"unionSqlInjectionChallenge_3.ts": {
 		"added": [],
 		"removed": [
-			6,
-			7,
-			8,
-			9
+			10,
+			11,
+			12,
+			13,
+			14
 		]
 	},
 	"weakPasswordChallenge_1_correct.ts": {
