@@ -36,8 +36,10 @@ export function getLanguageList () {
 
   async function i18nSignature (): Promise<string> {
     const dirSignatures = await Promise.all([frontendI18nDir, backendI18nDir].map(async (dir) => {
+      let dirMtimeMs: number
       let fileNames: string[]
       try {
+        dirMtimeMs = (await stat(dir)).mtimeMs
         fileNames = (await readdir(dir)).sort()
       } catch {
         return dir + '?'
@@ -50,7 +52,7 @@ export function getLanguageList () {
           return fileName + '?'
         }
       }))
-      return dir + '|' + fileSignatures.join('|')
+      return `${dir}@${dirMtimeMs}|` + fileSignatures.join('|')
     }))
     return dirSignatures.join('\n')
   }

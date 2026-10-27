@@ -109,6 +109,22 @@ describe('languages', () => {
     expect(res.json.lastCall.args[0][0].lang).to.equal('Deutsch (neu)')
   })
 
+  it('should recompute the list when a translation file is replaced with one of the same size and modification time', async () => {
+    const file = path.join(frontendDir, 'de_DE.json')
+    fs.utimesSync(file, fixedTime, fixedTime)
+    const handler = getLanguageList()
+    await handler({} as any, res, next)
+
+    const replacement = path.join(workDir, 'de_DE.json')
+    writeJson(workDir, 'de_DE.json', { LANGUAGE: 'Deutsc!', A: 'ä', B: 'b' })
+    fs.utimesSync(replacement, fixedTime, fixedTime)
+    fs.renameSync(replacement, file)
+    fs.utimesSync(frontendDir, new Date(), new Date(Date.now() + 60000))
+    await handler({} as any, res, next)
+
+    expect(res.json.lastCall.args[0][0].lang).to.equal('Deutsc!')
+  })
+
   it('should recompute the list when a backend translation file is edited in place', async () => {
     const handler = getLanguageList()
     await handler({} as any, res, next)
