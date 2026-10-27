@@ -15,6 +15,8 @@ class ErrorWithParent extends Error {
   parent: Error | undefined
 }
 
+const md5HexDigest = /[0-9a-f]{32}/i
+
 // vuln-code-snippet start unionSqlInjectionChallenge dbSchemaChallenge
 export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -23,9 +25,9 @@ export function searchProducts () {
     models.sequelize.query(`SELECT * FROM Products WHERE ((name LIKE '%${criteria}%' OR description LIKE '%${criteria}%') AND deletedAt IS NULL) ORDER BY name`) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge
       .then(([products]: any) => {
         const dataString = JSON.stringify(products)
-        if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge)) { // vuln-code-snippet hide-start
+        if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge) && md5HexDigest.test(dataString)) { // vuln-code-snippet hide-start
           let solved = true
-          UserModel.findAll().then(data => {
+          UserModel.findAll({ attributes: ['email', 'password'] }).then(data => {
             const users = utils.queryResultToJson(data)
             if (users.data?.length) {
               for (let i = 0; i < users.data.length; i++) {
@@ -42,7 +44,7 @@ export function searchProducts () {
             next(error)
           })
         }
-        if (challengeUtils.notSolved(challenges.dbSchemaChallenge)) {
+        if (challengeUtils.notSolved(challenges.dbSchemaChallenge) && dataString.includes('CREATE TABLE')) {
           let solved = true
           void models.sequelize.query('SELECT sql FROM sqlite_master').then(([data]: any) => {
             const tableDefinitions = utils.queryResultToJson(data)
