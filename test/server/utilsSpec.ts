@@ -200,6 +200,8 @@ describe('utils', () => {
 
     it('unwraps IPv4-mapped IPv6 addresses', () => {
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:203.0.113.7' } })).to.equal('203.0.113.7')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:c633:6407' } })).to.equal('198.51.100.7')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:cb00:7107' } })).to.equal('203.0.113.7')
     })
   })
 
