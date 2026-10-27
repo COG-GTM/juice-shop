@@ -10,6 +10,9 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
+import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -143,6 +146,27 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 400)
     assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
+
+  void it('POST placing a wallet order for a basket containing a stored negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: -1000 }, { validate: false })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+    }
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
