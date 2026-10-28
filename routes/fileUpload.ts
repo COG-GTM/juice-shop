@@ -107,9 +107,12 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
         let discarded = false
         const discard = () => {
+          if (discarded) return
           discarded = true
+          const removeTemp = () => { fs.rm(temp.tempPath, { force: true }, () => {}) }
+          if (output.closed) removeTemp()
+          else output.once('close', removeTemp)
           output.destroy()
-          fs.rm(temp.tempPath, { force: true }, () => {})
         }
         output.on('error', (err: Error) => {
           if (discarded) return
