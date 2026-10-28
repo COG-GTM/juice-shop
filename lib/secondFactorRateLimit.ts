@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { isIPv6 } from 'node:net'
 import { type Request } from 'express'
 import { rateLimit } from 'express-rate-limit'
 import * as security from './insecurity'
@@ -31,6 +32,19 @@ export const clientAddress = (req: Request, hops = trustedProxyHops()) => {
   return chain[Math.min(hops, chain.length - 1)]
 }
 
+/* A single IPv6 client usually controls a whole /64, so all of its addresses share one bucket */
+export const clientSubnet = (address: string) => {
+  const ipv4Mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address)
+  if (ipv4Mapped != null) return ipv4Mapped[1]
+  const ip = address.split('%')[0]
+  if (!isIPv6(ip)) return address
+  const [head, tail] = ip.split('::')
+  const headGroups = head === '' ? [] : head.split(':')
+  const tailGroups = tail === undefined || tail === '' ? [] : tail.split(':')
+  const groups = [...headGroups, ...Array(Math.max(0, 8 - headGroups.length - tailGroups.length)).fill('0'), ...tailGroups]
+  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64`
+}
+
 export const accountKey = (req: Request) => {
   const userId = security.verifySecondFactorToken(req.body?.tmpToken)?.userId
   return userId === undefined ? undefined : `2fa-user:${userId}`
@@ -43,7 +57,7 @@ export const perClient = () => rateLimit({
   limit: maxAttemptsPerClient,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => clientAddress(req),
+  keyGenerator: (req: Request) => clientSubnet(clientAddress(req)),
   validate
 })
 

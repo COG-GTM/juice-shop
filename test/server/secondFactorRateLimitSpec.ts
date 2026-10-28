@@ -6,7 +6,7 @@
 import chai from 'chai'
 import type { Request } from 'express'
 import * as security from '../../lib/insecurity'
-import { accountKey, clientAddress, trustedProxyHops } from '../../lib/secondFactorRateLimit'
+import { accountKey, clientAddress, clientSubnet, trustedProxyHops } from '../../lib/secondFactorRateLimit'
 const expect = chai.expect
 
 const requestFrom = (remoteAddress: string, forwardedFor?: string, body: any = {}) => ({
@@ -42,6 +42,22 @@ describe('secondFactorRateLimit', () => {
     it('falls back to the leftmost address when the chain is shorter than the hop count', () => {
       expect(clientAddress(requestFrom('10.0.0.2', '198.51.100.4'), 3)).to.equal('198.51.100.4')
       expect(clientAddress(requestFrom('10.0.0.2'), 1)).to.equal('10.0.0.2')
+    })
+  })
+
+  describe('clientSubnet', () => {
+    it('groups IPv6 addresses by their /64 prefix', () => {
+      expect(clientSubnet('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).to.equal('2001:db8:1:2::/64')
+      expect(clientSubnet('2001:db8:1:2::1')).to.equal('2001:db8:1:2::/64')
+      expect(clientSubnet('2001:0db8:0001:0002:ffff::%eth0')).to.equal('2001:db8:1:2::/64')
+      expect(clientSubnet('2001:db8::1')).to.equal('2001:db8:0:0::/64')
+      expect(clientSubnet('::1')).to.equal('0:0:0:0::/64')
+    })
+
+    it('keeps IPv4 addresses, including IPv4-mapped IPv6 ones, as they are', () => {
+      expect(clientSubnet('203.0.113.7')).to.equal('203.0.113.7')
+      expect(clientSubnet('::ffff:203.0.113.7')).to.equal('203.0.113.7')
+      expect(clientSubnet('unknown')).to.equal('unknown')
     })
   })
 
