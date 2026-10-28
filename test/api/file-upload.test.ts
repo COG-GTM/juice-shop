@@ -116,7 +116,7 @@ void describe('/file-upload', () => {
   void it('POST YAML file with !!js/function tag is rejected instead of executed', async () => {
     const res = await request(app)
       .post('/file-upload')
-      .attach('file', Buffer.from('toJSON: !!js/function \'function(){ return "pwned" }\''), 'exploit.yml')
+      .attach('file', Buffer.from('toJSON: !!js/function \'function(){ return "pw" + "ned" }\''), 'exploit.yml')
     assert.equal(res.status, 410)
     assert.ok(res.text.includes('unknown tag'))
     assert.ok(!res.text.includes('pwned'))
