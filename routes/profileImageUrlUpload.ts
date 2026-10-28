@@ -20,18 +20,27 @@ export function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
+        let ext = 'jpg'
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
+          ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+        } catch (error) {
+          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; keeping current profile image`)
+          res.location(process.env.BASE_PATH + '/profile')
+          res.redirect(process.env.BASE_PATH + '/profile')
+          return
+        }
+        try {
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
-          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; keeping current profile image`)
+          next(error)
+          return
         }
       } else {
         next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
