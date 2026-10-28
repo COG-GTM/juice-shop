@@ -168,6 +168,16 @@ describe('insecurity', () => {
       }
     })
 
+    it('fails signature verification for revoked tokens', () => {
+      const token = security.authorize({ data: { id: 49 } })
+      expect(security.verify(token)).to.equal(true)
+
+      security.authenticatedUsers.put(token, { data: { id: 49 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(49, 'rev-keep-49')
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
     it('denies deluxe and accounting privileges to revoked tokens', () => {
       const deluxe = security.authorize({ data: { id: 46, email: 'deluxe@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('deluxe@juice-sh.op') } })
       const accounting = security.authorize({ data: { id: 47, role: security.roles.accounting } })
