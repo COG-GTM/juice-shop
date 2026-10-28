@@ -24,7 +24,7 @@ export interface Notification {
   key: string
   name: string
   challenge: string
-  flag: string
+  flag?: string
   hidden: boolean
   isRestore: boolean
   codingChallenge?: boolean
