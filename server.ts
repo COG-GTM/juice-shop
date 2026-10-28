@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { checkFeedbackOwnership } from './routes/feedback'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -474,6 +475,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Feedback is attributed to the authenticated caller (or nobody), never to a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
+  /* Feedback can only be deleted by its author or an administrator */
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(checkFeedbackOwnership()))
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
