@@ -55,6 +55,18 @@ void describe('/rest/user/login', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST login with the removed testing account credentials', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'testing@' + config.get<string>('application.domain'),
+        password: 'IamUsedForTesting'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
   void it('POST login without credentials', async () => {
     const res = await request(app)
       .post('/rest/user/login')
