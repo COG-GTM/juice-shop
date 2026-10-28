@@ -83,7 +83,6 @@ import { retrieveBasket } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
-import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
@@ -265,17 +264,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
-  /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
+  /* /ftp file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
-  app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
-  app.use('/.well-known', express.static('.well-known'))
-
-  /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
-  app.use('/encryptionkeys/:file', serveKeyFiles())
+  app.use('/.well-known/csaf', express.static('.well-known/csaf'))
 
   /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
   app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
@@ -288,6 +281,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(express.static(path.resolve('frontend/dist/frontend')))
   app.use(cookieParser('kekse'))
   // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
+
+  app.use(['/ftp', '/encryptionkeys', '/.well-known'], (req: Request, res: Response) => {
+    res.sendStatus(404)
+  })
 
   /* Serve vendor dependencies locally instead of from CDN */
   app.use('/vendor/beercss', express.static(path.resolve('node_modules/beercss/dist/cdn')))
