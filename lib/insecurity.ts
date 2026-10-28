@@ -21,10 +21,6 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 const privateKeyFile = path.resolve(process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key')
-const privateKeyFileRelativeToKeyDir = path.relative(path.resolve('encryptionkeys'), privateKeyFile)
-if (!privateKeyFileRelativeToKeyDir.startsWith('..') && !path.isAbsolute(privateKeyFileRelativeToKeyDir)) {
-  throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys/ directory')
-}
 
 const createPrivateKeyFile = (privateKey: string) => {
   const tmpFile = `${privateKeyFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
@@ -45,6 +41,10 @@ const createPrivateKeyFile = (privateKey: string) => {
 const loadOrCreatePrivateKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
+  }
+  const privateKeyFileRelativeToKeyDir = path.relative(path.resolve('encryptionkeys'), privateKeyFile)
+  if (!privateKeyFileRelativeToKeyDir.startsWith('..') && !path.isAbsolute(privateKeyFileRelativeToKeyDir)) {
+    throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys/ directory')
   }
   try {
     return fs.readFileSync(privateKeyFile, 'utf8')
