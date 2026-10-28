@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -46,6 +46,47 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+  void it('GET no orders of other customers whose email only differs in vowels', async () => {
+    const email = 'edmin@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'collision123' })
+    const { token } = await login(app, { email, password: 'collision123' })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('GET newly placed order only for the customer who placed it', async () => {
+    const { token: amyToken } = await login(app, {
+      email: 'amy@' + config.get<string>('application.domain'),
+      password: 'K1f.....................'
+    })
+    const amyHeader = { Authorization: 'Bearer ' + amyToken, 'content-type': 'application/json' }
+
+    const checkoutRes = await request(app)
+      .post('/rest/basket/4/checkout')
+      .set(amyHeader)
+    assert.equal(checkoutRes.status, 200)
+
+    const amyRes = await request(app)
+      .get('/rest/order-history')
+      .set(amyHeader)
+    assert.equal(amyRes.status, 200)
+    assert.ok(amyRes.body.data.some((order: { orderId: string }) => order.orderId === checkoutRes.body.orderConfirmation))
+
+    const email = 'emy@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'collision123' })
+    const { token: emyToken } = await login(app, { email, password: 'collision123' })
+
+    const emyRes = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + emyToken, 'content-type': 'application/json' })
+    assert.equal(emyRes.status, 200)
+    assert.deepEqual(emyRes.body.data, [])
   })
 })
 
