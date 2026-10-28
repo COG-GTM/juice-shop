@@ -452,6 +452,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.put('/api/Addresss/:id', utils.asyncHandler(address.updateAddressById()))
 
   /* BasketItems: Only items in the caller's own basket can be viewed or removed */
   app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
