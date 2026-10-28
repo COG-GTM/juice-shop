@@ -64,6 +64,16 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('GET product reviews includes newly created review', async () => {
+    await request(app)
+      .put('/rest/products/2/reviews')
+      .send({ message: 'Newly created review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/2/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Newly created review'))
+  })
 })
 
 void describe('/rest/products/reviews', () => {
