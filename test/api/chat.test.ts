@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { challenges } from '../../data/datacache'
+import * as db from '../../data/mongodb'
 
 const MOCK_LLM_PORT = 43210
 
@@ -392,7 +393,19 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const first = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
     const couponCode = first.couponCode ?? first.value?.couponCode
     assert.equal(security.discountFromCoupon(couponCode), 10)
-    const second = await couponToolResult({ discount: 10, orderId }, token)
-    assert.ok(second.includes('A coupon was already issued for this order'))
+    const retry = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
+    assert.equal(retry.couponCode ?? retry.value?.couponCode, couponCode)
+  })
+
+  void it('refuses a coupon for an order that already got one in an earlier month', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(token)
+    await db.ordersCollection.update({ orderId }, { $set: { couponIssued: true, couponIssuedOn: 'JAN00' } })
+    try {
+      const result = await couponToolResult({ discount: 10, orderId }, token)
+      assert.ok(result.includes('A coupon was already issued for this order'))
+    } finally {
+      await db.ordersCollection.update({ orderId }, { $set: { couponIssued: false, couponIssuedOn: undefined } })
+    }
   })
 })

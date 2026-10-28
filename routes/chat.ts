@@ -71,12 +71,17 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
   const alreadyIssued = { error: 'A coupon was already issued for this order' }
+  // Coupons are deterministic per month, so the owner can recover a code lost to a failed chat stream.
+  const month = utils.toMMMYY(new Date())
+  const isReissue = (o: { couponIssued?: boolean, couponIssuedOn?: string } | null | undefined) => o?.couponIssued === true && o.couponIssuedOn === month
+  if (isReissue(order)) return {}
   if (order.couponIssued || couponClaimsInFlight.has(order.orderId)) return alreadyIssued
   couponClaimsInFlight.add(order.orderId)
   try {
     const current = await db.ordersCollection.findOne({ _id: order._id })
+    if (isReissue(current)) return {}
     if (current?.couponIssued) return alreadyIssued
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponIssuedOn: month } })
     return {}
   } catch {
     return { error: 'The coupon could not be issued right now, please try again' }
