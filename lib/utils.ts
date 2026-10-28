@@ -75,13 +75,17 @@ export const version = (module?: string) => {
 
 export const ctfKeyFile = 'ctf.key'
 
-// SHA-256 of the key that used to be committed as ctf.key and is public in the repository history
-export const publishedCtfKeyHashes = ['f0f701815aeb918d291942b8a83b7b36d79d2e04b6a20deebcb07eb8e492e4c8']
+// HMAC fingerprints of the key that used to be committed as ctf.key and is public in the repository history.
+// Comparing HMAC outputs also catches keys HMAC treats as equivalent, e.g. with trailing NUL bytes.
+export const ctfKeyFingerprintProbe = 'juice-shop-ctf-key-fingerprint'
+export const publishedCtfKeyFingerprints = ['cbec0895c409e4e900eaa2d0be3f051884000667']
 
-const isPublishedCtfKey = (key: string, rejectedHashes: string[]) =>
-  rejectedHashes.includes(crypto.createHash('sha256').update(key.trim()).digest('hex'))
+export const ctfKeyFingerprint = (key: string) => crypto.createHmac('sha1', key).update(ctfKeyFingerprintProbe).digest('hex')
 
-export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile, rejectedHashes = publishedCtfKeyHashes) => {
+const isPublishedCtfKey = (key: string, rejectedFingerprints: string[]) =>
+  [key, key.trim()].some(candidate => rejectedFingerprints.includes(ctfKeyFingerprint(candidate)))
+
+export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile, rejectedFingerprints = publishedCtfKeyFingerprints) => {
   let key: string | undefined
   if (envKey !== undefined && envKey !== '') {
     key = envKey
@@ -91,7 +95,7 @@ export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyF
       key = fileKey
     }
   }
-  if (key !== undefined && isPublishedCtfKey(key, rejectedHashes)) {
+  if (key !== undefined && isPublishedCtfKey(key, rejectedFingerprints)) {
     logger.warn('Ignoring the configured CTF key because it is the publicly known former default key')
     return undefined
   }
