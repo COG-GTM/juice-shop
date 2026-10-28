@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -19,39 +20,54 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-const privateKeyFile = process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key'
+const privateKeyFile = path.resolve(process.env.JWT_PRIVATE_KEY_FILE ?? 'jwt.key')
+const privateKeyFileRelativeToKeyDir = path.relative(path.resolve('encryptionkeys'), privateKeyFile)
+if (!privateKeyFileRelativeToKeyDir.startsWith('..') && !path.isAbsolute(privateKeyFileRelativeToKeyDir)) {
+  throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside the publicly served encryptionkeys/ directory')
+}
+
+const createPrivateKeyFile = (privateKey: string) => {
+  const tmpFile = `${privateKeyFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`
+  try {
+    fs.writeFileSync(tmpFile, privateKey, { mode: 0o600, flag: 'wx' })
+    fs.linkSync(tmpFile, privateKeyFile) // atomic: fails with EEXIST if another process created the key first
+    return privateKey
+  } catch (err: any) {
+    if (err?.code === 'EEXIST') {
+      return fs.readFileSync(privateKeyFile, 'utf8')
+    }
+    return privateKey // read-only file system: key stays in memory for this process only
+  } finally {
+    try { fs.unlinkSync(tmpFile) } catch {}
+  }
+}
 
 const loadOrCreatePrivateKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
-  if (fs.existsSync(privateKeyFile)) {
+  try {
     return fs.readFileSync(privateKeyFile, 'utf8')
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err
   }
   const { privateKey } = crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
     privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
     publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
   })
-  try {
-    fs.writeFileSync(privateKeyFile, privateKey, { mode: 0o600 })
-  } catch {
-    // read-only file system: key stays in memory for this process only
-  }
-  return privateKey
+  return createPrivateKeyFile(privateKey)
 }
 
 const privateKey = loadOrCreatePrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 try {
-  if (!fs.existsSync('encryptionkeys/jwt.pub') || fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') !== publicKey) {
-    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-  }
+  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
 } catch {
   // read-only file system: jwt.pub is served from memory by the key server
 }
 
-const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? Buffer.from(crypto.hkdfSync('sha256', privateKey, '', 'juice-shop-deluxe-token', 32)).toString('hex')
 
 interface ResponseWithUser {
   status?: string
