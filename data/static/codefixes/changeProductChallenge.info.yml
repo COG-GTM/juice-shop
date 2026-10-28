@@ -4,7 +4,7 @@ fixes:
   - id: 2
     explanation: 'Removing all dedicated handling of the products API made things worse, as now the default permissions of the underlying API generator will be used: Allowing GET, POST, PUT and DELETE - without any restrictions.'
   - id: 3
-    explanation: "Disabling all HTTP verbs other than GET for the products API is indeed the only safe way to implement secure access control. Shop administrators should not use the customer facing web UI to manage the store's inventory anyway."
+    explanation: "Denying PUT requests for the products API to everyone is indeed the only safe way to prevent product tampering through it. Shop administrators should not use the customer facing web UI to manage the store's inventory anyway."
   - id: 4
     explanation: 'You improved security slightly by no longer accepting PUT requests from anonymous API callers. But does the shop even want to allow its authenticated customers to change products themselves?'
 hints:
