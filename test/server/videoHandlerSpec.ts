@@ -10,7 +10,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { promotionVideo, serializeSubtitles } from '../../routes/videoHandler'
+import { promotionCsp, promotionVideo, serializeSubtitles } from '../../routes/videoHandler'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -35,8 +35,10 @@ describe('videoHandler', () => {
     let configGet: sinon.SinonStub
     let originalChallenge: Challenge
 
+    let headers: Record<string, string>
     const render = async (): Promise<string> => await new Promise((resolve, reject) => {
-      promotionVideo()({} as any, { send: resolve } as any, reject)
+      headers = {}
+      promotionVideo()({} as any, { send: resolve, set: (name: string, value: string) => { headers[name] = value } } as any, reject)
     })
 
     beforeEach(() => {
@@ -63,6 +65,26 @@ describe('videoHandler', () => {
       const match = /<script id="subtitle" type="application\/json"[^>]*>([^<]*)<\/script>/.exec(html)
       expect(match?.[1]).to.be.a('string')
       expect(JSON.parse(match?.[1] ?? '')).to.equal(exploit)
+    })
+
+    it('should send a nonce-based Content-Security-Policy that covers every executable script tag', async () => {
+      const html = await render()
+
+      const nonce = /'nonce-([A-Za-z0-9+/=]+)'/.exec(headers['Content-Security-Policy'])?.[1]
+      expect(nonce).to.be.a('string')
+      expect(headers['Content-Security-Policy']).to.equal(promotionCsp(nonce ?? ''))
+      const scriptTags = (html.match(/<script(?=[\s>])[^>]*>/g) ?? []).filter(tag => !tag.includes('type="application/json"'))
+      expect(scriptTags.length).to.be.greaterThan(1)
+      for (const tag of scriptTags) {
+        expect(tag).to.contain(`nonce="${nonce}"`)
+      }
+    })
+
+    it('should use a fresh nonce for every response', async () => {
+      await render()
+      const first = headers['Content-Security-Policy']
+      await render()
+      expect(headers['Content-Security-Policy']).to.not.equal(first)
     })
 
     it('should only read the configured subtitles file name from the videos folder', async () => {
