@@ -230,6 +230,45 @@ void describe('/rest/user/login', () => {
     assert.equal(res.body.authentication, undefined)
   })
 
+  void it('POST login with OR 1=1 SQL injection is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: '\' OR 1=1--',
+        password: 'x'
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
+
+  void it('POST login with non-string email is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: { $ne: '' },
+        password: 'x'
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
+
+  void it('POST login with non-string password is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'admin@juice-sh.op',
+        password: ['admin123']
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
+
   void it('POST login with query-breaking SQL Injection attack', async () => {
     const res = await request(app)
       .post('/rest/user/login')
