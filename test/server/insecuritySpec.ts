@@ -112,8 +112,9 @@ describe('insecurity', () => {
   })
 
   describe('isCrossSiteRequest', () => {
-    const requestWith = (headers: Record<string, string>) => ({
+    const requestWith = (headers: Record<string, string>, secure = false) => ({
       headers: { host: 'shop.example', ...headers },
+      secure,
       get: (name: string) => headers[name.toLowerCase()]
     }) as unknown as Request
 
@@ -130,6 +131,12 @@ describe('insecurity', () => {
       expect(security.isCrossSiteRequest(requestWith({ origin: 'https://attacker.example' }))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example.attacker.example/' }))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example:8443' }))).to.equal(true)
+    })
+
+    it('rejects plain-http origins on an HTTPS request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }, true))).to.equal(false)
     })
 
     it('rejects opaque or malformed origins', () => {
