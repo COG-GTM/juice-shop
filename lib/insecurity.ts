@@ -194,7 +194,7 @@ const unexpiredSessionFor = (token?: string) => {
 
 export const bindUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = unexpiredSessionFor(utils.jwtFrom(req)) ?? unexpiredSessionFor(req.cookies?.token)
+    const user = unexpiredSessionFor(utils.jwtFrom(req))
     if (req.body) {
       req.body.UserId = user?.data?.id ?? null
     }
