@@ -5,6 +5,7 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -241,6 +242,18 @@ describe('utils', () => {
       expect(utils.configuredCtfKey(undefined, keyFile)).to.equal(undefined)
       fs.writeFileSync(keyFile, ' \n')
       expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
+    })
+
+    it('rejects the publicly known former default key', () => {
+      const rejectedHashes = [crypto.createHash('sha256').update('leaked key').digest('hex')]
+      fs.writeFileSync(keyFile, 'leaked key\n')
+      expect(utils.configuredCtfKey(undefined, keyFile, rejectedHashes)).to.equal(undefined)
+      expect(utils.configuredCtfKey('leaked key', keyFile, rejectedHashes)).to.equal(undefined)
+      expect(utils.configuredCtfKey('other key', keyFile, rejectedHashes)).to.equal('other key')
+    })
+
+    it('includes the formerly committed ctf.key in the rejected keys', () => {
+      expect(utils.publishedCtfKeyHashes).to.include('f0f701815aeb918d291942b8a83b7b36d79d2e04b6a20deebcb07eb8e492e4c8')
     })
   })
 
