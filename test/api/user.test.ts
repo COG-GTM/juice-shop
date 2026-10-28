@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import jwt from 'jsonwebtoken'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
@@ -281,6 +283,21 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i rejects forged tokens and does not register them as authenticated users', async () => {
+    const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+    const unsignedToken = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(forgedPayload)).toString('base64url')}.`
+    const hmacToken = jwt.sign(forgedPayload, crypto.createSecretKey(Buffer.from(security.publicKey)), { algorithm: 'HS256' })
+
+    for (const forgedToken of [unsignedToken, hmacToken]) {
+      const res = await request(app)
+        .get('/rest/user/whoami')
+        .set({ Authorization: `Bearer ${forgedToken}`, Cookie: `token=${forgedToken}` })
+      assert.equal(res.status, 200)
+      assert.deepEqual(res.body.user, {})
+      assert.equal(security.authenticatedUsers.get(forgedToken), undefined)
+    }
   })
 
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {

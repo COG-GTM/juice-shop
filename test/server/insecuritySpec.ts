@@ -5,7 +5,9 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +203,29 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+
+    it('accepts tokens signed with the private RSA key', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with alg none', () => {
+      const unsignedToken = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.`
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects tokens HMAC-signed with the public RSA key', () => {
+      const hmacToken = jwt.sign(payload, crypto.createSecretKey(Buffer.from(security.publicKey)), { algorithm: 'HS256' })
+      expect(security.verify(hmacToken)).to.equal(false)
+    })
+
+    it('rejects expired tokens', () => {
+      const expiredToken = security.authorize({ ...payload, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(security.verify(expiredToken)).to.equal(false)
     })
   })
 })
