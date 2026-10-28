@@ -10,7 +10,7 @@ import sinonChai from 'sinon-chai'
 
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
-import { profileImageUrlUpload, MAX_PROFILE_IMAGE_BYTES } from '../../routes/profileImageUrlUpload'
+import { profileImageUrlUpload, sandboxUploadedFiles, MAX_PROFILE_IMAGE_BYTES } from '../../routes/profileImageUrlUpload'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -94,5 +94,49 @@ describe('profileImageUrlUpload', () => {
 
     expect(writeFile.called).to.equal(false)
     expect(update).to.have.been.calledOnceWith({ profileImage: 'https://images.example/huge.png' })
+  })
+})
+
+describe('sandboxUploadedFiles', () => {
+  function headersFor (requestPath: string) {
+    const headers: Record<string, string> = {}
+    const res: any = { setHeader: (name: string, value: string) => { headers[name] = value } }
+    const next = sinon.spy()
+    sandboxUploadedFiles()({ path: requestPath } as any, res, next)
+    expect(next.calledOnce).to.equal(true)
+    return headers
+  }
+
+  it('sandboxes uploaded SVGs and forces them to download', () => {
+    const headers = headersFor('/assets/public/images/uploads/7.svg')
+    expect(headers['Content-Security-Policy']).to.contain('sandbox')
+    expect(headers['Content-Disposition']).to.equal('attachment')
+  })
+
+  it('keeps raster uploads inline but sandboxed', () => {
+    const headers = headersFor('/assets/public/images/uploads/7.png')
+    expect(headers['Content-Security-Policy']).to.contain('sandbox')
+    expect(headers['Content-Disposition']).to.equal(undefined)
+  })
+
+  for (const encoded of [
+    '/assets/public/images%2Fuploads/7.svg',
+    '/assets/public/images/foo/..%2Fuploads/7.svg',
+    '/assets/public/%69mages/uploads/7.svg',
+    '/assets//public/images/uploads/7.svg',
+    '/assets/public/images/uploads%2F7.svg',
+    '/assets%5Cpublic%5Cimages%5Cuploads%5C7.svg',
+    '/Assets/Public/Images/Uploads/7.SVG'
+  ]) {
+    it(`cannot be bypassed via ${encoded}`, () => {
+      const headers = headersFor(encoded)
+      expect(headers['Content-Security-Policy']).to.contain('sandbox')
+      expect(headers['Content-Disposition']).to.equal('attachment')
+    })
+  }
+
+  it('leaves other assets and undecodable paths alone', () => {
+    expect(headersFor('/assets/public/images/products/apple_juice.jpg')).to.deep.equal({})
+    expect(headersFor('/assets/public/images/uploads/%E0%A4%A.svg')).to.deep.equal({})
   })
 })
