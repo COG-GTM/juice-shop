@@ -89,7 +89,7 @@ export const promotionVideo = () => {
 }
 
 export function promotionCsp (nonce: string) {
-  return `script-src 'self' 'nonce-${nonce}'; object-src 'none'; base-uri 'none'`
+  return `script-src 'nonce-${nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`
 }
 
 export function serializeSubtitles (subs: string) {
