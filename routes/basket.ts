@@ -27,7 +27,7 @@ export function retrieveBasket () {
         return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
       })
       const basket = await BasketModel.findOne({ where: { id, UserId: userId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
-      if (basket === null) {
+      if (basket == null) {
         res.status(403).json({ status: 'error', message: 'Not allowed' })
         return
       }
