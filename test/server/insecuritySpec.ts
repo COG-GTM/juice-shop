@@ -136,6 +136,12 @@ describe('insecurity', () => {
       expect(bind({ headers: {}, cookies: { token }, body: { UserId: 1 } }).UserId).to.equal(3)
     })
 
+    it('accepts a token without expiry claim', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer 22222' }, body: { UserId: 1 } }).UserId).to.equal(2)
+    })
+
     it('sets UserId to null for an expired token', () => {
       const token = tokenExpiringIn(-60)
       security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
