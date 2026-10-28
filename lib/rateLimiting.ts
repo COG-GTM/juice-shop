@@ -20,8 +20,7 @@ export function accountRateLimit (accountOf: (req: Request) => string | undefine
     windowMs,
     max,
     skipSuccessfulRequests: true,
-    skip: (req: Request) => accountOf(req) === undefined,
-    keyGenerator: (req: Request) => `account:${accountOf(req)}`,
+    keyGenerator: (req: Request) => `account:${accountOf(req) ?? '<none>'}`,
     validate: false
   })
 }
