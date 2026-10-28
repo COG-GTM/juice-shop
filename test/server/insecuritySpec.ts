@@ -118,11 +118,29 @@ describe('insecurity', () => {
       expect(nextCalled).to.equal(true)
       return req.body
     }
+    const tokenExpiringIn = (seconds: number) => [{ alg: 'RS256', typ: 'JWT' }, { data: {}, exp: Math.floor(Date.now() / 1000) + seconds }]
+      .map(part => Buffer.from(JSON.stringify(part)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'))
+      .join('.') + '.c2ln'
 
     it('replaces a client-supplied UserId with the id of the authenticated user', () => {
-      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+      const token = tokenExpiringIn(3600)
+      security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
 
-      expect(bind({ headers: { authorization: 'Bearer 22222' }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
+    })
+
+    it('uses the id of a user authenticated only by the token cookie', () => {
+      const token = tokenExpiringIn(3600)
+      security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
+
+      expect(bind({ headers: {}, cookies: { token }, body: { UserId: 1 } }).UserId).to.equal(3)
+    })
+
+    it('sets UserId to null for an expired token', () => {
+      const token = tokenExpiringIn(-60)
+      security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, cookies: { token }, body: { UserId: 2 } }).UserId).to.equal(null)
     })
 
     it('sets UserId to null for anonymous requests', () => {
@@ -130,7 +148,7 @@ describe('insecurity', () => {
     })
 
     it('sets UserId to null for an unknown token', () => {
-      expect(bind({ headers: { authorization: 'Bearer unknown' }, body: { UserId: 1 } }).UserId).to.equal(null)
+      expect(bind({ headers: { authorization: 'Bearer unknown' }, cookies: { token: 'unknown' }, body: { UserId: 1 } }).UserId).to.equal(null)
     })
   })
 
