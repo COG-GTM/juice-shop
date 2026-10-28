@@ -11,12 +11,23 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const validUsername = /^[\p{L}\p{N} ._'-]{0,50}$/u
+
+export function isValidUsername (username: unknown): username is string {
+  return typeof username === 'string' && validUsername.test(username)
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
+    }
+
+    if (!isValidUsername(req.body.username)) {
+      res.status(400).send('Invalid username: up to 50 letters, digits, spaces and . _ \' - are allowed.')
       return
     }
 
