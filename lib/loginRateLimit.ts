@@ -24,11 +24,25 @@ export function loginClientKey (req: Request): string {
   return req.socket.remoteAddress ?? 'unknown'
 }
 
+// A correct password for a 2FA account is answered with 401 + 'totp_token_required',
+// so it has to be recognized as a successful password check by looking at the body.
+const markPasswordValid = (req: Request, res: Response, next: NextFunction) => {
+  const json = res.json.bind(res)
+  res.json = (body?: any) => {
+    if (body?.status === 'totp_token_required') res.locals.loginPasswordValid = true
+    return json(body)
+  }
+  next()
+}
+
+const passwordWasValid = (req: Request, res: Response) => res.statusCode < 400 || res.locals.loginPasswordValid === true
+
 export function loginRateLimit (): RequestHandler[] {
   const perClient = rateLimit({
     windowMs: LOGIN_WINDOW_MS,
     limit: MAX_FAILED_LOGINS_PER_CLIENT,
     skipSuccessfulRequests: true,
+    requestWasSuccessful: passwordWasValid,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: tooManyAttempts,
@@ -40,6 +54,7 @@ export function loginRateLimit (): RequestHandler[] {
     windowMs: LOGIN_WINDOW_MS,
     limit: MAX_FAILED_LOGINS_PER_ACCOUNT,
     skipSuccessfulRequests: true,
+    requestWasSuccessful: passwordWasValid,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
     message: tooManyAttempts,
@@ -52,7 +67,7 @@ export function loginRateLimit (): RequestHandler[] {
     const key = loginAccountKey(req)
     if (key !== undefined) {
       res.on('finish', () => {
-        if (res.statusCode === 200) {
+        if (passwordWasValid(req, res)) {
           void perAccount.resetKey(key)
         }
       })
@@ -60,5 +75,5 @@ export function loginRateLimit (): RequestHandler[] {
     next()
   }
 
-  return [perClient, perAccount, resetAccountOnSuccess]
+  return [markPasswordValid, perClient, perAccount, resetAccountOnSuccess]
 }
