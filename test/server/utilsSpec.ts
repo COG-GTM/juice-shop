@@ -214,10 +214,16 @@ describe('utils', () => {
   })
 
   describe('configuredCtfKey', () => {
-    const keyFile = path.join(os.tmpdir(), `utilsSpec-${process.pid}-ctf.key`)
+    let keyDir: string
+    let keyFile: string
+
+    beforeEach(() => {
+      keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utilsSpec-'))
+      keyFile = path.join(keyDir, 'ctf.key')
+    })
 
     afterEach(() => {
-      fs.rmSync(keyFile, { force: true })
+      fs.rmSync(keyDir, { recursive: true, force: true })
     })
 
     it('prefers the CTF_KEY environment variable', () => {
