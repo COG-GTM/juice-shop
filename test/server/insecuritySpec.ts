@@ -210,26 +210,27 @@ describe('insecurity', () => {
   })
 
   describe('verifyPassword', () => {
-    it('accepts the correct password for a scrypt hash', () => {
-      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    it('accepts the correct password for a scrypt hash', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
     })
 
-    it('rejects a wrong password for a scrypt hash', () => {
-      expect(security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    it('rejects a wrong password for a scrypt hash', async () => {
+      expect(await security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
     })
 
-    it('accepts the correct password for a legacy MD5 hash', () => {
+    it('accepts the correct password for a legacy MD5 hash', async () => {
       expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
-      expect(security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
-      expect(security.verifyPassword('password', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+      expect(await security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(await security.verifyPassword('password', '0192023a7bbd73250516f069df18b500')).to.equal(false)
     })
 
-    it('rejects missing or malformed input', () => {
-      expect(security.verifyPassword(undefined, security.hashPassword('admin123'))).to.equal(false)
-      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
-      expect(security.verifyPassword('admin123', '')).to.equal(false)
-      expect(security.verifyPassword('admin123', 'scrypt$$')).to.equal(false)
-      expect(security.verifyPassword('admin123', 'bcrypt$00$00')).to.equal(false)
+    it('rejects missing or malformed input', async () => {
+      expect(await security.verifyPassword(undefined, security.hashPassword('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('admin123', '')).to.equal(false)
+      expect(await security.verifyPassword('admin123', 'scrypt$$')).to.equal(false)
+      expect(await security.verifyPassword('admin123', 'bcrypt$00$00')).to.equal(false)
+      expect(await security.verifyPassword('admin123', `scrypt$zz${'0'.repeat(30)}$${'0'.repeat(128)}`)).to.equal(false)
     })
   })
 

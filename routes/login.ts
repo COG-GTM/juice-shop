@@ -57,7 +57,7 @@ export function login () {
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
 
   async function verifyCredentials (user: UserModel | null, password: unknown) {
-    if (!user || typeof password !== 'string' || !security.verifyPassword(password, user.password)) {
+    if (!user || typeof password !== 'string' || !(await security.verifyPassword(password, user.password))) {
       return null
     }
     if (security.isLegacyPasswordHash(user.password)) {
