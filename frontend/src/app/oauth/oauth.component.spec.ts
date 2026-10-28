@@ -35,9 +35,7 @@ describe('OAuthComponent', () => {
             login: vi.fn().mockName("UserService.login"),
             save: vi.fn().mockName("UserService.save")
         }
-        userService.oauthLogin.mockReturnValue(of({ email: '' }))
-        userService.login.mockReturnValue(of({}))
-        userService.save.mockReturnValue(of({}))
+        userService.oauthLogin.mockReturnValue(of({ token: 'TOKEN', bid: 1 }))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -85,24 +83,29 @@ describe('OAuthComponent', () => {
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
-    it('will create regular user account with base64 encoded reversed email as password', () => {
-        userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
+    it('sends the OAuth access token to the server for verification', () => {
         component.ngOnInit()
-        expect(userService.save).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', passwordRepeat: 'bW9jLnRzZXRAdHNldA==' })
+        expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
     })
 
-    it('logs in user even after failed account creation as account might already have existed from previous OAuth login', () => {
-        userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
-        userService.save.mockReturnValue(throwError({ error: 'Account already exists' }))
+    it('never registers or logs in with a password derived from the email address', () => {
         component.ngOnInit()
-        expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
+        expect(userService.save).not.toHaveBeenCalled()
+        expect(userService.login).not.toHaveBeenCalled()
     })
 
-    it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
+    it('stores authentication token and basket id returned by the server', () => {
+        component.ngOnInit()
+        expect(localStorage.getItem('token')).toBe('TOKEN')
+        expect(sessionStorage.getItem('bid')).toBe('1')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
+    })
+
+    it('stores temporary token when server requires a second factor', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
-        userService.login.mockReturnValue(throwError({ error: 'Error' }))
-        component.login({ email: '' })
+        userService.oauthLogin.mockReturnValue(throwError(() => ({ status: 'totp_token_required', data: { tmpToken: 'TMP' } })))
+        component.ngOnInit()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('TMP')
         expect(localStorage.getItem('token')).toBeNull()
-        expect(sessionStorage.getItem('bid')).toBeNull()
     })
 })
