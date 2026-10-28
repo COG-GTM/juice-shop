@@ -116,6 +116,9 @@ export const extractFilename = (url: string) => {
   try {
     file = decodeURIComponent(file)
   } catch {}
+  if (contains(file, '?')) {
+    file = file.substring(0, file.indexOf('?'))
+  }
   file = file.substring(Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\')) + 1)
   return sanitizeFilename(file)
 }

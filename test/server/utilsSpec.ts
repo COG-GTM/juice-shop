@@ -57,6 +57,10 @@ describe('utils', () => {
     it('decodes regular encoded characters in filename', () => {
       expect(utils.extractFilename('http://bla.blubb/my%20file.png')).to.equal('my file.png')
     })
+
+    it('cuts filename at encoded question mark like the frontend logo lookup', () => {
+      expect(utils.extractFilename('https://example.org/logo%3Fv1.png')).to.equal('logo')
+    })
   })
 
   describe('resolveInFolder', () => {
