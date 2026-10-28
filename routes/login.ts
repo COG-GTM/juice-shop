@@ -31,7 +31,7 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+    models.sequelize.query('SELECT * FROM Users WHERE email = $1 AND deletedAt IS NULL', { bind: [String(req.body.email || '')], model: UserModel, plain: true }).then(async (candidateUser) => await verifyCredentials(candidateUser, req.body.password)) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
@@ -55,6 +55,16 @@ export function login () {
       })
   }
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
+
+  async function verifyCredentials (user: UserModel | null, password: unknown) {
+    if (!user || typeof password !== 'string' || !(await security.verifyPassword(password, user.password))) {
+      return null
+    }
+    if (security.isLegacyPasswordHash(user.password)) {
+      await user.update({ password })
+    }
+    return user
+  }
 
   function verifyPreLoginChallenges (req: Request) {
     challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })

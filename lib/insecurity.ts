@@ -40,8 +40,48 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
 }
 
+const securityAnswerSecret = process.env.JUICE_SHOP_SECURITY_ANSWER_SECRET || crypto.randomBytes(32).toString('hex')
+const legacyPasswordHashPattern = /^[a-f0-9]{32}$/
+const scryptPasswordHashPattern = /^scrypt\$([a-f0-9]{32})\$([a-f0-9]{128})$/
+
+// Non-cryptographic fingerprint for identifiers (order IDs, email hashes). Never use it for credentials.
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+export const hmac = (data: string) => crypto.createHmac('sha256', securityAnswerSecret).update(data).digest('hex')
+
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(16)
+  const derivedKey = crypto.scryptSync(password, salt, 64)
+  return `scrypt$${salt.toString('hex')}$${derivedKey.toString('hex')}`
+}
+
+const scrypt = async (password: string, salt: Buffer, keyLength: number) => await new Promise<Buffer>((resolve, reject) => {
+  crypto.scrypt(password, salt, keyLength, (err, derivedKey) => {
+    if (err) {
+      reject(err)
+    } else {
+      resolve(derivedKey)
+    }
+  })
+})
+
+export const isLegacyPasswordHash = (storedHash?: string | null) => typeof storedHash === 'string' && legacyPasswordHashPattern.test(storedHash)
+
+const timingSafeEqual = (a: Buffer, b: Buffer) => a.length > 0 && a.length === b.length && crypto.timingSafeEqual(a, b)
+
+export const verifyPassword = async (password: unknown, storedHash?: string | null) => {
+  if (typeof password !== 'string' || typeof storedHash !== 'string') {
+    return false
+  }
+  if (isLegacyPasswordHash(storedHash)) {
+    return timingSafeEqual(Buffer.from(hash(password), 'hex'), Buffer.from(storedHash, 'hex'))
+  }
+  const match = scryptPasswordHashPattern.exec(storedHash)
+  if (match === null) {
+    return false
+  }
+  const expected = Buffer.from(match[2], 'hex')
+  return timingSafeEqual(await scrypt(password, Buffer.from(match[1], 'hex'), expected.length), expected)
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
