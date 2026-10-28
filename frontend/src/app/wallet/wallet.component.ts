@@ -27,7 +27,7 @@ export class WalletComponent implements OnInit {
   private readonly ngZone = inject(NgZone)
 
   public balance: string
-  public balanceControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.min(10), Validators.max(1000)])
+  public balanceControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.min(10), Validators.max(1000), Validators.pattern(/^\d+(\.\d{1,2})?$/)])
 
   ngOnInit (): void {
     this.walletService.get().subscribe({
