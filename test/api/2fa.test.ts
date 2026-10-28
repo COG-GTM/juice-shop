@@ -36,6 +36,7 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should return a valid authentication when a valid tmp token is passed', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
+      expiresAt: security.secondFactorTokenExpiry(),
       type: 'password_valid_needs_second_factor_token'
     })
 
@@ -60,6 +61,7 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should fail if a invalid totp token is used', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
+      expiresAt: security.secondFactorTokenExpiry(),
       type: 'password_valid_needs_second_factor_token'
     })
 
@@ -79,6 +81,7 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should fail if a unsigned tmp token is used', async () => {
     const tmpTokenWurstbrot = jwt.sign({
       userId: 10,
+      expiresAt: security.secondFactorTokenExpiry(),
       type: 'password_valid_needs_second_factor_token'
     }, 'this_surly_isnt_the_right_key')
 
@@ -93,6 +96,73 @@ void describe('/rest/2fa/verify', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token with alg none is used', async () => {
+    const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+    const tmpTokenWurstbrot = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId: 10, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token' })}.`
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an expired tmp token is used', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      expiresAt: Date.now() - 1000,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should lock the second factor of an account after 5 wrong codes even when X-Forwarded-For changes', async () => {
+    const email = 'bruteforce2fa@bar.com'
+    const password = 'Brute-Force-2FA-Test'
+    const totpSecret = 'GQZTSNRXGI3DCMBVGEZTEOJUGIYTMMRZ'
+    await register(app, { email, password, totpSecret })
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email, password })
+    assert.equal(loginRes.body.status, 'totp_token_required')
+    const tmpToken = loginRes.body.data.tmpToken
+    const correctCode = generateSync({ secret: totpSecret })
+    const wrongCode = correctCode === '000000' ? '000001' : '000000'
+
+    const statuses: number[] = []
+    for (let i = 0; i < 20; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.${i}.1` })
+        .send({ tmpToken, totpToken: wrongCode })
+      statuses.push(res.status)
+    }
+
+    assert.deepEqual(statuses.slice(0, 5), [401, 401, 401, 401, 401])
+    assert.ok(statuses.slice(5).every((status) => status === 429))
+
+    const lockedRes = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ ...jsonHeader, 'X-Forwarded-For': '10.1.0.1' })
+      .send({ tmpToken, totpToken: correctCode })
+    assert.equal(lockedRes.status, 429)
   })
 })
 

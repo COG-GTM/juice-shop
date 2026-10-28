@@ -13,22 +13,26 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
+/* Half a TOTP period: at most two codes are accepted at any moment instead of three */
+export const totpEpochToleranceSeconds = 15
+const totpTokenFormat = /^\d{6}$/
+
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
-
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
+    const secondFactorToken = security.verifySecondFactorToken(tmpToken)
+    if (secondFactorToken == null) {
+      throw new Error('Invalid or expired second factor token')
     }
+    const { userId } = secondFactorToken
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
     }
 
-    const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
+    const isValid = typeof totpToken === 'string' && totpTokenFormat.test(totpToken) && verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: totpEpochToleranceSeconds }).valid
 
     const plainUser = utils.queryResultToJson(user)
 
@@ -116,7 +120,7 @@ export async function setup (req: Request, res: Response) {
     if (type !== 'totp_setup_secret') {
       throw new Error('SetupToken is of wrong type')
     }
-    if (!verifySync({ secret, token: initialToken, epochTolerance: 30 }).valid) {
+    if (!verifySync({ secret, token: initialToken, epochTolerance: totpEpochToleranceSeconds }).valid) {
       throw new Error('Initial token doesnt match the secret from the setupToken')
     }
 

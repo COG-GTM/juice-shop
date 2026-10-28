@@ -57,6 +57,32 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+export const secondFactorTokenType = 'password_valid_needs_second_factor_token'
+export const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+export const secondFactorTokenExpiry = () => Date.now() + secondFactorTokenLifetimeMs
+
+const parseJwtSegment = (segment: string) => JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'))
+
+/* Accepts only RS256-signed, unexpired tokens issued by the password step of the login, regardless of the alg the token claims */
+export const verifySecondFactorToken = (token: unknown): { userId: number, type: string, expiresAt: number } | undefined => {
+  if (typeof token !== 'string') return undefined
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return undefined
+    const [header, payload, signature] = parts
+    if (parseJwtSegment(header)?.alg !== 'RS256') return undefined
+    const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))
+    if (!signatureValid) return undefined
+    const claims = parseJwtSegment(payload)
+    if (claims?.type !== secondFactorTokenType || !Number.isInteger(claims.userId)) return undefined
+    const now = Date.now()
+    if (typeof claims.expiresAt !== 'number' || claims.expiresAt <= now || claims.expiresAt > now + secondFactorTokenLifetimeMs) return undefined
+    return claims
+  } catch {
+    return undefined
+  }
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
