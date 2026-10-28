@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
@@ -96,16 +97,64 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(jsonHeader)
+      .send({
+        description: '<iframe src="javascript:alert(`xss`)">',
+        price: 0.01
+      })
+    assert.equal(res.status, 403)
+    const product = (await request(app).get('/api/Products/1')).body.data
+    assert.equal(product.description, original.description)
+    assert.equal(product.price, original.price)
+  })
+
+  void it('PUT update existing product is forbidden for non-accounting users', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
-      .set(jsonHeader)
+      .set(authHeader)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product is allowed for accounting users', async () => {
+    const { token } = await login(app, {
+      email: 'accountant@' + config.get<string>('application.domain'),
+      password: 'i am an awesome accountant'
+    })
+    const accountingHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(accountingHeader)
+      .send({ description: 'Updated by accounting' })
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.body.data.description, 'Updated by accounting')
+    await request(app)
+      .put('/api/Products/1')
+      .set(accountingHeader)
+      .send({ description: original.description })
+  })
+
+  void it('PUT rejects HTML markup in product name for accounting users', async () => {
+    const { token } = await login(app, {
+      email: 'accountant@' + config.get<string>('application.domain'),
+      password: 'i am an awesome accountant'
+    })
+    const accountingHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(accountingHeader)
+      .send({ name: 'Apple Juice<img src=x onerror=alert(1)>' })
+    assert.equal(res.status, 400)
+    const product = (await request(app).get('/api/Products/1')).body.data
+    assert.equal(product.name, original.name)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
