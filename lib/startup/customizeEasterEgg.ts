@@ -14,7 +14,7 @@ const customizeEasterEgg = async () => {
     if (utils.isUrl(overlay)) {
       const overlayPath = overlay
       overlay = utils.extractFilename(overlay)
-      await utils.downloadToFile(overlayPath, 'frontend/dist/frontend/assets/private/' + overlay)
+      await utils.downloadToFile(overlayPath, 'frontend/dist/frontend/assets/private', overlay)
     }
     replaceImagePath(overlay)
   }

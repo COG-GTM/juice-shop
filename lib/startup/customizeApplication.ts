@@ -75,7 +75,7 @@ const retrieveCustomFile = async (sourceProperty: string, destinationFolder: str
   if (utils.isUrl(file)) {
     const filePath = file
     file = utils.extractFilename(file)
-    await utils.downloadToFile(filePath, destinationFolder + '/' + file)
+    await utils.downloadToFile(filePath, destinationFolder, file)
   }
   return file
 }

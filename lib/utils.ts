@@ -6,11 +6,13 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
 import clarinet from 'clarinet'
+import sanitizeFilename from 'sanitize-filename'
 import type { Challenge } from 'data/types'
 
 import isHeroku from './is-heroku'
@@ -107,15 +109,32 @@ export const toISO8601 = (date: Date) => {
 }
 
 export const extractFilename = (url: string) => {
-  let file = decodeURIComponent(url.substring(url.lastIndexOf('/') + 1))
+  let file = url
   if (contains(file, '?')) {
     file = file.substring(0, file.indexOf('?'))
   }
-  return file
+  try {
+    file = decodeURIComponent(file)
+  } catch {}
+  file = file.substring(Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\')) + 1)
+  if (contains(file, '?')) {
+    file = file.substring(0, file.indexOf('?'))
+  }
+  return sanitizeFilename(file)
 }
 
-export const downloadToFile = async (url: string, dest: string) => {
+export const resolveInFolder = (folder: string, filename: string) => {
+  const base = path.resolve(folder)
+  const dest = path.resolve(base, filename)
+  if (!filename || path.dirname(dest) !== base) {
+    throw new Error(`Refusing to write "${filename}" outside of ${folder}`)
+  }
+  return dest
+}
+
+export const downloadToFile = async (url: string, folder: string, filename: string) => {
   try {
+    const dest = resolveInFolder(folder, filename)
     const data = await download(url)
     fs.writeFileSync(dest, data)
   } catch (err) {

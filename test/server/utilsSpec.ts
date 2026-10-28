@@ -8,6 +8,7 @@ import type { ChallengeModel } from 'models/challenge'
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
+import path from 'node:path'
 const expect = chai.expect
 
 describe('utils', () => {
@@ -44,6 +45,38 @@ describe('utils', () => {
 
     it('also works for file:// URLs', () => {
       expect(utils.extractFilename('file:///C//Bla/Blubb/test.exe')).to.equal('test.exe')
+    })
+
+    it('strips encoded path separators and traversal segments', () => {
+      expect(utils.extractFilename('https://evil.example/x/..%2F..%2F..%2F..%2Fviews%2FuserProfile.pug')).to.equal('userProfile.pug')
+      expect(utils.extractFilename('https://evil.example/x/..%5C..%5Ctest.txt')).to.equal('test.txt')
+      expect(utils.extractFilename('https://evil.example/x/..%2F')).to.equal('')
+      expect(utils.extractFilename('https://evil.example/%2E%2E')).to.equal('')
+    })
+
+    it('decodes regular encoded characters in filename', () => {
+      expect(utils.extractFilename('http://bla.blubb/my%20file.png')).to.equal('my file.png')
+    })
+
+    it('cuts filename at encoded question mark like the frontend logo lookup', () => {
+      expect(utils.extractFilename('https://example.org/logo%3Fv1.png')).to.equal('logo')
+    })
+
+    it('ignores encoded question marks in directory segments', () => {
+      expect(utils.extractFilename('https://example.org/a%3Fb/photo.png')).to.equal('photo.png')
+    })
+  })
+
+  describe('resolveInFolder', () => {
+    it('resolves filename directly inside folder', () => {
+      expect(utils.resolveInFolder('frontend/dist/frontend/assets/private', 'orangemap2k.jpg')).to.equal(path.resolve('frontend/dist/frontend/assets/private/orangemap2k.jpg'))
+    })
+
+    it('rejects filenames escaping the folder', () => {
+      expect(() => utils.resolveInFolder('frontend/dist/frontend/assets/private', '../../../../views/userProfile.pug')).to.throw()
+      expect(() => utils.resolveInFolder('frontend/dist/frontend/assets/private', 'sub/test.txt')).to.throw()
+      expect(() => utils.resolveInFolder('frontend/dist/frontend/assets/private', '..')).to.throw()
+      expect(() => utils.resolveInFolder('frontend/dist/frontend/assets/private', '')).to.throw()
     })
   })
 
