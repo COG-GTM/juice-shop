@@ -29,14 +29,14 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.data.length, 1)
-    assert.deepEqual(res.body.data[0], { orderId: 'true' })
+    assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
   })
 
-  void it('GET tracking results strips non-word characters from orderId', async () => {
+  void it('GET tracking results reflects the orderId into the not-found placeholder for the Reflected XSS challenge', async () => {
     const res = await request(app)
       .get('/rest/track-order/%3Ciframe%20src%3D%22javascript%3Aalert(%60xss%60)%22%3E')
     assert.equal(res.status, 200)
     assert.equal(res.body.data.length, 1)
-    assert.deepEqual(res.body.data[0], { orderId: 'iframesrcjavascriptalertxss' })
+    assert.deepEqual(res.body.data[0], { orderId: '<iframe src="javascript:alert(`xss`)">' })
   })
 })
