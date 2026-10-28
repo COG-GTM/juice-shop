@@ -90,7 +90,7 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: string) => token && !isRevoked(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -203,7 +203,7 @@ export const deluxeToken = (email: string) => {
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    const decodedToken = verify(token) && !isRevoked(token) && decode(token)
+    const decodedToken = verify(token) && decode(token)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -214,13 +214,13 @@ export const isAccounting = () => {
 
 export const isDeluxe = (req: Request) => {
   const token = utils.jwtFrom(req)
-  const decodedToken = verify(token) && !isRevoked(token) && decode(token)
+  const decodedToken = verify(token) && decode(token)
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
   const token = utils.jwtFrom(req)
-  const decodedToken = verify(token) && !isRevoked(token) && decode(token)
+  const decodedToken = verify(token) && decode(token)
   return decodedToken?.data?.role === roles.customer
 }
 
