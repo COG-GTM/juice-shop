@@ -33,6 +33,24 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isValidCsrfToken', () => {
+    it('accepts the CSRF token derived from the same session token', () => {
+      expect(security.isValidCsrfToken('session', security.csrfTokenFor('session'))).to.equal(true)
+      expect(security.isValidCsrfToken('"session"', security.csrfTokenFor('session'))).to.equal(true)
+    })
+
+    it('rejects CSRF tokens of other sessions', () => {
+      expect(security.isValidCsrfToken('session', security.csrfTokenFor('other'))).to.equal(false)
+    })
+
+    it('rejects missing, malformed or non-string tokens', () => {
+      expect(security.isValidCsrfToken(undefined, security.csrfTokenFor('session'))).to.equal(false)
+      expect(security.isValidCsrfToken('session', undefined)).to.equal(false)
+      expect(security.isValidCsrfToken('session', 'abc')).to.equal(false)
+      expect(security.isValidCsrfToken('session', [security.csrfTokenFor('session')])).to.equal(false)
+    })
+  })
+
   describe('generateCoupon', () => {
     it('returns base85-encoded month, year and discount as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
