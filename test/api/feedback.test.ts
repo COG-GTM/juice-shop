@@ -163,7 +163,7 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
-  void it('POST feedback is associated with the user authenticated only by the token cookie', async () => {
+  void it('POST feedback with only a token cookie is stored without user association', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -184,7 +184,7 @@ void describe('/api/Feedbacks', () => {
         captcha: captchaRes.body.answer
       })
     assert.equal(res.status, 201)
-    assert.equal(res.body.data.UserId, 4)
+    assert.equal(res.body.data.UserId, null)
   })
 
   void it('POST feedback can be created without actually supplying comment', async () => {

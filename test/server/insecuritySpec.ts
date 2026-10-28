@@ -129,11 +129,11 @@ describe('insecurity', () => {
       expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
     })
 
-    it('uses the id of a user authenticated only by the token cookie', () => {
+    it('sets UserId to null for a token sent only as cookie', () => {
       const token = tokenExpiringIn(3600)
       security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
 
-      expect(bind({ headers: {}, cookies: { token }, body: { UserId: 1 } }).UserId).to.equal(3)
+      expect(bind({ headers: {}, cookies: { token }, body: { UserId: 3 } }).UserId).to.equal(null)
     })
 
     it('accepts a token without expiry claim', () => {
