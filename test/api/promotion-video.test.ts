@@ -30,11 +30,22 @@ void describe('/promotion', () => {
     assert.ok(res.text.includes('<source src="./video" type="video/mp4">'))
   })
 
-  void it('GET promotion video page contains subtitles as <script>', async () => {
+  void it('GET promotion video page contains subtitles as JSON <script> data block', async () => {
     const res = await request(app)
       .get('/promotion')
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">'))
+    const match = /<script id="subtitle" type="application\/json" data-label="English" data-lang="en">([^<]*)<\/script>/.exec(res.text)
+    assert.ok(match)
+    assert.ok(JSON.parse(match[1]).startsWith('WEBVTT'))
+  })
+
+  void it('GET promotion video page only allows nonce-tagged inline scripts', async () => {
+    const res = await request(app)
+      .get('/promotion')
+    const nonce = /script-src 'nonce-([^']+)' 'strict-dynamic'/.exec(res.headers['content-security-policy'] ?? '')?.[1]
+    assert.ok(nonce)
+    assert.ok(res.text.includes(`<script nonce="${nonce}">`))
+    assert.ok(res.headers['content-security-policy'].includes("object-src 'none'"))
   })
 })
 

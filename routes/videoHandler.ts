@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
+import path from 'node:path'
 import config from 'config'
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -48,11 +50,17 @@ export const getVideo = () => {
 }
 
 export const promotionVideo = () => {
-  return (req: Request, res: Response) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     fs.readFile('views/promotionVideo.pug', async function (err, buf) {
       if (err != null) throw err
       let template = buf.toString()
-      const subs = getSubsFromFile()
+      let subs: string
+      try {
+        subs = getSubsFromFile()
+      } catch (error) {
+        next(error)
+        return
+      }
 
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
 
@@ -68,7 +76,10 @@ export const promotionVideo = () => {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+      const nonce = crypto.randomBytes(16).toString('base64')
+      compiledTemplate = compiledTemplate.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`)
+      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
+      res.set('Content-Security-Policy', promotionCsp(nonce))
       res.send(compiledTemplate)
     })
   }
@@ -77,8 +88,17 @@ export const promotionVideo = () => {
   }
 }
 
+export function promotionCsp (nonce: string) {
+  return `script-src 'nonce-${nonce}' 'strict-dynamic'; object-src 'none'; base-uri 'none'`
+}
+
+export function serializeSubtitles (subs: string) {
+  return JSON.stringify(subs).replace(/[<>&\u2028\u2029]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+}
+
 function getSubsFromFile () {
-  const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  const configured = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  const subtitles = path.basename(utils.isUrl(configured) ? utils.extractFilename(configured) : configured)
   const data = fs.readFileSync('frontend/dist/frontend/assets/public/videos/' + subtitles, 'utf8')
   return data.toString()
 }
