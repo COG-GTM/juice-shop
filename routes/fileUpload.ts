@@ -123,11 +123,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         })
         output.on('close', () => {
           if (output.writableFinished && !discarded) {
-            fs.rename(temp.tempPath, targetPath, (err) => {
+            fs.link(temp.tempPath, targetPath, (err) => {
               if (err != null) {
                 logger.warn(`Could not store complaint zip entry: ${err.message}`)
-                discard()
               }
+              discard()
             })
           }
         })
