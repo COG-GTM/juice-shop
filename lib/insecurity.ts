@@ -189,7 +189,7 @@ const unexpiredSessionFor = (token?: string) => {
   const user = authenticatedUsers.get(token)
   if (!user || !token) return undefined
   const payload = decode(utils.unquote(token)) as { exp?: number } | undefined
-  return typeof payload?.exp === 'number' && payload.exp * 1000 > Date.now() ? user : undefined
+  return typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now() ? undefined : user
 }
 
 export const bindUserId = () => {
