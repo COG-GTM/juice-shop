@@ -68,6 +68,8 @@ export const tokenPayload = (payload: any = {}) => {
   return { ...payload, data }
 }
 
+export const tokenCookieOptions = (req: Request) => ({ secure: req.secure })
+
 export const authorize = (user = {}) => jwt.sign(tokenPayload(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
