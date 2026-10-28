@@ -158,6 +158,10 @@ void describe('/api/Feedbacks', () => {
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.UserId, 4)
+  })
 
   void it('POST feedback is associated with the user authenticated only by the token cookie', async () => {
     const { token } = await login(app, {
@@ -180,10 +184,6 @@ void describe('/api/Feedbacks', () => {
         captcha: captchaRes.body.answer
       })
     assert.equal(res.status, 201)
-    assert.equal(res.body.data.UserId, 4)
-  })
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.data.UserId, 4)
   })
 
