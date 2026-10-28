@@ -85,8 +85,12 @@ async function getOrderByIdToolResult (token: string, orderId: string): Promise<
         finishChunk('tool_calls')
       ])
     } else {
-      const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
-      toolResult = toolMsg?.content ?? ''
+      let messages: Array<{ role: string, content?: string }> = []
+      try {
+        messages = JSON.parse(body).messages ?? []
+      } catch {}
+      const toolMsg = messages.find((m) => m.role === 'tool')
+      if (toolMsg) toolResult = toolMsg.content ?? ''
       sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
     }
   }
