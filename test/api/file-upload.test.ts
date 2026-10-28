@@ -179,6 +179,11 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    const tempFiles = () => fs.readdirSync('uploads/complaints').filter(name => name.endsWith('.part'))
+    for (let i = 0; i < 50 && tempFiles().length > 0; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.deepEqual(tempFiles(), [])
   })
 
   void it('POST valid file with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
