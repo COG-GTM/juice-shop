@@ -100,6 +100,21 @@ void describe('/profile/image/url', () => {
     assert.equal(res.status, 302)
   })
 
+  void it('POST profile image URL rejects overlong URL', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'a'.repeat(2049))
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
       .post('/profile/image/url')
