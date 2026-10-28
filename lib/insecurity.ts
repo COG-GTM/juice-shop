@@ -164,10 +164,28 @@ export const isAccounting = () => {
   }
 }
 
-// Must run after isAuthorized(), which sets req.user to the signature-verified token payload
+// Unlike isAuthorized()/verify(), accepts only RS256 tokens signed with the server key (no alg "none" or HS256-with-public-key forgeries)
+export const strictlyVerifiedTokenPayload = (token?: string) => {
+  const parts = token?.split('.')
+  if (parts?.length !== 3) return undefined
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
+    if (header?.alg !== 'RS256') return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), publicKey, Buffer.from(parts[2], 'base64url'))) return undefined
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    if ((req as Request & { user?: { data?: { role?: string } } }).user?.data?.role === roles.admin) {
+    const payload = strictlyVerifiedTokenPayload(utils.jwtFrom(req))
+    if (!payload) {
+      res.status(401).json({ error: 'Authentication required' })
+    } else if (payload.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Admin role required' })

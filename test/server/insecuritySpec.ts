@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,46 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const adminPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+    const unsigned = b64({ typ: 'JWT', alg: 'none' }) + '.' + b64(adminPayload) + '.'
+    const hs256Input = b64({ typ: 'JWT', alg: 'HS256' }) + '.' + b64(adminPayload)
+    const hs256WithPublicKey = hs256Input + '.' + crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')
+
+    const run = (token?: string) => {
+      const result: { status?: number, next: boolean } = { next: false }
+      const res = { status (code: number) { result.status = code; return this }, json () { return this } } as unknown as Response
+      security.isAdmin()({ headers: token ? { authorization: 'Bearer ' + token } : {} } as unknown as Request, res, () => { result.next = true })
+      return result
+    }
+
+    it('passes requests with an RS256 token issued for an admin', () => {
+      expect(run(security.authorize(adminPayload))).to.deep.equal({ next: true })
+    })
+
+    it('rejects requests of non-admin users with 403', () => {
+      expect(run(security.authorize({ data: { id: 2, role: 'customer' } }))).to.deep.equal({ status: 403, next: false })
+    })
+
+    it('rejects requests without a token with 401', () => {
+      expect(run()).to.deep.equal({ status: 401, next: false })
+    })
+
+    it('rejects unsigned admin tokens with 401', () => {
+      expect(run(unsigned)).to.deep.equal({ status: 401, next: false })
+    })
+
+    it('rejects admin tokens signed with HS256 using the public key with 401', () => {
+      expect(run(hs256WithPublicKey)).to.deep.equal({ status: 401, next: false })
+    })
+
+    it('rejects admin tokens with a tampered payload with 401', () => {
+      const [header, , signature] = security.authorize({ data: { id: 2, role: 'customer' } }).split('.')
+      expect(run(header + '.' + b64(adminPayload) + '.' + signature)).to.deep.equal({ status: 401, next: false })
     })
   })
 

@@ -11,6 +11,8 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
+import crypto from 'node:crypto'
 import { login } from './helpers/auth'
 
 let app: Express
@@ -240,6 +242,25 @@ void describe('/support/logs', () => {
         .set({ Authorization: 'Bearer ' + token })
       assert.equal(res.status, 403)
       assert.ok(!res.text.includes('change-password'))
+    }
+  })
+
+  void it('GET log directory listing and access log file with forged admin tokens is denied', async () => {
+    const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const payload = b64({ data: { id: 1, email: 'admin@' + config.get<string>('application.domain'), role: 'admin' } })
+    const hs256Input = b64({ typ: 'JWT', alg: 'HS256' }) + '.' + payload
+    const forgedTokens = [
+      b64({ typ: 'JWT', alg: 'none' }) + '.' + payload + '.',
+      hs256Input + '.' + crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')
+    ]
+    for (const token of forgedTokens) {
+      for (const url of ['/support/logs', todaysLog()]) {
+        const res = await request(app)
+          .get(url)
+          .set({ Authorization: 'Bearer ' + token })
+        assert.equal(res.status, 401)
+        assert.ok(!res.text.includes('access.log'))
+      }
     }
   })
 
