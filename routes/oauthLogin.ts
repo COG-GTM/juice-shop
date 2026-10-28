@@ -59,11 +59,11 @@ export function oauthLogin () {
       let user = await UserModel.findOne({ where: { email } })
       if (!user) {
         user = await UserModel.create({ email, password: crypto.randomBytes(32).toString('hex') })
-        await WalletModel.create({ UserId: user.id })
       }
+      await WalletModel.findOrCreate({ where: { UserId: user.id } })
       challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return email === 'bjoern.kimminich@gmail.com' })
 
-      const authenticatedUser = utils.queryResultToJson(user.toJSON())
+      const authenticatedUser = utils.queryResultToJson(user)
       if (authenticatedUser.data.totpSecret !== '') {
         return res.status(401).json({
           status: 'totp_token_required',
