@@ -113,6 +113,23 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST YAML file with !!js/function tag is rejected instead of executed', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from('toJSON: !!js/function \'function(){ return "pwned" }\''), 'exploit.yml')
+    assert.equal(res.status, 410)
+    assert.ok(res.text.includes('unknown tag'))
+    assert.ok(!res.text.includes('pwned'))
+  })
+
+  void it('POST YAML file with !!js/undefined tag is rejected', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from('foo: !!js/undefined \'\''), 'exploit.yaml')
+    assert.equal(res.status, 410)
+    assert.ok(res.text.includes('unknown tag'))
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
