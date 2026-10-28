@@ -43,7 +43,9 @@ export const solve = function (challenge: any, isRestore = false, isCheating = f
   })
 }
 
-export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, includeFlag = !isRestore) {
+export const showFlagsInNotifications = () => config.get<boolean>('ctf.showFlagsInNotifications')
+
+export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, includeFlag = !isRestore && showFlagsInNotifications()) {
   if (!notSolved(challenge)) {
     const challengeKey = challenge.key as ChallengeKey
     const fullChallenge = challenges[challengeKey]

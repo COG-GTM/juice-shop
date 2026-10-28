@@ -53,8 +53,17 @@ describe('challengeUtils', () => {
       notifications.splice(0, notifications.length)
     })
 
-    it('includes the CTF flag when a challenge is solved', () => {
+    it('does not include the CTF flag when ctf.showFlagsInNotifications is disabled', () => {
+      expect(challengeUtils.showFlagsInNotifications()).to.equal(false)
       challengeUtils.sendNotification(solvedChallenge, false)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification).to.not.have.property('flag')
+      expect(notification.isRestore).to.equal(false)
+      expect(notifications[0]).to.not.have.property('flag')
+    })
+
+    it('includes the CTF flag for a live solve when flags are enabled', () => {
+      challengeUtils.sendNotification(solvedChallenge, false, true)
       const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
       expect(notification.flag).to.equal(utils.ctfFlag('Score Board'))
       expect(notification.isRestore).to.equal(false)
