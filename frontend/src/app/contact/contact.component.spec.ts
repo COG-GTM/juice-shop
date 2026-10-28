@@ -214,6 +214,24 @@ describe('ContactComponent', () => {
         expect(component.resetCaptcha).toHaveBeenCalled()
     })
 
+    it('should discard the consumed captcha if saving feedback fails and no new one can be fetched', () => {
+        component.captcha = '1+1+1'
+        component.captchaId = 2
+        feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
+        captchaService.getCaptcha.mockReturnValue(throwError('Error'))
+        component.save()
+        expect(component.captcha).toBeUndefined()
+        expect(component.captchaId).toBeUndefined()
+    })
+
+    it('should fetch a new captcha if saving feedback fails', () => {
+        feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
+        captchaService.getCaptcha.mockReturnValue(of({ captcha: '1+2+3', captchaId: 3 }))
+        component.save()
+        expect(component.captcha).toBe('1+2+3')
+        expect(component.captchaId).toBe(3)
+    })
+
     it('should clear the feedback object if saving feedback fails', () => {
         feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
         component.save()
