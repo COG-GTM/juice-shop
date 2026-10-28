@@ -42,20 +42,21 @@ void describe('/api/Complaints', () => {
 
   void it('GET complaints as customer only returns own complaints', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
     const jimAuthHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
     const postRes = await request(app)
       .post('/api/Complaints')
       .set(jimAuthHeader)
-      .send({ message: 'My own complaint' })
+      .send({ UserId: jimId, message: 'My own complaint' })
     assert.equal(postRes.status, 201)
 
     const res = await request(app)
       .get('/api/Complaints')
       .set(jimAuthHeader)
     assert.equal(res.status, 200)
-    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.some((c: { id: number }) => c.id === postRes.body.data.id))
     for (const complaint of res.body.data) {
-      assert.equal(complaint.UserId, 2)
+      assert.equal(complaint.UserId, jimId)
     }
   })
 
