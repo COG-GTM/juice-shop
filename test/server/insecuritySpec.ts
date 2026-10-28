@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -196,11 +197,78 @@ describe('insecurity', () => {
     })
   })
 
-  describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', () => {
+      expect(security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    })
+
+    it('uses a random salt for each hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
+      const storedHash = security.hashPassword('admin123')
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = security.hashPassword('admin123').split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects unsalted MD5 and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
+    })
+  })
+
+  describe('hashSecurityAnswer', () => {
+    it('does not store a bare unsalted digest', async () => {
+      const stored = await security.hashSecurityAnswer('Samuel')
+      expect(stored).to.not.match(/^[0-9a-f]{64}$/)
+      expect(stored).to.match(/^[0-9a-f]{32}:[0-9a-f]{64}$/)
+    })
+
+    it('uses a random salt per answer', async () => {
+      const first = await security.hashSecurityAnswer('Samuel')
+      const second = await security.hashSecurityAnswer('Samuel')
+      expect(first).to.not.equal(second)
+    })
+  })
+
+  describe('verifySecurityAnswer', () => {
+    it('accepts the correct answer', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(true)
+    })
+
+    it('rejects a wrong answer', async () => {
+      expect(await security.verifySecurityAnswer('samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(false)
+    })
+
+    it('rejects malformed or missing stored values', async () => {
+      expect(await security.verifySecurityAnswer('Samuel', undefined)).to.equal(false)
+      expect(await security.verifySecurityAnswer('Samuel', '')).to.equal(false)
+      expect(await security.verifySecurityAnswer('Samuel', crypto.randomBytes(32).toString('hex'))).to.equal(false)
     })
   })
 })
