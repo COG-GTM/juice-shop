@@ -50,42 +50,42 @@ export const getVideo = () => {
 }
 
 export const promotionVideo = () => {
+  const template = compilePromotionTemplate()
+  template.catch(() => {})
+  const loadPage = async () => {
+    const subs = getSubsFromFile()
+    const html = (await template).replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
+    return { html, subs }
+  }
+  let page: ReturnType<typeof loadPage> | null = loadPage()
+  page.catch(() => {})
   return (req: Request, res: Response, next: NextFunction) => {
-    fs.readFile('views/promotionVideo.pug', async function (err, buf) {
-      if (err != null) throw err
-      let template = buf.toString()
-      let subs: string
-      try {
-        subs = getSubsFromFile()
-      } catch (error) {
-        next(error)
-        return
-      }
-
+    page ??= loadPage()
+    page.then(({ html, subs }) => {
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
-
-      const themeKey = config.get<string>('application.theme') as keyof typeof themes
-      const theme = themes[themeKey] || themes['bluegrey-lightgreen']
-      template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
-      template = template.replace(/_favicon_/g, favicon())
-      template = template.replace(/_bgColor_/g, theme.bgColor)
-      template = template.replace(/_textColor_/g, theme.textColor)
-      template = template.replace(/_navColor_/g, theme.navColor)
-      template = template.replace(/_primLight_/g, theme.primLight)
-      template = template.replace(/_primDark_/g, theme.primDark)
-      const pug = (await import('pug')).default
-      const fn = pug.compile(template)
-      let compiledTemplate = fn()
       const nonce = crypto.randomBytes(16).toString('base64')
-      compiledTemplate = compiledTemplate.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`)
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
       res.set('Content-Security-Policy', promotionCsp(nonce))
-      res.send(compiledTemplate)
-    })
+      res.send(html.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`))
+    }, (error) => {
+      page = null
+      throw error
+    }).catch(next)
   }
-  function favicon () {
-    return utils.extractFilename(config.get('application.favicon'))
-  }
+}
+
+async function compilePromotionTemplate () {
+  let template = fs.readFileSync('views/promotionVideo.pug', 'utf8')
+  const themeKey = config.get<string>('application.theme') as keyof typeof themes
+  const theme = themes[themeKey] || themes['bluegrey-lightgreen']
+  template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
+  template = template.replace(/_favicon_/g, utils.extractFilename(config.get('application.favicon')))
+  template = template.replace(/_bgColor_/g, theme.bgColor)
+  template = template.replace(/_textColor_/g, theme.textColor)
+  template = template.replace(/_navColor_/g, theme.navColor)
+  template = template.replace(/_primLight_/g, theme.primLight)
+  template = template.replace(/_primDark_/g, theme.primDark)
+  const pug = (await import('pug')).default
+  return pug.compile(template)()
 }
 
 export function promotionCsp (nonce: string) {
