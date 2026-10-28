@@ -62,7 +62,8 @@ export function enforceResourceOwnership (name: string, resource: any) {
         const basketIds = await basketIdsOf(caller.id as number)
         return (item) => basketIds.has(item.BasketId)
       })
-      guardInstances(resource, ['read', 'update', 'delete'], async (caller, item) => (await basketIdsOf(caller.id as number)).has(item.BasketId))
+      guardInstances(resource, ['read', 'delete'], async (caller, item) => (await basketIdsOf(caller.id as number)).has(item.BasketId))
+      guardInstances(resource, ['update'], async (caller, item, req) => (await basketIdsOf(caller.id as number)).has(item.BasketId ?? Number(req.body.BasketId)))
       break
     case 'Complaint':
       filterList(resource, (caller) => (complaint) => complaint.UserId === caller.id)
