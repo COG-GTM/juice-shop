@@ -6,22 +6,26 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
-import type { Express } from 'express'
+import express, { type Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { serveMetrics } from '../../routes/metrics'
 
 let app: Express
+let metricsApp: Express
 const scrapeAuthorization = `Bearer ${process.env.METRICS_SCRAPE_TOKEN}`
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  metricsApp = express()
+  metricsApp.get('/metrics', serveMetrics())
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
   void it('GET metrics without scrape token is rejected', async () => {
-    const res = await request(app)
+    const res = await request(metricsApp)
       .get('/metrics')
       .expect(401)
 
@@ -30,7 +34,7 @@ void describe('/metrics', () => {
   })
 
   void it('GET metrics with wrong scrape token is rejected', async () => {
-    await request(app)
+    await request(metricsApp)
       .get('/metrics')
       .set('Authorization', 'Bearer api-test-metrics-scrape-token-0123456788')
       .expect(401)
@@ -42,14 +46,14 @@ void describe('/metrics', () => {
       .send({ email: 'admin@juice-sh.op', password: 'admin123' })
       .expect(200)
 
-    await request(app)
+    await request(metricsApp)
       .get('/metrics')
       .set('Authorization', `Bearer ${login.body.authentication.token}`)
       .expect(401)
   })
 
   void it('GET metrics with scrape token is served', async () => {
-    const res = await request(app)
+    const res = await request(metricsApp)
       .get('/metrics')
       .set('Authorization', scrapeAuthorization)
       .expect(200)
