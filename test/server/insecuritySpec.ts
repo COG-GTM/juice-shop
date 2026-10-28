@@ -9,6 +9,9 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import crypto from 'node:crypto'
+import path from 'node:path'
+import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +204,100 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const forge = (alg: string, sign: (input: string) => string) => {
+      const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+    }
+
+    it('accepts RS256 tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned "none" tokens', () => {
+      expect(security.verify(forge('none', () => ''))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(forge('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with an arbitrary secret', () => {
+      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, crypto.randomBytes(32).toString('hex')))).to.equal(false)
+    })
+
+    it('rejects empty and malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('passes a 401 UnauthorizedError to next() even for valid RS256 tokens', () => {
+      let error: any
+      const req: any = { headers: { authorization: 'Bearer ' + security.authorize({ data: { id: 1 } }) } }
+      security.denyAll()(req, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    const forgedAdmin = (alg: string, sign: (input: string) => string) => {
+      const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+    }
+    const register = (token: string) => {
+      const res: any = { cookie: () => {} }
+      security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as any, res, () => {})
+      return security.authenticatedUsers.get(token)
+    }
+
+    it('registers RS256 tokens issued by authorize()', () => {
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } })
+      expect(register(token)?.data.email).to.equal('admin@juice-sh.op')
+    })
+
+    it('does not register unsigned "none" tokens', () => {
+      expect(register(forgedAdmin('none', () => ''))).to.equal(undefined)
+    })
+
+    it('does not register HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
+    })
+  })
+
+  describe('profileImageUploadFor', () => {
+    it('returns the upload file inside the uploads directory for a numeric user id', () => {
+      const upload = security.profileImageUploadFor(23, 'png')
+      expect(upload?.userId).to.equal(23)
+      expect(upload?.fileName).to.equal('23.png')
+      expect(upload?.filePath).to.equal(path.join(security.profileImageUploadsDir(), '23.png'))
+    })
+
+    it('rejects user ids containing path traversal sequences', () => {
+      expect(security.profileImageUploadFor('../../../../../logo', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor('..\\..\\logo', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor('/etc/juice', 'png')).to.equal(undefined)
+    })
+
+    it('rejects user ids that are not positive safe integers', () => {
+      expect(security.profileImageUploadFor('1', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(0, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(-1, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(1.5, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(Number.MAX_SAFE_INTEGER + 1, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(undefined, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor({ id: 1 }, 'png')).to.equal(undefined)
+    })
+
+    it('rejects extensions that are not plain alphanumerics', () => {
+      expect(security.profileImageUploadFor(1, '../x')).to.equal(undefined)
+      expect(security.profileImageUploadFor(1, 'png/../../x')).to.equal(undefined)
     })
   })
 })

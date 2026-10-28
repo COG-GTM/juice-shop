@@ -33,22 +33,22 @@ export function profileImageFileUpload () {
       return
     }
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
-    if (!loggedInUser) {
+    const upload = security.profileImageUploadFor(loggedInUser?.data?.id, uploadedFileType.ext)
+    if (!loggedInUser || !upload) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
 
-    const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
     try {
-      await fs.writeFile(filePath, buffer)
+      await fs.writeFile(upload.filePath, buffer)
     } catch (err) {
       logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
+      const user = await UserModel.findByPk(upload.userId)
       if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}` })
+        await user.update({ profileImage: `assets/public/images/uploads/${upload.fileName}` })
       }
     } catch (error) {
       next(error)

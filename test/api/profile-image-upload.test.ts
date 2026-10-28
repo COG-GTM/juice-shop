@@ -9,8 +9,10 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -127,5 +129,62 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Unexpected end of form'))
+  })
+})
+
+void describe('profile image upload path', () => {
+  const traversalId = '../../../../../profileImageTraversal'
+  const escapedFile = path.resolve(security.profileImageUploadsDir(), `${traversalId}.jpg`)
+  const unsigned = (data: Record<string, unknown>) => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data })).toString('base64url')
+    return `${header}.${payload}.`
+  }
+
+  void it('POST profile image file refused for a session whose user id contains "../"', async () => {
+    const token = security.authorize({ data: { id: traversalId, email: 'mallory@juice-sh.op' } })
+    security.authenticatedUsers.put(token, { data: { id: traversalId, email: 'mallory@juice-sh.op' } } as any)
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .attach('file', path.resolve(__dirname, '../files/validProfileImage.jpg'))
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(fs.existsSync(escapedFile), false)
+  })
+
+  void it('POST profile image URL refused for a session whose user id contains "../"', async () => {
+    const token = security.authorize({ data: { id: traversalId, email: 'mallory@juice-sh.op' } })
+    security.authenticatedUsers.put(token, { data: { id: traversalId, email: 'mallory@juice-sh.op' } } as any)
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'http://localhost:1/logo.jpg')
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(fs.existsSync(escapedFile), false)
+  })
+
+  void it('unsigned alg:none token with a traversal user id is not registered as a session', async () => {
+    const token = unsigned({ id: traversalId, email: 'mallory@juice-sh.op' })
+
+    await request(app).get('/rest/user/whoami').set('Cookie', `token=${token}`)
+    assert.equal(security.authenticatedUsers.get(token), undefined)
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .attach('file', path.resolve(__dirname, '../files/validProfileImage.jpg'))
+      .redirects(0)
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(fs.existsSync(escapedFile), false)
   })
 })

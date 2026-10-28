@@ -19,20 +19,21 @@ export function profileImageUrlUpload () {
       const url = req.body.imageUrl
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
-      if (loggedInUser) {
+      const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
+      const upload = security.profileImageUploadFor(loggedInUser?.data?.id, ext)
+      if (loggedInUser && upload) {
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
+          const fileStream = fs.createWriteStream(upload.filePath, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
-          const user = await UserModel.findByPk(loggedInUser.data.id)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
+          const user = await UserModel.findByPk(upload.userId)
+          await user?.update({ profileImage: `/assets/public/images/uploads/${upload.fileName}` })
         } catch (error) {
           try {
-            const user = await UserModel.findByPk(loggedInUser.data.id)
+            const user = await UserModel.findByPk(upload.userId)
             await user?.update({ profileImage: url })
             logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
           } catch (error) {
