@@ -213,6 +213,9 @@ export const isCrossSiteRequest = (req: Request) => {
   }
   try {
     const sourceUrl = new URL(source)
+    if (req.secure && sourceUrl.protocol !== 'https:') {
+      return true
+    }
     return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${req.headers.host ?? ''}`).host
   } catch {
     return true
