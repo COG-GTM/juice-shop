@@ -185,9 +185,16 @@ export const appendUserId = () => {
   }
 }
 
+const unexpiredSessionFor = (token?: string) => {
+  const user = authenticatedUsers.get(token)
+  if (!user || !token) return undefined
+  const payload = decode(utils.unquote(token)) as { exp?: number } | undefined
+  return typeof payload?.exp === 'number' && payload.exp * 1000 > Date.now() ? user : undefined
+}
+
 export const bindUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = authenticatedUsers.from(req)
+    const user = unexpiredSessionFor(utils.jwtFrom(req)) ?? unexpiredSessionFor(req.cookies?.token)
     if (req.body) {
       req.body.UserId = user?.data?.id ?? null
     }
