@@ -6,10 +6,13 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -193,6 +196,87 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', () => {
+      expect(security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    })
+
+    it('uses a random salt for each hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
+      const storedHash = security.hashPassword('admin123')
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', 'not-a-hash')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('matches legacy unsalted MD5 hashes with MD5', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal('0192023a7bbd73250516f069df18b500')
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = security.hashPassword('admin123').split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('verifies legacy unsalted MD5 hashes so they can be upgraded', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(true)
+      expect(await security.verifyPassword('admin124', security.hash('admin123'))).to.equal(false)
+    })
+
+    it('rejects missing hashes and non-string passwords', async () => {
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
+      expect(await security.verifyPassword(['admin123'], security.hash('admin123'))).to.equal(false)
+    })
+  })
+
+  describe('upgradeLegacyPasswordHash', () => {
+    it('re-hashes a legacy MD5 password after it was verified', async () => {
+      const update = sinon.stub().resolves()
+      await security.upgradeLegacyPasswordHash({ password: security.hash('admin123'), update }, 'admin123')
+      expect(update).to.have.been.calledOnceWith({ password: 'admin123' })
+    })
+
+    it('leaves the stored hash alone for a wrong password', async () => {
+      const update = sinon.stub().resolves()
+      await security.upgradeLegacyPasswordHash({ password: security.hash('admin123'), update }, 'admin124')
+      expect(update).to.have.callCount(0)
+    })
+
+    it('does not fail the login when the upgrade cannot be stored', async () => {
+      const update = sinon.stub().rejects(new Error('SQLITE_READONLY'))
+      await security.upgradeLegacyPasswordHash({ password: security.hash('admin123'), update }, 'admin123')
+      expect(update).to.have.been.calledOnceWith({ password: 'admin123' })
+    })
+
+    it('leaves scrypt hashes and missing users alone', async () => {
+      const update = sinon.stub().resolves()
+      await security.upgradeLegacyPasswordHash({ password: security.hashPassword('admin123'), update }, 'admin123')
+      await security.upgradeLegacyPasswordHash(null, 'admin123')
+      expect(update).to.have.callCount(0)
     })
   })
 
