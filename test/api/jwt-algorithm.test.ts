@@ -44,6 +44,12 @@ void describe('isAuthorized middleware', () => {
     const res = await request(app).get('/api/Complaints').set(bearer(hs256WithPublicKey(accountant)))
     assert.equal(res.status, 401)
   })
+
+  void it('rejects a temporary 2FA token issued before the second factor was checked', async () => {
+    const tmpToken = security.authorize({ userId: accountant.id, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token' })
+    const res = await request(app).get('/api/Complaints').set(bearer(tmpToken))
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('GET /api/Users', () => {
