@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -231,6 +232,37 @@ void describe('/api/Users/:id', () => {
     const res = await request(app).delete('/api/Users/1').set(authHeader)
     assert.equal(res.status, 401)
   })
+})
+
+void describe('forged JWTs', () => {
+  const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+  const unsigned = (payload: object) => `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(payload)}.`
+  const hs256WithPublicKey = (payload: object) => {
+    const unsignedPart = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(payload)}`
+    return `${unsignedPart}.${crypto.createHmac('sha256', security.publicKey).update(unsignedPart).digest('base64url')}`
+  }
+
+  for (const [name, forge] of [['unsigned', unsigned], ['HS256 public-key-signed', hs256WithPublicKey]] as const) {
+    const forgedHeader = (role: string) => ({ Authorization: `Bearer ${forge({ data: { id: 1, email: 'admin@juice-sh.op', role }, iat: 1508639612, exp: 9999999999 })}`, ...jsonHeader })
+
+    void it(`GET all users rejects ${name} token`, async () => {
+      const res = await request(app).get('/api/Users').set(forgedHeader('admin'))
+      assert.equal(res.status, 401)
+    })
+
+    void it(`PUT update existing user rejects ${name} token`, async () => {
+      const res = await request(app)
+        .put('/api/Users/1')
+        .set(forgedHeader('admin'))
+        .send({ email: 'mallory@juice-sh.op' })
+      assert.equal(res.status, 401)
+    })
+
+    void it(`GET all orders rejects ${name} token with accounting role`, async () => {
+      const res = await request(app).get('/rest/order-history/orders').set(forgedHeader('accounting'))
+      assert.equal(res.status, 403)
+    })
+  }
 })
 
 void describe('/rest/user/whoami', () => {
