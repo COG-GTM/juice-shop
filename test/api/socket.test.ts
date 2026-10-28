@@ -10,6 +10,8 @@ import * as http from 'http'
 import ioClient from 'socket.io-client'
 import { createTestApp } from './helpers/setup'
 import registerWebsocketEvents from '../../lib/startup/registerWebsocketEvents'
+import { challenges, notifications } from '../../data/datacache'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let server: http.Server
@@ -81,5 +83,96 @@ void describe('WebSocket', () => {
   void it('server handles empty confirmation message', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
+  })
+})
+
+type ClientSocket = ReturnType<typeof ioClient>
+
+const connect = async (auth?: Record<string, string>) => {
+  return await new Promise<{ socket: ClientSocket, flags: string[] }>((resolve) => {
+    const flags: string[] = []
+    const socket = ioClient(`http://localhost:${serverPort}`, { reconnectionDelay: 0, forceNew: true, auth } as any)
+    socket.on('challenge solved', (notification: any) => { flags.push(notification.flag) })
+    socket.on('connect', () => { resolve({ socket, flags }) })
+  })
+}
+
+const settle = async (ms = 300) => { await new Promise((resolve) => setTimeout(resolve, ms)) }
+
+const addNotification = (flag: string) => {
+  notifications.push({ key: 'regressionTest', name: 'Regression Test', challenge: 'Regression Test', flag, hidden: false, isRestore: false })
+}
+
+const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+void describe('WebSocket notification acknowledgement', () => {
+  void it('acknowledgement by one anonymous client does not remove the notification for other clients', async () => {
+    addNotification('regression-flag-anonymous')
+    const attacker = await connect()
+    attacker.socket.emit('notification received', 'regression-flag-anonymous')
+    await settle()
+    attacker.socket.disconnect()
+
+    const victim = await connect()
+    await settle()
+    victim.socket.disconnect()
+
+    assert.ok(notifications.some(({ flag }) => flag === 'regression-flag-anonymous'))
+    assert.ok(victim.flags.includes('regression-flag-anonymous'))
+  })
+
+  void it('acknowledgement is remembered only for the acknowledging client id', async () => {
+    addNotification('regression-flag-client')
+    const first = await connect({ clientId: 'a'.repeat(32) })
+    first.socket.emit('notification received', 'regression-flag-client')
+    await settle()
+    first.socket.disconnect()
+
+    const sameClient = await connect({ clientId: 'a'.repeat(32) })
+    const otherClient = await connect({ clientId: 'b'.repeat(32) })
+    await settle()
+    sameClient.socket.disconnect()
+    otherClient.socket.disconnect()
+
+    assert.ok(!sameClient.flags.includes('regression-flag-client'))
+    assert.ok(otherClient.flags.includes('regression-flag-client'))
+  })
+})
+
+void describe('WebSocket challenge verification', () => {
+  const xssPayload = '<iframe src="javascript:alert(`xss`)">'
+
+  const assertUnsolvedAfter = async (auth?: Record<string, string>) => {
+    const { socket } = await connect(auth)
+    socket.emit('verifyLocalXssChallenge', xssPayload)
+    socket.emit('verifyCloseNotificationsChallenge', [1, 2])
+    await settle()
+    socket.disconnect()
+
+    assert.equal(challenges.localXssChallenge.solved, false)
+    assert.equal(challenges.closeNotificationsChallenge.solved, false)
+  }
+
+  void it('anonymous socket cannot solve challenges', async () => {
+    await assertUnsolvedAfter()
+  })
+
+  void it('socket with an unsigned token cannot solve challenges', async () => {
+    await assertUnsolvedAfter({ token: `${base64url({ typ: 'JWT', alg: 'none' })}.${base64url({ data: { id: 1, email: 'admin@juice-sh.op' } })}.` })
+  })
+
+  void it('socket with an expired token cannot solve challenges', async () => {
+    await assertUnsolvedAfter({ token: security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' }, exp: Math.floor(Date.now() / 1000) - 60 }) })
+  })
+
+  void it('socket authenticated with a valid token can solve challenges', async () => {
+    const { socket } = await connect({ token: security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } }) })
+    socket.emit('verifyLocalXssChallenge', xssPayload)
+    socket.emit('verifyCloseNotificationsChallenge', [1, 2])
+    await settle()
+    socket.disconnect()
+
+    assert.equal(challenges.localXssChallenge.solved, true)
+    assert.equal(challenges.closeNotificationsChallenge.solved, true)
   })
 })
