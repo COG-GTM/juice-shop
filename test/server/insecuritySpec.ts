@@ -111,6 +111,53 @@ describe('insecurity', () => {
     })
   })
 
+  describe('bindUserId', () => {
+    const bind = (req: any) => {
+      let nextCalled = false
+      security.bindUserId()(req as Request, {} as any, () => { nextCalled = true })
+      expect(nextCalled).to.equal(true)
+      return req.body
+    }
+    const tokenExpiringIn = (seconds: number) => [{ alg: 'RS256', typ: 'JWT' }, { data: {}, exp: Math.floor(Date.now() / 1000) + seconds }]
+      .map(part => Buffer.from(JSON.stringify(part)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'))
+      .join('.') + '.c2ln'
+
+    it('replaces a client-supplied UserId with the id of the authenticated user', () => {
+      const token = tokenExpiringIn(3600)
+      security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
+    })
+
+    it('sets UserId to null for a token sent only as cookie', () => {
+      const token = tokenExpiringIn(3600)
+      security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
+
+      expect(bind({ headers: {}, cookies: { token }, body: { UserId: 3 } }).UserId).to.equal(null)
+    })
+
+    it('accepts a token without expiry claim', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer 22222' }, body: { UserId: 1 } }).UserId).to.equal(2)
+    })
+
+    it('sets UserId to null for an expired token', () => {
+      const token = tokenExpiringIn(-60)
+      security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, cookies: { token }, body: { UserId: 2 } }).UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for anonymous requests', () => {
+      expect(bind({ headers: {}, body: { UserId: 1 } }).UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for an unknown token', () => {
+      expect(bind({ headers: { authorization: 'Bearer unknown' }, cookies: { token: 'unknown' }, body: { UserId: 1 } }).UserId).to.equal(null)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
