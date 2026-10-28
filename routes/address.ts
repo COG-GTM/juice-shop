@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
+import { ValidationError } from 'sequelize'
 import { AddressModel } from '../models/address'
 
 export function getAddress () {
@@ -31,6 +32,27 @@ export function delAddressById () {
       res.status(200).json({ status: 'success', data: 'Address deleted successfully.' })
     } else {
       res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
+    }
+  }
+}
+
+export function updateAddressById () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { id, UserId, createdAt, updatedAt, ...fields } = req.body
+    const address = await AddressModel.findOne({ where: { id: req.params.id, UserId } })
+    if (address == null) {
+      res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
+      return
+    }
+    try {
+      await address.update(fields)
+      res.status(200).json({ status: 'success', data: address })
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ status: 'error', message: error.message, errors: error.errors.map(({ path, message }) => ({ field: path, message })) })
+      } else {
+        next(error)
+      }
     }
   }
 }
