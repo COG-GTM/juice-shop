@@ -206,6 +206,21 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/4')
+      .set(otherUserHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/999999')
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
   void it('PUT update basket item of another user is forbidden', async () => {
     const res = await request(app)
       .put('/api/BasketItems/4')

@@ -452,8 +452,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
-  /* Ownership checks for item-level writes (registered before finale takes over) */
+  /* Ownership checks for item-level access (registered before finale takes over) */
   app.put('/api/Addresss/:id', utils.asyncHandler(address.updateAddressById()))
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   app.delete('/api/Feedbacks/:id', security.isAdmin())
 
