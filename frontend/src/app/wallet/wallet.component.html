@@ -20,13 +20,13 @@
     </p>
     <mat-form-field appearance="outline" color="tertiary">
       <mat-label>{{'LABEL_AMOUNT' | translate}}</mat-label>
-      <input [formControl]="balanceControl" type="number" matInput aria-label="Enter an amount">
+      <input [formControl]="balanceControl" type="number" step="0.01" matInput aria-label="Enter an amount">
       @if (balanceControl.invalid && balanceControl.errors.required) {
         <mat-error>
           {{"MANDATORY_AMOUNT"| translate}}
         </mat-error>
       }
-      @if (balanceControl.invalid && (balanceControl.errors.min || balanceControl.errors.max)) {
+      @if (balanceControl.invalid && (balanceControl.errors.min || balanceControl.errors.max || balanceControl.errors.pattern)) {
         <mat-error>
           {{"AMOUNT_LIMIT" | translate}}
         </mat-error>
