@@ -131,6 +131,34 @@ void describe('/profile', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('POST update username over HTTPS is rejected for a plain-HTTP Origin on the same host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Proto', 'https')
+      .set('Origin', 'http://localhost:3000')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username over HTTPS is accepted for an HTTPS Origin on the same host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('X-Forwarded-Proto', 'https')
+      .set('Origin', 'https://localhost:3000')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
   void it('POST update username is rejected for cross-site Sec-Fetch-Site', async () => {
     const res = await request(app)
       .post('/profile')
