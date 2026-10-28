@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import { pipeline, Readable, Transform } from 'node:stream'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -24,32 +24,47 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDirectory = path.resolve('uploads/complaints')
+const MAX_ZIP_ENTRIES = 100
+const MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE = 10 * 1024 * 1024
+
+function isInsideDirectory (target: string, directory: string) {
+  const relative = path.relative(directory, target)
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
-      const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
-      fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
-        fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
-          fs.close(fd, function () {
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
-              .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
-                  entry.autodrain()
-                }
-              }).on('error', function (err: unknown) { next(err) })
+      let entryCount = 0
+      let totalBytes = 0
+      Readable.from([file.buffer])
+        .pipe(unzipper.Parse())
+        .on('entry', function (entry: any) {
+          entryCount++
+          const fileName: string = entry.path
+          const absolutePath = path.resolve(complaintsDirectory, fileName)
+          challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
+          if (entry.type !== 'File' || entryCount > MAX_ZIP_ENTRIES || !isInsideDirectory(absolutePath, complaintsDirectory)) {
+            entry.autodrain()
+            return
+          }
+          const sizeLimiter = new Transform({
+            transform (chunk: Buffer, _encoding, callback) {
+              totalBytes += chunk.length
+              if (totalBytes > MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE) {
+                callback(new Error('Zip archive exceeds maximum uncompressed size'))
+              } else {
+                callback(null, chunk)
+              }
+            }
           })
-        })
-      })
+          pipeline(entry, sizeLimiter, fs.createWriteStream(absolutePath), (err) => {
+            if (err != null) {
+              fs.unlink(absolutePath, () => {})
+            }
+          })
+        }).on('error', function () {})
     }
     res.status(204).end()
   } else {
