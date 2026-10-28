@@ -15,7 +15,6 @@ import {
 
 const CHALLENGE_KEYS = [
   'restfulXssChallenge',
-  'accessLogDisclosureChallenge',
   'registerAdminChallenge',
   'adminSectionChallenge',
   'fileWriteChallenge',

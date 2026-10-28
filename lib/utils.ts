@@ -125,19 +125,19 @@ export const downloadToFile = async (url: string, dest: string) => {
 
 const sensitiveQueryParams = ['current', 'new', 'repeat', 'password']
 
-export const redactSensitiveQueryParams = (url: string) => {
+const isSensitiveQueryParam = (key: string) => sensitiveQueryParams.includes(key.replace(/\[.*$/, '').trim().toLowerCase())
+
+export const redactSensitiveQueryParams = (url: string, parsedQuery: Record<string, unknown> = {}) => {
   const queryStart = url.indexOf('?')
   if (queryStart === -1) return url
-  const query = url.substring(queryStart + 1).split('&').map(param => {
-    const separator = param.indexOf('=')
-    const key = separator === -1 ? param : param.substring(0, separator)
-    let decodedKey = key
-    try {
-      decodedKey = decodeURIComponent(key)
-    } catch {}
-    return separator !== -1 && sensitiveQueryParams.includes(decodedKey.toLowerCase()) ? key + '=[REDACTED]' : param
-  }).join('&')
-  return url.substring(0, queryStart + 1) + query
+  let path = url.substring(0, queryStart)
+  try {
+    path = decodeURIComponent(path)
+  } catch {}
+  const rawKeys = [...new URLSearchParams(url.substring(queryStart + 1)).keys()]
+  const containsSecret = path.toLowerCase().includes('change-password') ||
+    [...Object.keys(parsedQuery), ...rawKeys].some(isSensitiveQueryParam)
+  return containsSecret ? url.substring(0, queryStart + 1) + '[REDACTED]' : url
 }
 
 export const jwtFrom = ({ headers }: { headers: any }) => {

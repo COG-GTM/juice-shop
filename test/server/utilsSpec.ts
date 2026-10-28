@@ -166,18 +166,25 @@ describe('utils', () => {
   })
 
   describe('redactSensitiveQueryParams', () => {
-    it('redacts password values from change-password URLs', () => {
+    it('redacts the query of change-password URLs', () => {
       expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=Summer2025!&repeat=Summer2025!'))
-        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+        .to.equal('/rest/user/change-password?[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/rest/user/change%2Dpassword?a=1%26new=Summer2025!'))
+        .to.equal('/rest/user/change%2Dpassword?[REDACTED]')
     })
 
-    it('redacts password parameters regardless of case or encoding', () => {
-      expect(utils.redactSensitiveQueryParams('/x?PASSWORD=secret&%6Eew=secret2&q=apple'))
-        .to.equal('/x?PASSWORD=[REDACTED]&%6Eew=[REDACTED]&q=apple')
+    it('redacts the query when it contains password parameters regardless of case, encoding or array syntax', () => {
+      expect(utils.redactSensitiveQueryParams('/x?PASSWORD=secret&q=apple')).to.equal('/x?[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?q=apple&%6Eew=secret')).to.equal('/x?[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?new%5B%5D=secret')).to.equal('/x?[REDACTED]')
+    })
+
+    it('redacts the query when the parsed query contains password parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/x?foo', { new: 'secret' })).to.equal('/x?[REDACTED]')
     })
 
     it('leaves URLs without sensitive parameters untouched', () => {
-      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple')).to.equal('/rest/products/search?q=apple')
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple', { q: 'apple' })).to.equal('/rest/products/search?q=apple')
       expect(utils.redactSensitiveQueryParams('/api/Products')).to.equal('/api/Products')
     })
   })
