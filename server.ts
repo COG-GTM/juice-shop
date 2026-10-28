@@ -458,7 +458,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     rateLimit({
       windowMs: 5 * 60 * 1000,
       max: 100,
-      keyGenerator: (req: Request) => req.socket.remoteAddress ?? '',
+      keyGenerator: (req: Request) => security.verify(req.body?.tmpToken) ? `user:${security.decode(req.body.tmpToken)?.userId}` : `ip:${req.ip}`,
       validate: { trustProxy: false, xForwardedForHeader: false }
     }),
     utils.asyncHandler(twoFactorAuth.verify)
