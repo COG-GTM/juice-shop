@@ -8,11 +8,20 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+
+async function waitForFile (filePath: string, timeoutMs = 5000) {
+  const start = Date.now()
+  while (!fs.existsSync(filePath)) {
+    if (Date.now() - start > timeoutMs) throw new Error(`Timed out waiting for ${filePath}`)
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -121,13 +130,31 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 500)
   })
 
-  void it('POST zip file with directory traversal payload', async () => {
-    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .attach('file', file)
-    assert.equal(res.status, 204)
-  })
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('POST zip file with directory traversal payload', async () => {
+      const legalBefore = fs.readFileSync('ftp/legal.md', 'utf8')
+      fs.rmSync('uploads/complaints/legal.md', { force: true })
+      const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      await waitForFile('uploads/complaints/legal.md')
+      assert.equal(fs.readFileSync('ftp/legal.md', 'utf8'), legalBefore)
+    })
+
+    void it('POST zip file with directory traversal payload targeting a server-side template', async () => {
+      const templateBefore = fs.readFileSync('views/promotionVideo.pug', 'utf8')
+      fs.rmSync('uploads/complaints/promotionVideo.pug', { force: true })
+      const file = path.resolve(__dirname, '../files/zipSlipPromotionVideo.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      await waitForFile('uploads/complaints/promotionVideo.pug')
+      assert.equal(fs.readFileSync('views/promotionVideo.pug', 'utf8'), templateBefore)
+    })
+  }
 
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
