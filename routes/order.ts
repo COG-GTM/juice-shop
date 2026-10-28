@@ -54,8 +54,8 @@ export function placeOrder () {
           const abortOrder = (error: unknown) => {
             fileWriter.removeAllListeners('finish')
             doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
             fileWriter.destroy()
-            fs.unlink(path.join('ftp/', pdfFile), () => {})
             next(error)
           }
 
@@ -168,11 +168,13 @@ export function placeOrder () {
           }
 
           if (req.body.UserId) {
+            let walletCharge = 0
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               try {
                 const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
                 if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
                   await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+                  walletCharge = totalPrice
                 } else {
                   await restoreStock().catch(() => {})
                   abortOrder(new Error('Insufficient wallet balance.'))
@@ -187,6 +189,10 @@ export function placeOrder () {
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
+              if (walletCharge > 0) {
+                await WalletModel.increment({ balance: walletCharge }, { where: { UserId: req.body.UserId } }).catch(() => {})
+              }
+              await restoreStock().catch(() => {})
               abortOrder(error)
               return
             }
