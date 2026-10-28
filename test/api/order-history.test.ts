@@ -133,3 +133,51 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:id/confirmation', () => {
+  void it('GET order confirmation PDF is only available to the customer who placed the order', async () => {
+    const jim = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    const jimHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+
+    const checkout = await request(app).post('/rest/basket/2/checkout').set(jimHeader)
+    assert.equal(checkout.status, 200)
+    const orderId: string = checkout.body.orderConfirmation
+
+    const own = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(jimHeader)
+    assert.equal(own.status, 200)
+    assert.ok(own.headers['content-type']?.includes('application/pdf'))
+
+    const anonymous = await request(app).get(`/rest/order-history/${orderId}/confirmation`)
+    assert.equal(anonymous.status, 401)
+
+    const admin = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+    const other = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + admin.token, 'content-type': 'application/json' })
+    assert.equal(other.status, 404)
+
+    const ftpListing = await request(app).get('/ftp')
+    assert.ok(!ftpListing.text.includes(`order_${orderId}.pdf`))
+    const ftpFile = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(ftpFile.status, 404)
+  })
+
+  void it('GET order confirmation PDF rejects malformed order ids', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .get('/rest/order-history/' + encodeURIComponent('../../ftp/acquisitions.md') + '/confirmation')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 404)
+  })
+})

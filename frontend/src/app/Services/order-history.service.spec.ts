@@ -61,6 +61,21 @@ describe('OrderHistoryService', () => {
         httpMock.verify()
     })
 
+    it('should get order confirmation PDF as blob from the authenticated api', () => {
+        const service = TestBed.inject(OrderHistoryService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res
+        service.getConfirmationPdf('5267-f9cd5882f54c75a3').subscribe((data) => (res = data))
+        const req = httpMock.expectOne('http://localhost:3000/rest/order-history/5267-f9cd5882f54c75a3/confirmation')
+        const pdf = new Blob(['%PDF'])
+        req.flush(pdf)
+        expect(req.request.method).toBe('GET')
+        expect(req.request.responseType).toBe('blob')
+        expect(res).toEqual(pdf)
+        httpMock.verify()
+    })
+
     it('should handle error when getting order history', () => {
         const service = TestBed.inject(OrderHistoryService)
         const httpMock = TestBed.inject(HttpTestingController)
