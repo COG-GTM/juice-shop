@@ -174,4 +174,20 @@ void describe('/dataerasure', () => {
     assert.ok(res.text.includes('Sorry to see you leave!'))
     assert.ok(!res.text.includes(ctfKey))
   })
+
+  void it('POST erasure request cannot point layout at the views directory override to read the CTF key', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const ctfKey = fs.readFileSync('ctf.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('layout=.&settings[views]=ctf.key')
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(ctfKey))
+    assert.ok(!res.text.endsWith('......'))
+  })
 })
