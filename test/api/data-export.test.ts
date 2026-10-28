@@ -265,4 +265,26 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
+
+  void it('Export data escapes HTML from review messages', async () => {
+    const { token } = await login(app, { email: 'mc.safesearch@' + config.get<string>('application.domain'), password: 'Mr. N00dles' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const payload = "<img src=x onerror='alert(1)'> & more"
+
+    const reviewRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .set(authHeader)
+      .send({ message: payload })
+    assert.equal(reviewRes.status, 201)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.reviews.some(({ message }: { message: string }) => message === payload))
+  })
 })
