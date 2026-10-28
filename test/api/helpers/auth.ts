@@ -6,6 +6,7 @@
 import request from 'supertest'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
+import config from 'config'
 import * as security from '../../../lib/insecurity'
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -79,4 +80,32 @@ export async function register (app: Express, { email, password, totpSecret }: {
   }
 
   return res
+}
+
+export async function loginWithGoogle (app: Express, email: string) {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    if (String(input).startsWith('https://oauth2.googleapis.com/tokeninfo')) {
+      return new Response(JSON.stringify({
+        aud: config.get<string>('application.googleOauth.clientId'),
+        email,
+        email_verified: 'true',
+        expires_in: '3599'
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+    return await originalFetch(input, init)
+  }
+  try {
+    const res = await request(app)
+      .post('/rest/user/oauth-login')
+      .set(jsonHeader)
+      .send({ accessToken: 'test-access-token' })
+
+    if (res.status !== 200) {
+      throw new Error(`Failed to login '${email}' via Google: ${res.status}`)
+    }
+    return res.body.authentication
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 }
