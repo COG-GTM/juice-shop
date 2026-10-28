@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -89,7 +90,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change without current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
@@ -99,7 +100,20 @@ void describe('/rest/user/change-password', () => {
       .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
+  void it('GET password change rejects forged password hash in token payload', async () => {
+    const forgedToken = security.authorize({ data: { id: 1, email: 'admin@' + config.get<string>('application.domain'), password: security.hash('attacker') } })
+    security.authenticatedUsers.put(forgedToken, security.decode(forgedToken))
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=attacker&new=pwned&repeat=pwned')
+      .set({ Authorization: 'Bearer ' + forgedToken })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
   })
 })
 
