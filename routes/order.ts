@@ -67,14 +67,14 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockDeductions: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
+                  stockDeductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
                 }
               } catch (error: unknown) {
                 next(error)
@@ -137,15 +137,43 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (totalPrice < 0) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return true })
+            next(new Error('Order total must not be negative.'))
+            return
+          }
+
+          const deductedStock: typeof stockDeductions = []
+          const restoreStock = async () => {
+            for (const { ProductId, quantity } of deductedStock) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } })
+            }
+          }
+          try {
+            for (const deduction of stockDeductions) {
+              await QuantityModel.decrement({ quantity: deduction.quantity }, { where: { ProductId: deduction.ProductId } })
+              deductedStock.push(deduction)
+            }
+          } catch (error: unknown) {
+            await restoreStock().catch(() => {})
+            next(error)
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
+              try {
+                const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+                if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
+                  await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+                } else {
+                  await restoreStock().catch(() => {})
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } catch (error: unknown) {
+                await restoreStock().catch(() => {})
+                next(error)
                 return
               }
             }
@@ -185,7 +213,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return capDiscount(discount)
   } else if (req.body.couponData) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]
@@ -194,10 +222,14 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
 
     if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
       challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+      return capDiscount(campaign.discount)
     }
   }
   return 0
+}
+
+function capDiscount (discount: number) {
+  return Math.min(Math.max(discount, 0), security.MAX_COUPON_DISCOUNT)
 }
 
 const campaigns = {
