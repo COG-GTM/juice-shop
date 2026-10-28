@@ -32,17 +32,24 @@ export const clientAddress = (req: Request, hops = trustedProxyHops()) => {
   return chain[Math.min(hops, chain.length - 1)]
 }
 
-/* A single IPv6 client usually controls a whole /64, so all of its addresses share one bucket */
-export const clientSubnet = (address: string) => {
-  const ipv4Mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address)
-  if (ipv4Mapped != null) return ipv4Mapped[1]
-  const ip = address.split('%')[0]
-  if (!isIPv6(ip)) return address
-  const [head, tail] = ip.split('::')
+const ipv6Groups = (ip: string) => {
+  const dotted = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(ip)
+  const hex = dotted == null ? ip : ip.slice(0, dotted.index) + `${((+dotted[1] << 8) | +dotted[2]).toString(16)}:${((+dotted[3] << 8) | +dotted[4]).toString(16)}`
+  const [head, tail] = hex.split('::')
   const headGroups = head === '' ? [] : head.split(':')
   const tailGroups = tail === undefined || tail === '' ? [] : tail.split(':')
-  const groups = [...headGroups, ...Array(Math.max(0, 8 - headGroups.length - tailGroups.length)).fill('0'), ...tailGroups]
-  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(':')}::/64`
+  return [...headGroups, ...Array(Math.max(0, 8 - headGroups.length - tailGroups.length)).fill('0'), ...tailGroups].map((group) => parseInt(group, 16))
+}
+
+/* A single IPv6 client usually controls a whole /64, so all of its addresses share one bucket */
+export const clientSubnet = (address: string) => {
+  const ip = address.split('%')[0]
+  if (!isIPv6(ip)) return address
+  const groups = ipv6Groups(ip)
+  if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+    return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.')
+  }
+  return `${groups.slice(0, 4).map((group) => group.toString(16)).join(':')}::/64`
 }
 
 export const accountKey = (req: Request) => {

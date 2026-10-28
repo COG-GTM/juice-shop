@@ -57,6 +57,9 @@ describe('secondFactorRateLimit', () => {
     it('keeps IPv4 addresses, including IPv4-mapped IPv6 ones, as they are', () => {
       expect(clientSubnet('203.0.113.7')).to.equal('203.0.113.7')
       expect(clientSubnet('::ffff:203.0.113.7')).to.equal('203.0.113.7')
+      expect(clientSubnet('::ffff:cb00:7107')).to.equal('203.0.113.7')
+      expect(clientSubnet('::ffff:c633:6404')).to.equal('198.51.100.4')
+      expect(clientSubnet('0:0:0:0:0:FFFF:CB00:7107')).to.equal('203.0.113.7')
       expect(clientSubnet('unknown')).to.equal('unknown')
     })
   })
