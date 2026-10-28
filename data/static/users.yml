@@ -269,9 +269,8 @@
     answer: "Used Emporium"
 -
   email: testing
-  password: 'IamUsedForTesting'
   key: LetUsTest
-  role: 'admin'
+  role: 'customer'
 -
   email: basil
   password: 'my little nest of vipers'
