@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleZipFileUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,55 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('handleZipFileUpload', () => {
+    const legitFile = path.resolve('uploads/complaints/zipSlipLegitEntry.txt')
+    const dotPrefixedFile = path.resolve('uploads/complaints/..zipSlipDotPrefixed.txt')
+    const traversalFile = path.resolve('views/zipSlipTraversal.pug')
+    const absoluteFile = '/tmp/zipSlipAbsolute.txt'
+
+    const cleanUp = () => {
+      for (const file of [legitFile, dotPrefixedFile, traversalFile, absoluteFile]) {
+        fs.rmSync(file, { force: true })
+      }
+    }
+
+    beforeEach(cleanUp)
+    afterEach(cleanUp)
+
+    it('should only extract entries that stay inside the complaints directory', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      req.file = {
+        originalname: 'zipSlipMixedEntries.zip',
+        buffer: fs.readFileSync(path.resolve('test/files/zipSlipMixedEntries.zip'))
+      }
+      res = { status: () => ({ end () {} }) }
+
+      handleZipFileUpload(req, res, () => {})
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      expect(fs.existsSync(legitFile)).to.equal(true)
+      expect(fs.existsSync(dotPrefixedFile)).to.equal(true)
+      expect(fs.existsSync(traversalFile)).to.equal(false)
+      expect(fs.existsSync(absoluteFile)).to.equal(false)
+    })
+
+    it('should not write entries with path traversal outside the complaints directory', async () => {
+      challenges.fileWriteChallenge = { solved: false, save } as unknown as Challenge
+      req.file = {
+        originalname: 'arbitraryFileWrite.zip',
+        buffer: fs.readFileSync(path.resolve('test/files/arbitraryFileWrite.zip'))
+      }
+      res = { status: () => ({ end () {} }) }
+      const legalFile = path.resolve('ftp/legal.md')
+      const before = fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+
+      handleZipFileUpload(req, res, () => {})
+      await new Promise(resolve => setTimeout(resolve, 500))
+
+      const after = fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+      expect(after).to.equal(before)
+    })
   })
 })
