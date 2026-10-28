@@ -47,6 +47,9 @@ const PASSWORD_SALT_BYTES = 16
 const PASSWORD_KEY_BYTES = 64
 const SCRYPT_DEFAULTS = { N: 16384, r: 8, p: 5 }
 const SCRYPT_LIMITS = { N: 65536, r: 8, p: 16 }
+const LEGACY_PASSWORD_HASH_PATTERN = /^[a-f0-9]{32}$/
+
+export const isLegacyPasswordHash = (storedHash?: string | null) => typeof storedHash === 'string' && LEGACY_PASSWORD_HASH_PATTERN.test(storedHash)
 
 interface ParsedPasswordHash {
   N: number
@@ -90,19 +93,35 @@ export const hashPassword = (password: string) => {
 
 /**
  * Hashes a password with the salt and cost parameters of a valid stored hash (or a fresh salt otherwise),
- * so the result can be compared against the stored hash.
+ * so the result can be compared against the stored hash. Legacy unsalted MD5 rows are matched with MD5
+ * until they are upgraded on the next successful login.
  */
 export const rehashPassword = async (password: string, storedHash?: string | null) => {
+  if (isLegacyPasswordHash(storedHash)) return hash(String(password))
   const { N, r, p, salt } = parsePasswordHash(storedHash) ?? { ...SCRYPT_DEFAULTS, salt: crypto.randomBytes(PASSWORD_SALT_BYTES) }
   return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
 }
 
-export const verifyPassword = async (password: string, storedHash?: string | null) => {
+export const verifyPassword = async (password: unknown, storedHash?: string | null) => {
+  if (typeof password !== 'string') return false
+  if (isLegacyPasswordHash(storedHash)) {
+    return crypto.timingSafeEqual(Buffer.from(hash(password), 'hex'), Buffer.from(storedHash as string, 'hex'))
+  }
   const parsed = parsePasswordHash(storedHash)
   if (!parsed) return false
   const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
   return crypto.timingSafeEqual(key, parsed.key)
 }
+
+/**
+ * Re-hashes a legacy unsalted MD5 password with scrypt once the user has proven knowledge of the password.
+ */
+export const upgradeLegacyPasswordHash = async (user: { password?: string | null, update: (values: { password: string }) => Promise<unknown> } | null, password: unknown) => {
+  if (user && isLegacyPasswordHash(user.password) && typeof password === 'string' && await verifyPassword(password, user.password)) {
+    await user.update({ password })
+  }
+}
+
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {

@@ -7,15 +7,24 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+let sequelize: Sequelize
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
+
+async function storedPasswordOf (email: string) {
+  const [rows] = await sequelize.query('SELECT password FROM Users WHERE email = ?', { replacements: [email] })
+  return (rows as Array<{ password: string }>)[0].password
+}
 
 void describe('/rest/user/login', () => {
   void it('POST login newly created user', async () => {
@@ -277,5 +286,56 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '127.0.0.1')
+  })
+})
+
+void describe('password storage', () => {
+  void it('stores salted scrypt hashes so equal passwords get different stored values', async () => {
+    for (const email of ['salt.one@juice-sh.op', 'salt.two@juice-sh.op']) {
+      await request(app)
+        .post('/api/Users')
+        .set({ 'content-type': 'application/json' })
+        .send({ email, password: 'SamePassw0rd!' })
+        .expect(201)
+    }
+
+    const first = await storedPasswordOf('salt.one@juice-sh.op')
+    const second = await storedPasswordOf('salt.two@juice-sh.op')
+    assert.match(first, /^scrypt\$16384\$8\$5\$/)
+    assert.match(second, /^scrypt\$16384\$8\$5\$/)
+    assert.notEqual(first, second)
+    assert.notEqual(first, security.hash('SamePassw0rd!'))
+
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'salt.two@juice-sh.op', password: 'SamePassw0rd!' })
+    assert.equal(res.status, 200)
+  })
+
+  void it('upgrades a legacy unsalted MD5 hash on the next successful login', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'legacy.md5@juice-sh.op', password: 'legacyPassw0rd' })
+      .expect(201)
+    await sequelize.query('UPDATE Users SET password = ? WHERE email = ?', { replacements: [security.hash('legacyPassw0rd'), 'legacy.md5@juice-sh.op'] })
+
+    const wrong = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'legacy.md5@juice-sh.op', password: 'wrongPassw0rd' })
+    assert.equal(wrong.status, 401)
+    assert.equal(await storedPasswordOf('legacy.md5@juice-sh.op'), security.hash('legacyPassw0rd'))
+
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'legacy.md5@juice-sh.op', password: 'legacyPassw0rd' })
+    assert.equal(res.status, 200)
+
+    const upgraded = await storedPasswordOf('legacy.md5@juice-sh.op')
+    assert.match(upgraded, /^scrypt\$16384\$8\$5\$/)
+    assert.equal(await security.verifyPassword('legacyPassw0rd', upgraded), true)
   })
 })
