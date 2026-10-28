@@ -90,6 +90,17 @@ describe('fileUpload', () => {
       delete (globalThis as any).yamlFunctionInvoked
     })
 
+    for (const tag of ['!!js/undefined ""', '!!js/regexp /pwned/']) {
+      it(`should reject ${tag.split(' ')[0]} tags from uploaded YAML`, () => {
+        req.file = { originalname: 'complaint.yml', buffer: Buffer.from(`value: ${tag}`) }
+        let error: Error | undefined
+
+        handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+        expect(error?.message).to.contain('unknown tag')
+      })
+    }
+
     it('should still echo plain YAML content in the deprecation error', () => {
       req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello') }
       let error: Error | undefined
