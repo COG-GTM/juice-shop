@@ -133,3 +133,57 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:id/pdf', () => {
+  let orderId: string
+  let ownerToken: string
+
+  before(async () => {
+    ownerToken = (await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })).token
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set({ Authorization: 'Bearer ' + ownerToken, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('GET order confirmation PDF is not written to the public /ftp folder', async () => {
+    const listing = await request(app).get('/ftp/')
+    assert.equal(listing.status, 200)
+    assert.ok(!listing.text.includes('order_'))
+
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF is not allowed via public API', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/pdf`)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET own order confirmation PDF', async () => {
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/pdf`)
+      .set({ Authorization: 'Bearer ' + ownerToken })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF of another user is not found', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/pdf`)
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF with path traversal in order id is not found', async () => {
+    const res = await request(app)
+      .get('/rest/order-history/..%2F..%2Fpackage.json/pdf')
+      .set({ Authorization: 'Bearer ' + ownerToken })
+    assert.equal(res.status, 404)
+  })
+})
