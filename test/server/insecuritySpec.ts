@@ -11,7 +11,6 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
-import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
