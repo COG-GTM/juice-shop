@@ -129,6 +129,19 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
+  void it('POST zip file with a file name longer than the file system limit', async () => {
+    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file, { filename: 'a'.repeat(300) + '.zip' })
+    assert.equal(res.status, 204)
+
+    const followUp = await request(app)
+      .post('/file-upload')
+      .attach('file', path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf'))
+    assert.equal(followUp.status, 204)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
