@@ -111,6 +111,29 @@ describe('insecurity', () => {
     })
   })
 
+  describe('bindUserId', () => {
+    const bind = (req: any) => {
+      let nextCalled = false
+      security.bindUserId()(req as Request, {} as any, () => { nextCalled = true })
+      expect(nextCalled).to.equal(true)
+      return req.body
+    }
+
+    it('replaces a client-supplied UserId with the id of the authenticated user', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+
+      expect(bind({ headers: { authorization: 'Bearer 22222' }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
+    })
+
+    it('sets UserId to null for anonymous requests', () => {
+      expect(bind({ headers: {}, body: { UserId: 1 } }).UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for an unknown token', () => {
+      expect(bind({ headers: { authorization: 'Bearer unknown' }, body: { UserId: 1 } }).UserId).to.equal(null)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
