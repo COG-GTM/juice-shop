@@ -455,6 +455,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   // vuln-code-snippet end changeProductChallenge
   /* Complaints: list only the caller's own complaints (admins see all) */
   app.get('/api/Complaints', utils.asyncHandler(complaints.listComplaints()))
+  app.post('/api/Complaints', security.appendUserId())
 
   /* Feedbacks: Only administrators may delete existing feedback, no other changes allowed */
   app.delete('/api/Feedbacks/:id', security.isAdmin())
