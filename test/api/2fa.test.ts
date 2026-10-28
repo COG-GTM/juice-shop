@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
+import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
@@ -17,6 +18,12 @@ import { login, register } from './helpers/auth'
 const jsonHeader = { 'content-type': 'application/json' }
 
 let app: Express
+
+function forgeToken (alg: string, payload: object, sign: (data: string) => string = () => '') {
+  const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url')
+  return `${header}.${body}.${sign(`${header}.${body}`)}`
+}
 
 function getStatus (token: string) {
   return request(app)
@@ -91,6 +98,45 @@ void describe('/rest/2fa/verify', () => {
         tmpToken: tmpTokenWurstbrot,
         totpToken
       })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token with alg none is used', async () => {
+    const tmpToken = forgeToken('none', { userId: 10, type: 'password_valid_needs_second_factor_token' })
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken, totpToken })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token is HS256-signed with the public key', async () => {
+    const tmpToken = forgeToken('HS256', { userId: 10, type: 'password_valid_needs_second_factor_token' },
+      (data) => crypto.createHmac('sha256', security.publicKey).update(data).digest('base64url'))
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken, totpToken })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail for a user who has not set up 2fa', async () => {
+    const tmpToken = security.authorize({
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken, totpToken: '123456' })
 
     assert.equal(res.status, 401)
   })
