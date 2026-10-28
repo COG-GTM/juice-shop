@@ -12,6 +12,7 @@ import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+const scrapeAuthorization = `Bearer ${process.env.METRICS_SCRAPE_TOKEN}`
 
 before(async () => {
   const result = await createTestApp()
@@ -19,9 +20,47 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
+  void it('GET metrics without scrape token is rejected', async () => {
+    const res = await request(app)
+      .get('/metrics')
+      .expect(401)
+
+    assert.equal(res.headers['www-authenticate'], 'Bearer realm="metrics"')
+    assert.doesNotMatch(res.text, /_wallet_balance_total/)
+  })
+
+  void it('GET metrics with wrong scrape token is rejected', async () => {
+    await request(app)
+      .get('/metrics')
+      .set('Authorization', 'Bearer api-test-metrics-scrape-token-0123456788')
+      .expect(401)
+  })
+
+  void it('GET metrics with a user JWT instead of the scrape token is rejected', async () => {
+    const login = await request(app)
+      .post('/rest/user/login')
+      .send({ email: 'admin@juice-sh.op', password: 'admin123' })
+      .expect(200)
+
+    await request(app)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${login.body.authentication.token}`)
+      .expect(401)
+  })
+
+  void it('GET metrics with scrape token is served', async () => {
+    const res = await request(app)
+      .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +89,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +106,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
