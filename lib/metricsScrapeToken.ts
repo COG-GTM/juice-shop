@@ -34,7 +34,7 @@ export function loadMetricsScrapeToken (env: NodeJS.ProcessEnv = process.env): s
 }
 
 export function hasValidScrapeToken (req: Request, expectedToken: string) {
-  const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')
+  const match = /^Bearer (\S+)$/i.exec(req.headers.authorization ?? '')
   if (match == null) return false
   return crypto.timingSafeEqual(sha256(match[1]), sha256(expectedToken))
 }

@@ -46,6 +46,10 @@ describe('metricsScrapeToken', () => {
       expect(hasValidScrapeToken({ headers: { authorization: `Bearer ${token}` } } as any, token)).to.equal(true)
     })
 
+    it('accepts the bearer scheme case-insensitively', () => {
+      expect(hasValidScrapeToken({ headers: { authorization: `bearer ${token}` } } as any, token)).to.equal(true)
+    })
+
     it('rejects a missing, malformed or different token', () => {
       expect(hasValidScrapeToken({ headers: {} } as any, token)).to.equal(false)
       expect(hasValidScrapeToken({ headers: { authorization: token } } as any, token)).to.equal(false)
