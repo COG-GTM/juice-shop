@@ -137,7 +137,7 @@ void describe('/rest/products/reviews', () => {
     assert.ok(Array.isArray(res.body.updated))
   })
 
-  void it('PATCH product review of another user is not modified', async () => {
+  void it('PATCH product review of another user is forbidden', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -149,8 +149,7 @@ void describe('/rest/products/reviews', () => {
         id: reviewId,
         message: 'Forged edit'
       })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.modified, 0)
+    assert.equal(res.status, 403)
 
     const reviews = await request(app).get('/rest/products/1/reviews')
     assert.equal(reviews.body.data.find((review: { _id: string }) => review._id === reviewId).message, 'Lorem Ipsum')
