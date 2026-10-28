@@ -10,14 +10,14 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
-import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
-import * as utils from '../../lib/utils'
 
 const tamperingProductId = config.get<ProductConfig[]>('products').findIndex((product) => !!product.urlForProductTamperingChallenge) + 1
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const customerAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.customer } }), 'content-type': 'application/json' }
+const adminAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -54,21 +54,33 @@ void describe('/api/Products', () => {
     assert.equal(res.status, 401)
   })
 
-  if (utils.isChallengeEnabled(challenges.restfulXssChallenge)) {
-    void it('POST new product does not filter XSS attacks', async () => {
-      const res = await request(app)
-        .post('/api/Products')
-        .set(authHeader)
-        .send({
-          name: 'XSS Juice (42ml)',
-          description: '<iframe src="javascript:alert(`xss`)">',
-          price: 9999.99,
-          image: 'xss3juice.jpg'
-        })
-      assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.description, '<iframe src="javascript:alert(`xss`)">')
-    })
-  }
+  void it('POST new product is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .post('/api/Products')
+      .set(customerAuthHeader)
+      .send({
+        name: 'Dirt Juice (1000ml)',
+        description: 'Made from ugly dirt.',
+        price: 0.99,
+        image: 'dirt_juice.jpg'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST new product as admin sanitizes XSS in description', async () => {
+    const res = await request(app)
+      .post('/api/Products')
+      .set(adminAuthHeader)
+      .send({
+        name: 'XSS Juice (42ml)',
+        description: '<iframe src="javascript:alert(`xss`)">',
+        price: 9999.99,
+        image: 'xss3juice.jpg'
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.description, '')
+  })
 })
 
 void describe('/api/Products/:id', () => {
@@ -96,16 +108,41 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden without being logged in', async () => {
+    const before = await request(app).get('/api/Products/' + tamperingProductId)
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
       .send({
-        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>',
+        price: 0.01
+      })
+    assert.equal(res.status, 401)
+    const after = await request(app).get('/api/Products/' + tamperingProductId)
+    assert.deepEqual(after.body.data, before.body.data)
+  })
+
+  void it('PUT update existing product is forbidden for non-admin users', async () => {
+    const before = await request(app).get('/api/Products/' + tamperingProductId)
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(customerAuthHeader)
+      .send({ price: 0.01 })
+    assert.equal(res.status, 403)
+    const after = await request(app).get('/api/Products/' + tamperingProductId)
+    assert.deepEqual(after.body.data, before.body.data)
+  })
+
+  void it('PUT update existing product as admin sanitizes XSS in description', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(adminAuthHeader)
+      .send({
+        description: '<iframe src="javascript:alert(`xss`)">More...'
       })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.body.data.description, 'More...')
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {

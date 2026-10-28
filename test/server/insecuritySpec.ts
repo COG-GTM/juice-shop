@@ -188,6 +188,30 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const run = (headers: any) => {
+      let nextCalled = false
+      let status: number | undefined
+      const res: any = { status: (code: number) => { status = code; return res }, json: () => res }
+      security.isAdmin()({ headers } as unknown as Request, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+
+    it('calls next for a valid admin token', () => {
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('responds 403 for a valid non-admin token', () => {
+      const token = security.authorize({ data: { role: security.roles.customer } })
+      expect(run({ authorization: `Bearer ${token}` })).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('responds 403 when no token is present', () => {
+      expect(run({})).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+  })
+
   describe('hash', () => {
     it('returns MD5 hash for any input string', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
