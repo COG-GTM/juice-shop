@@ -1,4 +1,5 @@
 # App
+ctf.key
 node_modules/
 juiceshop.sqlite
 order_*.pdf

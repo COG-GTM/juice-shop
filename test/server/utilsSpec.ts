@@ -5,6 +5,10 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
@@ -206,6 +210,39 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('configuredCtfKey', () => {
+    const keyFile = path.join(os.tmpdir(), `utilsSpec-${process.pid}-ctf.key`)
+
+    afterEach(() => {
+      fs.rmSync(keyFile, { force: true })
+    })
+
+    it('prefers the CTF_KEY environment variable', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.configuredCtfKey('key from env', keyFile)).to.equal('key from env')
+    })
+
+    it('falls back to a local key file', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal('key from file')
+      expect(utils.configuredCtfKey('', keyFile)).to.equal('key from file')
+    })
+
+    it('returns undefined if neither is configured', () => {
+      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal(undefined)
+      fs.writeFileSync(keyFile, ' \n')
+      expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
+    })
+  })
+
+  describe('ctfFlag', () => {
+    it('derives a stable HMAC flag per challenge name', () => {
+      expect(utils.ctfFlag('Score Board')).to.match(/^[0-9a-f]{40}$/)
+      expect(utils.ctfFlag('Score Board')).to.equal(utils.ctfFlag('Score Board'))
+      expect(utils.ctfFlag('Score Board')).to.not.equal(utils.ctfFlag('DOM XSS'))
     })
   })
 })

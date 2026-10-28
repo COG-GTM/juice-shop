@@ -73,14 +73,28 @@ export const version = (module?: string) => {
   }
 }
 
+export const ctfKeyFile = 'ctf.key'
+
+export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile) => {
+  if (envKey !== undefined && envKey !== '') {
+    return envKey
+  }
+  if (fs.existsSync(keyFile)) {
+    const fileKey = fs.readFileSync(keyFile, 'utf8')
+    if (fileKey.trim() !== '') {
+      return fileKey
+    }
+  }
+  return undefined
+}
+
 let cachedCtfKey: string | undefined
 const getCtfKey = () => {
-  if (!cachedCtfKey) {
-    if (process.env.CTF_KEY !== undefined && process.env.CTF_KEY !== '') {
-      cachedCtfKey = process.env.CTF_KEY
-    } else {
-      const data = fs.readFileSync('ctf.key', 'utf8')
-      cachedCtfKey = data
+  if (cachedCtfKey === undefined) {
+    cachedCtfKey = configuredCtfKey()
+    if (cachedCtfKey === undefined) {
+      logger.info('No CTF_KEY configured: Using a random flag key which changes on every restart')
+      cachedCtfKey = crypto.randomBytes(32).toString('hex')
     }
   }
   return cachedCtfKey
