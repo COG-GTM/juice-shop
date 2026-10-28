@@ -51,4 +51,24 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of ['a#{7*7}', '!{process.pid}', 'a\n- global.sstiExecuted = true']) {
+    void it(`GET user profile renders username ${JSON.stringify(payload)} as literal text`, async () => {
+      const update = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+      assert.equal(update.status, 302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(`text-align: center;">${payload}</p>`))
+      assert.equal((global as any).sstiExecuted, undefined)
+    })
+  }
 })
