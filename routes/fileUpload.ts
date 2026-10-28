@@ -89,9 +89,9 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     next(deprecatedUploadError(file))
     return
   }
-  parseInSandbox('xml', file.buffer.toString(), { substituteEntities: utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) }).then(({ status, output = '', message = '' }) => {
+  parseInSandbox('xml', file.buffer.toString(), { substituteEntities: utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) }).then(({ status, output = '', message = '', disclosesFile = false }) => {
     if (status === 'ok') {
-      challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(output) || utils.matchesSystemIniFile(output)) })
+      challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return disclosesFile })
       res.status(410)
       next(deprecatedUploadError(file, utils.trunc(output, 400)))
     } else if (status === 'error') {

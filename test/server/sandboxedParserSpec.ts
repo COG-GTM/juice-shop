@@ -27,7 +27,7 @@ describe('sandboxedParser', function () {
 
   it('should return parsed YAML as JSON', async () => {
     const result = await parseInSandbox('yaml', 'juice: shop')
-    expect(result).to.deep.equal({ status: 'ok', output: '{"juice":"shop"}', message: undefined })
+    expect(result).to.deep.equal({ status: 'ok', output: '{"juice":"shop"}', message: undefined, disclosesFile: false })
   })
 
   it('should report YAML syntax errors', async () => {
@@ -60,6 +60,14 @@ describe('sandboxedParser', function () {
     const result = await parseInSandbox('xml', xml)
     expect(result.status).to.equal('ok')
     expect(result.output).to.contain('&xxe;')
+  })
+
+  it('should detect disclosed file contents beyond the output length cap', async () => {
+    const xml = `<foo><padding>${'a'.repeat(sandboxedParserLimits.maxOutputLength)}</padding><file>root:x:0:0:root:/root:/bin/bash</file></foo>`
+    const result = await parseInSandbox('xml', xml)
+    expect(result.status).to.equal('ok')
+    expect(result.output).to.have.length(sandboxedParserLimits.maxOutputLength)
+    expect(result.disclosesFile).to.equal(true)
   })
 
   it('should not block the event loop on an XML entity pointing at /dev/random', async () => {

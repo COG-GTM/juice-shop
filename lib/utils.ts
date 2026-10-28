@@ -219,15 +219,7 @@ export const getErrorMessage = (error: unknown) => {
   return String(error)
 }
 
-export const matchesSystemIniFile = (text: string) => {
-  const match = text.match(/; for 16-bit app support/gi)
-  return match !== null && match.length >= 1
-}
-
-export const matchesEtcPasswdFile = (text: string) => {
-  const match = text.match(/(\w*:\w*:\d*:\d*:\w*:.*)|(Note that this file is consulted directly)/gi)
-  return match !== null && match.length >= 1
-}
+export { matchesSystemIniFile, matchesEtcPasswdFile } from './fileDisclosure'
 
 /**
  * Wrapper for asynchronous Express route handlers to ensure any rejected promises are caught and passed to the next() function.

@@ -19,6 +19,7 @@ export interface SandboxedParseResult {
   status: 'ok' | 'error' | 'timeout' | 'exhausted' | 'busy'
   output?: string
   message?: string
+  disclosesFile?: boolean
 }
 
 export const sandboxedParserLimits = {
@@ -75,7 +76,7 @@ async function runParser (request: SandboxedParseRequest): Promise<SandboxedPars
         timer = setTimeout(() => { finish({ status: 'timeout' }) }, sandboxedParserLimits.timeoutMs)
         child.send(request)
       } else {
-        finish({ status: message.status, output: message.output, message: message.message })
+        finish({ status: message.status, output: message.output, message: message.message, disclosesFile: message.disclosesFile })
       }
     })
     child.once('error', (err) => { finish({ status: 'error', message: err.message }) })
