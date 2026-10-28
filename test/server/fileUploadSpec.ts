@@ -123,5 +123,14 @@ describe('fileUpload', () => {
         done()
       }).pipe(sink)
     })
+
+    it('should still accept empty entries once exactly 10 MB have been extracted', (done) => {
+      const budget = createExtractionBudget()
+      const sink = new Writable({ write (_chunk: Buffer, _encoding, callback) { callback() } })
+      Readable.from(Array.from({ length: 10 }, () => Buffer.alloc(1024 * 1024))).pipe(budget.limiter()).pipe(sink).on('finish', () => {
+        expect(budget.takeEntry()).to.equal(true)
+        done()
+      })
+    })
   })
 })
