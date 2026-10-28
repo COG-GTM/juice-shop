@@ -342,7 +342,7 @@ async function createMemories () {
       if (utils.isUrl(memory.image)) {
         const imageUrl = memory.image
         tmpImageFileName = utils.extractFilename(memory.image)
-        void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/uploads/' + tmpImageFileName)
+        void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/uploads', tmpImageFileName)
       }
       if (memory.geoStalkingMetaSecurityQuestion && memory.geoStalkingMetaSecurityAnswer) {
         await createSecurityAnswer(datacache.users.john.id, memory.geoStalkingMetaSecurityQuestion, memory.geoStalkingMetaSecurityAnswer)
@@ -386,7 +386,7 @@ async function createProducts () {
     if (utils.isUrl(product.image)) {
       const imageUrl = product.image
       product.image = utils.extractFilename(product.image)
-      void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/products/' + product.image)
+      void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/products', product.image)
     }
     return product
   })
@@ -414,7 +414,7 @@ async function createProducts () {
     if (utils.isUrl(blueprint)) {
       const blueprintUrl = blueprint
       blueprint = utils.extractFilename(blueprint)
-      await utils.downloadToFile(blueprintUrl, 'frontend/dist/frontend/assets/public/images/products/' + blueprint)
+      await utils.downloadToFile(blueprintUrl, 'frontend/dist/frontend/assets/public/images/products', blueprint)
     }
     datacache.setRetrieveBlueprintChallengeFile(blueprint)
   }
