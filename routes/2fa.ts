@@ -27,6 +27,9 @@ export async function verify (req: Request, res: Response) {
     if (user == null) {
       throw new Error('No such user found!')
     }
+    if (!user.totpSecret) {
+      throw new Error('2FA is not set up for this user')
+    }
 
     const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
 

@@ -54,7 +54,22 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: string) => {
+  if (!token || typeof token !== 'string') return false
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+  const [encodedHeader, encodedPayload, signature] = parts
+  try {
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString())
+    if (header?.alg !== 'RS256') return false
+    const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${encodedHeader}.${encodedPayload}`), publicKey, Buffer.from(signature, 'base64url'))
+    if (!signatureValid) return false
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString())
+    return !(typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now())
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
