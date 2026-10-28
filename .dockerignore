@@ -1,4 +1,5 @@
 .git/
+ctf.key
 monitoring/
 node_modules/
 screenshots/
