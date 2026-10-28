@@ -11,12 +11,37 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+function isCrossSiteRequest (req: Request) {
+  const fetchSite = req.get('sec-fetch-site')
+  if (fetchSite !== undefined) {
+    return fetchSite !== 'same-origin' && fetchSite !== 'none'
+  }
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) {
+    return false
+  }
+  try {
+    const sourceUrl = new URL(source)
+    if (req.secure && sourceUrl.protocol !== 'https:') {
+      return true
+    }
+    return sourceUrl.host !== new URL(`${sourceUrl.protocol}//${req.headers.host}`).host
+  } catch {
+    return true
+  }
+}
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
+    }
+
+    if (isCrossSiteRequest(req)) {
+      res.status(403).json({ error: 'Cross-site profile update rejected' })
       return
     }
 
@@ -37,7 +62,7 @@ export function updateUserProfile () {
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      res.cookie('token', updatedToken, { sameSite: 'lax', secure: req.secure })
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {

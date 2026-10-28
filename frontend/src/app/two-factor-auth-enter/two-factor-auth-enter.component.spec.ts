@@ -108,6 +108,14 @@ describe('TwoFactorAuthEnterComponent', () => {
         expect(cookieService.get('token')).toBe('TOKEN')
     })
 
+    it('should store authentication token in cookie with SameSite=Lax', () => {
+        const putSpy = vi.spyOn(cookieService, 'put')
+        twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
+        component.verify()
+
+        expect(putSpy).toHaveBeenCalledWith('token', 'TOKEN', expect.objectContaining({ sameSite: 'lax' }))
+    })
+
     it('should store authentication token in local storage', () => {
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
