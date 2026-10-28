@@ -15,6 +15,8 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: security.roles.admin } }), 'content-type': 'application/json' }
+const authorHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, role: security.roles.customer } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -278,27 +280,63 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
-    const captchaRes = await request(app)
-      .get('/rest/captcha')
-    assert.equal(captchaRes.status, 200)
-    assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(authorHeader)
+    assert.equal(res.status, 403)
 
-    const createRes = await request(app)
-      .post('/api/Feedbacks')
-      .set(jsonHeader)
-      .send({
-        comment: 'I will be gone soon!',
-        rating: 1,
-        captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
-      })
-    assert.equal(createRes.status, 201)
-    assert.equal(typeof createRes.body.data.id, 'number')
+    const getRes = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(authHeader)
+    assert.equal(getRes.status, 200)
+  })
+
+  void it('DELETE anonymous feedback is forbidden for non-admin users', async () => {
+    const createRes = await createFeedback({ comment: 'Anonymous and here to stay', rating: 1 })
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE own feedback', async () => {
+    const createRes = await createFeedback({ comment: 'I changed my mind', rating: 2, UserId: 2 })
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(authorHeader)
     assert.equal(res.status, 200)
   })
+
+  void it('DELETE existing feedback as admin', async () => {
+    const createRes = await createFeedback({ comment: 'I will be gone soon!', rating: 1 })
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(adminHeader)
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE non-existing feedback returns 404', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/999999')
+      .set(adminHeader)
+    assert.equal(res.status, 404)
+  })
 })
+
+async function createFeedback (feedback: { comment: string, rating: number, UserId?: number }) {
+  const captchaRes = await request(app)
+    .get('/rest/captcha')
+  assert.equal(captchaRes.status, 200)
+
+  const createRes = await request(app)
+    .post('/api/Feedbacks')
+    .set(jsonHeader)
+    .send({ ...feedback, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+  assert.equal(createRes.status, 201)
+  assert.equal(typeof createRes.body.data.id, 'number')
+  return createRes
+}

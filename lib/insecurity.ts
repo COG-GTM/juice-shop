@@ -164,6 +164,12 @@ export const isAccounting = () => {
   }
 }
 
+export const userFrom = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  if (!token || !verify(token)) return undefined
+  return authenticatedUsers.get(token)?.data ?? decode(token)?.data
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)

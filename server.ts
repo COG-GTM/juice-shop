@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { checkFeedbackDeletion } from './routes/feedback'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -452,6 +453,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.resolveOwnBasketIds()))
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(checkFeedbackDeletion()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +520,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'BasketItem') {
+      resource.list.fetch.after((req: Request, res: Response, context: { instance: any[], continue: any }) => {
+        context.instance = basketItems.onlyOwnBasketItems(res, context.instance)
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
