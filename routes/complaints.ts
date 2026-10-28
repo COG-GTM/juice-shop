@@ -3,14 +3,28 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request, type Response } from 'express'
+import { type Request, type Response, type NextFunction } from 'express'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
-export const listComplaints = () => async (req: Request, res: Response) => {
+const callerFrom = (req: Request) => {
   const user = security.decode(utils.jwtFrom(req))?.data
-  if (user?.id === undefined || user?.id === null) {
+  return user?.id === undefined || user?.id === null ? undefined : user
+}
+
+export const setComplaintOwner = () => (req: Request, res: Response, next: NextFunction) => {
+  const user = callerFrom(req)
+  if (user === undefined) {
+    return res.status(401).json({ status: 'error', message: 'Unauthorized' })
+  }
+  req.body.UserId = user.id
+  next()
+}
+
+export const listComplaints = () => async (req: Request, res: Response) => {
+  const user = callerFrom(req)
+  if (user === undefined) {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' })
   }
   const where = user.role === security.roles.admin ? {} : { UserId: user.id }
