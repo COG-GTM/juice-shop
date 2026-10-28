@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
 
@@ -268,8 +269,9 @@ void describe('/rest/user/data-export', () => {
 
   void it('Export data does not include orders of a user with a vowel-colliding email', async () => {
     const email = 'edmin@' + config.get<string>('application.domain')
-    await register(app, { email, password: 'edmin123' })
-    const { token } = await login(app, { email, password: 'edmin123' })
+    const password = randomUUID()
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
 
     const res = await request(app)
       .post('/rest/user/data-export')
