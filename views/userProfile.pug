@@ -42,6 +42,7 @@ html(lang='en')
                   img.img-rounded(src=profileImage, alt='profile picture', width='90%', height='236', style='margin-right: 5%; margin-left: 5%;')
                   p(style='margin-top: 8px; color: _textColor_; text-align: center;') _username_
                   form(action='./profile/image/file', style='margin-top: 16px; width: 90%; margin-right: auto; margin-left: auto;', method='post', enctype='multipart/form-data')
+                    input(type='hidden', name='_csrf', value=csrfToken)
                     .profile-field
                       label(for='picture') File Upload:
                       input#picture(type='file', accept='image/*', name='file', size='150', aria-label='Input for selecting the profile picture')

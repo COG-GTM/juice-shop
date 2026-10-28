@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -20,7 +21,7 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/profile/image/file', () => {
-  void it('POST profile image file valid for JPG format', async () => {
+  void it('POST profile image file valid for JPG format with Authorization header', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
 
     const { token } = await login(app, {
@@ -30,11 +31,84 @@ void describe('/profile/image/file', () => {
 
     const res = await request(app)
       .post('/profile/image/file')
-      .set('Cookie', `token=${token}`)
+      .set('Authorization', `Bearer ${token}`)
       .attach('file', file)
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image file valid for JPG format with cookie and CSRF token from profile page', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const profile = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${token}`)
+    const csrfToken = /name="_csrf" value="([0-9a-f]{64})"/.exec(profile.text)?.[1]
+    assert.ok(csrfToken)
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .field('_csrf', csrfToken)
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image file with cookie only is rejected without changing the profile image', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+    const email = `bender@${config.get<string>('application.domain')}`
+
+    const { token } = await login(app, { email, password: 'OhG0dPlease1nsertLiquor!' })
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    const profileImageBefore = user.profileImage
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Error: Missing or invalid CSRF token'))
+    await user.reload()
+    assert.equal(user.profileImage, profileImageBefore)
+  })
+
+  void it('POST profile image file with cookie and CSRF token of another session is rejected', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+    const { token: attackerToken } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const { token: victimToken } = await login(app, {
+      email: `bender@${config.get<string>('application.domain')}`,
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+
+    const profile = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${attackerToken}`)
+    const attackerCsrfToken = /name="_csrf" value="([0-9a-f]{64})"/.exec(profile.text)?.[1]
+    assert.ok(attackerCsrfToken)
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${victimToken}`)
+      .field('_csrf', attackerCsrfToken)
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 401)
   })
 
   void it('POST profile image file invalid type', async () => {
