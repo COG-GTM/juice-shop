@@ -79,6 +79,7 @@ describe('fileUpload', () => {
       '../../frontend/dist/frontend/index.html',
       '../../build/routes/login.js',
       '../../data/static/users.yml',
+      '../../views/promotionVideo.pug',
       'nested/complaint.pdf',
       '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
       '../complaints/../../server.ts',
