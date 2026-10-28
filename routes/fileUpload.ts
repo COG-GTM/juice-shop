@@ -79,6 +79,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       const source = Readable.from([file.buffer])
       const parser = source.pipe(unzipper.Parse())
       let aborted = false
+      const pendingDiscards = new Set<() => void>()
       const abort = (reason: string) => {
         if (aborted) return
         aborted = true
@@ -86,6 +87,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         source.unpipe(parser)
         source.destroy()
         parser.destroy()
+        for (const discard of pendingDiscards) discard()
       }
       parser.on('entry', function (entry: any) {
         if (aborted) {
@@ -110,10 +112,13 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         const output = fs.createWriteStream(temp.tempPath, { fd: temp.fd })
         let discarded = false
         const discard = () => {
+          if (discarded) return
           discarded = true
+          pendingDiscards.delete(discard)
           output.destroy()
           fs.rm(temp.tempPath, { force: true }, () => {})
         }
+        pendingDiscards.add(discard)
         output.on('error', (err: Error) => {
           if (discarded) return
           logger.warn(`Could not store complaint zip entry: ${err.message}`)
@@ -132,8 +137,12 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           }
         })
         limiter.on('error', discard)
+        entry.on('error', discard)
         entry.pipe(limiter).pipe(output)
-      }).on('error', function (err: unknown) { next(err) })
+      }).on('error', function (err: unknown) {
+        abort(utils.getErrorMessage(err))
+        next(err)
+      })
     }
     res.status(204).end()
   } else {
