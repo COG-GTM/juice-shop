@@ -16,6 +16,7 @@ class Captcha extends Model<
 InferAttributes<Captcha>,
 InferCreationAttributes<Captcha>
 > {
+  declare id: CreationOptional<number>
   declare captchaId: number
   declare captcha: string
   declare answer: string

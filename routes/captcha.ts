@@ -57,7 +57,7 @@ export const verifyCaptcha = () => async (req: Request, res: Response, next: Nex
       ? await CaptchaModel.findOne({ where: { captchaId } })
       : null
     /* Every verification attempt consumes the CAPTCHA; only the request whose delete succeeds may use it */
-    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId, answer: captcha.answer } }) > 0
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { id: captcha.id } }) > 0
     const expired = captcha == null || captcha.createdAt < expiryCutoff()
     if (consumed && !expired && typeof answer === 'string' && answer === captcha.answer) {
       next()
