@@ -1,7 +1,14 @@
 describe('/metrics/', () => {
+  it('rejects requests without the scrape token', () => {
+    cy.request({ url: '/metrics', failOnStatusCode: false }).its('status').should('eq', 401)
+  })
+
   describe('challenge "exposedMetrics"', () => {
     it('Challenge is solved on accessing the /metrics route', () => {
-      cy.request('/metrics')
+      cy.request({
+        url: '/metrics',
+        headers: { Authorization: `Bearer ${Cypress.env('METRICS_SCRAPE_TOKEN')}` }
+      })
       cy.expectChallengeSolved({ challenge: 'Exposed Metrics' })
     })
   })
