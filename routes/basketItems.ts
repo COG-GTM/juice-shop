@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -62,9 +63,21 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
-function isOwnBasketItem (req: Request, item: BasketItemModel | null) {
+async function callerBasketId (req: Request) {
   const user = security.authenticatedUsers.from(req)
-  return item != null && user?.bid != null && item.BasketId != null && Number(item.BasketId) === Number(user.bid)
+  if (user?.bid != null) {
+    return Number(user.bid)
+  }
+  if (user?.data?.id == null) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  return basket?.id
+}
+
+async function isOwnBasketItem (req: Request, item: BasketItemModel) {
+  const bid = await callerBasketId(req)
+  return bid != null && item.BasketId != null && Number(item.BasketId) === bid
 }
 
 export function checkBasketItemOwnership () {
@@ -73,7 +86,7 @@ export function checkBasketItemOwnership () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       if (item == null) {
         next()
-      } else if (!isOwnBasketItem(req, item)) {
+      } else if (!(await isOwnBasketItem(req, item))) {
         res.status(403).json({ status: 'error', message: 'Forbidden' })
       } else {
         next()
@@ -86,12 +99,12 @@ export function checkBasketItemOwnership () {
 
 export function getOwnBasketItems () {
   return async (req: Request, res: Response) => {
-    const user = security.authenticatedUsers.from(req)
-    if (user?.bid == null) {
+    const bid = await callerBasketId(req)
+    if (bid == null) {
       res.status(403).json({ status: 'error', message: 'Forbidden' })
       return
     }
-    const items = await BasketItemModel.findAll({ where: { BasketId: user.bid } })
+    const items = await BasketItemModel.findAll({ where: { BasketId: bid } })
     res.status(200).json({ status: 'success', data: items })
   }
 }
@@ -101,7 +114,8 @@ export function quantityCheckBeforeBasketItemUpdate () {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
-      if (item != null && (!isOwnBasketItem(req, item) || (req.body.BasketId !== undefined && Number(req.body.BasketId) !== Number(user?.bid)))) {
+      const bid = await callerBasketId(req)
+      if (item != null && (bid == null || Number(item.BasketId) !== bid || (req.body.BasketId !== undefined && Number(req.body.BasketId) !== bid))) {
         res.status(403).json({ status: 'error', message: 'Forbidden' })
         return
       }

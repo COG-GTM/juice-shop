@@ -6,16 +6,15 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 export function getComplaints () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const decoded = security.decode(utils.jwtFrom(req))
-    if (decoded?.data?.role === security.roles.admin) {
+    const user = security.authenticatedUsers.from(req)?.data
+    if (user?.role === security.roles.admin) {
       next()
       return
     }
-    const userId = decoded?.data?.id
+    const userId = user?.id
     if (userId == null) {
       res.status(403).json({ status: 'error', message: 'Forbidden' })
       return
