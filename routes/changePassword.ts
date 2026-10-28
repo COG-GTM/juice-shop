@@ -53,9 +53,9 @@ export function changePassword () {
 
       await user.update({ password: newPassword })
       if (typeof loggedInUser.data.setDataValue === 'function') {
-        loggedInUser.data.setDataValue('password', user.password)
+        loggedInUser.data.setDataValue('password', undefined)
       } else {
-        loggedInUser.data.password = user.password
+        delete (loggedInUser.data as { password?: string }).password
       }
       security.authenticatedUsers.revokeOtherSessions(user.id, token)
       res.json({ user: { id: user.id, email: user.email, username: user.username } })
