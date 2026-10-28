@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -62,6 +63,21 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = security.authenticatedUsers.from(req)
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    const basket = (user?.data?.id != null && item?.BasketId != null)
+      ? await BasketModel.findOne({ where: { id: item.BasketId, UserId: user.data.id } })
+      : null
+    if (basket == null) {
+      res.status(403).json({ status: 'error', data: 'Malicious activity detected.' })
+      return
+    }
+    next()
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
