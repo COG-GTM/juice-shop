@@ -26,6 +26,11 @@ InferCreationAttributes<Captcha>
 const CaptchaModelInit = (sequelize: Sequelize) => {
   Captcha.init(
     {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+      },
       captchaId: {
         type: DataTypes.INTEGER
       },
