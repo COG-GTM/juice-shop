@@ -158,4 +158,20 @@ void describe('/profile', () => {
     const cookies = [res.headers['set-cookie'] ?? []].flat()
     assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Lax')))
   })
+
+  void it('POST update username over plain HTTP does not mark the token cookie Secure', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const tokenCookie = [res.headers['set-cookie'] ?? []].flat().find((c: string) => c.startsWith('token='))
+    assert.ok(tokenCookie)
+    assert.ok(!tokenCookie.includes('Secure'))
+  })
 })
