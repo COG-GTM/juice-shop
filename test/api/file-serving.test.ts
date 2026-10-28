@@ -201,15 +201,21 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET access log folder is not publicly accessible', async () => {
+  void it('GET access log folder is not publicly accessible and loads index.html instead', async () => {
     const res = await request(app)
       .get('/support/logs')
-    assert.equal(res.status, 404)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('main.js'))
+    assert.ok(!res.text.includes('access.log'))
   })
 
-  void it('GET access log file is not publicly accessible', async () => {
+  void it('GET access log file is not publicly accessible and loads index.html instead', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 404)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('main.js'))
+    assert.ok(!res.text.includes('HTTP/1.1"'))
   })
 })
