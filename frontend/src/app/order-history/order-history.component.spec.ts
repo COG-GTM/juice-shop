@@ -85,7 +85,7 @@ describe('AccountingComponent', () => {
     })
 
     it('should load order confirmation PDF via authenticated API instead of public /ftp folder', () => {
-        const pdfWindow = { location: { href: '' }, close: vi.fn() }
+        const pdfWindow = { location: { href: '' }, close: vi.fn(), closed: true }
         vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
         URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
         orderHistoryService.getConfirmationPdf.mockReturnValue(of(new Blob()))
@@ -94,16 +94,20 @@ describe('AccountingComponent', () => {
         expect(pdfWindow.location.href).toBe('blob:pdf')
     })
 
-    it('should revoke the previous order confirmation PDF object URL when opening another one', () => {
-        vi.spyOn(window, 'open').mockReturnValue({ location: { href: '' }, close: vi.fn() } as any)
-        URL.createObjectURL = vi.fn().mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:second')
+    it('should revoke the order confirmation PDF object URL only once its window is closed', () => {
+        vi.useFakeTimers()
+        const pdfWindow = { location: { href: '' }, close: vi.fn(), closed: false }
+        vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
         URL.revokeObjectURL = vi.fn()
         orderHistoryService.getConfirmationPdf.mockReturnValue(of(new Blob()))
         component.openConfirmationPDF('5267-f9cd5882f54c75a3')
-        component.openConfirmationPDF('5267-f9cd5882f54c75a3')
-        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:first')
-        component.ngOnDestroy()
-        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:second')
+        vi.advanceTimersByTime(3000)
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+        pdfWindow.closed = true
+        vi.advanceTimersByTime(1000)
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:pdf')
+        vi.useRealTimers()
     })
 
     it('should close the opened window when loading order confirmation PDF fails', () => {
