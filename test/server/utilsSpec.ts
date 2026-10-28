@@ -61,6 +61,10 @@ describe('utils', () => {
     it('cuts filename at encoded question mark like the frontend logo lookup', () => {
       expect(utils.extractFilename('https://example.org/logo%3Fv1.png')).to.equal('logo')
     })
+
+    it('ignores encoded question marks in directory segments', () => {
+      expect(utils.extractFilename('https://example.org/a%3Fb/photo.png')).to.equal('photo.png')
+    })
   })
 
   describe('resolveInFolder', () => {
