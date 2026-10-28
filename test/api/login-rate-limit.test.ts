@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -73,6 +74,14 @@ void describe('/rest/user/login rate limiting', () => {
       assert.equal((await login('reset@rate.limit', 'wrong')).status, 401)
     }
     assert.equal((await login('reset@rate.limit', 'right-password')).status, 200)
+  })
+
+  void it('does not count correct passwords of 2FA users as failures', { timeout: 60000 }, async () => {
+    for (let i = 0; i < 12; i++) {
+      const res = await login(`wurstbrot@${config.get<string>('application.domain')}`, 'EinBelegtesBrotMitSchinkenSCHINKEN!')
+      assert.equal(res.status, 401)
+      assert.equal(res.body.status, 'totp_token_required')
+    }
   })
 
   void it('throttles a client after 100 failed logins across accounts and ignores X-Forwarded-For rotation', { timeout: 120000 }, async () => {
