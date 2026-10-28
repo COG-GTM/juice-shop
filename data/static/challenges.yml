@@ -1500,8 +1500,6 @@
     - 'Have a look at the client-side code in the dev console.'
   mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html'
   key: exposedCredentialsChallenge
-  tutorial:
-    order: 6
 -
   name: 'Leaked API Key'
   category: 'Sensitive Data Exposure'
