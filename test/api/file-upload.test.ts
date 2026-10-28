@@ -147,6 +147,18 @@ void describe('/file-upload', () => {
     assert.equal(readLegalFile(), original)
   })
 
+  void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
+    const templates = ['views/promotionVideo.pug', 'views/userProfile.pug'].map(file => path.resolve(file))
+    const originals = templates.map(file => fs.readFileSync(file, 'utf8'))
+    const file = path.resolve(__dirname, '../files/zipSlipTemplateOverwrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
