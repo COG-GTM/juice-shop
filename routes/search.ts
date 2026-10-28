@@ -11,10 +11,6 @@ import { UserModel } from '../models/user'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
-class ErrorWithParent extends Error {
-  parent: Error | undefined
-}
-
 // vuln-code-snippet start unionSqlInjectionChallenge dbSchemaChallenge
 export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -66,8 +62,8 @@ export function searchProducts () {
           products[i].description = req.__(products[i].description)
         }
         res.json(utils.queryResultToJson(products))
-      }).catch((error: ErrorWithParent) => {
-        next(error.parent)
+      }).catch(() => {
+        next(new Error('Product search failed'))
       })
   }
 }

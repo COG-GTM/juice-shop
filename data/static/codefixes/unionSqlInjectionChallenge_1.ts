@@ -11,8 +11,8 @@ export function searchProducts () {
           products[i].description = req.__(products[i].description)
         }
         res.json(utils.queryResultToJson(products))
-      }).catch((error: ErrorWithParent) => {
-        next(error.parent)
+      }).catch(() => {
+        next(new Error('Product search failed'))
       })
   }
 }
