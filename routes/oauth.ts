@@ -74,7 +74,8 @@ export function oauthLogin () {
         data: {
           tmpToken: security.authorize({
             userId: user.id,
-            type: 'password_valid_needs_second_factor_token'
+            type: 'password_valid_needs_second_factor_token',
+            oauth: true
           })
         }
       })
