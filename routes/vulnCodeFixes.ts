@@ -13,7 +13,7 @@ interface codeFix {
   correct: number
 }
 
-const FixKeyPattern = /^[A-Za-z0-9]{1,100}$/
+const FixKeyPattern = /^[A-Za-z0-9]{1,64}$/
 
 let CodeFixes: Map<string, codeFix> | undefined
 
