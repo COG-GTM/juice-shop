@@ -49,9 +49,7 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    // Cypress alert bug
-    // The challenge also passes but its just that cypress freezes and is unable to perform any action
-    xit('should be possible to trick the sanitization with a masked XSS attack', () => {
+    it('should solve the challenge with a masked XSS attack while storing the comment sanitized', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
@@ -60,16 +58,10 @@ describe('/#/contact', () => {
           )
           cy.get('#submitButton').should('not.be.disabled').click()
 
-          cy.visit('/#/about')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
           cy.expectChallengeSolved({ challenge: 'Server-side XSS Protection' })
+          cy.request('/api/Feedbacks').its('body.data').then((feedbacks: Array<{ comment: string }>) => {
+            expect(feedbacks.some((feedback) => feedback.comment.includes('<iframe'))).to.equal(false)
+          })
         }
       })
     })
