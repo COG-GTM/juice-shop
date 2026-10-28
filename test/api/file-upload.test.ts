@@ -147,6 +147,29 @@ void describe('/file-upload', () => {
     assert.equal(readLegalFile(), original)
   })
 
+  void it('POST zip file does not replace existing files in uploads/complaints', async () => {
+    const existing = path.resolve('uploads/complaints/existingComplaint.txt')
+    const created = path.resolve('uploads/complaints/newComplaint.txt')
+    fs.writeFileSync(existing, 'original complaint\n')
+    fs.rmSync(created, { force: true })
+    try {
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', path.resolve(__dirname, '../files/complaintOverwrite.zip'))
+      assert.equal(res.status, 204)
+      for (let i = 0; i < 50 && !fs.existsSync(created); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      await new Promise(resolve => setTimeout(resolve, 200))
+      assert.equal(fs.readFileSync(created, 'utf8'), 'new complaint attachment\n')
+      assert.equal(fs.readFileSync(existing, 'utf8'), 'original complaint\n')
+      assert.deepEqual(fs.readdirSync('uploads/complaints').filter(name => name.endsWith('.part')), [])
+    } finally {
+      fs.rmSync(existing, { force: true })
+      fs.rmSync(created, { force: true })
+    }
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
