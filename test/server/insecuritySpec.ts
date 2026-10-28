@@ -196,11 +196,52 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash instead of an MD5 hash', () => {
+      const hashed = security.hashPassword('admin123')
+      expect(hashed).to.match(/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/)
+      expect(hashed).to.not.include(security.hash('admin123'))
+      expect(security.isLegacyPasswordHash(hashed)).to.equal(false)
+    })
+
+    it('uses a random salt for each hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password for a scrypt hash', () => {
+      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password for a scrypt hash', () => {
+      expect(security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('accepts the correct password for a legacy MD5 hash', () => {
+      expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.verifyPassword('password', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+    })
+
+    it('rejects missing or malformed input', () => {
+      expect(security.verifyPassword(undefined, security.hashPassword('admin123'))).to.equal(false)
+      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(security.verifyPassword('admin123', '')).to.equal(false)
+      expect(security.verifyPassword('admin123', 'scrypt$$')).to.equal(false)
+      expect(security.verifyPassword('admin123', 'bcrypt$00$00')).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[a-f0-9]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+
+    it('no longer uses the previously hardcoded secret', () => {
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
     })
   })
 })
