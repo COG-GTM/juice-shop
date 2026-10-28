@@ -6,10 +6,12 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function getComplaints () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const user = security.authenticatedUsers.from(req)?.data
+    const token = utils.jwtFrom(req)
+    const user = security.authenticatedUsers.from(req)?.data ?? (security.verify(token) ? security.decode(token)?.data : undefined)
     if (user?.role === security.roles.admin) {
       next()
       return

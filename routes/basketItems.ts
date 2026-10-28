@@ -68,10 +68,12 @@ async function callerBasketId (req: Request) {
   if (user?.bid != null) {
     return Number(user.bid)
   }
-  if (user?.data?.id == null) {
+  const token = utils.jwtFrom(req)
+  const userId = user?.data?.id ?? (security.verify(token) ? security.decode(token)?.data?.id : undefined)
+  if (userId == null) {
     return undefined
   }
-  const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
+  const basket = await BasketModel.findOne({ where: { UserId: userId } })
   return basket?.id
 }
 
