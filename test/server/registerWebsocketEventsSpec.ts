@@ -21,8 +21,10 @@ describe('registerWebsocketEvents', () => {
   let port: number
   let socket: ReturnType<typeof ioClient>
   const originalChallenges: Partial<Record<typeof stubbedChallenges[number], Challenge>> = {}
+  let originalIo: unknown
 
   before((done) => {
+    originalIo = (global as any).io
     for (const key of stubbedChallenges) originalChallenges[key] = challenges[key]
     server = http.createServer((req, res) => { res.end('ok') })
     registerWebsocketEvents(server)
@@ -34,6 +36,7 @@ describe('registerWebsocketEvents', () => {
 
   after((done) => {
     (global as any).io?.close()
+    ;(global as any).io = originalIo
     for (const key of stubbedChallenges) challenges[key] = originalChallenges[key] as Challenge
     server.close(() => { done() })
   })
