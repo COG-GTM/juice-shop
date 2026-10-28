@@ -763,63 +763,6 @@
 		"added": [],
 		"removed": []
 	},
-	"loginAdminChallenge_1.ts": {
-		"added": [],
-		"removed": [
-			17,
-			18
-		]
-	},
-	"loginAdminChallenge_2.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginAdminChallenge_3.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginAdminChallenge_4_correct.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginBenderChallenge_1.ts": {
-		"added": [],
-		"removed": [
-			17,
-			18
-		]
-	},
-	"loginBenderChallenge_2_correct.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginBenderChallenge_3.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginBenderChallenge_4.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginJimChallenge_1_correct.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginJimChallenge_2.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginJimChallenge_3.ts": {
-		"added": [],
-		"removed": []
-	},
-	"loginJimChallenge_4.ts": {
-		"added": [],
-		"removed": [
-			17,
-			18
-		]
-	},
 	"nftMintChallenge_1.sol": {
 		"added": [],
 		"removed": []
