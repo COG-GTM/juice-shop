@@ -11,6 +11,7 @@ import * as http from 'http'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { challenges } from '../../data/datacache'
 
 const MOCK_LLM_PORT = 43210
 
@@ -341,6 +342,14 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const orderId = await deliveredOrderOf(token)
     const result = await couponToolResult({ discount: 99, orderId }, token)
     assert.ok(!result.includes('couponCode'))
+  })
+
+  void it('detects greedy coupon requests without minting a coupon', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(token)
+    const result = await couponToolResult({ discount: 50, orderId }, token)
+    assert.ok(!result.includes('couponCode'))
+    assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, true)
   })
 
   void it('rejects discounts below 10% that would not be redeemable', { timeout: 15000 }, async () => {
