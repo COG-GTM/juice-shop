@@ -55,27 +55,21 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is returned by subsequent GET', async () => {
+    const message = `Lorem Ipsum ${Date.now()}`
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
-        message: 'Lorem Ipsum',
+        message,
         author: 'Anonymous'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-  })
 
-  void it('PUT product review is returned by subsequent GET', async () => {
-    const message = `Review ${Date.now()}`
-    const putRes = await request(app)
-      .put('/rest/products/2/reviews')
-      .send({ message, author: 'Anonymous' })
-    assert.equal(putRes.status, 201)
     const getRes = await request(app)
-      .get('/rest/products/2/reviews')
+      .get('/rest/products/1/reviews')
     assert.equal(getRes.status, 200)
-    assert.ok(getRes.body.data.some((review: any) => review.message === message && review.product === 2))
+    assert.ok(getRes.body.data.some((review: any) => review.message === message && review.product === 1))
   })
 
   void it('PUT product review with non-numeric product id is rejected', async () => {
