@@ -9,6 +9,7 @@ import { Server } from 'socket.io'
 import { notifications, challenges } from '../../data/datacache'
 import * as challengeUtils from '../challengeUtils'
 import * as security from '../insecurity'
+import logger from '../logger'
 
 let firstConnectedSocket: any = null
 
@@ -55,12 +56,30 @@ const onChallengeVerification = (socket: any, event: string, verify: (data: any)
   socket.on(event, (data: any, token?: unknown) => {
     const userId = verifiedUserIdFrom(token)
     if (userId === undefined && requiresAuthenticatedVerification()) {
+      logger.info(`Ignored unauthenticated websocket event ${event} from socket ${socket.id}`)
       return
     }
     if (isVerificationRateLimited(userId !== undefined ? `user:${userId}` : `socket:${socket.id}`)) {
+      logger.info(`Rate-limited websocket event ${event} from ${userId !== undefined ? `user ${userId}` : `socket ${socket.id}`}`)
       return
     }
     verify(data)
+  })
+}
+
+export const registerNotificationAcknowledgement = (socket: any) => {
+  socket.on('notification received', (data: any, token?: unknown) => {
+    if (requiresAuthenticatedVerification() && verifiedUserIdFrom(token) === undefined) {
+      logger.info(`Ignored unauthenticated notification acknowledgement from socket ${socket.id}`)
+      return
+    }
+    if (typeof data !== 'string') {
+      return
+    }
+    const i = notifications.findIndex(({ flag }: any) => flag === data)
+    if (i > -1) {
+      notifications.splice(i, 1)
+    }
   })
 }
 
@@ -98,13 +117,7 @@ const registerWebsocketEvents = (server: any) => {
       socket.emit('challenge solved', notification)
     })
 
-    socket.on('notification received', (data: any) => {
-      const i = notifications.findIndex(({ flag }: any) => flag === data)
-      if (i > -1) {
-        notifications.splice(i, 1)
-      }
-    })
-
+    registerNotificationAcknowledgement(socket)
     registerChallengeVerificationEvents(socket)
   })
 }

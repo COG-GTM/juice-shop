@@ -75,7 +75,7 @@ export class ChallengeSolvedNotificationComponent implements OnInit {
               })
             }
           }
-          this.io.socket().emit('notification received', data.flag)
+          this.io.socket().emit('notification received', data.flag, localStorage.getItem('token'))
         }
       })
     })
