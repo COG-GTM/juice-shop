@@ -27,7 +27,20 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST new security answer for existing user fails from unique constraint', async () => {
+  void it('POST new security answer is forbidden via public API when not authenticated', async () => {
+    const res = await request(app)
+      .post('/api/SecurityAnswers')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        UserId: 1,
+        SecurityQuestionId: 1,
+        answer: 'Horst'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST new security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .post('/api/SecurityAnswers')
       .set(authHeader)
@@ -37,9 +50,92 @@ void describe('/api/SecurityAnswers', () => {
         answer: 'Horst'
       })
 
-    assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error')
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST security answer for a user registered without one is forbidden', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'no.answer@te.st',
+        password: '12345'
+      })
+
+    assert.equal(userRes.status, 201)
+
+    const answerRes = await request(app)
+      .post('/api/SecurityAnswers')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        UserId: userRes.body.data.id,
+        SecurityQuestionId: 1,
+        answer: 'mallory'
+      })
+
+    assert.equal(answerRes.status, 401)
+
+    const resetRes = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'no.answer@te.st',
+        answer: 'mallory',
+        new: 'hacked',
+        repeat: 'hacked'
+      })
+
+    assert.equal(resetRes.status, 401)
+  })
+
+  void it('registering a user with a security question stores the answer', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'with.answer@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(userRes.status, 201)
+
+    const resetRes = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'with.answer@te.st',
+        answer: 'Horst',
+        new: 'abcde',
+        repeat: 'abcde'
+      })
+
+    assert.equal(resetRes.status, 200)
+  })
+
+  void it('registering a user with an unknown security question fails without creating the user', async () => {
+    const user = {
+      email: 'unknown.question@te.st',
+      password: '12345',
+      passwordRepeat: '12345',
+      securityAnswer: 'Horst'
+    }
+
+    const failedRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ ...user, securityQuestion: { id: 99999 } })
+
+    assert.equal(failedRes.status, 400)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ ...user, securityQuestion: { id: 1 } })
+
+    assert.equal(retryRes.status, 201)
   })
 })
 
@@ -50,33 +146,6 @@ void describe('/api/SecurityAnswers/:id', () => {
       .set(authHeader)
 
     assert.equal(res.status, 401)
-  })
-
-  void it('POST security answer for a newly registered user', async () => {
-    const userRes = await request(app)
-      .post('/api/Users')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'new.user@te.st',
-        password: '12345'
-      })
-
-    assert.equal(userRes.status, 201)
-
-    const res = await request(app)
-      .post('/api/SecurityAnswers')
-      .set(authHeader)
-      .send({
-        UserId: userRes.body.id,
-        SecurityQuestionId: 1,
-        answer: 'Horst'
-      })
-
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.data.id, 'number')
-    assert.equal(typeof res.body.data.createdAt, 'string')
-    assert.equal(typeof res.body.data.updatedAt, 'string')
   })
 
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {

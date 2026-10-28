@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Forbidden entirely. Answers are only created as part of user registration. */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -515,6 +516,32 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer of a newly registered user
+    if (name === 'User') {
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any, stop: any }) => {
+        const SecurityQuestionId = req.body.securityQuestion?.id
+        if (SecurityQuestionId !== undefined && SecurityQuestionId !== null && (await SecurityQuestionModel.findByPk(SecurityQuestionId)) === null) {
+          res.status(400).json({ status: 'error', message: 'Invalid security question' })
+          return context.stop
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: UserModel, continue: any, stop: any }) => {
+        const SecurityQuestionId = req.body.securityQuestion?.id
+        const answer = req.body.securityAnswer
+        if (SecurityQuestionId && typeof answer === 'string' && answer.length > 0) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId, answer })
+          } catch (error: unknown) {
+            await context.instance.destroy({ force: true })
+            res.status(500).json({ status: 'error', message: 'Registration failed' })
+            return context.stop
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
