@@ -1,0 +1,1 @@
+toJSON: !!js/function 'function () { process.env.YAML_RCE_MARKER = "pwned"; return "pwned" }'
