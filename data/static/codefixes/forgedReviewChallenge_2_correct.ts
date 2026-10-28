@@ -7,6 +7,10 @@ export function updateProductReviews () {
       { multi: true }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
+        if (result.modified === 0) {
+          res.status(403).json({ error: 'You can only edit your own reviews.' })
+          return
+        }
         res.json(result)
       }, (err: unknown) => {
         res.status(500).json(err)
