@@ -17,14 +17,14 @@ export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
-      if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
+      if (loggedInUser && security.isCrossSiteRequest(req)) {
+        res.status(403)
+        next(new Error('Cross-site profile image upload rejected'))
+        return
+      }
+      if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       if (loggedInUser) {
-        if (security.isCrossSiteRequest(req)) {
-          res.status(403)
-          next(new Error('Cross-site profile image upload rejected'))
-          return
-        }
         try {
           const response = await fetch(url)
           if (!response.ok || !response.body) {
