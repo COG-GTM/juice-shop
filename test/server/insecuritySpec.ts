@@ -139,7 +139,7 @@ describe('insecurity', () => {
     })
 
     it('stops treating a revoked token as revoked once it has expired', () => {
-      const expired = security.authorize({ data: { id: 45 }, exp: Math.floor(Date.now() / 1000) + 6 * 60 * 60 })
+      const expired = security.authorize({ data: { id: 45 } })
       const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       try {
         security.authenticatedUsers.put(expired, { data: { id: 45 } as unknown as UserModel })
@@ -155,7 +155,7 @@ describe('insecurity', () => {
     })
 
     it('keeps a revoked token without exp claim revoked indefinitely', () => {
-      const noExp = security.authorize({ data: { id: 48 } })
+      const noExp = jwt.sign({ data: { id: 48 } }, 'no-exp-test-secret', { algorithm: 'HS256' })
       const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       try {
         security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })

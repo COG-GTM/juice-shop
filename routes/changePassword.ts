@@ -30,13 +30,14 @@ export function changePassword () {
     }
 
     const loggedInUser = security.authenticatedUsers.get(token)
-    if (!loggedInUser) {
+    const verifiedUserId = security.verify(token) ? security.decode(token)?.data?.id : undefined
+    if (!loggedInUser || verifiedUserId === undefined || verifiedUserId !== loggedInUser.data.id) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
+      const user = await UserModel.findByPk(verifiedUserId)
       if (!user) {
         res.status(404).send(res.__('User not found.'))
         return

@@ -118,3 +118,26 @@ void describe('updateAuthenticatedUsers middleware', () => {
     assert.equal(security.authenticatedUsers.get(token), undefined)
   })
 })
+
+void describe('forged token password change', () => {
+  const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+
+  for (const [name, forgeToken] of [['alg:none', unsigned], ['HS256/public-key', hs256WithPublicKey]] as const) {
+    void it(`rejects a ${name} admin token replayed via /rest/user/whoami and leaves the admin password unchanged`, async () => {
+      const token = forgeToken(admin)
+      await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + token)
+
+      const res = await request(app)
+        .post('/rest/user/change-password')
+        .set(bearer(token))
+        .send({ new: 'pwned', repeat: 'pwned' })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+
+      const original = await request(app).post('/rest/user/login').set('content-type', 'application/json').send({ email: admin.email, password: 'admin123' })
+      assert.equal(original.status, 200)
+      const hijacked = await request(app).post('/rest/user/login').set('content-type', 'application/json').send({ email: admin.email, password: 'pwned' })
+      assert.equal(hijacked.status, 401)
+    })
+  }
+})
