@@ -106,6 +106,22 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(answer.answer, security.hmac('Horst'))
   })
 
+  void it('POST /api/Users with an unknown security question is rejected and creates no user', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'invalid.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 4711 },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(userRes.status, 400)
+    assert.equal(await UserModel.findOne({ where: { email: 'invalid.question@te.st' }, paranoid: false }), null)
+  })
+
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .put('/api/SecurityAnswers/1')
