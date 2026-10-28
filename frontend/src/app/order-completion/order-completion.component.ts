@@ -7,9 +7,9 @@ import { Component, type OnInit, inject } from '@angular/core'
 import { TrackOrderService } from '../Services/track-order.service'
 import { ActivatedRoute, type ParamMap, RouterLink } from '@angular/router'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow } from '@angular/material/table'
-import { BasketService } from '../Services/basket.service'
 import { AddressService } from '../Services/address.service'
 import { ConfigurationService } from '../Services/configuration.service'
+import { OrderHistoryService } from '../Services/order-history.service'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faTwitter } from '@fortawesome/free-brands-svg-icons'
 import { MatIconModule } from '@angular/material/icon'
@@ -33,7 +33,7 @@ export class OrderCompletionComponent implements OnInit {
   private readonly addressService = inject(AddressService)
   private readonly trackOrderService = inject(TrackOrderService)
   activatedRoute = inject(ActivatedRoute)
-  private readonly basketService = inject(BasketService)
+  private readonly orderHistoryService = inject(OrderHistoryService)
 
   public tableColumns = ['product', 'price', 'quantity', 'total price']
   public dataSource
@@ -94,8 +94,16 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    const redirectUrl = `${this.basketService.hostServer}/ftp/order_${this.orderId}.pdf`
-    window.open(redirectUrl, '_blank')
+    const pdfWindow = window.open('', '_blank')
+    this.orderHistoryService.getConfirmationPdf(this.orderId).subscribe({
+      next: (pdf) => {
+        if (pdfWindow) pdfWindow.location.href = URL.createObjectURL(pdf)
+      },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
+    })
   }
 
   truncateTweet = (tweet: string, maxLength = 140) => {
