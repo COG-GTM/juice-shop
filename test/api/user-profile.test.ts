@@ -65,6 +65,21 @@ void describe('/profile', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST update accepts resubmitting an unchanged legacy username', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    await user.update({ username: 'E=ma²' })
+
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'E=ma²' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
   void it('GET user profile renders a stored template-like username as literal text', async () => {
     const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
     assert.ok(user)

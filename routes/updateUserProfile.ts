@@ -22,16 +22,16 @@ export function updateUserProfile () {
       return
     }
 
-    const username = req.body.username
-    if (typeof username !== 'string' || !usernamePattern.test(username)) {
-      res.status(400).send('Invalid username')
-      return
-    }
-
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
         next(new Error('User not found'))
+        return
+      }
+
+      const username = req.body.username
+      if (typeof username !== 'string' || (username !== user.username && !usernamePattern.test(username))) {
+        res.status(400).send('Invalid username')
         return
       }
 
