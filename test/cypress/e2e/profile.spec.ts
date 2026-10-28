@@ -16,7 +16,7 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('should not execute a script tag in the username even after disarming CSP via profile image URL', () => {
+    it('should reject a script tag in the username even after disarming CSP via profile image URL', () => {
       const alert = cy.stub()
       cy.on('window:alert', alert)
       cy.visit('/profile')
@@ -24,15 +24,14 @@ describe('/profile', () => {
         "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
       )
       cy.get('#submitUrl').click()
-      cy.get('#username').type('<<a|ascript>alert(`xss`)</script>')
-      cy.get('#submit').click()
+      cy.request({ method: 'POST', url: '/profile', form: true, body: { username: '<<a|ascript>alert(`xss`)</script>' }, failOnStatusCode: false })
+        .its('status').should('eq', 400)
 
+      cy.visit('/profile')
       cy.get('#username').should('be.visible').then(() => {
         expect(alert).not.to.have.been.called
       })
 
-      cy.get('#username').clear()
-      cy.get('#submit').click()
       cy.get('#url').type(
         `${Cypress.config('baseUrl')}/assets/public/images/uploads/default.svg`
       )
@@ -41,13 +40,21 @@ describe('/profile', () => {
   })
 
   describe('challenge "ssti"', () => {
-    it('should render Pug interpolation in the username as literal text', () => {
+    it('should reject Pug interpolation in the username', () => {
+      cy.request({ method: 'POST', url: '/profile', form: true, body: { username: 'a#{7*7}' }, failOnStatusCode: false })
+        .its('status').should('eq', 400)
+
       cy.visit('/profile')
-      cy.get('#username').type('a#{7*7}', { parseSpecialCharSequences: false })
+      cy.contains('p', /^a49$/).should('not.exist')
+    })
+
+    it('should still accept a plain username', () => {
+      cy.visit('/profile')
+      cy.get('#username').clear()
+      cy.get('#username').type("Jim O'Brien-Smith")
       cy.get('#submit').click()
 
-      cy.contains('p', 'a#{7*7}').should('be.visible')
-      cy.contains('p', /^a49$/).should('not.exist')
+      cy.contains('p', "Jim O'Brien-Smith").should('be.visible')
 
       cy.get('#username').clear()
       cy.get('#submit').click()
