@@ -123,6 +123,23 @@ export const downloadToFile = async (url: string, dest: string) => {
   }
 }
 
+const sensitiveQueryParams = ['current', 'new', 'repeat', 'password']
+
+const isSensitiveQueryParam = (key: string) => sensitiveQueryParams.includes(key.replace(/\[.*$/, '').trim().toLowerCase())
+
+export const redactSensitiveQueryParams = (url: string, parsedQuery: Record<string, unknown> = {}) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  let path = url.substring(0, queryStart)
+  try {
+    path = decodeURIComponent(path)
+  } catch {}
+  const rawKeys = [...new URLSearchParams(url.substring(queryStart + 1)).keys()]
+  const containsSecret = path.toLowerCase().includes('change-password') ||
+    [...Object.keys(parsedQuery), ...rawKeys].some(isSensitiveQueryParam)
+  return containsSecret ? url.substring(0, queryStart + 1) + '[REDACTED]' : url
+}
+
 export const jwtFrom = ({ headers }: { headers: any }) => {
   if (headers?.authorization) {
     const parts = headers.authorization.split(' ')
