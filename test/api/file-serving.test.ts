@@ -201,10 +201,16 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log directory listing is not served', async () => {
+    const res = await request(app)
+      .get('/support/logs/')
+    assert.ok(!res.text.includes('access.log.'))
+  })
+
+  void it('GET access log file is not served', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+    assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    assert.ok(!res.text.includes('HTTP/1.1"'))
   })
 })

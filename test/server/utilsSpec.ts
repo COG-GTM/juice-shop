@@ -165,6 +165,23 @@ describe('utils', () => {
     }
   })
 
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password values from change-password URLs', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=Summer2025!&repeat=Summer2025!'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts password parameters regardless of case or encoding', () => {
+      expect(utils.redactSensitiveQueryParams('/x?PASSWORD=secret&%6Eew=secret2&q=apple'))
+        .to.equal('/x?PASSWORD=[REDACTED]&%6Eew=[REDACTED]&q=apple')
+    })
+
+    it('leaves URLs without sensitive parameters untouched', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple')).to.equal('/rest/products/search?q=apple')
+      expect(utils.redactSensitiveQueryParams('/api/Products')).to.equal('/api/Products')
+    })
+  })
+
   describe('startsWith', () => {
     it('accepts string starting with another string', () => {
       expect(utils.startsWith('Bla Blubb', 'Bla')).to.equal(true)
