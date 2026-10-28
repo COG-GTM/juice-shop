@@ -241,6 +241,19 @@ void describe('/rest/user/login', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST login with non-string email is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: ['admin@juice-sh.op'],
+        password: 'admin123'
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
 })
 
 void describe('/rest/saveLoginIp', () => {
