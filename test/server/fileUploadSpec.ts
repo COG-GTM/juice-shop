@@ -68,11 +68,12 @@ describe('fileUpload', () => {
 
   describe('handleZipFileUpload', () => {
     const legitFile = path.resolve('uploads/complaints/zipSlipLegitEntry.txt')
+    const dotPrefixedFile = path.resolve('uploads/complaints/..zipSlipDotPrefixed.txt')
     const traversalFile = path.resolve('views/zipSlipTraversal.pug')
     const absoluteFile = '/tmp/zipSlipAbsolute.txt'
 
     const cleanUp = () => {
-      for (const file of [legitFile, traversalFile, absoluteFile]) {
+      for (const file of [legitFile, dotPrefixedFile, traversalFile, absoluteFile]) {
         fs.rmSync(file, { force: true })
       }
     }
@@ -92,6 +93,7 @@ describe('fileUpload', () => {
       await new Promise(resolve => setTimeout(resolve, 500))
 
       expect(fs.existsSync(legitFile)).to.equal(true)
+      expect(fs.existsSync(dotPrefixedFile)).to.equal(true)
       expect(fs.existsSync(traversalFile)).to.equal(false)
       expect(fs.existsSync(absoluteFile)).to.equal(false)
     })
