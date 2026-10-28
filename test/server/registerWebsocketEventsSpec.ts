@@ -8,10 +8,11 @@ import sinon from 'sinon'
 import config from 'config'
 import { EventEmitter } from 'events'
 import type { Challenge } from 'data/types'
-import { challenges } from '../../data/datacache'
+import { challenges, notifications } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import {
   registerChallengeVerificationEvents,
+  registerNotificationAcknowledgement,
   resetVerificationRateLimits,
   verifiedUserIdFrom,
   VERIFICATION_EVENT_LIMIT
@@ -31,6 +32,8 @@ describe('registerWebsocketEvents', () => {
     resetVerificationRateLimits()
     socket = Object.assign(new EventEmitter(), { id: 'socket-1' })
     registerChallengeVerificationEvents(socket)
+    registerNotificationAcknowledgement(socket)
+    notifications.splice(0, notifications.length, { key: 'scoreBoardChallenge', flag: 'queued-flag' } as any)
     challenges.localXssChallenge = { solved: false, save } as unknown as Challenge
     challenges.xssBonusChallenge = { solved: false, save } as unknown as Challenge
     challenges.closeNotificationsChallenge = { solved: false, save } as unknown as Challenge
@@ -41,6 +44,7 @@ describe('registerWebsocketEvents', () => {
 
   afterEach(() => {
     configGet.restore()
+    notifications.splice(0, notifications.length)
   })
 
   describe('verifiedUserIdFrom', () => {
@@ -87,6 +91,19 @@ describe('registerWebsocketEvents', () => {
 
       expect(challenges.localXssChallenge.solved).to.equal(false)
     })
+
+    it('keeps queued notifications when an unauthenticated socket acknowledges them', () => {
+      socket.emit('notification received', 'queued-flag')
+      socket.emit('notification received', 'queued-flag', 'not-a-token')
+
+      expect(notifications).to.have.lengthOf(1)
+    })
+
+    it('removes a queued notification acknowledged with a valid login token', () => {
+      socket.emit('notification received', 'queued-flag', security.authorize({ data: { id: 42 } }))
+
+      expect(notifications).to.have.lengthOf(0)
+    })
   })
 
   describe('outside CTF mode', () => {
@@ -105,6 +122,18 @@ describe('registerWebsocketEvents', () => {
       socket.emit('verifyCloseNotificationsChallenge', [{}, {}])
 
       expect(challenges.closeNotificationsChallenge.solved).to.equal(false)
+    })
+
+    it('removes a queued notification acknowledged by an anonymous socket', () => {
+      socket.emit('notification received', 'queued-flag')
+
+      expect(notifications).to.have.lengthOf(0)
+    })
+
+    it('ignores non-string notification acknowledgements', () => {
+      socket.emit('notification received', { flag: 'queued-flag' })
+
+      expect(notifications).to.have.lengthOf(1)
     })
   })
 })
