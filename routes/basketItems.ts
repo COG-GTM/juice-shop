@@ -62,11 +62,49 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+function isOwnBasketItem (req: Request, item: BasketItemModel | null) {
+  const user = security.authenticatedUsers.from(req)
+  return item != null && user?.bid != null && item.BasketId != null && Number(item.BasketId) === Number(user.bid)
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item == null) {
+        next()
+      } else if (!isOwnBasketItem(req, item)) {
+        res.status(403).json({ status: 'error', message: 'Forbidden' })
+      } else {
+        next()
+      }
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
+export function getOwnBasketItems () {
+  return async (req: Request, res: Response) => {
+    const user = security.authenticatedUsers.from(req)
+    if (user?.bid == null) {
+      res.status(403).json({ status: 'error', message: 'Forbidden' })
+      return
+    }
+    const items = await BasketItemModel.findAll({ where: { BasketId: user.bid } })
+    res.status(200).json({ status: 'success', data: items })
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
+      if (item != null && (!isOwnBasketItem(req, item) || (req.body.BasketId !== undefined && Number(req.body.BasketId) !== Number(user?.bid)))) {
+        res.status(403).json({ status: 'error', message: 'Forbidden' })
+        return
+      }
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
         if (item == null) {
