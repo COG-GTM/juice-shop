@@ -36,6 +36,12 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const basketItems = (basket.Products ?? []).flatMap(({ BasketItem }) => BasketItem != null ? [BasketItem] : [])
+          if (basketItems.some(({ quantity }) => !Number.isSafeInteger(quantity) || quantity <= 0)) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some(({ quantity }) => quantity < 0) })
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -71,16 +77,6 @@ export function placeOrder () {
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,6 +135,10 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+            res.status(400).json({ error: res.__('Order total must be greater than zero.') })
+            return
+          }
 
           if (req.body.UserId) {
             try {
@@ -154,6 +154,18 @@ export function placeOrder () {
               next(error)
               return
             }
+          }
+
+          try {
+            for (const { ProductId, quantity } of basketItems) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -181,7 +193,7 @@ export function placeOrder () {
 }
 
 async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
-  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+  if (!Number.isFinite(totalPrice) || totalPrice <= 0 || !Number.isFinite(bonusPoints)) {
     return false
   }
   const [debitedWallets] = await WalletModel.update(
