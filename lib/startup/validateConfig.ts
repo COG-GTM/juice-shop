@@ -192,9 +192,9 @@ export const checkForIllogicalCombos = (configuration = config.util.toObject()) 
   return success
 }
 
-export const checkCtfKeyConfigured = (configuration = config.util.toObject(), ctfKey = configuredCtfKey()) => {
+export const checkCtfKeyConfigured = (configuration = config.util.toObject(), ctfKey: () => string | undefined = configuredCtfKey) => {
   let success = true
-  if (configuration.ctf?.showFlagsInNotifications && ctfKey === undefined) {
+  if (configuration.ctf?.showFlagsInNotifications && ctfKey() === undefined) {
     logger.warn(`CTF flags are enabled but no secret CTF_KEY environment variable or ctf.key file is configured (${colors.red('ERROR')})`)
     success = false
   }

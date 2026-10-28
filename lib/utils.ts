@@ -76,22 +76,24 @@ export const version = (module?: string) => {
 export const ctfKeyFile = 'ctf.key'
 
 // HMAC fingerprints of the key that used to be committed as ctf.key and is public in the repository history.
-// Comparing HMAC outputs also catches keys HMAC treats as equivalent, e.g. with trailing NUL bytes.
+// Keys are compared with surrounding whitespace and NUL bytes stripped, as HMAC ignores trailing NUL bytes of short keys.
 export const ctfKeyFingerprintProbe = 'juice-shop-ctf-key-fingerprint'
 export const publishedCtfKeyFingerprints = ['cbec0895c409e4e900eaa2d0be3f051884000667']
 
 export const ctfKeyFingerprint = (key: string) => crypto.createHmac('sha1', key).update(ctfKeyFingerprintProbe).digest('hex')
 
+const canonicalCtfKey = (key: string) => key.replace(/^[\s\0]+|[\s\0]+$/g, '')
+
 const isPublishedCtfKey = (key: string, rejectedFingerprints: string[]) =>
-  [key, key.trim()].some(candidate => rejectedFingerprints.includes(ctfKeyFingerprint(candidate)))
+  [key, canonicalCtfKey(key)].some(candidate => rejectedFingerprints.includes(ctfKeyFingerprint(candidate)))
 
 export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile, rejectedFingerprints = publishedCtfKeyFingerprints) => {
   let key: string | undefined
-  if (envKey !== undefined && envKey !== '') {
+  if (envKey !== undefined && canonicalCtfKey(envKey) !== '') {
     key = envKey
   } else if (fs.existsSync(keyFile)) {
     const fileKey = fs.readFileSync(keyFile, 'utf8')
-    if (fileKey.trim() !== '') {
+    if (canonicalCtfKey(fileKey) !== '') {
       key = fileKey
     }
   }

@@ -4,6 +4,7 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
 import validateConfig, {
   checkUnambiguousMandatorySpecialProducts,
@@ -531,15 +532,21 @@ describe('configValidation', () => {
 
   describe('checkCtfKeyConfigured', () => {
     it('should fail if CTF flags are enabled without a configured CTF key', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, undefined)).to.equal(false)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => undefined)).to.equal(false)
     })
 
     it('should accept CTF flags with a configured CTF key', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, 'secret')).to.equal(true)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => 'secret')).to.equal(true)
     })
 
     it('should accept a missing CTF key if CTF flags are disabled', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, undefined)).to.equal(true)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, () => undefined)).to.equal(true)
+    })
+
+    it('should not look up the CTF key if CTF flags are disabled', () => {
+      const ctfKey = sinon.stub().throws(new Error('EACCES'))
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, ctfKey)).to.equal(true)
+      expect(ctfKey.callCount).to.equal(0)
     })
   })
 })

@@ -241,6 +241,8 @@ describe('utils', () => {
       expect(utils.configuredCtfKey(undefined, keyFile)).to.equal(undefined)
       fs.writeFileSync(keyFile, ' \n')
       expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
+      expect(utils.configuredCtfKey(' \t\n', keyFile)).to.equal(undefined)
+      expect(utils.configuredCtfKey('\0\n', keyFile)).to.equal(undefined)
     })
 
     it('rejects the publicly known former default key', () => {
@@ -255,6 +257,8 @@ describe('utils', () => {
       const rejectedFingerprints = [utils.ctfKeyFingerprint('leaked key')]
       expect(utils.configuredCtfKey('leaked key\0', keyFile, rejectedFingerprints)).to.equal(undefined)
       expect(utils.configuredCtfKey('leaked key\0\0 ', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('leaked key\n\0', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey(' leaked key \0\n\0', keyFile, rejectedFingerprints)).to.equal(undefined)
     })
 
     it('includes the formerly committed ctf.key in the rejected keys', () => {
