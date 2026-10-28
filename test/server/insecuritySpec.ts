@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -185,6 +186,48 @@ describe('insecurity', () => {
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+    })
+  })
+
+  describe('verifySecondFactorToken', () => {
+    const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+    const claims = (overrides = {}) => ({ userId: 10, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token', ...overrides })
+
+    it('returns the claims of a valid RS256 second factor token', () => {
+      const result = security.verifySecondFactorToken(security.authorize(claims()))
+      expect(result?.userId).to.equal(10)
+      expect(result?.type).to.equal('password_valid_needs_second_factor_token')
+    })
+
+    it('rejects an unsigned token with alg none', () => {
+      expect(security.verifySecondFactorToken(`${encode({ alg: 'none', typ: 'JWT' })}.${encode(claims())}.`)).to.equal(undefined)
+    })
+
+    it('rejects a token signed with HS256 using the public key as secret', () => {
+      expect(security.verifySecondFactorToken(jwt.sign(claims(), security.publicKey, { algorithm: 'HS256' }))).to.equal(undefined)
+    })
+
+    it('rejects a token whose payload was tampered with', () => {
+      const [header, , signature] = security.authorize(claims()).split('.')
+      expect(security.verifySecondFactorToken(`${header}.${encode(claims({ userId: 1 }))}.${signature}`)).to.equal(undefined)
+    })
+
+    it('rejects expired tokens and tokens without or with an implausible expiry', () => {
+      expect(security.verifySecondFactorToken(security.authorize(claims({ expiresAt: Date.now() - 1 })))).to.equal(undefined)
+      expect(security.verifySecondFactorToken(security.authorize(claims({ expiresAt: Date.now() + 24 * 60 * 60 * 1000 })))).to.equal(undefined)
+      expect(security.verifySecondFactorToken(security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }))).to.equal(undefined)
+    })
+
+    it('rejects tokens of another type or without a numeric user id', () => {
+      expect(security.verifySecondFactorToken(security.authorize(claims({ type: 'totp_setup_secret' })))).to.equal(undefined)
+      expect(security.verifySecondFactorToken(security.authorize(claims({ userId: '10 OR 1=1' })))).to.equal(undefined)
+    })
+
+    it('rejects malformed input', () => {
+      expect(security.verifySecondFactorToken(undefined)).to.equal(undefined)
+      expect(security.verifySecondFactorToken({ alg: 'none' })).to.equal(undefined)
+      expect(security.verifySecondFactorToken('not.a.jwt')).to.equal(undefined)
+      expect(security.verifySecondFactorToken('')).to.equal(undefined)
     })
   })
 
