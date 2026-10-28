@@ -244,11 +244,22 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing feedback by id', async () => {
+  void it('GET existing feedback by id as admin', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const res = await request(app)
       .get('/api/Feedbacks/1')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token })
     assert.equal(res.status, 200)
+  })
+
+  void it('GET feedback of another user by id is forbidden', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const feedbacks = await request(app).get('/api/Feedbacks')
+    const foreign = feedbacks.body.data.find((feedback: { UserId: number | null }) => feedback.UserId !== 2)
+    const res = await request(app)
+      .get('/api/Feedbacks/' + foreign.id)
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update existing feedback is forbidden via public API', async () => {
@@ -278,7 +289,46 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const feedbacks = await request(app).get('/api/Feedbacks')
+    const foreign = feedbacks.body.data.find((feedback: { UserId: number | null }) => feedback.UserId !== 2)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + foreign.id)
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 403)
+
+    const after = await request(app).get('/api/Feedbacks')
+    assert.ok(after.body.data.some((feedback: { id: number }) => feedback.id === foreign.id))
+  })
+
+  void it('DELETE own feedback', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        comment: 'Changed my mind about this one',
+        rating: 2,
+        UserId: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE existing feedback as admin', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -298,7 +348,7 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token })
     assert.equal(res.status, 200)
   })
 })
