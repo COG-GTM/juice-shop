@@ -160,10 +160,13 @@ void describe('/file-upload', () => {
       for (let i = 0; i < 50 && !fs.existsSync(created); i++) {
         await new Promise(resolve => setTimeout(resolve, 100))
       }
-      await new Promise(resolve => setTimeout(resolve, 200))
       assert.equal(fs.readFileSync(created, 'utf8'), 'new complaint attachment\n')
       assert.equal(fs.readFileSync(existing, 'utf8'), 'original complaint\n')
-      assert.deepEqual(fs.readdirSync('uploads/complaints').filter(name => name.endsWith('.part')), [])
+      const tempFiles = () => fs.readdirSync('uploads/complaints').filter(name => name.endsWith('.part'))
+      for (let i = 0; i < 50 && tempFiles().length > 0; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.deepEqual(tempFiles(), [])
     } finally {
       fs.rmSync(existing, { force: true })
       fs.rmSync(created, { force: true })
