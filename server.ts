@@ -123,7 +123,7 @@ import { serveCodeFixes, checkCorrectFix } from './routes/vulnCodeFixes'
 import { imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
 import { upgradeToDeluxe, deluxeMembershipStatus } from './routes/deluxe'
 import { serveCodeSnippet, checkVulnLines } from './routes/vulnCodeSnippet'
-import { orderHistory, allOrders, toggleDeliveryStatus } from './routes/orderHistory'
+import { orderHistory, allOrders, toggleDeliveryStatus, orderConfirmation } from './routes/orderHistory'
 import { continueCode, continueCodeFindIt, continueCodeFixIt } from './routes/continueCode'
 import { ensureFileIsPassed, handleZipFileUpload, checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from './routes/fileUpload'
 
@@ -622,6 +622,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
+  app.get('/rest/order-history/:id/confirmation', rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }), security.isAuthorized(), utils.asyncHandler(orderConfirmation()))
   app.get('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(getWalletBalance()))
   app.put('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(addWalletBalance()))
   app.get('/rest/deluxe-membership', deluxeMembershipStatus())
