@@ -4,9 +4,11 @@
  */
 
 import chai from 'chai'
+import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { Readable, Writable } from 'node:stream'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,70 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveComplaintEntryPath', () => {
+    const complaintsDirectory = path.resolve('uploads/complaints')
+
+    it('should resolve top-level entry names inside uploads/complaints', () => {
+      expect(resolveComplaintEntryPath('complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+      expect(resolveComplaintEntryPath('./complaint.pdf')).to.equal(path.join(complaintsDirectory, 'complaint.pdf'))
+    })
+
+    const maliciousEntries = [
+      '../../ftp/legal.md',
+      '../../frontend/dist/frontend/index.html',
+      '../../build/routes/login.js',
+      '../../data/static/users.yml',
+      '../../views/promotionVideo.pug',
+      '../../views/userProfile.pug',
+      'nested/../../../views/promotionVideo.pug',
+      'nested/complaint.pdf',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      '../complaints/../../server.ts',
+      'nested/../../complaints-evil/x.txt',
+      '..\\..\\ftp\\legal.md',
+      '..',
+      '.',
+      '',
+      '/etc/passwd',
+      path.resolve('ftp/legal.md'),
+      path.join(complaintsDirectory, 'absolute.txt'),
+      'C:\\Windows\\win.ini',
+      'C:relative.txt',
+      '\\\\server\\share\\x.txt',
+      'complaint.pdf\0.txt'
+    ]
+    maliciousEntries.forEach(entry => {
+      it(`should reject entry ${JSON.stringify(entry)}`, () => {
+        expect(resolveComplaintEntryPath(entry)).to.equal(null)
+      })
+    })
+
+    it('should reject non-string entry names', () => {
+      expect(resolveComplaintEntryPath(undefined)).to.equal(null)
+      expect(resolveComplaintEntryPath(42)).to.equal(null)
+    })
+  })
+
+  describe('createExtractionBudget', () => {
+    it('should allow at most 100 entries per archive', () => {
+      const budget = createExtractionBudget()
+      const taken = Array.from({ length: 150 }, () => budget.takeEntry()).filter(Boolean)
+      expect(taken.length).to.equal(100)
+    })
+
+    it('should stop writing and fail once the archive exceeds 10 MB uncompressed', (done) => {
+      const budget = createExtractionBudget()
+      let written = 0
+      const sink = new Writable({ write (chunk: Buffer, _encoding, callback) { written += chunk.length; callback() } })
+      const chunks = Array.from({ length: 12 }, () => Buffer.alloc(1024 * 1024))
+      Readable.from(chunks).pipe(budget.limiter()).on('error', (err: Error) => {
+        expect(err.message).to.match(/uncompressed size limit/)
+        expect(written).to.equal(10 * 1024 * 1024)
+        expect(budget.takeEntry()).to.equal(false)
+        done()
+      }).pipe(sink)
+    })
   })
 })

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -127,6 +128,35 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
+    const legalFile = path.resolve('ftp/legal.md')
+    const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+    const original = readLegalFile()
+    challenges.fileWriteChallenge.solved = false
+    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.equal(challenges.fileWriteChallenge.solved, true)
+    assert.equal(readLegalFile(), original)
+  })
+
+  void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
+    const templates = ['views/promotionVideo.pug', 'views/userProfile.pug'].map(file => path.resolve(file))
+    const originals = templates.map(file => fs.readFileSync(file, 'utf8'))
+    const file = path.resolve(__dirname, '../files/zipSlipTemplateOverwrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
   })
 
   void it('POST zip file with password protection', async () => {
