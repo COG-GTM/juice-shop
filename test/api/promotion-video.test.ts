@@ -38,6 +38,15 @@ void describe('/promotion', () => {
     assert.ok(match)
     assert.ok(JSON.parse(match[1]).startsWith('WEBVTT'))
   })
+
+  void it('GET promotion video page only allows nonce-tagged inline scripts', async () => {
+    const res = await request(app)
+      .get('/promotion')
+    const nonce = /script-src 'self' 'nonce-([^']+)'/.exec(res.headers['content-security-policy'] ?? '')?.[1]
+    assert.ok(nonce)
+    assert.ok(res.text.includes(`<script nonce="${nonce}">`))
+    assert.ok(res.headers['content-security-policy'].includes("object-src 'none'"))
+  })
 })
 
 void describe('/video', () => {
