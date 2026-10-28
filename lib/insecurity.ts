@@ -66,8 +66,8 @@ const verifiedPayload = (token?: string): any => {
   if (parts.length !== 3) return undefined
   const [header, payload, signature] = parts
   try {
-    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== JWT_ALGORITHM) return undefined
-    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))) return undefined
+    const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))
+    if (!signatureValid || JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== JWT_ALGORITHM) return undefined
     const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
     const now = Math.floor(Date.now() / 1000)
     if (typeof decoded?.exp === 'number' && now >= decoded.exp) return undefined
