@@ -6,12 +6,10 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
-import z85 from 'z85'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
-import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -182,7 +180,7 @@ void describe('/rest/basket/:id/checkout', () => {
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply forged coupon with a discount above 99 percent is not accepted', async () => {
-    const overDiscountCoupon = z85.encode(utils.toMMMYY(new Date()) + '-999999')
+    const overDiscountCoupon = security.generateCoupon(999999)
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(overDiscountCoupon))
       .set(authHeader)
