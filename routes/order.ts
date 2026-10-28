@@ -50,6 +50,11 @@ export function placeOrder () {
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const discardInvoice = () => {
+            doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            fileWriter.destroy()
+          }
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -136,21 +141,27 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
           if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+            discardInvoice()
             res.status(400).json({ error: res.__('Order total must be greater than zero.') })
             return
           }
 
+          let walletDelta = 0
           if (req.body.UserId) {
             try {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
                 if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  discardInvoice()
                   next(new Error('Insufficient wallet balance.'))
                   return
                 }
+                walletDelta = totalPoints - totalPrice
               } else {
                 await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+                walletDelta = totalPoints
               }
             } catch (error: unknown) {
+              discardInvoice()
               next(error)
               return
             }
@@ -164,6 +175,10 @@ export function placeOrder () {
               }
             }
           } catch (error: unknown) {
+            discardInvoice()
+            if (walletDelta !== 0) {
+              await WalletModel.increment({ balance: -walletDelta }, { where: { UserId: req.body.UserId } }).catch(() => {})
+            }
             next(error)
             return
           }
