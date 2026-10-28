@@ -376,8 +376,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.route('/api/Hints/:id')
     .get(security.denyAll())
     .delete(security.denyAll())
-  /* Complaints: POST allowed when logged in, listing is admin-only */
-  app.get('/api/Complaints', security.isAuthorized(), security.isAdmin())
+  /* Complaints: POST and GET allowed when logged in only */
+  app.get('/api/Complaints', security.isAuthorized())
   app.post('/api/Complaints', security.isAuthorized())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
