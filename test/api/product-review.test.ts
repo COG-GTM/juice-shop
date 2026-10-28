@@ -65,6 +65,25 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('PUT product review is returned by subsequent GET', async () => {
+    const message = `Review ${Date.now()}`
+    const putRes = await request(app)
+      .put('/rest/products/2/reviews')
+      .send({ message, author: 'Anonymous' })
+    assert.equal(putRes.status, 201)
+    const getRes = await request(app)
+      .get('/rest/products/2/reviews')
+    assert.equal(getRes.status, 200)
+    assert.ok(getRes.body.data.some((review: any) => review.message === message && review.product === 2))
+  })
+
+  void it('PUT product review with non-numeric product id is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/products/kaboom/reviews')
+      .send({ message: 'Lorem Ipsum', author: 'Anonymous' })
+    assert.equal(res.status, 400)
+  })
 })
 
 void describe('/rest/products/reviews', () => {
