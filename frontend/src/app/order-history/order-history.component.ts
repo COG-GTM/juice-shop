@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, NgZone, type OnInit, inject } from '@angular/core'
+import { Component, type OnDestroy, NgZone, type OnInit, inject } from '@angular/core'
 import { OrderHistoryService } from '../Services/order-history.service'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table'
 import { ProductDetailsComponent } from '../product-details/product-details.component'
@@ -40,12 +40,13 @@ export interface Order {
   styleUrls: ['./order-history.component.scss'],
   imports: [MatCardModule, MatCardTitle, TranslateModule, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardContent]
 })
-export class OrderHistoryComponent implements OnInit {
+export class OrderHistoryComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router)
   private readonly dialog = inject(MatDialog)
   private readonly orderHistoryService = inject(OrderHistoryService)
   private readonly productService = inject(ProductService)
   private readonly ngZone = inject(NgZone)
+  private confirmationPdfUrl?: string
 
   public tableColumns = ['product', 'price', 'quantity', 'total price', 'review']
   public orders: Order[] = []
@@ -108,11 +109,18 @@ export class OrderHistoryComponent implements OnInit {
     })
   }
 
+  ngOnDestroy (): void {
+    if (this.confirmationPdfUrl) URL.revokeObjectURL(this.confirmationPdfUrl)
+  }
+
   openConfirmationPDF (orderId: string) {
     const pdfWindow = window.open('', '_blank')
     this.orderHistoryService.getConfirmationPdf(orderId).subscribe({
       next: (pdf) => {
-        if (pdfWindow) pdfWindow.location.href = URL.createObjectURL(pdf)
+        if (!pdfWindow) return
+        if (this.confirmationPdfUrl) URL.revokeObjectURL(this.confirmationPdfUrl)
+        this.confirmationPdfUrl = URL.createObjectURL(pdf)
+        pdfWindow.location.href = this.confirmationPdfUrl
       },
       error: (err) => {
         pdfWindow?.close()

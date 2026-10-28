@@ -622,7 +622,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
-  app.get('/rest/order-history/:id/confirmation', security.isAuthorized(), utils.asyncHandler(orderConfirmation()))
+  app.get('/rest/order-history/:id/confirmation', rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }), security.isAuthorized(), utils.asyncHandler(orderConfirmation()))
   app.get('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(getWalletBalance()))
   app.put('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(addWalletBalance()))
   app.get('/rest/deluxe-membership', deluxeMembershipStatus())

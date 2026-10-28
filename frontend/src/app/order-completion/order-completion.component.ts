@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, type OnInit, inject } from '@angular/core'
+import { Component, type OnDestroy, type OnInit, inject } from '@angular/core'
 import { TrackOrderService } from '../Services/track-order.service'
 import { ActivatedRoute, type ParamMap, RouterLink } from '@angular/router'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow } from '@angular/material/table'
@@ -28,12 +28,13 @@ library.add(faTwitter)
   styleUrls: ['./order-completion.component.scss'],
   imports: [MatCardModule, TranslateModule, RouterLink, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow]
 })
-export class OrderCompletionComponent implements OnInit {
+export class OrderCompletionComponent implements OnInit, OnDestroy {
   private readonly configurationService = inject(ConfigurationService)
   private readonly addressService = inject(AddressService)
   private readonly trackOrderService = inject(TrackOrderService)
   activatedRoute = inject(ActivatedRoute)
   private readonly orderHistoryService = inject(OrderHistoryService)
+  private confirmationPdfUrl?: string
 
   public tableColumns = ['product', 'price', 'quantity', 'total price']
   public dataSource
@@ -93,11 +94,18 @@ export class OrderCompletionComponent implements OnInit {
     })
   }
 
+  ngOnDestroy (): void {
+    if (this.confirmationPdfUrl) URL.revokeObjectURL(this.confirmationPdfUrl)
+  }
+
   openConfirmationPDF () {
     const pdfWindow = window.open('', '_blank')
     this.orderHistoryService.getConfirmationPdf(this.orderId).subscribe({
       next: (pdf) => {
-        if (pdfWindow) pdfWindow.location.href = URL.createObjectURL(pdf)
+        if (!pdfWindow) return
+        if (this.confirmationPdfUrl) URL.revokeObjectURL(this.confirmationPdfUrl)
+        this.confirmationPdfUrl = URL.createObjectURL(pdf)
+        pdfWindow.location.href = this.confirmationPdfUrl
       },
       error: (err) => {
         pdfWindow?.close()

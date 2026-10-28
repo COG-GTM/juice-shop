@@ -94,6 +94,18 @@ describe('AccountingComponent', () => {
         expect(pdfWindow.location.href).toBe('blob:pdf')
     })
 
+    it('should revoke the previous order confirmation PDF object URL when opening another one', () => {
+        vi.spyOn(window, 'open').mockReturnValue({ location: { href: '' }, close: vi.fn() } as any)
+        URL.createObjectURL = vi.fn().mockReturnValueOnce('blob:first').mockReturnValueOnce('blob:second')
+        URL.revokeObjectURL = vi.fn()
+        orderHistoryService.getConfirmationPdf.mockReturnValue(of(new Blob()))
+        component.openConfirmationPDF('5267-f9cd5882f54c75a3')
+        component.openConfirmationPDF('5267-f9cd5882f54c75a3')
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:first')
+        component.ngOnDestroy()
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:second')
+    })
+
     it('should close the opened window when loading order confirmation PDF fails', () => {
         const pdfWindow = { location: { href: '' }, close: vi.fn() }
         vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)

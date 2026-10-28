@@ -55,8 +55,9 @@ export function orderConfirmation () {
       return
     }
     const order = await ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
-    const pdfFile = path.resolve(orderConfirmationsDir, `order_${orderId}.pdf`)
-    if (!order || !fs.existsSync(pdfFile)) {
+    const customerDir = path.resolve(orderConfirmationsDir, security.hash(email))
+    const pdfFile = path.resolve(customerDir, `order_${orderId}.pdf`)
+    if (!order || !pdfFile.startsWith(customerDir + path.sep) || !fs.existsSync(pdfFile)) {
       res.status(404).json({ status: 'error', message: 'Order not found' })
       return
     }
