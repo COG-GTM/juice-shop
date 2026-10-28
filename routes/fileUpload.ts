@@ -68,10 +68,14 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}`)
           pipeline(entry, sizeLimiter(), fs.createWriteStream(tempPath, { flags: 'wx' }), (err) => {
             if (err != null) {
+              fileCount--
               fs.unlink(tempPath, () => {})
             } else {
               fs.rename(tempPath, absolutePath, (err) => {
-                if (err != null) fs.unlink(tempPath, () => {})
+                if (err != null) {
+                  fileCount--
+                  fs.unlink(tempPath, () => {})
+                }
               })
             }
           })
