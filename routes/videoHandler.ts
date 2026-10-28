@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
@@ -75,13 +76,20 @@ export const promotionVideo = () => {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
+      const nonce = crypto.randomBytes(16).toString('base64')
+      compiledTemplate = compiledTemplate.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`)
       compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
+      res.set('Content-Security-Policy', promotionCsp(nonce))
       res.send(compiledTemplate)
     })
   }
   function favicon () {
     return utils.extractFilename(config.get('application.favicon'))
   }
+}
+
+export function promotionCsp (nonce: string) {
+  return `script-src 'self' 'nonce-${nonce}'; object-src 'none'; base-uri 'none'`
 }
 
 export function serializeSubtitles (subs: string) {
