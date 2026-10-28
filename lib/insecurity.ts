@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -75,6 +76,21 @@ export const verify = (token: string) => {
   }
 }
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+export const profileImageUploadsDir = () => path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+
+export const profileImageUploadFor = (userId: unknown, ext: string) => {
+  if (typeof userId !== 'number' || !Number.isSafeInteger(userId) || userId < 1 || !/^[a-z0-9]+$/.test(ext)) {
+    return undefined
+  }
+  const uploadsDir = profileImageUploadsDir()
+  const fileName = `${userId}.${ext}`
+  const filePath = path.resolve(uploadsDir, fileName)
+  if (path.dirname(filePath) !== uploadsDir) {
+    return undefined
+  }
+  return { userId, fileName, filePath }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')

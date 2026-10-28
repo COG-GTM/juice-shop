@@ -10,6 +10,7 @@ import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 import crypto from 'node:crypto'
+import path from 'node:path'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
@@ -267,6 +268,36 @@ describe('insecurity', () => {
 
     it('does not register HS256 tokens HMAC-signed with the public RSA key', () => {
       expect(register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
+    })
+  })
+
+  describe('profileImageUploadFor', () => {
+    it('returns the upload file inside the uploads directory for a numeric user id', () => {
+      const upload = security.profileImageUploadFor(23, 'png')
+      expect(upload?.userId).to.equal(23)
+      expect(upload?.fileName).to.equal('23.png')
+      expect(upload?.filePath).to.equal(path.join(security.profileImageUploadsDir(), '23.png'))
+    })
+
+    it('rejects user ids containing path traversal sequences', () => {
+      expect(security.profileImageUploadFor('../../../../../logo', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor('..\\..\\logo', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor('/etc/juice', 'png')).to.equal(undefined)
+    })
+
+    it('rejects user ids that are not positive safe integers', () => {
+      expect(security.profileImageUploadFor('1', 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(0, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(-1, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(1.5, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(Number.MAX_SAFE_INTEGER + 1, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor(undefined, 'png')).to.equal(undefined)
+      expect(security.profileImageUploadFor({ id: 1 }, 'png')).to.equal(undefined)
+    })
+
+    it('rejects extensions that are not plain alphanumerics', () => {
+      expect(security.profileImageUploadFor(1, '../x')).to.equal(undefined)
+      expect(security.profileImageUploadFor(1, 'png/../../x')).to.equal(undefined)
     })
   })
 })
