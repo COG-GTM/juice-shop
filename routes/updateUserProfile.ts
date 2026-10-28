@@ -11,6 +11,8 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const usernamePattern = /^[\p{L}\p{N} ._'-]{0,50}$/u
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -27,13 +29,19 @@ export function updateUserProfile () {
         return
       }
 
+      const username = req.body.username
+      if (typeof username !== 'string' || (username !== user.username && !usernamePattern.test(username))) {
+        res.status(400).send('Invalid username')
+        return
+      }
+
       challengeUtils.solveIf(challenges.csrfChallenge, () => {
         return ((req.headers.origin?.includes('://htmledit.squarefree.com')) ??
           (req.headers.referer?.includes('://htmledit.squarefree.com'))) &&
-          req.body.username !== user.username
+          username !== user.username
       })
 
-      const savedUser = await user.update({ username: req.body.username })
+      const savedUser = await user.update({ username })
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)

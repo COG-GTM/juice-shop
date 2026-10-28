@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -46,9 +47,50 @@ void describe('/profile', () => {
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst' })
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST update username rejects a template-injection payload', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: "x#{global.process.mainModule.require('child_process').execSync('id')}" })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update accepts resubmitting an unchanged legacy username', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    await user.update({ username: 'E=ma²' })
+
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'E=ma²' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile renders a stored template-like username as literal text', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    await user.update({ username: 'x#{7*7}' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x#{7*7}'))
+    assert.ok(!res.text.includes('x49'))
   })
 })
