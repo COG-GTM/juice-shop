@@ -475,6 +475,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
+  /* Only accept unprivileged attributes when registering new users */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const allowedRegistrationFields = ['email', 'password', 'passwordRepeat', 'username', 'securityQuestion', 'securityAnswer']
+    if (req.body && typeof req.body === 'object') {
+      req.body = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedRegistrationFields.includes(key)))
+    }
+    next()
+  })
+
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
   finale.initialize({ app, sequelize: seq })
