@@ -6,12 +6,21 @@
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
+const quarantineDir = path.resolve('ftp/quarantine')
+
+function isPlainFileName (file: string) {
+  return !/[/\\:\0]/.test(file) &&
+    file !== '.' && file !== '..' &&
+    path.posix.basename(file) === file &&
+    path.win32.basename(file) === file
+}
+
 export function serveQuarantineFiles () {
-  return ({ params, query }: Request, res: Response, next: NextFunction) => {
+  return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (!file.includes('/')) {
-      res.sendFile(path.resolve('ftp/quarantine/', file))
+    if (isPlainFileName(file)) {
+      res.sendFile(file, { root: quarantineDir })
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
