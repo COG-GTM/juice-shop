@@ -101,6 +101,20 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
+
+    void it('POST file type XML with dev/random attack does not block other requests', async () => {
+      const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
+      const upload = request(app)
+        .post('/file-upload')
+        .attach('file', file)
+        .then(res => res)
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const started = Date.now()
+      const version = await request(app).get('/rest/admin/application-version')
+      assert.equal(version.status, 200)
+      assert.ok(Date.now() - started < 1000)
+      assert.ok((await upload).status >= 410)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {

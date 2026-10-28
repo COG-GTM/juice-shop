@@ -5,16 +5,14 @@
 
 import os from 'node:os'
 import fs from 'node:fs'
-import vm from 'node:vm'
 import path from 'node:path'
-import yaml from 'js-yaml'
-import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as utils from '../lib/utils'
+import { parseInSandbox } from '../lib/sandboxedParser'
 
 function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
@@ -72,70 +70,69 @@ function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   next()
 }
 
+function deprecatedUploadError (file: Express.Multer.File | undefined, details?: string) {
+  return new Error('B2B customer complaints via file upload have been deprecated for security reasons' + (details !== undefined ? ': ' + details : '') + ' (' + file?.originalname + ')')
+}
+
+function temporarilyUnavailableError () {
+  return new Error('Sorry, we are temporarily not available! Please try again later.')
+}
+
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
-  if (utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
-    challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
-      const data = file.buffer.toString()
-      try {
-        const sandbox = { libxml, data }
-        vm.createContext(sandbox)
-        const xmlDoc = vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: true, nocdata: true })', sandbox, { timeout: 2000 })
-        const xmlString = xmlDoc.toString(false)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return (utils.matchesEtcPasswdFile(xmlString) || utils.matchesSystemIniFile(xmlString)) })
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(xmlString, 400) + ' (' + file.originalname + ')'))
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Script execution timed out')) {
-          if (challengeUtils.notSolved(challenges.xxeDosChallenge)) {
-            challengeUtils.solve(challenges.xxeDosChallenge)
-          }
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
-        }
-      }
-    } else {
-      res.status(410)
-      next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file?.originalname + ')'))
-    }
+  if (!utils.endsWith(file?.originalname.toLowerCase(), '.xml')) {
+    next()
+    return
   }
-  next()
+  challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
+  if (file?.buffer == null || !(utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge))) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
+    res.status(410)
+    next(deprecatedUploadError(file))
+    return
+  }
+  parseInSandbox('xml', file.buffer.toString(), { substituteEntities: utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) }).then(({ status, output = '', message = '', disclosesFile = false }) => {
+    if (status === 'ok') {
+      challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return disclosesFile })
+      res.status(410)
+      next(deprecatedUploadError(file, utils.trunc(output, 400)))
+    } else if (status === 'error') {
+      res.status(410)
+      next(deprecatedUploadError(file, message))
+    } else {
+      if (status !== 'busy') {
+        challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
+      }
+      res.status(503)
+      next(temporarilyUnavailableError())
+    }
+  }).catch(next)
 }
 
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
-  if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
-    challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
-      const data = file.buffer.toString()
-      try {
-        const sandbox = { yaml, data }
-        vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
-        res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
-      } catch (err: unknown) {
-        const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
-          if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
-            challengeUtils.solve(challenges.yamlBombChallenge)
-          }
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
-        }
-      }
-    } else {
-      res.status(410)
-      next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file?.originalname + ')'))
-    }
+  if (!(utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml'))) {
+    res.status(204).end()
+    return
   }
-  res.status(204).end()
+  challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
+  if (file?.buffer == null || !utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
+    res.status(410)
+    next(deprecatedUploadError(file))
+    return
+  }
+  parseInSandbox('yaml', file.buffer.toString()).then(({ status, output = '', message = '' }) => {
+    if (status === 'ok') {
+      res.status(410)
+      next(deprecatedUploadError(file, utils.trunc(output, 400)))
+    } else if (status === 'error') {
+      res.status(410)
+      next(deprecatedUploadError(file, message))
+    } else {
+      if (status !== 'busy') {
+        challengeUtils.solveIf(challenges.yamlBombChallenge, () => { return true })
+      }
+      res.status(503)
+      next(temporarilyUnavailableError())
+    }
+  }).catch(next)
 }
 
 export {
