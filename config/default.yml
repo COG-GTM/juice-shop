@@ -11,6 +11,7 @@ application:
   showVersionNumber: true
   showGitHubLinks: true
   localBackupEnabled: true
+  seedDemoCredentials: false # seeds the publicly documented demo passwords, security answers and 2FA secrets for pre-loaded users; only enable for isolated training setups
   numberOfRandomFakeUsers: 0
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop

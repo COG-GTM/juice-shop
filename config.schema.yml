@@ -23,6 +23,8 @@ application:
     type: boolean
   localBackupEnabled:
     type: boolean
+  seedDemoCredentials:
+    type: boolean
   numberOfRandomFakeUsers:
     type: number
   altcoinName:
