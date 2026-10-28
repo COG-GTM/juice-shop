@@ -7,6 +7,7 @@ import { describe, it, before, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import { generateSync } from 'otplib'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { challenges } from '../../data/datacache'
@@ -123,6 +124,30 @@ void describe('/rest/user/oauth', () => {
 
     assert.equal(res.status, 400)
     assert.equal(calls.length, 0)
+  })
+
+  void it('POST with Bjoern\'s verified Google token and TOTP solves "Login Bjoern" only after the second factor', async () => {
+    const totpSecret = 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'
+    const bjoern = await UserModel.findOne({ where: { email: 'bjoern.kimminich@gmail.com' } })
+    assert.ok(bjoern)
+    await bjoern.update({ totpSecret })
+    challenges.oauthUserPasswordChallenge.solved = false
+    try {
+      stubGoogleTokenInfo({ aud: clientId, email: 'bjoern.kimminich@gmail.com', email_verified: 'true', expires_in: '3599' })
+      const res = await request(app).post('/rest/user/oauth').set(jsonHeader).send({ accessToken: 'ya29.bjoern-token' })
+      assert.equal(res.status, 401)
+      assert.equal(res.body.status, 'totp_token_required')
+      assert.equal(challenges.oauthUserPasswordChallenge.solved, false)
+
+      const verify = await request(app)
+        .post('/rest/2fa/verify')
+        .set(jsonHeader)
+        .send({ tmpToken: res.body.data.tmpToken, totpToken: generateSync({ secret: totpSecret }) })
+      assert.equal(verify.status, 200)
+      assert.equal(challenges.oauthUserPasswordChallenge.solved, true)
+    } finally {
+      await bjoern.update({ totpSecret: '' })
+    }
   })
 
   void it('POST with Bjoern\'s verified Google token solves "Login Bjoern"', async () => {
