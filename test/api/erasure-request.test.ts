@@ -6,6 +6,8 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import fs from 'node:fs'
+import path from 'node:path'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -87,7 +89,7 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('POST erasure request with non-existing file path as layout parameter throws error', async () => {
+  void it('POST erasure request ignores a non-existing file path as layout parameter', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -95,11 +97,12 @@ void describe('/dataerasure', () => {
       .set({ Cookie: 'token=' + token })
       .send({ layout: '../this/file/does/not/exist' })
 
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('no such file or directory'))
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('no such file or directory'))
   })
 
-  void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {
+  void it('POST erasure request does not render an existing file passed as layout parameter', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -108,7 +111,100 @@ void describe('/dataerasure', () => {
       .send({ layout: '../package.json' })
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('juice-shop'))
-    assert.ok(res.text.includes('......'))
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+    assert.ok(!res.text.includes('......'))
+  })
+
+  void it('POST erasure request does not read absolute or device file paths passed as layout parameter', async () => {
+    for (const layout of ['../../../../../../etc/passwd', '/dev/zero']) {
+      const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+      const res = await request(app)
+        .post('/dataerasure/')
+        .set({ Cookie: 'token=' + token })
+        .type('form')
+        .send({ email: 'x', securityAnswer: 'x', layout })
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('Sorry to see you leave!'))
+      assert.ok(!res.text.includes('root:x:0:0'))
+      assert.ok(!res.text.endsWith('......'))
+    }
+  })
+
+  void it('POST erasure request does not pass request body fields to the template', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ _title_: 'injected-title-marker', settings: { 'view options': { layout: '../package.json' } } })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('injected-title-marker'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
+
+  void it('POST erasure request cannot replace view settings to read the CTF key', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const ctfKey = fs.readFileSync('ctf.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('settings[views]=.&settings[view options][layout]=ctf.key')
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(ctfKey))
+  })
+
+  void it('POST erasure request cannot combine JSON layout and views settings to read the CTF key', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const ctfKey = fs.readFileSync('ctf.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: 'ctf.key', settings: { views: process.cwd() } })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(ctfKey))
+  })
+
+  void it('POST erasure request cannot point layout at the views directory override to read the CTF key', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const ctfKey = fs.readFileSync('ctf.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('layout=.&settings[views]=ctf.key')
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(ctfKey))
+    assert.ok(!res.text.endsWith('......'))
+  })
+
+  void it('POST erasure request cannot point views settings at the encryption keys folder to read the premium key', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const premiumKey = fs.readFileSync('encryptionkeys/premium.key', 'utf8').trim()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send(`settings[views]=${encodeURIComponent(path.resolve('encryptionkeys'))}&layout=premium.key`)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes(premiumKey))
+    assert.ok(!res.text.endsWith('......'))
   })
 })
