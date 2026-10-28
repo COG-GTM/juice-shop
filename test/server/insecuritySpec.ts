@@ -8,7 +8,10 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -109,6 +112,91 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('revokes all other tokens of a user but keeps the current one', () => {
+      security.authenticatedUsers.put('rev-old', { data: { id: 42 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-other-user', { data: { id: 43 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-current', { data: { id: 42 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeOtherSessions(42, 'rev-current')
+
+      expect(security.authenticatedUsers.get('rev-old')).to.equal(undefined)
+      expect(security.isRevoked('rev-old')).to.equal(true)
+      expect(security.authenticatedUsers.get('rev-current')).to.deep.equal({ data: { id: 42 } })
+      expect(security.authenticatedUsers.get('rev-other-user')).to.deep.equal({ data: { id: 43 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 42 } as unknown as UserModel)).to.equal('rev-current')
+    })
+
+    it('does not re-register a revoked token', () => {
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-fresh', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(44, 'rev-fresh')
+
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('rev-stale')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 44 } as unknown as UserModel)).to.equal('rev-fresh')
+    })
+
+    it('stops treating a revoked token as revoked once it has expired', () => {
+      const expired = security.authorize({ data: { id: 45 } })
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.put(expired, { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.put('rev-keep-45', { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.revokeOtherSessions(45, 'rev-keep-45')
+        expect(security.isRevoked(expired)).to.equal(true)
+
+        clock.tick(6 * 60 * 60 * 1000 + 1000)
+        expect(security.isRevoked(expired)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('keeps a revoked token without exp claim revoked indefinitely', () => {
+      const noExp = jwt.sign({ data: { id: 48 } }, 'no-exp-test-secret', { algorithm: 'HS256' })
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
+        security.authenticatedUsers.revokeOtherSessions(48, 'rev-keep-48')
+
+        clock.tick(7 * 24 * 60 * 60 * 1000)
+        expect(security.isRevoked(noExp)).to.equal(true)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('fails signature verification for revoked tokens', () => {
+      const token = security.authorize({ data: { id: 49 } })
+      expect(security.verify(token)).to.equal(true)
+
+      security.authenticatedUsers.put(token, { data: { id: 49 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(49, 'rev-keep-49')
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('denies deluxe and accounting privileges to revoked tokens', () => {
+      const deluxe = security.authorize({ data: { id: 46, email: 'deluxe@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('deluxe@juice-sh.op') } })
+      const accounting = security.authorize({ data: { id: 47, role: security.roles.accounting } })
+      const deluxeReq = { headers: { authorization: 'Bearer ' + deluxe } } as unknown as Request
+      const accountingReq = { headers: { authorization: 'Bearer ' + accounting } } as unknown as Request
+      expect(security.isDeluxe(deluxeReq)).to.equal(true)
+
+      security.authenticatedUsers.put(deluxe, { data: { id: 46 } as unknown as UserModel })
+      security.authenticatedUsers.put(accounting, { data: { id: 47 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(46, 'rev-keep-46')
+      security.authenticatedUsers.revokeOtherSessions(47, 'rev-keep-47')
+
+      expect(security.isDeluxe(deluxeReq)).to.equal(false)
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAccounting()(accountingReq, res as unknown as Response, next)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
   })
 
   describe('sanitizeHtml', () => {
@@ -201,6 +289,76 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const forge = (alg: string, sign: (input: string) => string) => {
+      const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+    }
+
+    it('accepts RS256 tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned "none" tokens', () => {
+      expect(security.verify(forge('none', () => ''))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(forge('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with an arbitrary secret', () => {
+      expect(security.verify(jwt.sign({ data: { email: 'admin@juice-sh.op' } }, crypto.randomBytes(32).toString('hex')))).to.equal(false)
+    })
+
+    it('rejects empty and malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('rejects requests carrying a valid RS256 token', () => {
+      let error: any
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      security.denyAll()({ headers: { authorization: 'Bearer ' + token } } as any, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+
+    it('rejects requests without a token', () => {
+      let error: any
+      security.denyAll()({ headers: {} } as any, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    const forgedAdmin = (alg: string, sign: (input: string) => string) => {
+      const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+    }
+    const register = (token: string) => {
+      const res: any = { cookie: () => {} }
+      security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as any, res, () => {})
+      return security.authenticatedUsers.get(token)
+    }
+
+    it('registers RS256 tokens issued by authorize()', () => {
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } })
+      expect(register(token)?.data.email).to.equal('admin@juice-sh.op')
+    })
+
+    it('does not register unsigned "none" tokens', () => {
+      expect(register(forgedAdmin('none', () => ''))).to.equal(undefined)
+    })
+
+    it('does not register HS256 tokens HMAC-signed with the public RSA key', () => {
+      expect(register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
     })
   })
 })
