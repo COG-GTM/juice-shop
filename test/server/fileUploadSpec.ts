@@ -76,6 +76,7 @@ describe('fileUpload', () => {
 
     const maliciousEntries = [
       '../../ftp/legal.md',
+      '../../ftp/zipslip-test.md',
       '../../frontend/dist/frontend/index.html',
       '../../build/routes/login.js',
       '../../data/static/users.yml',
