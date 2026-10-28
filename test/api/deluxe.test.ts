@@ -9,7 +9,9 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
+import { UserModel } from '../../models/user'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 
@@ -272,5 +274,30 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+  })
+
+  void it('POST upgrade deluxe membership fails for customers without a wallet', async () => {
+    const email = `deluxe.nowallet@${config.get<string>('application.domain')}`
+    const password = 'n0-w4ll3t'
+    await register(app, { email, password })
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    for (let i = 0; i < 50 && await WalletModel.count({ where: { UserId: user.id } }) === 0; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    await WalletModel.destroy({ where: { UserId: user.id } })
+
+    const { token } = await login(app, { email, password })
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        paymentMode: 'wallet'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+    await user.reload()
+    assert.equal(user.role, 'customer')
   })
 })
