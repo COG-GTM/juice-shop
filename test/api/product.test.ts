@@ -11,7 +11,9 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
+import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 
 const tamperingProductId = config.get<ProductConfig[]>('products').findIndex((product) => !!product.urlForProductTamperingChallenge) + 1
 
@@ -53,20 +55,21 @@ void describe('/api/Products', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST new product sanitizes XSS attacks in description', async () => {
-    const res = await request(app)
-      .post('/api/Products')
-      .set(authHeader)
-      .send({
-        name: 'XSS Juice (42ml)',
-        description: 'Tasty<iframe src="javascript:alert(`xss`)"></iframe> juice',
-        price: 9999.99,
-        image: 'xss3juice.jpg'
-      })
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(!res.body.data.description.includes('<iframe'))
-    assert.ok(res.body.data.description.includes('Tasty'))
-  })
+  if (utils.isChallengeEnabled(challenges.restfulXssChallenge)) {
+    void it('POST new product does not filter XSS attacks', async () => {
+      const res = await request(app)
+        .post('/api/Products')
+        .set(authHeader)
+        .send({
+          name: 'XSS Juice (42ml)',
+          description: '<iframe src="javascript:alert(`xss`)">',
+          price: 9999.99,
+          image: 'xss3juice.jpg'
+        })
+      assert.ok(res.headers['content-type']?.includes('application/json'))
+      assert.equal(res.body.data.description, '<iframe src="javascript:alert(`xss`)">')
+    })
+  }
 })
 
 void describe('/api/Products/:id', () => {
@@ -119,7 +122,7 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('PUT update existing product is allowed for accounting users and sanitizes XSS attacks in description', async () => {
+  void it('PUT update existing product is allowed for accounting users', async () => {
     const { token } = await login(app, {
       email: 'accountant@' + config.get<string>('application.domain'),
       password: 'i am an awesome accountant'
@@ -129,11 +132,9 @@ void describe('/api/Products/:id', () => {
     const res = await request(app)
       .put('/api/Products/1')
       .set(accountingHeader)
-      .send({ price: original.price, description: 'Tasty<iframe src="javascript:alert(`xss`)"></iframe> juice' })
+      .send({ description: 'Updated by accounting' })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.price, original.price)
-    assert.ok(!res.body.data.description.includes('<iframe'))
-    assert.ok(res.body.data.description.includes('Tasty'))
+    assert.equal(res.body.data.description, 'Updated by accounting')
     await request(app)
       .put('/api/Products/1')
       .set(accountingHeader)

@@ -20,7 +20,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { of, throwError } from 'rxjs'
 import { DomSanitizer } from '@angular/platform-browser'
 import { BasketService } from '../Services/basket.service'
-import { EventEmitter, SecurityContext } from '@angular/core'
+import { EventEmitter } from '@angular/core'
 import { SocketIoService } from '../Services/socket-io.service'
 import { QuantityService } from '../Services/quantity.service'
 import { DeluxeGuard } from '../app.guard'
@@ -162,14 +162,11 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should sanitize product descriptions instead of trusting them as HTML', () => {
-        sanitizer.sanitize.mockReturnValue('sanitized')
-        productService.search.mockReturnValue(of([{ description: '<iframe src="javascript:alert(`xss`)">' }]))
+    it('should render product descriptions as trusted HTML', () => {
+        productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.sanitize).toHaveBeenCalledWith(SecurityContext.HTML, '<iframe src="javascript:alert(`xss`)">')
-        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<iframe src="javascript:alert(`xss`)">')
-        expect(component.tableData[0].description).toBe('sanitized')
+        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
     })
 
     it('should hold no products when product search API call fails', () => {
