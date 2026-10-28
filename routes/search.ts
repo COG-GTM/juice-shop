@@ -11,17 +11,14 @@ import { UserModel } from '../models/user'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
-// vuln-code-snippet start unionSqlInjectionChallenge dbSchemaChallenge
 export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
     let criteria = typeof req.query.q === 'string' && req.query.q !== 'undefined' ? req.query.q : ''
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
-    models.sequelize.query(
-      'SELECT * FROM Products WHERE ((name LIKE :criteria OR description LIKE :criteria) AND deletedAt IS NULL) ORDER BY name',
-      { replacements: { criteria: `%${criteria}%` } }
-    ).then(([products]: any) => {
+    models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE :criteria OR description LIKE :criteria) AND deletedAt IS NULL) ORDER BY name', { replacements: { criteria: `%${criteria}%` } })
+      .then(([products]: any) => {
         const dataString = JSON.stringify(products)
-        if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge)) { // vuln-code-snippet hide-start
+        if (challengeUtils.notSolved(challenges.unionSqlInjectionChallenge)) {
           let solved = true
           UserModel.findAll().then(data => {
             const users = utils.queryResultToJson(data)
@@ -58,7 +55,7 @@ export function searchProducts () {
               }
             }
           })
-        } // vuln-code-snippet hide-end
+        }
         for (let i = 0; i < products.length; i++) {
           products[i].name = req.__(products[i].name)
           products[i].description = req.__(products[i].description)
@@ -69,4 +66,3 @@ export function searchProducts () {
       })
   }
 }
-// vuln-code-snippet end unionSqlInjectionChallenge dbSchemaChallenge
