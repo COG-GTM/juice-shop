@@ -12,7 +12,7 @@ import { getErrorMessage } from './utils'
 export const MIN_SCRAPE_TOKEN_LENGTH = 32
 
 export function loadMetricsScrapeToken (env: NodeJS.ProcessEnv = process.env): string | undefined {
-  let token = env.METRICS_SCRAPE_TOKEN
+  let token = env.METRICS_SCRAPE_TOKEN?.trim()
   if (!token && env.METRICS_SCRAPE_TOKEN_FILE) {
     try {
       token = fs.readFileSync(env.METRICS_SCRAPE_TOKEN_FILE, 'utf8')

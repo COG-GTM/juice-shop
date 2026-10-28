@@ -66,12 +66,12 @@ export function observeFileUploadMetricsMiddleware () {
 
 export function serveMetrics (scrapeToken = loadMetricsScrapeToken()) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    if (!authorizeMetricsScrape(req, res, scrapeToken)) return
     challengeUtils.solveIf(challenges.exposedMetricsChallenge, () => {
       const userAgent = req.headers['user-agent'] ?? ''
       const ignoredUserAgents = config.get<string[]>('challenges.metricsIgnoredUserAgents')
       return !ignoredUserAgents.some((ignoredUserAgent) => userAgent.includes(ignoredUserAgent))
     })
+    if (!authorizeMetricsScrape(req, res, scrapeToken)) return
     res.set('Content-Type', register.contentType)
     res.end(await register.metrics())
   }

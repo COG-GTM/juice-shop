@@ -28,6 +28,12 @@ describe('metricsScrapeToken', () => {
       expect(loadMetricsScrapeToken({ METRICS_SCRAPE_TOKEN_FILE: file })).to.equal(token)
     })
 
+    it('falls back to METRICS_SCRAPE_TOKEN_FILE when METRICS_SCRAPE_TOKEN is blank', () => {
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'metrics-')), 'token')
+      fs.writeFileSync(file, token)
+      expect(loadMetricsScrapeToken({ METRICS_SCRAPE_TOKEN: '  ', METRICS_SCRAPE_TOKEN_FILE: file })).to.equal(token)
+    })
+
     it('disables metrics when no token is configured', () => {
       expect(loadMetricsScrapeToken({})).to.equal(undefined)
     })
