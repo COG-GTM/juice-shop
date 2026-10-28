@@ -21,9 +21,10 @@ before(async () => {
 
 void describe('/api/Complaints', () => {
   void it('POST new complaint', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
       .post('/api/Complaints')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
       .send({
         message: 'You have no clue what https://github.com/eslint/eslint-scope/issues/39 means, do you???'
       })
@@ -32,6 +33,24 @@ void describe('/api/Complaints', () => {
     assert.equal(typeof res.body.data.id, 'number')
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
+  })
+
+  void it('POST complaint is always filed under the logged-in customer', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ UserId: 3, message: 'Forged complaint for bender' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, security.decode(token).data.id)
+  })
+
+  void it('POST complaint with a token that carries no user is unauthorized', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(authHeader)
+      .send({ message: 'No user' })
+    assert.equal(res.status, 401)
   })
 
   void it('GET all complaints is forbidden via public API', async () => {
