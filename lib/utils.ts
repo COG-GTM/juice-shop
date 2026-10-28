@@ -75,17 +75,27 @@ export const version = (module?: string) => {
 
 export const ctfKeyFile = 'ctf.key'
 
-export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile) => {
+// SHA-256 of the key that used to be committed as ctf.key and is public in the repository history
+export const publishedCtfKeyHashes = ['f0f701815aeb918d291942b8a83b7b36d79d2e04b6a20deebcb07eb8e492e4c8']
+
+const isPublishedCtfKey = (key: string, rejectedHashes: string[]) =>
+  rejectedHashes.includes(crypto.createHash('sha256').update(key.trim()).digest('hex'))
+
+export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile, rejectedHashes = publishedCtfKeyHashes) => {
+  let key: string | undefined
   if (envKey !== undefined && envKey !== '') {
-    return envKey
-  }
-  if (fs.existsSync(keyFile)) {
+    key = envKey
+  } else if (fs.existsSync(keyFile)) {
     const fileKey = fs.readFileSync(keyFile, 'utf8')
     if (fileKey.trim() !== '') {
-      return fileKey
+      key = fileKey
     }
   }
-  return undefined
+  if (key !== undefined && isPublishedCtfKey(key, rejectedHashes)) {
+    logger.warn('Ignoring the configured CTF key because it is the publicly known former default key')
+    return undefined
+  }
+  return key
 }
 
 let cachedCtfKey: string | undefined
