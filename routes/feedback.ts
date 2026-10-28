@@ -9,11 +9,10 @@ import * as security from '../lib/insecurity'
 
 export function checkFeedbackDeletion () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const user = security.userFrom(req)
     const feedback = await FeedbackModel.findOne({ where: { id: req.params.id } })
     if (feedback == null) {
       res.status(404).json({ error: 'No such feedback found!' })
-    } else if (user?.role === security.roles.admin || (user?.id != null && feedback.UserId === user.id)) {
+    } else if (security.userFrom(req)?.role === security.roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })

@@ -301,13 +301,13 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('DELETE own feedback', async () => {
-    const createRes = await createFeedback({ comment: 'I changed my mind', rating: 2, UserId: 2 })
+  void it('DELETE feedback attributed to the caller is forbidden for non-admin users', async () => {
+    const createRes = await createFeedback({ comment: 'Not really mine', rating: 2, UserId: 2 })
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authorHeader)
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing feedback as admin', async () => {
