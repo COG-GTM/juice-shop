@@ -8,22 +8,36 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
+let authHeader: { Authorization: string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + token }
 }, { timeout: 60000 })
 
 void describe('/file-upload', () => {
+  void it('POST zip file without authentication is rejected', async () => {
+    const file = path.resolve(__dirname, '../files/promotionTemplateOverwrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 401)
+  })
+
   void it('POST file valid PDF for client and API', async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -32,6 +46,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -40,6 +55,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -48,6 +64,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/deprecatedTypeForServer.xml')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 410)
   })
@@ -56,6 +73,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/maxSizeForServer.xml')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 410)
   })
@@ -65,6 +83,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
     })
@@ -73,6 +92,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
     })
@@ -81,6 +101,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
       assert.ok(res.text.includes('Detected an entity reference loop'))
@@ -90,6 +111,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -98,6 +120,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -108,6 +131,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/yamlBomb.yml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -117,6 +141,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 500)
   })
@@ -125,14 +150,48 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
+    const legalFile = path.resolve('ftp/legal.md')
+    const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+    const original = readLegalFile()
+    challenges.fileWriteChallenge.solved = false
+    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    assert.equal(challenges.fileWriteChallenge.solved, true)
+    assert.equal(readLegalFile(), original)
+  })
+
+  void it('POST zip file with directory traversal entry does not overwrite the promotion video template', async () => {
+    const template = path.resolve('views/promotionVideo.pug')
+    const original = fs.readFileSync(template, 'utf8')
+    const file = path.resolve(__dirname, '../files/promotionTemplateOverwrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.readFileSync(template, 'utf8'), original)
+    assert.equal(fs.existsSync(path.resolve('uploads/complaints/promotionVideo.pug')), false)
   })
 
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -141,6 +200,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .set('Content-Length', '42')
       .attach('file', file)
     assert.equal(res.status, 500)
