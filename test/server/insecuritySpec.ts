@@ -274,5 +274,10 @@ describe('insecurity', () => {
     it('does not register HS256 tokens HMAC-signed with the public RSA key', () => {
       expect(register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
     })
+
+    it('does not register temporary 2FA tokens as sessions', () => {
+      const tmpToken = security.authorize({ userId: 1, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token' })
+      expect(register(tmpToken)).to.equal(undefined)
+    })
   })
 })

@@ -53,8 +53,10 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
 
+const isSecondFactorTokenPayload = (payload: unknown) => (payload as { type?: unknown } | undefined)?.type === 'password_valid_needs_second_factor_token'
+
 export const isAuthorized = () => {
-  const middleware = expressjwt({ secret: publicKey, algorithms: jwtAlgorithms })
+  const middleware = expressjwt({ secret: publicKey, algorithms: jwtAlgorithms, isRevoked: async (req, token) => isSecondFactorTokenPayload(token?.payload) })
   return (req: Request, res: Response, next: NextFunction) => {
     void middleware(req, res, next)
   }
@@ -216,7 +218,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isSecondFactorTokenPayload(decoded)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
