@@ -11,6 +11,9 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
+import crypto from 'node:crypto'
+import { login } from './helpers/auth'
 
 let app: Express
 
@@ -201,10 +204,87 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file as admin for "Access Log" challenge', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set(await adminAuthHeader())
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+})
+
+async function adminAuthHeader () {
+  const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+  return { Authorization: 'Bearer ' + token }
+}
+
+void describe('/support/logs', () => {
+  const todaysLog = () => '/support/logs/access.log.' + utils.toISO8601(new Date())
+
+  void it('GET log directory listing without authentication is denied', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 401)
+    assert.ok(!res.text.includes('access.log'))
+  })
+
+  void it('GET access log file without authentication is denied', async () => {
+    const res = await request(app)
+      .get(todaysLog())
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET log directory listing and access log file as non-admin user is denied', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    for (const url of ['/support/logs', todaysLog()]) {
+      const res = await request(app)
+        .get(url)
+        .set({ Authorization: 'Bearer ' + token })
+      assert.equal(res.status, 403)
+      assert.ok(!res.text.includes('change-password'))
+    }
+  })
+
+  void it('GET log directory listing and access log file with forged admin tokens is denied', async () => {
+    const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const payload = b64({ data: { id: 1, email: 'admin@' + config.get<string>('application.domain'), role: 'admin' } })
+    const hs256Input = b64({ typ: 'JWT', alg: 'HS256' }) + '.' + payload
+    const forgedTokens = [
+      b64({ typ: 'JWT', alg: 'none' }) + '.' + payload + '.',
+      hs256Input + '.' + crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')
+    ]
+    for (const token of forgedTokens) {
+      for (const url of ['/support/logs', todaysLog()]) {
+        const res = await request(app)
+          .get(url)
+          .set({ Authorization: 'Bearer ' + token })
+        assert.equal(res.status, 401)
+        assert.ok(!res.text.includes('access.log'))
+      }
+    }
+  })
+
+  void it('GET log directory listing as admin', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(await adminAuthHeader())
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('access.log'))
+  })
+
+  void it('does not write change-password credentials from the query string into the access log', async () => {
+    const marker = 'LogLeak' + utils.randomHexString(8)
+    await request(app)
+      .get(`/rest/user/change-password?current=${marker}cur&new=${marker}new&repeat=${marker}new`)
+      .set({ Referer: `http://localhost/rest/user/change-password?cur%72ent=${marker}ref` })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const res = await request(app)
+      .get(todaysLog())
+      .set(await adminAuthHeader())
+    assert.equal(res.status, 200)
+    const log = res.body instanceof Buffer ? res.body.toString() : res.text
+    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    assert.ok(!log.includes(marker))
   })
 })

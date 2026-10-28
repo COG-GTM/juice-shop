@@ -164,6 +164,35 @@ export const isAccounting = () => {
   }
 }
 
+// Unlike isAuthorized()/verify(), accepts only RS256 tokens signed with the server key (no alg "none" or HS256-with-public-key forgeries)
+export const strictlyVerifiedTokenPayload = (token?: string) => {
+  const parts = token?.split('.')
+  if (parts?.length !== 3) return undefined
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString())
+    if (header?.alg !== 'RS256') return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(parts[0] + '.' + parts[1]), publicKey, Buffer.from(parts[2], 'base64url'))) return undefined
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString())
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const payload = strictlyVerifiedTokenPayload(utils.jwtFrom(req))
+    if (!payload) {
+      res.status(401).json({ error: 'Authentication required' })
+    } else if (payload.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Admin role required' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)

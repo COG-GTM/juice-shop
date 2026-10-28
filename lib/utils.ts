@@ -138,6 +138,38 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
+const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password', 'token', 'access_token'])
+
+const queryParamKey = (param: string) => {
+  const separator = param.indexOf('=')
+  return separator === -1 ? param : param.substring(0, separator)
+}
+
+// Returns the canonical name of a sensitive parameter, '' for an undecodable name, or undefined if not sensitive
+const sensitiveQueryParamName = (param: string) => {
+  let key = queryParamKey(param)
+  try {
+    key = decodeURIComponent(key.replace(/\+/g, ' '))
+  } catch {
+    return ''
+  }
+  const bracket = key.indexOf('[')
+  const name = (bracket === -1 ? key : key.substring(0, bracket)).trim().toLowerCase()
+  return sensitiveQueryParams.has(name) ? name : undefined
+}
+
+// An unencoded '&' inside a secret splits it into extra parameters, so once any secret is present every other parameter is redacted too.
+// Literal and percent-encoded '?' also count as separators so a decoy '%3F' in the path cannot hide a later real query string.
+export const redactSensitiveQueryParams = (url?: string) => {
+  if (!url) return url
+  const delimiter = /\?|%3f/i.exec(url)
+  if (!delimiter) return url
+  const queryStart = delimiter.index + delimiter[0].length
+  const names = url.substring(queryStart).split(/&|\?|%3f/i).map(sensitiveQueryParamName)
+  if (names.every((name) => name === undefined)) return url
+  return url.substring(0, queryStart) + names.map((name) => name ? `${name}=[REDACTED]` : '[REDACTED]').join('&')
+}
+
 export const randomHexString = (length: number): string => {
   return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length)
 }
