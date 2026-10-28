@@ -146,41 +146,43 @@ export function placeOrder () {
             return
           }
 
-          let walletDelta = 0
-          if (req.body.UserId) {
-            try {
-              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
-                  discardInvoice()
-                  next(new Error('Insufficient wallet balance.'))
-                  return
-                }
-                walletDelta = totalPoints - totalPrice
-              } else {
-                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-                walletDelta = totalPoints
-              }
-            } catch (error: unknown) {
-              discardInvoice()
-              next(error)
-              return
+          const deductedItems: Array<{ ProductId: number, quantity: number }> = []
+          const restoreStock = async () => {
+            for (const { ProductId, quantity } of deductedItems) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } }).catch(() => {})
             }
           }
 
           try {
             for (const { ProductId, quantity } of basketItems) {
-              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
-              if (quantityRow) {
-                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
-              }
+              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
+              deductedItems.push({ ProductId, quantity })
             }
           } catch (error: unknown) {
+            await restoreStock()
             discardInvoice()
-            if (walletDelta !== 0) {
-              await WalletModel.increment({ balance: -walletDelta }, { where: { UserId: req.body.UserId } }).catch(() => {})
-            }
             next(error)
             return
+          }
+
+          if (req.body.UserId) {
+            try {
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  await restoreStock()
+                  discardInvoice()
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
+            } catch (error: unknown) {
+              await restoreStock()
+              discardInvoice()
+              next(error)
+              return
+            }
           }
 
           db.ordersCollection.insert({
