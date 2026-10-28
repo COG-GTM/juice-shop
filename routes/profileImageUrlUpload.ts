@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { Readable } from 'node:stream'
 import { type Request, type Response, type NextFunction } from 'express'
 import fileType from 'file-type'
@@ -43,6 +44,27 @@ export async function detectProfileImageExtension (buffer: Buffer): Promise<stri
     throw new Error(`url did not return a JPG, PNG or GIF image${detected ? ' (detected ' + detected.mime + ')' : ''}`)
   }
   return ext
+}
+
+const UPLOADS_URL_PREFIX = '/assets/public/images/uploads/'
+
+export function sandboxUploadedFiles () {
+  return (req: Request, res: Response, next: NextFunction) => {
+    let requestPath: string
+    try {
+      requestPath = path.posix.normalize(decodeURIComponent(req.path).replace(/\\/g, '/')).toLowerCase()
+    } catch {
+      next()
+      return
+    }
+    if (requestPath.startsWith(UPLOADS_URL_PREFIX)) {
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox")
+      if (!/\.(jpe?g|png|gif)$/.test(requestPath)) {
+        res.setHeader('Content-Disposition', 'attachment')
+      }
+    }
+    next()
+  }
 }
 
 export function profileImageUrlUpload () {
