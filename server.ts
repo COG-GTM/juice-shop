@@ -416,6 +416,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Only allow non-privileged attributes to be set during user registration */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const allowedAttributes = ['email', 'password', 'passwordRepeat', 'username']
+    const body = req.body ?? {}
+    req.body = Object.fromEntries(allowedAttributes.filter((attribute) => body[attribute] !== undefined).map((attribute) => [attribute, body[attribute]]))
+    req.body.role = security.roles.customer
+    next()
+  })
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
