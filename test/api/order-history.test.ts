@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
@@ -50,8 +51,9 @@ void describe('/rest/order-history', () => {
 
   void it('GET order history does not include orders of a user with a vowel-colliding email', async () => {
     const email = 'odmin@' + config.get<string>('application.domain')
-    await register(app, { email, password: 'odmin123' })
-    const { token } = await login(app, { email, password: 'odmin123' })
+    const password = randomUUID()
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
 
     const res = await request(app)
       .get('/rest/order-history')
@@ -63,8 +65,9 @@ void describe('/rest/order-history', () => {
 
   void it('GET order history does not include orders for an account registered with the masked email of another user', async () => {
     const email = ('admin@' + config.get<string>('application.domain')).replace(/[aeiou]/gi, '*')
-    await register(app, { email, password: 'masked123' })
-    const { token } = await login(app, { email, password: 'masked123' })
+    const password = randomUUID()
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
 
     const res = await request(app)
       .get('/rest/order-history')
