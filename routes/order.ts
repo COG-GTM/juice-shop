@@ -51,6 +51,13 @@ export function placeOrder () {
               res.json({ orderConfirmation: orderId })
             })()
           })
+          const abortOrder = (error: unknown) => {
+            fileWriter.removeAllListeners('finish')
+            doc.unpipe(fileWriter)
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            next(error)
+          }
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
           doc.moveTo(70, 115).lineTo(540, 115).stroke()
@@ -77,7 +84,7 @@ export function placeOrder () {
                   stockDeductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
                 }
               } catch (error: unknown) {
-                next(error)
+                abortOrder(error)
                 return
               }
               let itemPrice: number
@@ -139,7 +146,7 @@ export function placeOrder () {
 
           if (totalPrice < 0) {
             challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return true })
-            next(new Error('Order total must not be negative.'))
+            abortOrder(new Error('Order total must not be negative.'))
             return
           }
 
@@ -156,7 +163,7 @@ export function placeOrder () {
             }
           } catch (error: unknown) {
             await restoreStock().catch(() => {})
-            next(error)
+            abortOrder(error)
             return
           }
 
@@ -168,19 +175,19 @@ export function placeOrder () {
                   await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
                 } else {
                   await restoreStock().catch(() => {})
-                  next(new Error('Insufficient wallet balance.'))
+                  abortOrder(new Error('Insufficient wallet balance.'))
                   return
                 }
               } catch (error: unknown) {
                 await restoreStock().catch(() => {})
-                next(error)
+                abortOrder(error)
                 return
               }
             }
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
-              next(error)
+              abortOrder(error)
               return
             }
           }
