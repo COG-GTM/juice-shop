@@ -101,6 +101,8 @@ export const generateCoupon = (discount: number, date = new Date()) => {
   return z85.encode(coupon)
 }
 
+export const MAX_COUPON_DISCOUNT = 99
+
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
@@ -110,14 +112,16 @@ export const discountFromCoupon = (coupon?: string) => {
     const parts = decoded.toString().split('-')
     const validity = parts[0]
     if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
+      const discount = parseInt(parts[1], 10)
+      if (discount >= 1 && discount <= MAX_COUPON_DISCOUNT) {
+        return discount
+      }
     }
   }
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return coupon.match(/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}$/)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

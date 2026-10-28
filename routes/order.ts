@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -35,6 +36,12 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const basketItems = (basket.Products ?? []).flatMap(({ BasketItem }) => BasketItem != null ? [BasketItem] : [])
+          if (basketItems.some(({ quantity }) => !Number.isSafeInteger(quantity) || quantity <= 0)) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return basketItems.some(({ quantity }) => quantity < 0) })
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -43,6 +50,11 @@ export function placeOrder () {
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const discardInvoice = () => {
+            doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            fileWriter.destroy()
+          }
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -70,16 +82,6 @@ export function placeOrder () {
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -138,20 +140,46 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice <= 0) {
+            discardInvoice()
+            res.status(400).json({ error: res.__('Order total must be greater than zero.') })
+            return
+          }
+
+          const deductedItems: Array<{ ProductId: number, quantity: number }> = []
+          const restoreStock = async () => {
+            for (const { ProductId, quantity } of deductedItems) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } }).catch(() => {})
+            }
+          }
+
+          try {
+            for (const { ProductId, quantity } of basketItems) {
+              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
+              deductedItems.push({ ProductId, quantity })
+            }
+          } catch (error: unknown) {
+            await restoreStock()
+            discardInvoice()
+            next(error)
+            return
+          }
 
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  await restoreStock()
+                  discardInvoice()
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
             } catch (error: unknown) {
+              await restoreStock()
+              discardInvoice()
               next(error)
               return
             }
@@ -179,6 +207,17 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || totalPrice <= 0 || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {

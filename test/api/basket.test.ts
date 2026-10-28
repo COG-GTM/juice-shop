@@ -136,16 +136,32 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a negative quantity to reach a negative order total is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
+    assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
@@ -163,6 +179,14 @@ void describe('/rest/basket/:id/checkout', () => {
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
+  void it('PUT apply forged coupon with a discount above 99 percent is not accepted', async () => {
+    const overDiscountCoupon = security.generateCoupon(999999)
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(overDiscountCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
   void it('PUT apply valid coupon to existing basket', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
