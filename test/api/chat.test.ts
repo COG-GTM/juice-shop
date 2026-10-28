@@ -5,6 +5,7 @@
 
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
@@ -262,7 +263,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     const { token: adminToken } = await login(app, { email: 'admin@' + domain, password: 'admin123' })
     const orderId = await firstAdminOrderId(adminToken)
 
-    const lookalike = { email: 'edmin@' + domain, password: 'lookalike123' }
+    const lookalike = { email: 'edmin@' + domain, password: randomUUID() }
     await register(app, lookalike)
     const { token } = await login(app, lookalike)
 
