@@ -266,6 +266,12 @@ describe('insecurity', () => {
       expect(update).to.have.callCount(0)
     })
 
+    it('does not fail the login when the upgrade cannot be stored', async () => {
+      const update = sinon.stub().rejects(new Error('SQLITE_READONLY'))
+      await security.upgradeLegacyPasswordHash({ password: security.hash('admin123'), update }, 'admin123')
+      expect(update).to.have.been.calledOnceWith({ password: 'admin123' })
+    })
+
     it('leaves scrypt hashes and missing users alone', async () => {
       const update = sinon.stub().resolves()
       await security.upgradeLegacyPasswordHash({ password: security.hashPassword('admin123'), update }, 'admin123')

@@ -13,6 +13,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -118,7 +119,11 @@ export const verifyPassword = async (password: unknown, storedHash?: string | nu
  */
 export const upgradeLegacyPasswordHash = async (user: { password?: string | null, update: (values: { password: string }) => Promise<unknown> } | null, password: unknown) => {
   if (user && isLegacyPasswordHash(user.password) && typeof password === 'string' && await verifyPassword(password, user.password)) {
-    await user.update({ password })
+    try {
+      await user.update({ password })
+    } catch (err) {
+      logger.warn(`Could not upgrade legacy password hash: ${utils.getErrorMessage(err)}`)
+    }
   }
 }
 
