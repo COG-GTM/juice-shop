@@ -54,8 +54,8 @@ describe('profileImageUrlUpload', () => {
     const elapsedMs = Number(process.hrtime.bigint() - start) / 1e6
 
     expect(res.status).to.have.been.calledWith(400)
-    expect(fetchStub).to.not.have.been.called
-    expect(next).to.not.have.been.called
+    expect(fetchStub.called).to.equal(false)
+    expect(next.called).to.equal(false)
     expect(elapsedMs).to.be.below(100)
   })
 
@@ -68,7 +68,7 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(res.status).to.have.been.calledWith(400)
-    expect(fetchStub).to.not.have.been.called
+    expect(fetchStub.called).to.equal(false)
     expect(req.app.locals.abused_ssrf_bug).to.equal(undefined)
   })
 
