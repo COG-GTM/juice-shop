@@ -40,16 +40,15 @@ describe('/#/basket', () => {
       })
     })
 
-    describe('challenge "basketAccessChallenge"', () => {
-      it('should access basket with id from session storage instead of the one associated to logged-in user', () => {
-        cy.window().then(() => {
-          window.sessionStorage.bid = 3
+    describe('basket of another user', () => {
+      it('should not be accessible via the Rest API', () => {
+        cy.window().then((win) => {
+          cy.request({
+            url: `${Cypress.config('baseUrl')}/rest/basket/3`,
+            headers: { Authorization: `Bearer ${win.localStorage.getItem('token')}` },
+            failOnStatusCode: false
+          }).its('status').should('eq', 403)
         })
-
-        cy.visit('/#/basket')
-
-        // TODO Verify functionally that it's not the basket of the admin
-        cy.expectChallengeSolved({ challenge: 'View Basket' })
       })
     })
 
