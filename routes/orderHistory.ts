@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { ordersCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
+import { orderConfirmationPath, ORDER_ID_PATTERN } from './order'
 
 export function orderHistory () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -19,6 +21,29 @@ export function orderHistory () {
     } else {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
+  }
+}
+
+export function orderConfirmationPdf () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const loggedInUser = security.authenticatedUsers.from(req)
+    if (!loggedInUser?.data?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const orderId = req.params.id
+    if (!ORDER_ID_PATTERN.test(orderId)) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    const pdfFile = orderConfirmationPath(loggedInUser.data.id, orderId)
+    try {
+      await fs.promises.access(pdfFile)
+    } catch {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    res.type('application/pdf').sendFile(pdfFile)
   }
 }
 
