@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
+import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -27,8 +27,15 @@ export function profileImageUrlUpload () {
             throw new Error('url returned a non-OK status code or an empty body')
           }
           ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          const target = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`
+          const tempFile = `${target}.${process.pid}-${Date.now()}.tmp`
+          try {
+            await pipeline(Readable.fromWeb(response.body as any), fs.createWriteStream(tempFile, { flags: 'wx' }))
+            await fs.promises.rename(tempFile, target)
+          } catch (error) {
+            await fs.promises.rm(tempFile, { force: true })
+            throw error
+          }
         } catch (error) {
           logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; keeping current profile image`)
           res.location(process.env.BASE_PATH + '/profile')
