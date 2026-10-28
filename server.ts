@@ -455,6 +455,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   // vuln-code-snippet end changeProductChallenge
   /* Complaints: list only the caller's own complaints (admins see all) */
   app.get('/api/Complaints', utils.asyncHandler(complaints.listComplaints()))
+  app.post('/api/Complaints', security.appendUserId())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
