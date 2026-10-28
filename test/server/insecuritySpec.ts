@@ -5,11 +5,16 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import fs from 'node:fs'
+import crypto from 'node:crypto'
 import chai from 'chai'
+import sinon from 'sinon'
+import sinonChai from 'sinon-chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 const expect = chai.expect
+chai.use(sinonChai)
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -79,6 +84,70 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const adminPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+    const legacyPublicKey = fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')
+
+    const unsignedToken = () => `${b64({ alg: 'none', typ: 'JWT' })}.${b64(adminPayload)}.`
+    const hmacToken = (secret: string) => {
+      const unsigned = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64(adminPayload)}`
+      return `${unsigned}.${crypto.createHmac('sha256', secret).update(unsigned).digest('base64url')}`
+    }
+    const runMiddleware = (middleware: (req: Request, res: Response, next: NextFunction) => void, token: string) => {
+      const next = sinon.spy()
+      middleware({ headers: { authorization: `Bearer ${token}` }, cookies: {} } as unknown as Request, { cookie: sinon.spy() } as unknown as Response, next)
+      return next
+    }
+
+    it('accepts tokens issued by authorize', () => {
+      expect(security.verify(security.authorize(adminPayload))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken())).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the server public key', () => {
+      expect(security.verify(hmacToken(security.publicKey))).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the published jwt.pub key', () => {
+      expect(security.verify(hmacToken(legacyPublicKey))).to.equal(false)
+    })
+
+    it('rejects tokens with a tampered payload', () => {
+      const [header, , signature] = security.authorize({ data: { id: 2, role: 'customer' } }).split('.')
+      expect(security.verify(`${header}.${b64(adminPayload)}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects expired tokens', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      const [header, payload] = token.split('.')
+      const expired = `${header}.${b64({ ...JSON.parse(Buffer.from(payload, 'base64url').toString()), exp: 1 })}`
+      expect(security.verify(`${expired}.${token.split('.')[2]}`)).to.equal(false)
+    })
+
+    it('isAuthorized passes valid tokens and rejects forged ones', () => {
+      expect(runMiddleware(security.isAuthorized(), security.authorize(adminPayload))).to.have.been.calledWithExactly()
+      expect(runMiddleware(security.isAuthorized(), unsignedToken())).to.have.been.calledWith(sinon.match.has('status', 401))
+      expect(runMiddleware(security.isAuthorized(), hmacToken(security.publicKey))).to.have.been.calledWith(sinon.match.has('status', 401))
+    })
+
+    it('denyAll rejects even valid tokens', () => {
+      expect(runMiddleware(security.denyAll(), security.authorize(adminPayload))).to.have.been.calledWith(sinon.match.has('status', 401))
+      expect(runMiddleware(security.denyAll(), unsignedToken())).to.have.been.calledWith(sinon.match.has('status', 401))
+    })
+
+    it('updateAuthenticatedUsers does not store forged tokens as sessions', () => {
+      const forged = [unsignedToken(), hmacToken(security.publicKey), hmacToken(legacyPublicKey)]
+      for (const token of forged) {
+        runMiddleware(security.updateAuthenticatedUsers(), token)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      }
     })
   })
 
