@@ -4,6 +4,7 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
 import validateConfig, {
   checkUnambiguousMandatorySpecialProducts,
@@ -15,7 +16,8 @@ import validateConfig, {
   checkUniqueSpecialOnMemories,
   checkSpecialMemoriesHaveNoUserAssociated,
   checkNecessaryExtraKeysOnSpecialProducts,
-  checkForIllogicalCombos
+  checkForIllogicalCombos,
+  checkCtfKeyConfigured
 } from '../../lib/startup/validateConfig'
 import type { Memory, Product } from 'lib/config.types'
 
@@ -445,7 +447,17 @@ describe('configValidation', () => {
   })
 
   it(`should accept the active config from config/${process.env.NODE_ENV}.yml`, async () => {
-    expect(await validateConfig({ exitOnFailure: false })).to.equal(true)
+    const ctfKey = process.env.CTF_KEY
+    process.env.CTF_KEY = ctfKey ?? 'test-ctf-key'
+    try {
+      expect(await validateConfig({ exitOnFailure: false })).to.equal(true)
+    } finally {
+      if (ctfKey === undefined) {
+        delete process.env.CTF_KEY
+      } else {
+        process.env.CTF_KEY = ctfKey
+      }
+    }
   })
 
   it('should fail if the config is invalid', async () => {
@@ -515,6 +527,26 @@ describe('configValidation', () => {
     it('should fail if systemWideNotifications url is set but pollFrequencySeconds is negative', () => {
       const config = { ...BASE_CONFIG, ctf: { ...BASE_CONFIG.ctf, systemWideNotifications: { url: 'http://example.com/notify', pollFrequencySeconds: -10 } } }
       expect(checkForIllogicalCombos(config)).to.equal(false)
+    })
+  })
+
+  describe('checkCtfKeyConfigured', () => {
+    it('should fail if CTF flags are enabled without a configured CTF key', () => {
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => undefined)).to.equal(false)
+    })
+
+    it('should accept CTF flags with a configured CTF key', () => {
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => 'secret')).to.equal(true)
+    })
+
+    it('should accept a missing CTF key if CTF flags are disabled', () => {
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, () => undefined)).to.equal(true)
+    })
+
+    it('should not look up the CTF key if CTF flags are disabled', () => {
+      const ctfKey = sinon.stub().throws(new Error('EACCES'))
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, ctfKey)).to.equal(true)
+      expect(ctfKey.callCount).to.equal(0)
     })
   })
 })

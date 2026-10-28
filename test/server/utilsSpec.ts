@@ -5,6 +5,10 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
@@ -206,6 +210,67 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('configuredCtfKey', () => {
+    let keyDir: string
+    let keyFile: string
+
+    beforeEach(() => {
+      keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utilsSpec-'))
+      keyFile = path.join(keyDir, 'ctf.key')
+    })
+
+    afterEach(() => {
+      fs.rmSync(keyDir, { recursive: true, force: true })
+    })
+
+    it('prefers the CTF_KEY environment variable', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.configuredCtfKey('key from env', keyFile)).to.equal('key from env')
+    })
+
+    it('falls back to a local key file', () => {
+      fs.writeFileSync(keyFile, 'key from file')
+      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal('key from file')
+      expect(utils.configuredCtfKey('', keyFile)).to.equal('key from file')
+    })
+
+    it('returns undefined if neither is configured', () => {
+      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal(undefined)
+      fs.writeFileSync(keyFile, ' \n')
+      expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
+      expect(utils.configuredCtfKey(' \t\n', keyFile)).to.equal(undefined)
+      expect(utils.configuredCtfKey('\0\n', keyFile)).to.equal(undefined)
+    })
+
+    it('rejects the publicly known former default key', () => {
+      const rejectedFingerprints = [utils.ctfKeyFingerprint('leaked key')]
+      fs.writeFileSync(keyFile, 'leaked key\n')
+      expect(utils.configuredCtfKey(undefined, keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('leaked key', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('other key', keyFile, rejectedFingerprints)).to.equal('other key')
+    })
+
+    it('rejects keys which are HMAC-equivalent to the former default key', () => {
+      const rejectedFingerprints = [utils.ctfKeyFingerprint('leaked key')]
+      expect(utils.configuredCtfKey('leaked key\0', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('leaked key\0\0 ', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('leaked key\n\0', keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey(' leaked key \0\n\0', keyFile, rejectedFingerprints)).to.equal(undefined)
+    })
+
+    it('includes the formerly committed ctf.key in the rejected keys', () => {
+      expect(utils.publishedCtfKeyFingerprints).to.include('cbec0895c409e4e900eaa2d0be3f051884000667')
+    })
+  })
+
+  describe('ctfFlag', () => {
+    it('derives a stable HMAC flag per challenge name', () => {
+      expect(utils.ctfFlag('Score Board')).to.match(/^[0-9a-f]{40}$/)
+      expect(utils.ctfFlag('Score Board')).to.equal(utils.ctfFlag('Score Board'))
+      expect(utils.ctfFlag('Score Board')).to.not.equal(utils.ctfFlag('DOM XSS'))
     })
   })
 })

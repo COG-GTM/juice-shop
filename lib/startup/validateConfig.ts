@@ -12,6 +12,7 @@ import validateSchema from 'yaml-schema-validator/src'
 
 import type { AppConfig, Memory as MemoryConfig, Product as ProductConfig } from '../config.types'
 import logger from '../logger'
+import { configuredCtfKey } from '../utils'
 
 const specialProducts = [
   { name: '"Christmas Special" challenge product', key: 'useForChristmasSpecialChallenge' },
@@ -40,6 +41,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   success = checkUniqueSpecialOnMemories(memories) && success
   success = checkSpecialMemoriesHaveNoUserAssociated(memories) && success
   success = checkForIllogicalCombos() && success
+  success = checkCtfKeyConfigured() && success
   if (success) {
     logger.info(`Configuration ${colors.bold(process.env.NODE_ENV ?? 'default')} validated (${colors.green('SUCCESS')})`)
   } else {
@@ -186,6 +188,15 @@ export const checkForIllogicalCombos = (configuration = config.util.toObject()) 
       logger.warn(`ctf.systemWideNotifications.url is set but pollFrequencySeconds is missing or not a positive number (${colors.red('ERROR')})`)
       success = false
     }
+  }
+  return success
+}
+
+export const checkCtfKeyConfigured = (configuration = config.util.toObject(), ctfKey: () => string | undefined = configuredCtfKey) => {
+  let success = true
+  if (configuration.ctf?.showFlagsInNotifications && ctfKey() === undefined) {
+    logger.warn(`CTF flags are enabled but no secret CTF_KEY environment variable or ctf.key file is configured (${colors.red('ERROR')})`)
+    success = false
   }
   return success
 }
