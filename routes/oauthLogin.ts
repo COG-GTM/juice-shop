@@ -11,24 +11,31 @@ import { challenges } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as utils from '../lib/utils'
 
 const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo'
 
 interface GoogleTokenInfo {
   aud?: string
+  audience?: string
   email?: string
   email_verified?: string | boolean
+  verified_email?: string | boolean
   expires_in?: string | number
 }
 
 async function verifyGoogleAccessToken (accessToken: string): Promise<string | null> {
-  const response = await fetch(`${GOOGLE_TOKENINFO_URL}?access_token=${encodeURIComponent(accessToken)}`, { signal: AbortSignal.timeout(5000) })
+  const response = await fetch(GOOGLE_TOKENINFO_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    signal: AbortSignal.timeout(5000)
+  })
   if (!response.ok) return null
   const tokenInfo = await response.json() as GoogleTokenInfo
-  if (tokenInfo.aud !== config.get<string>('application.googleOauth.clientId')) return null
+  if ((tokenInfo.aud ?? tokenInfo.audience) !== config.get<string>('application.googleOauth.clientId')) return null
   if (Number(tokenInfo.expires_in) <= 0) return null
-  if (String(tokenInfo.email_verified) !== 'true' || typeof tokenInfo.email !== 'string' || !tokenInfo.email) return null
+  if (String(tokenInfo.email_verified ?? tokenInfo.verified_email) !== 'true' || typeof tokenInfo.email !== 'string' || !tokenInfo.email) return null
   return tokenInfo.email
 }
 
@@ -52,6 +59,7 @@ export function oauthLogin () {
       let user = await UserModel.findOne({ where: { email } })
       if (!user) {
         user = await UserModel.create({ email, password: crypto.randomBytes(32).toString('hex') })
+        await WalletModel.create({ UserId: user.id })
       }
       challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return email === 'bjoern.kimminich@gmail.com' })
 

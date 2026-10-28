@@ -86,6 +86,10 @@ export async function loginWithGoogle (app: Express, email: string) {
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
     if (String(input).startsWith('https://oauth2.googleapis.com/tokeninfo')) {
+      const authorization = new Headers(init?.headers).get('Authorization')
+      if (init?.method !== 'POST' || authorization !== 'Bearer test-access-token' || String(input).includes('test-access-token')) {
+        return new Response(JSON.stringify({ error: 'invalid_token' }), { status: 400, headers: { 'content-type': 'application/json' } })
+      }
       return new Response(JSON.stringify({
         aud: config.get<string>('application.googleOauth.clientId'),
         email,

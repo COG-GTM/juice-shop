@@ -164,6 +164,16 @@ void describe('/rest/user/login', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST oauth-login creates a wallet for a new Google user', async () => {
+    const authentication = await loginWithGoogle(app, 'oauth.wallet@gmail.com')
+    const res = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: `Bearer ${authentication.token}` })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data, 0)
+  })
+
   void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
     const res = await request(app)
       .post('/rest/user/login')
