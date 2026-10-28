@@ -200,6 +200,8 @@ export const appendUserId = () => {
   }
 }
 
+export const tokenCookieOptions = (req: Request) => ({ sameSite: 'lax' as const, secure: req.secure })
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
@@ -207,7 +209,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token, { sameSite: 'lax', secure: req.secure })
+          res.cookie('token', token, tokenCookieOptions(req))
         }
       }
     })
