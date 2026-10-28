@@ -62,7 +62,7 @@ function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'ass
 }
 
 const COUPON_DISCOUNT = 10
-const couponClaimedOrderIds = new Set<string>()
+const couponClaimsInFlight = new Set<string>()
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
   const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
@@ -70,15 +70,19 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  if (order.couponIssued || couponClaimedOrderIds.has(order.orderId)) return { error: 'A coupon was already issued for this order' }
-  couponClaimedOrderIds.add(order.orderId)
+  const alreadyIssued = { error: 'A coupon was already issued for this order' }
+  if (order.couponIssued || couponClaimsInFlight.has(order.orderId)) return alreadyIssued
+  couponClaimsInFlight.add(order.orderId)
   try {
+    const current = await db.ordersCollection.findOne({ _id: order._id })
+    if (current?.couponIssued) return alreadyIssued
     await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+    return {}
   } catch {
-    couponClaimedOrderIds.delete(order.orderId)
     return { error: 'The coupon could not be issued right now, please try again' }
+  } finally {
+    couponClaimsInFlight.delete(order.orderId)
   }
-  return {}
 }
 
 const app = config.get<string>('application.customMetricsPrefix')
@@ -253,9 +257,11 @@ export function chat () {
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             if (event.toolName === 'generateCoupon') {
-              const requestedDiscount = Number((event.input as { discount?: unknown } | undefined)?.discount)
-              challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
-              challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
+              const requestedDiscount = (event.input as { discount?: unknown } | undefined)?.discount
+              if (typeof requestedDiscount === 'number') {
+                challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
+                challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
+              }
             }
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
