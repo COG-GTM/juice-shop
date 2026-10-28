@@ -62,7 +62,7 @@ function createExtractionBudget () {
   let remainingEntries = maxComplaintZipEntries
   let remainingBytes = maxComplaintZipUncompressedBytes
   return {
-    takeEntry: () => remainingEntries-- > 0 && remainingBytes > 0,
+    takeEntry: () => remainingEntries-- > 0 && remainingBytes >= 0,
     limiter: () => new Transform({
       transform (chunk: Buffer, _encoding, callback) {
         remainingBytes -= chunk.length
@@ -141,7 +141,6 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
         abort(utils.getErrorMessage(err))
-        next(err)
       })
     }
     res.status(204).end()
