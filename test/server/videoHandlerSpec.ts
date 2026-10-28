@@ -36,10 +36,11 @@ describe('videoHandler', () => {
     let originalChallenge: Challenge
 
     let headers: Record<string, string>
-    const render = async (): Promise<string> => await new Promise((resolve, reject) => {
+    const render = async (handler = promotionVideo()): Promise<string> => await new Promise((resolve, reject) => {
       headers = {}
-      promotionVideo()({} as any, { send: resolve, set: (name: string, value: string) => { headers[name] = value } } as any, reject)
+      handler({} as any, { send: resolve, set: (name: string, value: string) => { headers[name] = value } } as any, reject)
     })
+    const reads = (file: string) => readFileSync.getCalls().filter(call => call.args[0] === file).length
 
     beforeEach(() => {
       const original = fs.readFileSync
@@ -117,6 +118,36 @@ describe('videoHandler', () => {
 
       const error = await render().then(() => null, (e: Error) => e)
       expect(error?.message).to.equal('ENOENT')
+    })
+
+    it('should compile the template and read the subtitles only once when the route is created', async () => {
+      const handler = promotionVideo()
+      const first = await render(handler)
+      readFileSync.withArgs('views/promotionVideo.pug').returns('p #{process.version}')
+      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt').returns('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nreplaced\n')
+
+      const second = await render(handler)
+
+      expect(second.replace(/nonce="[^"]+"/g, '')).to.equal(first.replace(/nonce="[^"]+"/g, ''))
+      expect(reads('views/promotionVideo.pug')).to.equal(1)
+      expect(reads('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(1)
+    })
+
+    it('should retry reading the subtitles on the next request after a failure', async () => {
+      let missing = true
+      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt').callsFake(() => {
+        if (missing) throw new Error('ENOENT')
+        return exploit
+      })
+      const handler = promotionVideo()
+      const error = await render(handler).then(() => null, (e: Error) => e)
+      expect(error?.message).to.equal('ENOENT')
+
+      missing = false
+      const html = await render(handler)
+
+      expect(html).to.contain('<script id="subtitle" type="application/json"')
+      expect(reads('views/promotionVideo.pug')).to.equal(1)
     })
   })
 })
