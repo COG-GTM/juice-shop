@@ -4,43 +4,32 @@ describe('/api', () => {
       cy.login({ email: 'accountant', password: 'i am an awesome accountant' })
     })
 
-    // Cypress alert bug
-    // The challenge also passes but its just that cypress freezes and is unable to perform any action
-    xit('should be possible to create a new product when logged in as accountant', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Products`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                  name: 'RestXSS',
-                  description: '<iframe src="javascript:alert(`xss`)">',
-                  price: 47.11
-                })
-              }
-            )
-            if (response.status === 200) {
-              console.log('Success')
-            }
-          })
+    it('should sanitize an XSS payload in a new product description and not solve the challenge', () => {
+      cy.window().then(async () => {
+        const response = await fetch(
+          `${Cypress.config('baseUrl')}/api/Products`,
+          {
+            method: 'POST',
+            cache: 'no-cache',
+            headers: {
+              'Content-type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              name: 'RestXSS',
+              description: '<iframe src="javascript:alert(`xss`)">',
+              price: 47.11
+            })
+          }
+        )
+        assert.equal(response.status, 201)
+        const product = (await response.json()).data
+        assert.notInclude(product.description, '<iframe')
+      })
 
-          cy.visit('/#/search?q=RestXSS')
-          cy.reload()
-          cy.get('img[alt="RestXSS"]').click()
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.expectChallengeSolved({ challenge: 'API-only XSS' })
-        }
+      cy.request('/api/Challenges/?name=API-only XSS').then((response) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        expect(response.body.data[0].solved).to.be.false
       })
     })
   })

@@ -151,6 +151,8 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.data.price, original.price)
     assert.ok(!res.body.data.description.includes('<iframe'))
     assert.ok(res.body.data.description.includes('Tasty'))
+    const challenge = (await request(app).get('/api/Challenges/?key=restfulXssChallenge')).body.data[0]
+    assert.equal(challenge.solved, false)
     await request(app)
       .put('/api/Products/1')
       .set(headers)
