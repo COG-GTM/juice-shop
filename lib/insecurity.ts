@@ -185,6 +185,11 @@ export const appendUserId = () => {
   }
 }
 
+export const isBasketOwner = (basket: { UserId?: number | null }, req: Request) => {
+  const user = authenticatedUsers.from(req)
+  return user?.data?.id !== undefined && basket.UserId === user.data.id
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
