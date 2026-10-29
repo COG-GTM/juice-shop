@@ -21,6 +21,7 @@ import { reviewsCollection, ordersCollection } from '../data/mongodb'
 import { challenges } from '../data/datacache'
 import * as Prometheus from 'prom-client'
 import onFinished from 'on-finished'
+import { authorizeMetricsScrape, loadMetricsScrapeToken } from '../lib/metricsScrapeToken'
 
 const register = Prometheus.register
 
@@ -63,13 +64,14 @@ export function observeFileUploadMetricsMiddleware () {
   }
 }
 
-export function serveMetrics () {
+export function serveMetrics (scrapeToken = loadMetricsScrapeToken()) {
   return async (req: Request, res: Response, next: NextFunction) => {
     challengeUtils.solveIf(challenges.exposedMetricsChallenge, () => {
       const userAgent = req.headers['user-agent'] ?? ''
       const ignoredUserAgents = config.get<string[]>('challenges.metricsIgnoredUserAgents')
       return !ignoredUserAgents.some((ignoredUserAgent) => userAgent.includes(ignoredUserAgent))
     })
+    if (!authorizeMetricsScrape(req, res, scrapeToken)) return
     res.set('Content-Type', register.contentType)
     res.end(await register.metrics())
   }
