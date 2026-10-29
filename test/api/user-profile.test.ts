@@ -51,4 +51,45 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of ['#{7*7}', 'x#{7*7}']) {
+    void it(`GET user profile renders username ${payload} literally`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .field('username', payload)
+        .redirects(0)
+        .expect(302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(`>${payload}</p>`))
+      assert.ok(!res.text.includes('>49</p>'))
+      assert.ok(!res.text.includes('>x49</p>'))
+    })
+  }
+
+  for (const payload of [
+    "x#{global.process.mainModule.require('child_process').execSync('id')}",
+    'x\n                  - global.process.mainModule.require(\'child_process\').execSync(\'id\')'
+  ]) {
+    void it(`GET user profile does not execute code injected via username ${JSON.stringify(payload)}`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .field('username', payload)
+        .redirects(0)
+        .expect(302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('uid='))
+    })
+  }
 })
