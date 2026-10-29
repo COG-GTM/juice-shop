@@ -67,6 +67,36 @@ void describe('/rest/user/change-password', () => {
       .expect(200)
   })
 
+  void it('GET password change ends other sessions on appendUserId-only routes', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'appenduserid@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token: otherToken } = await login(app, { email: 'appenduserid@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'appenduserid@be.rt', password: 'kunigunde' })
+    const routes = ['/api/Cards', '/api/Addresss', '/rest/wallet/balance']
+
+    for (const route of routes) {
+      await request(app).get(route).set({ Authorization: 'Bearer ' + otherToken }).expect(200)
+    }
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    for (const route of routes) {
+      await request(app).get(route).set({ Authorization: 'Bearer ' + otherToken }).expect(401)
+      await request(app).get(route).set({ Authorization: 'Bearer ' + token }).expect(200)
+    }
+    await request(app).post('/rest/deluxe-membership').set({ Authorization: 'Bearer ' + otherToken }).send({}).expect(401)
+  })
+
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
