@@ -29,14 +29,14 @@ void describe('/api/Hints/:id', () => {
 
   void it('PUT ignores all fields other than unlocked', async () => {
     const before = await request(app).get('/api/Hints')
-    const originalText = before.body.data.find((hint: { id: number }) => hint.id === 2).text
+    const original = before.body.data.find((hint: { id: number }) => hint.id === 2)
     const res = await request(app)
       .put('/api/Hints/2')
       .set(jsonHeader)
-      .send({ unlocked: true, text: '<iframe src="javascript:alert(`xss`)">', ChallengeId: 1 })
+      .send({ unlocked: true, text: '<iframe src="javascript:alert(`xss`)">', ChallengeId: original.ChallengeId + 1 })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.text, originalText)
-    assert.notEqual(res.body.data.ChallengeId, 1)
+    assert.equal(res.body.data.text, original.text)
+    assert.equal(res.body.data.ChallengeId, original.ChallengeId)
   })
 
   void it('PUT changing anything but unlocking a hint is rejected', async () => {
