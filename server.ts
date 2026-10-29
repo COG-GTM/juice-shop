@@ -339,11 +339,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
-  app.enable('trust proxy')
+  app.set('trust proxy', 'loopback') // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
-    max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    max: 100
+  }), rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 10,
+    keyGenerator ({ body }: Request) { return `reset-password:${String(body?.email ?? '').toLowerCase()}` }
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
@@ -456,6 +459,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 10, validate: false, keyGenerator: twoFactorAuth.verifyRateLimitKey }),
     utils.asyncHandler(twoFactorAuth.verify)
   )
   /* Check 2FA Status for the current User */
