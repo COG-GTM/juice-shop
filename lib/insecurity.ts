@@ -57,6 +57,33 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+const secondFactorSecret = crypto.randomBytes(32)
+const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+const maxSecondFactorTokenLength = 512
+const signSecondFactorPayload = (encodedPayload: string) => crypto.createHmac('sha256', secondFactorSecret).update(encodedPayload).digest()
+
+export const authorizeSecondFactor = (payload: Record<string, unknown> = {}) => {
+  const encodedPayload = Buffer.from(JSON.stringify({ ...payload, exp: Date.now() + secondFactorTokenLifetimeMs })).toString('base64url')
+  return `${encodedPayload}.${signSecondFactorPayload(encodedPayload).toString('base64url')}`
+}
+
+export const verifySecondFactor = (token: unknown): Record<string, any> | null => {
+  if (typeof token !== 'string' || token.length > maxSecondFactorTokenLength) return null
+  const parts = token.split('.')
+  if (parts.length !== 2) return null
+  const [encodedPayload, encodedSignature] = parts
+  const expectedSignature = signSecondFactorPayload(encodedPayload)
+  const signature = Buffer.from(encodedSignature, 'base64url')
+  if (signature.length !== expectedSignature.length || !crypto.timingSafeEqual(signature, expectedSignature)) return null
+  try {
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'))
+    if (typeof payload?.exp !== 'number' || payload.exp < Date.now()) return null
+    return payload
+  } catch {
+    return null
+  }
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
