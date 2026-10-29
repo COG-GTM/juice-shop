@@ -130,6 +130,40 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing an order does not expose the confirmation PDF in the public /ftp folder', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    const orderId: string = res.body.orderConfirmation
+
+    const listing = await request(app).get('/ftp')
+    assert.ok(!listing.text.includes(`order_${orderId}.pdf`))
+
+    const download = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.ok([403, 404].includes(download.status))
+  })
+
+  void it('GET order confirmation PDF is only accessible to the customer who placed the order', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    const orderId: string = res.body.orderConfirmation
+
+    const anonymous = await request(app).get(`/rest/order/${orderId}/confirmation`)
+    assert.equal(anonymous.status, 401)
+
+    const { token: otherToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const otherUser = await request(app).get(`/rest/order/${orderId}/confirmation`).set('Authorization', 'Bearer ' + otherToken)
+    assert.equal(otherUser.status, 404)
+
+    const owner = await request(app).get(`/rest/order/${orderId}/confirmation`).set(authHeader)
+    assert.equal(owner.status, 200)
+    assert.ok(owner.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF rejects malformed order ids', async () => {
+    const res = await request(app).get('/rest/order/..%2F..%2Fpackage.json/confirmation').set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
   void it('POST placing an order for a non-existing basket fails', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 500)

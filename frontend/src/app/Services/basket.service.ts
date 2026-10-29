@@ -52,6 +52,47 @@ export class BasketService {
     return this.http.post(this.host + '/', params).pipe(map((response: any) => response.data), catchError((error) => { throw error }))
   }
 
+  getOrderConfirmation (orderId: string) {
+    return this.http.get(`${this.hostServer}/rest/order/${encodeURIComponent(orderId)}/confirmation`, { responseType: 'blob' }).pipe(catchError((error) => { throw error }))
+  }
+
+  openOrderConfirmation (orderId: string) {
+    const confirmationWindow = window.open('', '_blank')
+    if (confirmationWindow) confirmationWindow.opener = null
+    this.getOrderConfirmation(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const pdfUrl = URL.createObjectURL(pdf)
+        let pdfWindow = confirmationWindow
+        if (pdfWindow) {
+          pdfWindow.location.href = pdfUrl
+        } else {
+          pdfWindow = window.open(pdfUrl, '_blank')
+          if (pdfWindow) pdfWindow.opener = null
+        }
+        let pdfShown = false
+        let checks = 0
+        const revokeWhenLeft = setInterval(() => {
+          let showsPdf: boolean
+          try {
+            showsPdf = !!pdfWindow && !pdfWindow.closed && pdfWindow.location.href === pdfUrl
+          } catch {
+            showsPdf = false
+          }
+          if (showsPdf) {
+            pdfShown = true
+          } else if (pdfShown || !pdfWindow || pdfWindow.closed || ++checks > 30) {
+            clearInterval(revokeWhenLeft)
+            URL.revokeObjectURL(pdfUrl)
+          }
+        }, 1000)
+      },
+      error: (err) => {
+        confirmationWindow?.close()
+        console.log(err)
+      }
+    })
+  }
+
   checkout (id?: number, couponData?: string, orderDetails?: OrderDetail) {
     return this.http.post(`${this.hostServer}/rest/basket/${id}/checkout`, { couponData, orderDetails }).pipe(map((response: any) => response.orderConfirmation), catchError((error) => { throw error }))
   }
