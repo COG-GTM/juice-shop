@@ -201,6 +201,7 @@ export function resolveSeedPassword (key: string, role: string, defaultPassword:
 
 async function createUsers () {
   const users = await loadStaticUserData()
+  datacache.accountsWithShippedPassword.clear()
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
