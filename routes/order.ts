@@ -34,12 +34,12 @@ export const ORDER_CONFIRMATIONS_DIR = 'orders/'
 export function orderConfirmation () {
   return async (req: Request, res: Response) => {
     const orderId = req.params.id
-    const email = security.authenticatedUsers.from(req)?.data?.email
-    if (!email || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId) || !orderId.startsWith(security.hash(email).slice(0, 4))) {
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId == null || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
       return
     }
-    const order = await db.ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
+    const order = await db.ordersCollection.findOne({ orderId, customerId: userId })
     if (order == null) {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
       return
@@ -188,6 +188,7 @@ export function placeOrder () {
             orderId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+            customerId: customer?.data?.id,
             totalPrice,
             products: basketProducts,
             bonus: totalPoints,

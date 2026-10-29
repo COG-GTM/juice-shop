@@ -56,6 +56,25 @@ export class BasketService {
     return this.http.get(`${this.hostServer}/rest/order/${encodeURIComponent(orderId)}/confirmation`, { responseType: 'blob' }).pipe(catchError((error) => { throw error }))
   }
 
+  openOrderConfirmation (orderId: string) {
+    const confirmationWindow = window.open('', '_blank')
+    this.getOrderConfirmation(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const pdfUrl = URL.createObjectURL(pdf)
+        if (confirmationWindow) {
+          confirmationWindow.location.href = pdfUrl
+        } else {
+          window.open(pdfUrl, '_blank')
+        }
+        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
+      },
+      error: (err) => {
+        confirmationWindow?.close()
+        console.log(err)
+      }
+    })
+  }
+
   checkout (id?: number, couponData?: string, orderDetails?: OrderDetail) {
     return this.http.post(`${this.hostServer}/rest/basket/${id}/checkout`, { couponData, orderDetails }).pipe(map((response: any) => response.orderConfirmation), catchError((error) => { throw error }))
   }
