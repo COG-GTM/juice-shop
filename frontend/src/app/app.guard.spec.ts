@@ -36,12 +36,24 @@ describe('LoginGuard', () => {
     it('should close and clear the session for users with an expired token', () => {
         const guard = TestBed.inject(LoginGuard)
         const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
-        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
-        document.cookie = 'token=EXPIRED; path=/'
+        const token = `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`
+        localStorage.setItem('token', token)
+        document.cookie = `token=${token}; path=/`
 
         expect(guard.canActivate()).toBe(false)
         expect(localStorage.getItem('token')).toBeNull()
-        expect(document.cookie).not.toContain('token=EXPIRED')
+        expect(document.cookie).not.toContain(`token=${token}`)
+    })
+
+    it('should keep a different token cookie when clearing an expired token', () => {
+        const guard = TestBed.inject(LoginGuard)
+        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
+        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
+        document.cookie = 'token=REFRESHED; path=/'
+
+        expect(guard.canActivate()).toBe(false)
+        expect(document.cookie).toContain('token=REFRESHED')
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
     })
 
     it('should close for anonymous users', () => {
