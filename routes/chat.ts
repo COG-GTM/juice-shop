@@ -62,27 +62,14 @@ function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'ass
 }
 
 const COUPON_DISCOUNT = 10
-const couponClaimsInFlight = new Set<string>()
 
-async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
+async function couponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
   const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
   if (!email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  const alreadyIssued = { error: 'A coupon was already issued for this order' }
-  if (order.couponIssued || couponClaimsInFlight.has(order.orderId)) return alreadyIssued
-  couponClaimsInFlight.add(order.orderId)
-  try {
-    const current = await db.ordersCollection.findOne({ _id: order._id })
-    if (current?.couponIssued) return alreadyIssued
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
-    return {}
-  } catch {
-    return { error: 'The coupon could not be issued right now, please try again' }
-  } finally {
-    couponClaimsInFlight.delete(order.orderId)
-  }
+  return {}
 }
 
 const app = config.get<string>('application.customMetricsPrefix')
@@ -211,7 +198,7 @@ export function chat () {
         }),
         execute: async ({ discount, orderId }) => {
           if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
-          const eligibility = await claimCouponEligibleOrder(req, orderId)
+          const eligibility = await couponEligibleOrder(req, orderId)
           if (eligibility.error) return eligibility
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
