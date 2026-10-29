@@ -521,7 +521,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     if (name === 'User') {
       const securityAnswerFrom = (body: any) => {
         const { securityQuestion, securityAnswer } = body
-        return (securityQuestion?.id !== undefined || securityAnswer !== undefined) ? { questionId: securityQuestion?.id, answer: securityAnswer } : null
+        return (securityQuestion?.id != null || securityAnswer != null) ? { questionId: securityQuestion?.id, answer: securityAnswer } : null
       }
       resource.create.write.before(async (req: Request, res: Response, context: { continue: any }) => {
         const securityAnswer = securityAnswerFrom(req.body)
