@@ -133,10 +133,18 @@ describe('insecurity', () => {
       expect(check({ host: 'juice-shop:3000', 'x-forwarded-host': 'shop.example', origin: 'https://shop.example' })).to.equal('next')
     })
 
+    it('compares hosts case-insensitively and ignores default ports', () => {
+      expect(check({ host: 'Shop.Example', origin: 'https://shop.example' })).to.equal('next')
+      expect(check({ host: 'shop.example:443', origin: 'https://shop.example' })).to.equal('next')
+      expect(check({ host: 'shop.example:80', origin: 'http://shop.example' })).to.equal('next')
+      expect(check({ host: 'shop.example:8443', origin: 'https://shop.example' })).to.equal(403)
+    })
+
     it('blocks cross-origin, opaque and malformed origins', () => {
       expect(check({ host: 'localhost:3000', origin: 'https://htmledit.squarefree.com' })).to.equal(403)
       expect(check({ host: 'localhost:3000', referer: 'https://attacker.example/localhost:3000' })).to.equal(403)
       expect(check({ host: 'localhost:3000', origin: 'null' })).to.equal(403)
+      expect(check({ host: 'localhost:3000', origin: 'ftp://localhost:3000' })).to.equal(403)
     })
   })
 
