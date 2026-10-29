@@ -8,9 +8,7 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import config from 'config'
 import fs from 'node:fs/promises'
 
-import * as challengeUtils from '../lib/challengeUtils'
 import { themes } from '../views/themes/themes'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
@@ -49,8 +47,6 @@ export function getUserProfile () {
       return
     }
 
-    const username = user.username
-
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
@@ -69,15 +65,11 @@ export function getUserProfile () {
       const fn = pug.compile(template)
       const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
 
-      challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
-        return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
-      })
-
       res.set({
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn({ profileImage: user.profileImage, email: user.email, username }))
+      res.send(fn({ profileImage: user.profileImage, email: user.email, username: user.username }))
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
