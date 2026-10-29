@@ -164,6 +164,17 @@ export const isAccounting = () => {
   }
 }
 
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    if (decodedToken?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
@@ -182,6 +193,23 @@ export const appendUserId = () => {
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
     }
+  }
+}
+
+const unexpiredSessionFor = (token?: string) => {
+  const user = authenticatedUsers.get(token)
+  if (!user || !token) return undefined
+  const payload = decode(utils.unquote(token)) as { exp?: number } | undefined
+  return typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now() ? undefined : user
+}
+
+export const bindUserId = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = unexpiredSessionFor(utils.jwtFrom(req))
+    if (req.body) {
+      req.body.UserId = user?.data?.id ?? null
+    }
+    next()
   }
 }
 
