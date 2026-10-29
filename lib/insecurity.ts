@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
+import { expressjwt, UnauthorizedError } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,24 +51,29 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
+export const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
+
 export const isAuthorized = () => {
-  const verifyJwt = expressJwt(({ secret: publicKey }) as any)
+  const verifyJwt = expressjwt({ secret: publicKey, algorithms: jwtAlgorithms })
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
     if (isRevoked(token) || isExpired(token)) {
       res.status(401).json({ status: 'error', message: 'Token has expired or been revoked' })
       return
     }
-    verifyJwt(req, res, next)
+    void verifyJwt(req, res, next)
   }
 }
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
+}
 const tokenLifetimeSeconds = 6 * 60 * 60
-export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user, jti: crypto.randomUUID() }, privateKey, { algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user, jti: crypto.randomUUID() }, privateKey, { algorithm: 'RS256', allowInsecureKeySizes: true })
 export const verify = (token: string) => {
   if (!token || isRevoked(token) || isExpired(token)) return false
   try {
-    return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+    return true
   } catch {
     return false
   }
@@ -253,7 +258,7 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined && !isRevoked(token)) {
           authenticatedUsers.put(token, decoded)
