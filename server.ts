@@ -91,7 +91,6 @@ import { getLanguageList } from './routes/languages'
 import { getUserProfile } from './routes/userProfile'
 import { serveAngularClient } from './routes/angular'
 import { resetPassword } from './routes/resetPassword'
-import { serveLogFiles } from './routes/logfileServer'
 import { servePublicFiles } from './routes/fileServer'
 import { addMemory, getMemories } from './routes/memory'
 import { changePassword } from './routes/changePassword'
@@ -264,7 +263,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
-  // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
+  // vuln-code-snippet start directoryListingChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -277,17 +276,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
-  /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-  app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
-  app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-
   /* Swagger documentation for B2B v2 endpoints */
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
 
   app.use(express.static(path.resolve('frontend/dist/frontend')))
   app.use(cookieParser('kekse'))
-  // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
+  // vuln-code-snippet end directoryListingChallenge
 
   /* Serve vendor dependencies locally instead of from CDN */
   app.use('/vendor/beercss', express.static(path.resolve('node_modules/beercss/dist/cdn')))
