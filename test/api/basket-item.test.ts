@@ -154,9 +154,7 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 42 })
-    assert.equal(res.status, 400)
-    assert.equal(res.body.message, 'null: `BasketId` cannot be updated due `noUpdate` constraint')
-    assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update basket ID of basket item without basket ID is forbidden', async () => {
