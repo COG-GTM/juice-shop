@@ -236,3 +236,5 @@ export const matchesEtcPasswdFile = (text: string) => {
 export const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any> | any) => (req: any, res: any, next: any) => {
   void Promise.resolve(fn(req, res, next)).catch(next)
 }
+
+export const insecureDefaultCredentialsEnabled = () => process.env.JUICE_SHOP_INSECURE_DEFAULT_CREDENTIALS === 'true'

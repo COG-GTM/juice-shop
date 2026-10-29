@@ -4,7 +4,7 @@
  */
 
 import chai from 'chai'
-import { resolveSeedPassword } from '../../data/datacreator'
+import { resolveSeedPassword, usesShippedSecrets } from '../../data/datacreator'
 const expect = chai.expect
 
 describe('datacreator', () => {
@@ -48,6 +48,34 @@ describe('datacreator', () => {
 
     it('should keep the shipped password for non-privileged accounts', () => {
       expect(resolveSeedPassword('jim', 'customer', 'ncc-1701', 'jim@juice-sh.op')).to.equal('ncc-1701')
+    })
+  })
+
+  describe('usesShippedSecrets', () => {
+    const envBackup = { ...process.env }
+
+    beforeEach(() => {
+      delete process.env.JUICE_SHOP_INSECURE_DEFAULT_CREDENTIALS
+    })
+
+    afterEach(() => {
+      process.env = { ...envBackup }
+    })
+
+    it('should not use shipped secrets such as security answers for privileged accounts by default', () => {
+      expect(usesShippedSecrets('admin')).to.equal(false)
+      expect(usesShippedSecrets('accounting')).to.equal(false)
+    })
+
+    it('should use shipped secrets for privileged accounts when explicitly opted in', () => {
+      process.env.JUICE_SHOP_INSECURE_DEFAULT_CREDENTIALS = 'true'
+      expect(usesShippedSecrets('admin')).to.equal(true)
+      expect(usesShippedSecrets('accounting')).to.equal(true)
+    })
+
+    it('should use shipped secrets for non-privileged accounts', () => {
+      expect(usesShippedSecrets('customer')).to.equal(true)
+      expect(usesShippedSecrets('deluxe')).to.equal(true)
     })
   })
 })

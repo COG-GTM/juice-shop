@@ -185,14 +185,18 @@ async function createChallenges () {
 
 const privilegedRoles: string[] = [security.roles.admin, security.roles.accounting]
 
+export function usesShippedSecrets (role: string) {
+  return !privilegedRoles.includes(role) || utils.insecureDefaultCredentialsEnabled()
+}
+
 export function resolveSeedPassword (key: string, role: string, defaultPassword: string, email: string) {
   if (!privilegedRoles.includes(role)) return defaultPassword
-  const override = process.env[`JUICE_SHOP_SEED_PASSWORD_${key.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`]
+  const envVar = `JUICE_SHOP_SEED_PASSWORD_${key.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`
+  const override = process.env[envVar]
   if (override) return override
-  if (process.env.JUICE_SHOP_INSECURE_DEFAULT_CREDENTIALS === 'true') return defaultPassword
-  const generated = crypto.randomBytes(24).toString('base64url')
-  logger.info(`Generated random password for privileged seed account ${email}: ${generated}`)
-  return generated
+  if (utils.insecureDefaultCredentialsEnabled()) return defaultPassword
+  logger.info(`Privileged seed account ${email} was given a random password. Set ${envVar} to choose one.`)
+  return crypto.randomBytes(24).toString('base64url')
 }
 
 async function createUsers () {
@@ -213,7 +217,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (securityQuestion != null && usesShippedSecrets(role)) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
