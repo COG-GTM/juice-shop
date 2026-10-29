@@ -163,6 +163,7 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 /* Sets view engine to hbs */
 app.set('view engine', 'hbs')
 
+security.publishPublicKey()
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
