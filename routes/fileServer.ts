@@ -35,7 +35,7 @@ export function servePublicFiles () {
     }
 
     try {
-      if (!(await listServedFiles()).has(file)) {
+      if (!(await isRegularFile(file))) {
         res.status(404)
         next(new Error('File not found!'))
         return
@@ -58,8 +58,14 @@ export function servePublicFiles () {
     return allowlistedFileTypes.some(type => utils.endsWith(file, type)) || allowlistedFileNames.includes(file)
   }
 
-  async function listServedFiles () {
-    const entries = await fs.readdir(ftpRoot, { withFileTypes: true })
-    return new Set(entries.filter(entry => entry.isFile()).map(entry => entry.name))
+  async function isRegularFile (file: string) {
+    try {
+      return (await fs.lstat(path.join(ftpRoot, file))).isFile()
+    } catch (error: any) {
+      if (error?.code === 'ENOENT' || error?.code === 'ENOTDIR') {
+        return false
+      }
+      throw error
+    }
   }
 }
