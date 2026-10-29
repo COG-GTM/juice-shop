@@ -135,7 +135,7 @@ void describe('/api/BasketItems/:id', () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
-      .send({ BasketId: 2, ProductId: 8, quantity: 1 })
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
     assert.equal(createRes.status, 200)
 
     const token = authHeader.Authorization.split(' ')[1]
