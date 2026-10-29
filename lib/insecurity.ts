@@ -192,10 +192,44 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'lax', secure: req.secure })
         }
       }
     })
   }
   next()
+}
+
+const firstHeaderValue = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)?.split(',')[0].trim()
+
+const normalizeHost = (host: string | undefined, protocol: string) => {
+  if (!host) return undefined
+  try {
+    return new URL(`${protocol}//${host}`).host
+  } catch {
+    return undefined
+  }
+}
+
+export const sameOriginOnly = () => (req: Request, res: Response, next: NextFunction) => {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) {
+    next()
+    return
+  }
+  let sourceUrl: URL | undefined
+  try {
+    sourceUrl = new URL(source)
+  } catch {
+    sourceUrl = undefined
+  }
+  const protocol = sourceUrl?.protocol
+  const allowedHosts = protocol === 'http:' || protocol === 'https:'
+    ? [firstHeaderValue(req.headers.host), firstHeaderValue(req.headers['x-forwarded-host'])].map(host => normalizeHost(host, protocol))
+    : []
+  if (sourceUrl?.host && allowedHosts.includes(sourceUrl.host)) {
+    next()
+  } else {
+    res.status(403).send('Cross-origin request blocked')
+  }
 }
