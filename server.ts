@@ -55,6 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
+import { exposeErrorDetails, genericErrorHandler, parseJsonBody } from './lib/errorHandling'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
@@ -320,7 +321,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         req.body = {}
       }
       if (req.body !== Object(req.body)) { // Expensive workaround for 500 errors during Frisby test run (see #640)
-        req.body = JSON.parse(req.body)
+        req.body = parseJsonBody(req.body)
       }
     }
     next()
@@ -675,7 +676,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
-  app.use(errorhandler())
+  app.use(exposeErrorDetails() ? errorhandler() : genericErrorHandler())
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
