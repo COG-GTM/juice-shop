@@ -193,3 +193,42 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 500)
   })
 })
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number, couponData: string) {
+    const { token, bid } = await login(app, {
+      email: 'accountant@juice-sh.op',
+      password: 'i am an awesome accountant'
+    })
+    const accountantHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(accountantHeader)
+      .send({ BasketId: bid, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(accountantHeader)
+      .send({ couponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its original campaign date grants no discount', async () => {
+    const order = await checkoutWithCampaignCoupon(1, expiredCampaignCouponData)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored while the server clock is within the campaign day', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2, Buffer.from(`WMNSDY2019-${Date.now() + 7 * 24 * 60 * 60 * 1000}`).toString('base64'))
+    assert.notEqual(order.promotionalAmount, '0')
+  })
+})
