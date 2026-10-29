@@ -16,7 +16,7 @@ export function trackOrder () {
 
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
-      const result = utils.queryResultToJson(order)
+      const result = utils.queryResultToJson(order.map(({ UserId, ...rest }: any) => rest))
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
         result.data[0] = { orderId: id }
