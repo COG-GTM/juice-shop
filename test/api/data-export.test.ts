@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -107,6 +107,22 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.orders[0].products[0].price, 4.99)
     assert.equal(parsedData.orders[0].products[0].total, 9.98)
     assert.equal(parsedData.orders[0].products[0].bonus, 0)
+  })
+
+  void it('Export data does not include orders of a user whose email masks identically', async () => {
+    const email = 'idmun@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'idmun123' })
+    const { token } = await login(app, { email, password: 'idmun123' })
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, email)
+    assert.deepEqual(parsedData.orders, [])
   })
 
   void it('Export data including reviews without use of CAPTCHA', async () => {
