@@ -69,9 +69,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                     }
                   }
                 })
-                pipeline(entry, sizeLimiter, fs.createWriteStream(targetPath), function (err) {
+                let targetOpened = false
+                const writeStream = fs.createWriteStream(targetPath).on('open', () => { targetOpened = true })
+                pipeline(entry, sizeLimiter, writeStream, function (err) {
                   if (err != null) {
-                    fs.unlink(targetPath, () => {})
+                    if (targetOpened) fs.unlink(targetPath, () => {})
                     next(err)
                   }
                 })
