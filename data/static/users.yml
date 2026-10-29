@@ -1,6 +1,5 @@
 -
   email: admin
-  password: 'admin123'
   key: admin
   role: 'admin'
   securityQuestion:
@@ -85,7 +84,6 @@
 -
   email: bjoern.kimminich@gmail.com
   username: bkimminich
-  password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
   customDomain: true
   key: bjoernGoogle
   role: 'admin'
@@ -112,7 +110,6 @@
     answer: 'Brd?j8sEMziOvvBf§Be?jFZ77H?hgm'
 -
   email: support
-  password: 'J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P'
   key: support
   role: 'admin'
   securityQuestion:
@@ -138,7 +135,6 @@
     answer: 'I even shared my pizza bagels with you!'
 -
   email: J12934
-  password: '0Y8rMnww$*9VFYE§59-!Fg1L6t&6lB'
   key: jannik
   role: 'admin'
   securityQuestion:
@@ -147,7 +143,6 @@
 -
   email: wurstbrot
   username: wurstbrot
-  password: 'EinBelegtesBrotMitSchinkenSCHINKEN!'
   totpSecret: IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH
   key: timo
   role: 'admin'
@@ -165,7 +160,6 @@
     answer: 'Dr. Dr. Dr. Dr. Zoidberg'
 -
   email: bjoern
-  password: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase'
   key: bjoern
   profileImage: '12.png'
   role: 'admin'
@@ -194,7 +188,6 @@
     answer: 'greenwood'
 -
   email: accountant
-  password: 'i am an awesome accountant'
   key: accountant
   role: 'accounting'
   lastLoginIp: '123.456.789'
@@ -269,7 +262,6 @@
     answer: "Used Emporium"
 -
   email: testing
-  password: 'IamUsedForTesting'
   key: LetUsTest
   role: 'admin'
 -
