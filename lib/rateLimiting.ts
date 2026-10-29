@@ -25,10 +25,10 @@ export function accountRateLimit (accountOf: (req: Request) => string | undefine
   })
 }
 
-/* Non-string emails (arrays, objects) all share one bucket so they cannot be varied to dodge the limit */
+/* Keyed by the exact email the reset route looks up, so case variants of an address are separate accounts. Non-string emails (arrays, objects) all share one bucket so they cannot be varied to dodge the limit */
 export function emailOf (req: Request) {
   const email = req.body?.email
-  if (typeof email === 'string') return email.trim() !== '' ? email.trim().toLowerCase() : undefined
+  if (typeof email === 'string') return email.trim() !== '' ? email : undefined
   return email ? '<non-string>' : undefined
 }
 
