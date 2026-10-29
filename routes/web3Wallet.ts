@@ -41,25 +41,32 @@ export function consumeWallet (address: string, now = Date.now()) {
   return walletsConnected.delete(address.toLowerCase())
 }
 
+function discardExploitListener (listener: Promise<void>, provider: any) {
+  if (exploitListener === listener) exploitListener = null
+  if (provider !== null) void Promise.resolve().then(async () => { await provider.destroy() }).catch(() => {})
+}
+
 function ensureExploitListener (): Promise<void> {
   if (exploitListener === null) {
-    exploitListener = (async () => {
+    let provider: any = null
+    const listener: Promise<void> = (async () => {
       const { WebSocketProvider, Contract } = await import('ethers')
-      const provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
+      provider = new WebSocketProvider(`wss://eth-sepolia.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ''}`)
       provider.websocket.onerror = (error: any) => {
         logger.error(`WebSocket error (Contract Exploit Listener): ${error.message || error}`)
-        exploitListener = null
+        discardExploitListener(listener, provider)
       }
-      const contract = new Contract(web3WalletAddress, web3WalletABI, provider as any)
+      const contract = new Contract(web3WalletAddress, web3WalletABI, provider)
       await contract.on('ContractExploited', (exploiter: string) => {
         if (consumeWallet(exploiter)) {
           challengeUtils.solveIf(challenges.web3WalletChallenge, () => true)
         }
       })
     })().catch((error) => {
-      exploitListener = null
+      discardExploitListener(listener, provider)
       throw error
     })
+    exploitListener = listener
   }
   return exploitListener
 }
