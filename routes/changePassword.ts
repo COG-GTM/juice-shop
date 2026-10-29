@@ -10,11 +10,12 @@ import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const passwords = body !== null && typeof body === 'object' ? body : {}
+    const currentPassword = passwords.current as string
+    const newPassword = passwords.new as string
     const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+    const repeatPassword = passwords.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
