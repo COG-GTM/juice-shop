@@ -94,6 +94,24 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST verification attempts for one user are throttled even with rotating X-Forwarded-For headers', async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const tmpToken = security.authorize({
+        userId: 1,
+        type: 'password_valid_needs_second_factor_token'
+      })
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.1.${i + 1}` })
+        .send({ tmpToken, totpToken: '000000' })
+      statuses.push(res.status)
+    }
+
+    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
+    assert.equal(statuses[10], 429)
+  })
 })
 
 void describe('/rest/2fa/status', () => {

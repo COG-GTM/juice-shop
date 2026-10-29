@@ -259,4 +259,22 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+  void it('POST password reset attempts for one account are throttled even with rotating X-Forwarded-For headers', async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i + 1}` })
+        .send({
+          email: 'amy@' + config.get<string>('application.domain'),
+          answer: 'wrong answer ' + i,
+          new: 'abcdef',
+          repeat: 'abcdef'
+        })
+      statuses.push(res.status)
+    }
+
+    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
+    assert.equal(statuses[10], 429)
+  })
 })
