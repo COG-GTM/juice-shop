@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response } from 'express'
+import { ValidationError } from 'sequelize'
 import { AddressModel } from '../models/address'
 
 export function getAddress () {
@@ -38,10 +39,19 @@ export function delAddressById () {
 export function updateAddressById () {
   return async (req: Request, res: Response) => {
     const where = { id: req.params.id, UserId: req.body.UserId }
-    const [updated] = await AddressModel.update(req.body, {
-      where,
-      fields: ['fullName', 'mobileNum', 'zipCode', 'streetAddress', 'city', 'state', 'country']
-    })
+    let updated: number
+    try {
+      [updated] = await AddressModel.update(req.body, {
+        where,
+        fields: ['fullName', 'mobileNum', 'zipCode', 'streetAddress', 'city', 'state', 'country']
+      })
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ message: 'Validation error', errors: error.errors.map(({ message, path }) => ({ message, field: path })) })
+        return
+      }
+      throw error
+    }
     const address = updated > 0 ? await AddressModel.findOne({ where }) : null
     if (address != null) {
       res.status(200).json({ status: 'success', data: address })
