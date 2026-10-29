@@ -13,7 +13,7 @@ i18n/*.invalid
 !frontend/src/assets/i18n/*.json
 !data/static/i18n/*.json
 /data/juiceshop.sqlite-journal
-/privileged-credentials.txt
+/data/privileged-credentials.txt
 
 # Build
 .nyc_output/

@@ -80,6 +80,19 @@ describe('privilegedPasswords', () => {
       }
     })
 
+    it('replaces an existing credentials file without keeping its permissions', () => {
+      fs.writeFileSync(credentialsFile, 'stale', { mode: 0o644 })
+      const passwords = resolveUserPasswords([{ key: 'admin', role: 'admin' }], credentialsFile)
+      expect(fs.readFileSync(credentialsFile, 'utf8')).to.equal(`JUICE_SHOP_ADMIN_PASSWORD=${passwords.admin}\n`)
+      if (process.platform !== 'win32') {
+        expect(fs.statSync(credentialsFile).mode & 0o777).to.equal(0o600)
+      }
+    })
+
+    it('fails instead of seeding unrecoverable passwords when the credentials file cannot be written', () => {
+      expect(() => resolveUserPasswords([{ key: 'admin', role: 'admin' }], path.join(tmpDir, 'missing', 'privileged-credentials.txt'))).to.throw(/JUICE_SHOP_ADMIN_PASSWORD/)
+    })
+
     it('uses the password from the environment variable of a privileged user', () => {
       process.env.JUICE_SHOP_ADMIN_PASSWORD = 'operator-chosen secret'
       const passwords = resolveUserPasswords([{ key: 'admin', role: 'admin' }], credentialsFile)

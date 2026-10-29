@@ -11,7 +11,7 @@ import * as utils from './utils'
 
 const privilegedRoles: string[] = [roles.admin, roles.accounting]
 
-export const generatedCredentialsFile = path.resolve('privileged-credentials.txt')
+export const generatedCredentialsFile = path.resolve('data/privileged-credentials.txt')
 
 export function privilegedPasswordEnvVar (key: string) {
   return `JUICE_SHOP_${key.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase()}_PASSWORD`
@@ -37,12 +37,12 @@ export function resolveUserPasswords (users: Array<{ key: string, role: string, 
   }
   if (generated.length > 0) {
     try {
-      fs.writeFileSync(credentialsFile, generated.join('\n') + '\n', { mode: 0o600 })
-      fs.chmodSync(credentialsFile, 0o600)
-      logger.warn(`Generated random passwords for ${generated.length} privileged users and wrote them to ${credentialsFile} (set the listed environment variables to choose your own)`)
+      fs.rmSync(credentialsFile, { force: true })
+      fs.writeFileSync(credentialsFile, generated.join('\n') + '\n', { mode: 0o600, flag: 'wx' })
     } catch (err) {
-      logger.warn(`Generated random passwords for ${generated.length} privileged users but could not write them to ${credentialsFile}: ${utils.getErrorMessage(err)}`)
+      throw new Error(`Could not write generated passwords for ${generated.length} privileged users to ${credentialsFile} (${utils.getErrorMessage(err)}). Set ${generated.map(line => line.split('=')[0]).join(', ')} instead.`)
     }
+    logger.warn(`Generated random passwords for ${generated.length} privileged users and wrote them to ${credentialsFile} (set the listed environment variables to choose your own)`)
   }
   return passwords
 }
