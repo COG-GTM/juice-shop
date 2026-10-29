@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -230,6 +231,29 @@ void describe('/api/Users/:id', () => {
   void it('DELETE existing user is forbidden via API even when authenticated', async () => {
     const res = await request(app).delete('/api/Users/1').set(authHeader)
     assert.equal(res.status, 401)
+  })
+
+  void describe('with forged JWTs', () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = encode({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, exp: 9999999999 })
+    const unsignedToken = `${encode({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hmacHeader = encode({ alg: 'HS256', typ: 'JWT' })
+    const hmacToken = `${hmacHeader}.${payload}.${crypto.createHmac('sha256', security.publicKey).update(`${hmacHeader}.${payload}`).digest('base64url')}`
+
+    void it('GET existing user by id rejects unsigned JWTs with "alg: none"', async () => {
+      const res = await request(app).get('/api/Users/1').set({ Authorization: `Bearer ${unsignedToken}` })
+      assert.equal(res.status, 401)
+    })
+
+    void it('GET existing user by id rejects JWTs HMAC-signed with the public RSA key', async () => {
+      const res = await request(app).get('/api/Users/1').set({ Authorization: `Bearer ${hmacToken}` })
+      assert.equal(res.status, 401)
+    })
+
+    void it('DELETE existing user rejects unsigned JWTs with "alg: none"', async () => {
+      const res = await request(app).delete('/api/Users/1').set({ Authorization: `Bearer ${unsignedToken}` })
+      assert.equal(res.status, 401)
+    })
   })
 })
 
