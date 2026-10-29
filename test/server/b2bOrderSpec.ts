@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import path from 'path'
+import fs from 'fs'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -28,28 +30,109 @@ describe('b2bOrder', () => {
     challenges.rceChallenge = { solved: false, save } as unknown as Challenge
   })
 
-  xit('infinite loop payload does not succeed but solves "rceChallenge"', () => { // FIXME Started failing on Linux regularly
+  it('does not import notevil or node:vm', () => {
+    const source = fs.readFileSync(path.resolve(__dirname, '../../routes/b2bOrder.ts'), 'utf8')
+
+    expect(source).to.not.match(/from\s+['"]notevil['"]|require\(['"]notevil['"]\)/)
+    expect(source).to.not.match(/from\s+['"](node:)?vm['"]|require\(['"](node:)?vm['"]\)/)
+  })
+
+  it('infinite loop payload is rejected without being evaluated', () => {
     req.body.orderLinesData = '(function dos() { while(true); })()'
 
     b2bOrder()(req, res, next)
 
-    expect(challenges.rceChallenge.solved).to.equal(true)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    expect(res.json).to.have.callCount(0)
+    expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
-  // FIXME Disabled as test started failing on Linux regularly
-  xit('timeout after 2 seconds solves "rceOccupyChallenge"', () => {
+  it('catastrophic backtracking regex payload is rejected immediately instead of blocking the event loop', () => {
     req.body.orderLinesData = '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
+
+    const start = Date.now()
+    b2bOrder()(req, res, next)
+
+    expect(Date.now() - start).to.be.below(500)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('sandbox breakout payload is rejected without being evaluated', () => {
+    req.body.orderLinesData = 'this.constructor.constructor("return process")().exit()'
 
     b2bOrder()(req, res, next)
 
-    expect(challenges.rceOccupyChallenge.solved).to.equal(true)
-  }/*, 3000 */)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('non-string orderLinesData is rejected', () => {
+    req.body.orderLinesData = { productId: 12, quantity: 1 }
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('explicit null orderLinesData is rejected', () => {
+    req.body.orderLinesData = null
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('empty orderLinesData is rejected', () => {
+    req.body.orderLinesData = ''
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('missing orderLinesData still returns an order confirmation', () => {
+    b2bOrder()(req, res, next)
+
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('accepts an array of order lines as documented in Swagger', () => {
+    req.body.orderLinesData = '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"},{"productId": 13,"quantity": 2000,"customerReference": "PO0000003.4"}]'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('rejects order lines violating the schema', () => {
+    req.body.orderLinesData = '[{"productId": 12,"quantity": 0}]'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('rejects order lines with a nonpositive productId', () => {
+    req.body.orderLinesData = '[{"productId": 0,"quantity": 1},{"productId": -5,"quantity": 1}]'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
 
   it('deserializing JSON as documented in Swagger should not solve "rceChallenge"', () => {
     req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
 
     b2bOrder()(req, res, next)
 
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
@@ -57,6 +140,8 @@ describe('b2bOrder', () => {
     req.body.orderLinesData = '{"hello": "world", "foo": 42, "bar": [false, true]}'
 
     b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 
@@ -65,6 +150,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res, next)
 
+    expect(res.status).to.have.been.calledWith(400)
     expect(challenges.rceChallenge.solved).to.equal(false)
   })
 })
