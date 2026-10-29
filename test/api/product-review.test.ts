@@ -63,16 +63,11 @@ void describe('/rest/products/:id/reviews', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-  })
 
-  void it('PUT product review is listed for its numeric product id', async () => {
-    await request(app)
-      .put('/rest/products/2/reviews')
-      .send({ message: 'Numeric product id review', author: 'Anonymous' })
-    const res = await request(app)
-      .get('/rest/products/2/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.body.data.some((review: { message: string, product: number }) => review.message === 'Numeric product id review' && review.product === 2))
+    const listed = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(listed.status, 200)
+    assert.ok(listed.body.data.some((review: { message: string, product: number }) => review.message === 'Lorem Ipsum' && review.product === 1))
   })
 
   void it('PUT product review with non-numeric product id is rejected', async () => {
