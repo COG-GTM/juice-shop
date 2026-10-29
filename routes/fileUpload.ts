@@ -47,10 +47,19 @@ function isReachableWithoutSymlinks (directory: string): boolean {
   return fs.realpathSync(directory) === path.join(fs.realpathSync(appRoot), path.relative(appRoot, directory))
 }
 
+function complaintsDirectoryIsSafe (): boolean {
+  try {
+    return isReachableWithoutSymlinks(complaintsDirectory)
+  } catch (err) {
+    logger.warn(`Could not verify ${complaintsDirectory}: ${utils.getErrorMessage(err)}`)
+    return false
+  }
+}
+
 function openComplaintTempFile (): { tempPath: string, fd: number } | null {
   const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
-    if (!isReachableWithoutSymlinks(complaintsDirectory)) {
+    if (!complaintsDirectoryIsSafe()) {
       throw new Error(`${complaintsDirectory} must not be reached through a symbolic link`)
     }
     return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
@@ -105,13 +114,14 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       const publish = () => {
         if (finalized) return
         finalized = true
-        void Promise.all(staged).then(entries => {
-          if (aborted || !isReachableWithoutSymlinks(complaintsDirectory)) {
+        void Promise.all(staged).then(results => {
+          const entries = results.filter((entry): entry is StagedComplaintEntry => entry !== null)
+          if (entries.length === 0) return
+          if (aborted || !complaintsDirectoryIsSafe()) {
             removeStaged(entries)
             return
           }
           entries.forEach(entry => {
-            if (entry === null) return
             fs.rename(entry.tempPath, entry.targetPath, (err) => {
               if (err != null) {
                 logger.warn(`Could not store complaint zip entry: ${err.message}`)
