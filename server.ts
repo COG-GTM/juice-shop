@@ -458,7 +458,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100 }),
-    rateLimiting.accountRateLimit(rateLimiting.secondFactorUserOf),
+    rateLimiting.accountRateLimit(rateLimiting.secondFactorUserOf, { max: 5 }),
     utils.asyncHandler(twoFactorAuth.verify)
   )
   /* Check 2FA Status for the current User */
