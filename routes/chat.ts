@@ -157,10 +157,14 @@ export function chat () {
           const userId = await getUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
 
+          const user = await UserModel.findByPk(userId, { attributes: ['id'] })
+          if (!user) return { error: 'Customer not found' }
+
+          const ownerId = user.id
           const order = await db.ordersCollection.findOne({ orderId })
 
           if (!order) return { error: 'Order not found' }
-          if (order.UserId !== userId) return { error: 'Order does not belong to the current customer' }
+          if (order.UserId !== ownerId) return { error: 'Order does not belong to the current customer' }
 
           return order
         }
