@@ -68,9 +68,27 @@ export const sendNotification = function (challenge: { difficulty?: number, key:
     notifications.push(notification)
 
     if (globalWithSocketIO.io && (isRestore || !wasPreviouslyShown)) {
-      globalWithSocketIO.io.emit('challenge solved', notification)
+      for (const socket of globalWithSocketIO.io.sockets.sockets.values()) {
+        socket.emit('challenge solved', notificationFor(socket, notification))
+      }
     }
   }
+}
+
+const flagAccessExpiry = new WeakMap<object, number>()
+
+export const grantFlagAccess = (socket: object, expiresAt: number) => { flagAccessExpiry.set(socket, expiresAt) }
+
+export const revokeFlagAccess = (socket: object) => { flagAccessExpiry.delete(socket) }
+
+export const canReceiveFlags = (socket: object) => (flagAccessExpiry.get(socket) ?? 0) > Date.now()
+
+export const notificationFor = <T extends { flag?: string }>(socket: object, notification: T) => {
+  if (!config.get<boolean>('ctf.showFlagsInNotifications') || canReceiveFlags(socket)) {
+    return notification
+  }
+  const { flag, ...withoutFlag } = notification
+  return withoutFlag
 }
 
 export const sendCodingChallengeNotification = function (challenge: { key: string, codingChallengeStatus: 0 | 1 | 2 }) {

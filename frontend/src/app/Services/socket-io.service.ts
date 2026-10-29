@@ -18,17 +18,23 @@ export class SocketIoService {
 
   constructor () {
     this.ngZone.runOutsideAngular(() => {
+      const auth = (cb: (data: object) => void) => { cb({ token: localStorage.getItem('token') }) }
       if (environment.hostServer === '.') {
         this._socket = io(window.location.origin, {
-          path: (window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/') + 'socket.io'
+          path: (window.location.pathname.endsWith('/') ? window.location.pathname : window.location.pathname + '/') + 'socket.io',
+          auth
         })
       } else {
-        this._socket = io(environment.hostServer)
+        this._socket = io(environment.hostServer, { auth })
       }
     })
   }
 
   socket () {
     return this._socket
+  }
+
+  authenticate () {
+    this._socket.emit('authenticate', localStorage.getItem('token'))
   }
 }

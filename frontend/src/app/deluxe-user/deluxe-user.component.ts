@@ -70,7 +70,7 @@ export class DeluxeUserComponent implements OnInit {
         }
         if (decalParam) {
           this.ngZone.runOutsideAngular(() => {
-            this.io.socket().emit('verifySvgInjectionChallenge', decalParam)
+            this.io.socket().emit('verifySvgInjectionChallenge', decalParam, localStorage.getItem('token'))
           })
         }
       },
