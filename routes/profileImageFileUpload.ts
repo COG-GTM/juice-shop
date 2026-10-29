@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import fileType from 'file-type'
 
@@ -11,6 +12,17 @@ import logger from '../lib/logger'
 import * as utils from '../lib/utils'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+
+const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+
+export function profileImageUploadPath (userId: unknown, ext: string): string | null {
+  const id = typeof userId === 'number' ? userId : (typeof userId === 'string' && /^\d+$/.test(userId) ? Number(userId) : NaN)
+  if (!Number.isSafeInteger(id) || id <= 0 || !/^[a-z0-9]+$/i.test(ext)) {
+    return null
+  }
+  const filePath = path.join(uploadsDir, `${id}.${ext}`)
+  return path.dirname(filePath) === uploadsDir ? filePath : null
+}
 
 export function profileImageFileUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -38,20 +50,29 @@ export function profileImageFileUpload () {
       return
     }
 
-    const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
-    try {
-      await fs.writeFile(filePath, buffer)
-    } catch (err) {
-      logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
+    const filePath = profileImageUploadPath(loggedInUser.data.id, uploadedFileType.ext)
+    if (filePath === null) {
+      res.status(400)
+      next(new Error('Invalid user id'))
+      return
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
-      if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}` })
+      const user = await UserModel.findByPk(Number(loggedInUser.data.id))
+      if (user == null) {
+        res.status(400)
+        next(new Error('Invalid user id'))
+        return
       }
+      try {
+        await fs.writeFile(filePath, buffer)
+      } catch (err) {
+        logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
+      }
+      await user.update({ profileImage: `assets/public/images/uploads/${path.basename(filePath)}` })
     } catch (error) {
       next(error)
+      return
     }
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
