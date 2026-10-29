@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import logger from '../lib/logger'
 
 interface Product {
   quantity: number
@@ -42,15 +43,6 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
-
-          fileWriter.on('finish', () => {
-            void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
-              res.json({ orderConfirmation: orderId })
-            })()
-          })
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
           doc.moveTo(70, 115).lineTo(540, 115).stroke()
@@ -157,21 +149,53 @@ export function placeOrder () {
             }
           }
 
-          db.ordersCollection.insert({
-            promotionalAmount: discountAmount,
-            paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
-            addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
-            orderId,
-            delivered: false,
-            email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
-            totalPrice,
-            products: basketProducts,
-            bonus: totalPoints,
-            deliveryPrice: deliveryAmount,
-            eta: deliveryMethod.eta.toString()
-          }).then(() => {
-            doc.end()
+          const pdfPath = path.join('ftp/', pdfFile)
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
+          const discardPdf = (error: unknown) => {
+            const unlinkPdf = () => {
+              fs.unlink(pdfPath, (unlinkError) => {
+                if (unlinkError != null && unlinkError.code !== 'ENOENT') {
+                  logger.warn(`Could not remove ${pdfPath}: ${unlinkError.message}`)
+                }
+                next(error)
+              })
+            }
+            if (fileWriter.closed) {
+              unlinkPdf()
+            } else {
+              fileWriter.once('close', unlinkPdf)
+            }
+          }
+          fileWriter.on('finish', () => {
+            void (async () => {
+              try {
+                await db.ordersCollection.insert({
+                  promotionalAmount: discountAmount,
+                  paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
+                  addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
+                  orderId,
+                  delivered: false,
+                  email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+                  totalPrice,
+                  products: basketProducts,
+                  bonus: totalPoints,
+                  deliveryPrice: deliveryAmount,
+                  eta: deliveryMethod.eta.toString()
+                })
+              } catch (error: unknown) {
+                discardPdf(error)
+                return
+              }
+              void basket.update({ coupon: null })
+              await BasketItemModel.destroy({ where: { BasketId: id } })
+              res.json({ orderConfirmation: orderId })
+            })()
           })
+          fileWriter.on('error', (error: Error) => {
+            doc.unpipe(fileWriter)
+            discardPdf(error)
+          })
+          doc.end()
         } else {
           next(new Error(`Basket with id=${id} does not exist.`))
         }
