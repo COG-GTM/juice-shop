@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-/* eslint-disable @typescript-eslint/prefer-for-of */
 import { ActivatedRoute, Router } from '@angular/router'
 import { ProductService } from '../Services/product.service'
 import { type AfterViewInit, Component, NgZone, type OnDestroy, ViewChild, ChangeDetectorRef, ElementRef, inject } from '@angular/core'
@@ -57,7 +56,6 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private resizeObserver?: ResizeObserver
   public emptyState = false
 
-  // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
     const products = this.productService.search('')
     const quantities = this.quantityService.getAll()
@@ -94,17 +92,15 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
         this.routerSubscription = this.router.events.subscribe(() => {
           this.filterTable()
         })
-        const challenge: string = this.route.snapshot.queryParams.challenge // vuln-code-snippet hide-start
+        const challenge: string = this.route.snapshot.queryParams.challenge
         if (challenge && this.route.snapshot.url.join('').match(/hacking-instructor/)) {
           this.startHackingInstructor(decodeURIComponent(challenge))
-        } // vuln-code-snippet hide-end
+        }
         this.cdRef.detectChanges()
       },
       error: (err) => { console.log(err) }
     })
   }
-
-  // vuln-code-snippet end restfulXssChallenge
 
   ngOnDestroy () {
     if (this.routerSubscription) {
@@ -129,9 +125,9 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
     let queryParam: string = this.route.snapshot.queryParams.q
     if (queryParam) {
       queryParam = queryParam.trim()
-      this.ngZone.runOutsideAngular(() => { // vuln-code-snippet hide-start
+      this.ngZone.runOutsideAngular(() => {
         this.io.socket().emit('verifyLocalXssChallenge', queryParam)
-      }) // vuln-code-snippet hide-end
+      })
       this.dataSource.filter = queryParam.toLowerCase()
       this.searchValue = this.sanitizer.bypassSecurityTrustHtml(queryParam) // vuln-code-snippet vuln-line localXssChallenge xssBonusChallenge
       if (this.gridDataSourceSubscription) {

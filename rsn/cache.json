@@ -1202,25 +1202,6 @@
 			4
 		]
 	},
-	"restfulXssChallenge_1_correct.ts": {
-		"added": [
-			42,
-			43
-		],
-		"removed": []
-	},
-	"restfulXssChallenge_2.ts": {
-		"added": [],
-		"removed": []
-	},
-	"restfulXssChallenge_3.ts": {
-		"added": [],
-		"removed": []
-	},
-	"restfulXssChallenge_4.ts": {
-		"added": [],
-		"removed": []
-	},
 	"scoreBoardChallenge_1_correct.ts": {
 		"added": [],
 		"removed": []
