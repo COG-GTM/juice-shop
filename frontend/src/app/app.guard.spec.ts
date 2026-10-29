@@ -37,9 +37,11 @@ describe('LoginGuard', () => {
         const guard = TestBed.inject(LoginGuard)
         const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
         localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
+        document.cookie = 'token=EXPIRED; path=/'
 
         expect(guard.canActivate()).toBe(false)
         expect(localStorage.getItem('token')).toBeNull()
+        expect(document.cookie).not.toContain('token=EXPIRED')
     })
 
     it('should close for anonymous users', () => {
