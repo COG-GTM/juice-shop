@@ -204,6 +204,19 @@ describe('UserService', () => {
         httpMock.verify()
     })
 
+    it('should end the given session via the rest api', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.logout('TOKEN').subscribe()
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/logout')
+        req.flush(null)
+
+        expect(req.request.headers.get('Authorization')).toBe('Bearer TOKEN')
+        httpMock.verify()
+    })
+
     it('should save last login ip via the rest api', () => {
         const service = TestBed.inject(UserService)
         const httpMock = TestBed.inject(HttpTestingController)
