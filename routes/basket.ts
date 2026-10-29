@@ -17,6 +17,9 @@ export function retrieveBasket () {
     try {
       const id = req.params.id
       const basket = await BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+      if (basket && !security.isBasketOwner(req, basket)) {
+        return res.status(403).json({ error: 'Not allowed' })
+      }
       /* jshint eqeqeq:false */
       challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
         const user = security.authenticatedUsers.from(req)

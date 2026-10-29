@@ -92,6 +92,11 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   }
 }
 
+export const isBasketOwner = (req: Request, basket: { UserId?: number | null }) => {
+  const userId = authenticatedUsers.from(req)?.data?.id
+  return userId !== undefined && basket.UserId === userId
+}
+
 export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
