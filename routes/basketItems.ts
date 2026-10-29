@@ -66,8 +66,8 @@ export function quantityCheckBeforeBasketItemAddition () {
 export function checkBasketItemOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = security.authenticatedUsers.from(req)
-      if (!user?.data?.id) {
+      const userId = security.decode(utils.jwtFrom(req))?.data?.id
+      if (!userId) {
         res.status(401).json({ error: 'Unauthorized' })
         return
       }
@@ -77,7 +77,7 @@ export function checkBasketItemOwnership () {
         return
       }
       const basket = item.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId } }) : null
-      if (basket?.UserId !== user.data.id) {
+      if (basket?.UserId !== userId) {
         res.status(403).json({ error: 'Malicious activity detected' })
         return
       }
