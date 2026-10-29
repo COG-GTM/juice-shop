@@ -120,6 +120,12 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon(z85.encode(tampered) + '_' + signature)).to.equal(undefined)
     })
 
+    it('returns undefined for valid coupon code with trailing characters', () => {
+      const coupon = security.generateCoupon(10)
+      expect(security.discountFromCoupon(coupon + '\n')).to.equal(undefined)
+      expect(security.discountFromCoupon(coupon + '0')).to.equal(undefined)
+    })
+
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)

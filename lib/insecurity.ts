@@ -163,7 +163,7 @@ export const discountFromCoupon = (coupon?: string) => {
 }
 
 function hasValidSignature (payload: string, signature: string) {
-  if (!couponSignaturePattern.test(signature)) {
+  if (signature.length !== couponSignatureLength || !couponSignaturePattern.test(signature)) {
     return false
   }
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(couponSignature(payload)))
