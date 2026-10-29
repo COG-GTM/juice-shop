@@ -455,7 +455,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false, keyGenerator: (req: Request) => req.socket.remoteAddress ?? '' }),
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 100,
+      validate: false,
+      keyGenerator: (req: Request) => {
+        const userId = security.verifySecondFactor(req.body?.tmpToken)?.userId
+        return userId !== undefined ? `user:${userId}` : req.socket.remoteAddress ?? ''
+      }
+    }),
     utils.asyncHandler(twoFactorAuth.verify)
   )
   /* Check 2FA Status for the current User */

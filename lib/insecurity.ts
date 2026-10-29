@@ -59,6 +59,7 @@ export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 const secondFactorSecret = crypto.randomBytes(32)
 const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+const maxSecondFactorTokenLength = 512
 const signSecondFactorPayload = (encodedPayload: string) => crypto.createHmac('sha256', secondFactorSecret).update(encodedPayload).digest()
 
 export const authorizeSecondFactor = (payload: Record<string, unknown> = {}) => {
@@ -67,7 +68,7 @@ export const authorizeSecondFactor = (payload: Record<string, unknown> = {}) => 
 }
 
 export const verifySecondFactor = (token: unknown): Record<string, any> | null => {
-  if (typeof token !== 'string') return null
+  if (typeof token !== 'string' || token.length > maxSecondFactorTokenLength) return null
   const parts = token.split('.')
   if (parts.length !== 2) return null
   const [encodedPayload, encodedSignature] = parts

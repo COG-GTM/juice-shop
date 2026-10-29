@@ -226,6 +226,7 @@ describe('insecurity', () => {
       expect(security.verifySecondFactor({})).to.equal(null)
       expect(security.verifySecondFactor('')).to.equal(null)
       expect(security.verifySecondFactor('a.b.c')).to.equal(null)
+      expect(security.verifySecondFactor('a'.repeat(10000) + '.b')).to.equal(null)
     })
 
     it('rejects an expired token', () => {
