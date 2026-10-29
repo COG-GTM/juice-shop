@@ -10,12 +10,16 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
+let authHeader: { Authorization: string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + token }
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
@@ -45,6 +49,7 @@ void describe('/metrics', () => {
 
     await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', fs.readFileSync(file), 'validSizeAndTypeForClient.pdf')
       .expect(204)
 
@@ -61,6 +66,7 @@ void describe('/metrics', () => {
 
     await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', fs.readFileSync(file), 'invalidSizeForServer.pdf')
       .expect(500)
 
