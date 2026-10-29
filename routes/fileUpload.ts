@@ -42,11 +42,16 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
 
 const tempFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW ?? 0)
 
+function isReachableWithoutSymlinks (directory: string): boolean {
+  const appRoot = path.dirname(path.dirname(directory))
+  return fs.realpathSync(directory) === path.join(fs.realpathSync(appRoot), path.relative(appRoot, directory))
+}
+
 function openComplaintTempFile (): { tempPath: string, fd: number } | null {
   const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
-    if (fs.lstatSync(complaintsDirectory).isSymbolicLink()) {
-      throw new Error(`${complaintsDirectory} must not be a symbolic link`)
+    if (!isReachableWithoutSymlinks(complaintsDirectory)) {
+      throw new Error(`${complaintsDirectory} must not be reached through a symbolic link`)
     }
     return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
   } catch (err) {
@@ -72,23 +77,54 @@ function createExtractionBudget () {
   }
 }
 
+interface StagedComplaintEntry { tempPath: string, targetPath: string }
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const budget = createExtractionBudget()
       const source = Readable.from([file.buffer])
       const parser = source.pipe(unzipper.Parse())
+      const staged: Array<Promise<StagedComplaintEntry | null>> = []
+      const activeDiscards = new Set<() => void>()
       let aborted = false
+      let finalized = false
+      const removeStaged = (entries: Array<StagedComplaintEntry | null>) => {
+        entries.forEach(entry => { if (entry !== null) fs.rm(entry.tempPath, { force: true }, () => {}) })
+      }
       const abort = (reason: string) => {
         if (aborted) return
         aborted = true
         logger.warn(`Aborted complaint zip extraction: ${reason}`)
+        activeDiscards.forEach(discard => { discard() })
         source.unpipe(parser)
         source.destroy()
         parser.destroy()
+        void Promise.all(staged).then(removeStaged)
       }
+      const publish = () => {
+        if (finalized) return
+        finalized = true
+        void Promise.all(staged).then(entries => {
+          if (aborted) {
+            removeStaged(entries)
+            return
+          }
+          entries.forEach(entry => {
+            if (entry === null) return
+            fs.rename(entry.tempPath, entry.targetPath, (err) => {
+              if (err != null) {
+                logger.warn(`Could not store complaint zip entry: ${err.message}`)
+                fs.rm(entry.tempPath, { force: true }, () => {})
+              }
+            })
+          })
+        })
+      }
+      parser.on('finish', () => { setImmediate(publish) })
+      parser.on('close', () => { setImmediate(publish) })
       parser.on('entry', function (entry: any) {
-        if (aborted) {
+        if (aborted || finalized) {
           entry.autodrain()
           return
         }
@@ -117,22 +153,19 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           else output.once('close', removeTemp)
           output.destroy()
         }
+        activeDiscards.add(discard)
+        staged.push(new Promise(resolve => {
+          output.on('close', () => {
+            activeDiscards.delete(discard)
+            resolve(output.writableFinished && !discarded ? { tempPath: temp.tempPath, targetPath } : null)
+          })
+        }))
         output.on('error', (err: Error) => {
           if (discarded) return
           logger.warn(`Could not store complaint zip entry: ${err.message}`)
           limiter.unpipe(output)
           limiter.resume()
           discard()
-        })
-        output.on('close', () => {
-          if (output.writableFinished && !discarded) {
-            fs.rename(temp.tempPath, targetPath, (err) => {
-              if (err != null) {
-                logger.warn(`Could not store complaint zip entry: ${err.message}`)
-                discard()
-              }
-            })
-          }
         })
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
@@ -226,6 +259,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  isReachableWithoutSymlinks,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
