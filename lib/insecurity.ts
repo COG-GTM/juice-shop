@@ -202,20 +202,32 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
 
 const firstHeaderValue = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)?.split(',')[0].trim()
 
+const normalizeHost = (host: string | undefined, protocol: string) => {
+  if (!host) return undefined
+  try {
+    return new URL(`${protocol}//${host}`).host
+  } catch {
+    return undefined
+  }
+}
+
 export const sameOriginOnly = () => (req: Request, res: Response, next: NextFunction) => {
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
     next()
     return
   }
-  let sourceHost: string | undefined
+  let sourceUrl: URL | undefined
   try {
-    sourceHost = new URL(source).host
+    sourceUrl = new URL(source)
   } catch {
-    sourceHost = undefined
+    sourceUrl = undefined
   }
-  const allowedHosts = [firstHeaderValue(req.headers.host), firstHeaderValue(req.headers['x-forwarded-host'])]
-  if (sourceHost && allowedHosts.includes(sourceHost)) {
+  const protocol = sourceUrl?.protocol
+  const allowedHosts = protocol === 'http:' || protocol === 'https:'
+    ? [firstHeaderValue(req.headers.host), firstHeaderValue(req.headers['x-forwarded-host'])].map(host => normalizeHost(host, protocol))
+    : []
+  if (sourceUrl?.host && allowedHosts.includes(sourceUrl.host)) {
     next()
   } else {
     res.status(403).send('Cross-origin request blocked')
