@@ -51,4 +51,30 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const payloads = [
+      { username: 'a#{7*7}', expected: 'a#{7*7}' },
+      { username: "#{global.process.mainModule.require('child_process').execSync('id')}", expected: '.execSync(' },
+      { username: "x\n- throw new Error('pug')", expected: '- throw new Error(' }
+    ]
+    for (const { username, expected } of payloads) {
+      const update = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username })
+        .redirects(0)
+      assert.equal(update.status, 302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(expected))
+      assert.ok(!res.text.includes('a49'))
+      assert.ok(!res.text.includes('uid='))
+    }
+  })
 })
