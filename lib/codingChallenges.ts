@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import yaml from 'js-yaml'
 import logger from './logger'
 
 export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data', './data/static/web3-snippets', './frontend/src/app', './models'])
@@ -109,4 +111,58 @@ export async function getCodeChallenges (): Promise<Map<string, CachedCodeChalle
     }
   }
   return _internalCodeChallenges
+}
+
+export interface CodingChallengeFixInfo {
+  id: number
+  explanation: string
+}
+
+export interface CodingChallengeInfo {
+  fixes: readonly CodingChallengeFixInfo[]
+  hints: readonly string[]
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && Object.getPrototypeOf(value) === Object.prototype
+
+const isFixInfo = (value: unknown): value is CodingChallengeFixInfo =>
+  isPlainObject(value) && Number.isInteger(value.id) && typeof value.explanation === 'string' &&
+  Object.keys(value).every(key => key === 'id' || key === 'explanation')
+
+export function parseCodingChallengeInfo (source: string, filename?: string): CodingChallengeInfo {
+  const info: unknown = yaml.safeLoad(source, { filename })
+  if (!isPlainObject(info) || !Object.keys(info).every(key => key === 'fixes' || key === 'hints')) {
+    throw new Error('Coding challenge info must only define "fixes" and "hints"')
+  }
+  const fixes = info.fixes ?? []
+  const hints = info.hints ?? []
+  if (!Array.isArray(fixes) || !fixes.every(isFixInfo)) {
+    throw new Error('Coding challenge info "fixes" must be a list of { id, explanation } entries')
+  }
+  if (!Array.isArray(hints) || !hints.every(hint => typeof hint === 'string')) {
+    throw new Error('Coding challenge info "hints" must be a list of strings')
+  }
+  return Object.freeze({
+    fixes: Object.freeze(fixes.map(({ id, explanation }) => Object.freeze({ id, explanation }))),
+    hints: Object.freeze([...hints])
+  })
+}
+
+export function loadCodingChallengeInfos (directory = './data/static/codefixes'): ReadonlyMap<string, CodingChallengeInfo> {
+  const infos = new Map<string, CodingChallengeInfo>()
+  for (const file of readdirSync(directory).filter(file => file.endsWith('.info.yml'))) {
+    try {
+      infos.set(file.slice(0, -'.info.yml'.length), parseCodingChallengeInfo(readFileSync(path.join(directory, file), 'utf8'), file))
+    } catch (err) {
+      logger.warn(`Coding challenge info file ${file} is invalid and will be ignored: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  return infos
+}
+
+const codingChallengeInfos = loadCodingChallengeInfos()
+
+export function getCodingChallengeInfo (challengeKey: string): CodingChallengeInfo | undefined {
+  return codingChallengeInfos.get(challengeKey)
 }
