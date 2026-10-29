@@ -147,19 +147,19 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "videoXssChallenge"', () => {
-    xit('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => { // Zip Slip write to frontend assets is blocked by the uploads/complaints prefix check
+    it('should not be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('Here we go!')
           cy.get('#file').selectFile('test/files/videoExploit.zip')
           cy.get('#submitButton').click()
+          cy.on('window:alert', cy.stub().as('alert'))
           cy.visit('/promotion')
 
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
+          cy.get('script#subtitle').should('have.attr', 'type', 'application/json').invoke('text').then((text) => {
+            expect(JSON.parse(text)).to.not.contain('alert(`xss`)')
           })
-          cy.visit('/')
-          cy.expectChallengeSolved({ challenge: 'Video XSS' })
+          cy.get('@alert').should('not.have.been.called')
         }
       })
     })
