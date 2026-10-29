@@ -265,6 +265,9 @@ jobs:
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          METRICS_SCRAPE_TOKEN: e2e-metrics-scrape-token-not-a-secret
+          CYPRESS_METRICS_SCRAPE_TOKEN: e2e-metrics-scrape-token-not-a-secret
+          EXPOSE_ERROR_DETAILS: true
       - name: "Execute end-to-end tests on Mac"
         if: ${{ matrix.os == 'macos-latest' }}
         uses: cypress-io/github-action@57b70560982e6a11d23d4b8bec7f8a487cdbb71b #v6.7.8
@@ -280,6 +283,9 @@ jobs:
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          METRICS_SCRAPE_TOKEN: e2e-metrics-scrape-token-not-a-secret
+          CYPRESS_METRICS_SCRAPE_TOKEN: e2e-metrics-scrape-token-not-a-secret
+          EXPOSE_ERROR_DETAILS: true
   smoke-test:
     runs-on: ubuntu-latest
     env:
