@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import { ownsBasket } from './basket'
 
 interface Product {
   quantity: number
@@ -30,8 +31,12 @@ interface Product {
 }
 
 export function placeOrder () {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
+    if (!await ownsBasket(req, id)) {
+      res.status(403).json({ status: 'error', message: 'Access to this basket is not allowed' })
+      return
+    }
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
