@@ -4,6 +4,7 @@
  */
 
 import os from 'node:os'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
@@ -28,14 +29,15 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
+      const tempFile = path.join(os.tmpdir(), `juice-shop-upload-${crypto.randomUUID()}.zip`)
+      const removeTempFile = () => { fs.unlink(tempFile, () => {}) }
       fs.open(tempFile, 'w', function (err, fd) {
-        if (err != null) { next(err) }
+        if (err != null) { next(err); return }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
-          if (err != null) { next(err) }
           fs.close(fd, function () {
+            if (err != null) { removeTempFile(); next(err); return }
             fs.createReadStream(tempFile)
+              .on('error', function (err: unknown) { removeTempFile(); next(err) })
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
@@ -46,7 +48,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 } else {
                   entry.autodrain()
                 }
-              }).on('error', function (err: unknown) { next(err) })
+              })
+              .on('close', removeTempFile)
+              .on('error', function (err: unknown) { removeTempFile(); next(err) })
           })
         })
       })
