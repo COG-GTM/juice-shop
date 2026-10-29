@@ -61,6 +61,7 @@ export function profileImageFileUpload () {
       }
     } catch (error) {
       next(error)
+      return
     }
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
