@@ -65,7 +65,8 @@ let lastEviction = 0
 export const isAuthorized = () => {
   const checkJwt = expressJwt(({ secret: publicKey }) as any)
   return (req: Request, res: Response, next: NextFunction) => {
-    if (authenticatedUsers.isRevoked(utils.jwtFrom(req))) {
+    const token = utils.jwtFrom(req)
+    if (authenticatedUsers.isRevoked(token) || (token && isPastLifetime(token))) {
       res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
       return
     }
@@ -98,6 +99,13 @@ const isExpired = (token: string) => {
   const exp = expiryOf(token)
   return exp !== undefined && exp <= nowInSeconds()
 }
+
+const isPastLifetime = (token: string) => {
+  const exp = expiryOf(token)
+  return !!exp && exp <= nowInSeconds()
+}
+
+const isLiveSession = (token?: string) => !!token && !isPastLifetime(token) && !authenticatedUsers.isRevoked(token)
 
 const hasValidSignature = (token: string) => {
   try {
@@ -273,12 +281,14 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && isLiveSession(token) && decode(token)
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && isLiveSession(token) && decode(token)
   return decodedToken?.data?.role === roles.customer
 }
 
