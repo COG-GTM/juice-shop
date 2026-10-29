@@ -17,8 +17,10 @@ export class LoginGuard implements CanActivate {
   canActivate () {
     const payload = this.tokenDecode()
     if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+      if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+      }
       localStorage.removeItem('token')
-      document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
     }
     if (localStorage.getItem('token')) {
       return true
