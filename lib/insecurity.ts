@@ -31,8 +31,8 @@ interface ResponseWithUser {
 }
 
 interface IAuthenticatedUsers {
-  tokenMap: Record<string, ResponseWithUser>
-  idMap: Record<string, string>
+  tokenMap: Map<string, ResponseWithUser>
+  idMap: Map<string, string>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
   tokenOf: (user: UserModel) => string | undefined
@@ -41,6 +41,69 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const PASSWORD_HASH_ALGORITHM = 'scrypt'
+const PASSWORD_SALT_BYTES = 16
+const PASSWORD_KEY_BYTES = 64
+const SCRYPT_DEFAULTS = { N: 16384, r: 8, p: 5 }
+const SCRYPT_LIMITS = { N: 65536, r: 8, p: 16 }
+
+interface ParsedPasswordHash {
+  N: number
+  r: number
+  p: number
+  salt: Buffer
+  key: Buffer
+}
+
+const parsePasswordHash = (storedHash?: string | null): ParsedPasswordHash | undefined => {
+  const parts = storedHash?.split('$')
+  if (parts?.length !== 6 || parts[0] !== PASSWORD_HASH_ALGORITHM) return undefined
+  const [N, r, p] = parts.slice(1, 4).map(Number)
+  const salt = Buffer.from(parts[4], 'base64url')
+  const key = Buffer.from(parts[5], 'base64url')
+  const validCost = Number.isInteger(N) && N > 1 && N <= SCRYPT_LIMITS.N && (N & (N - 1)) === 0
+  const validBlock = Number.isInteger(r) && r > 0 && r <= SCRYPT_LIMITS.r && Number.isInteger(p) && p > 0 && p <= SCRYPT_LIMITS.p
+  if (!validCost || !validBlock || salt.length !== PASSWORD_SALT_BYTES || key.length !== PASSWORD_KEY_BYTES) return undefined
+  return { N, r, p, salt, key }
+}
+
+const scryptOptions = (N: number, r: number, p: number) => ({ N, r, p, maxmem: 256 * N * r })
+
+const deriveKey = async (password: string, salt: Buffer, N: number, r: number, p: number) =>
+  await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p), (err, key) => { err ? reject(err) : resolve(key) })
+  })
+
+const formatPasswordHash = (N: number, r: number, p: number, salt: Buffer, key: Buffer) =>
+  [PASSWORD_HASH_ALGORITHM, N, r, p, salt.toString('base64url'), key.toString('base64url')].join('$')
+
+/**
+ * Salted scrypt password hash in the format `scrypt$N$r$p$salt$key` using a fresh random salt.
+ */
+export const hashPassword = (password: string) => {
+  const { N, r, p } = SCRYPT_DEFAULTS
+  const salt = crypto.randomBytes(PASSWORD_SALT_BYTES)
+  const key = crypto.scryptSync(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p))
+  return formatPasswordHash(N, r, p, salt, key)
+}
+
+/**
+ * Hashes a password with the salt and cost parameters of a valid stored hash (or a fresh salt otherwise),
+ * so the result can be compared against the stored hash.
+ */
+export const rehashPassword = async (password: string, storedHash?: string | null) => {
+  const { N, r, p, salt } = parsePasswordHash(storedHash) ?? { ...SCRYPT_DEFAULTS, salt: crypto.randomBytes(PASSWORD_SALT_BYTES) }
+  return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
+}
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
+  const parsed = parsePasswordHash(storedHash)
+  if (!parsed) return false
+  const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
+  return crypto.timingSafeEqual(key, parsed.key)
+}
+
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
@@ -53,7 +116,24 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+const tokenUserClaims = ['id', 'email', 'username', 'role', 'deluxeToken', 'lastLoginIp', 'profileImage']
+
+export const tokenPayload = (payload: any = {}) => {
+  if (payload?.data === null || typeof payload?.data !== 'object') {
+    return payload
+  }
+  const data: Record<string, unknown> = {}
+  for (const claim of tokenUserClaims) {
+    if (payload.data[claim] !== undefined) {
+      data[claim] = payload.data[claim]
+    }
+  }
+  return { ...payload, data }
+}
+
+export const tokenCookieOptions = (req: Request) => ({ secure: req.secure })
+
+export const authorize = (user = {}) => jwt.sign(tokenPayload(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -70,17 +150,17 @@ export const sanitizeSecure = (html: string): string => {
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
-  tokenMap: {},
-  idMap: {},
+  tokenMap: new Map(),
+  idMap: new Map(),
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = user
-    this.idMap[user.data.id] = token
+    this.tokenMap.set(token, tokenPayload(user))
+    this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    return token ? this.tokenMap.get(utils.unquote(token)) : undefined
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    return user ? this.idMap.get(String(user.id)) : undefined
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
@@ -177,7 +257,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.tokenMap.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
@@ -192,7 +272,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, tokenCookieOptions(req))
         }
       }
     })

@@ -93,6 +93,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
     })
 
+    it('keeps only allowlisted user claims in the session map', () => {
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -108,6 +114,34 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+
+    it('signs only allowlisted user claims', () => {
+      const token = security.authorize({
+        status: 'success',
+        data: { id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png', password: 'hash', totpSecret: 'SECRET', isActive: true }
+      })
+
+      expect(payloadOf(token).status).to.equal('success')
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png' })
+    })
+
+    it('leaves payloads without user data unchanged', () => {
+      const token = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+      expect(payloadOf(token).userId).to.equal(10)
+      expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('tokenCookieOptions', () => {
+    it('marks the token cookie Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ secure: false })
     })
   })
 
@@ -193,6 +227,51 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', () => {
+      expect(security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    })
+
+    it('uses a random salt for each hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('rehashPassword', () => {
+    it('reproduces a stored hash when given the same password and stored hash', async () => {
+      const storedHash = security.hashPassword('admin123')
+      expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
+      expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
+    })
+
+    it('falls back to a fresh salt for malformed stored hashes', async () => {
+      expect(await security.rehashPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', 'scrypt$3$8$5$AAAA$AAAA')).to.match(/^scrypt\$16384\$/)
+    })
+
+    it('ignores stored hashes with excessive cost parameters', async () => {
+      const [, , , , salt, key] = security.hashPassword('admin123').split('$')
+      expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
+      expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects an incorrect password', async () => {
+      expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects unsalted MD5 and missing hashes', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('', '')).to.equal(false)
     })
   })
 
