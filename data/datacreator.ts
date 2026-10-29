@@ -744,9 +744,12 @@ async function createOrders () {
   ]
 
   const adminEmail = 'admin@' + config.get<string>('application.domain')
+  const admin = await UserModel.findOne({ where: { email: adminEmail } })
+  const demo = await UserModel.findOne({ where: { email: 'demo' } })
   const orders = [
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
+      UserId: admin?.id,
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
       totalPrice: basket1Products[0].total + basket1Products[1].total,
       bonus: basket1Products[0].bonus + basket1Products[1].bonus,
@@ -756,6 +759,7 @@ async function createOrders () {
     },
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
+      UserId: admin?.id,
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
       totalPrice: basket2Products[0].total,
       bonus: basket2Products[0].bonus,
@@ -765,6 +769,7 @@ async function createOrders () {
     },
     {
       orderId: security.hash('demo').slice(0, 4) + '-' + utils.randomHexString(16),
+      UserId: demo?.id,
       email: 'd*m*',
       totalPrice: basket3Products[0].total + basket3Products[1].total,
       bonus: basket3Products[0].bonus + basket3Products[1].bonus,
@@ -775,9 +780,10 @@ async function createOrders () {
   ]
 
   return await Promise.all(
-    orders.map(({ orderId, email, totalPrice, bonus, products, eta, delivered }) =>
+    orders.map(({ orderId, UserId, email, totalPrice, bonus, products, eta, delivered }) =>
       ordersCollection.insert({
         orderId,
+        UserId,
         email,
         totalPrice,
         bonus,
