@@ -67,11 +67,9 @@ export class ChallengeSolvedNotificationComponent implements OnInit {
       this.io.socket().on('challenge solved', (data: ChallengeSolvedMessage) => {
         if (data?.challenge) {
           const shownNotification = this.notifications.find(({ key }) => key === data.key)
-          if (shownNotification) {
-            if (data.flag && !shownNotification.flag) {
-              shownNotification.flag = data.flag
-              this.ref.detectChanges()
-            }
+          if (shownNotification && data.flag && !shownNotification.flag) {
+            shownNotification.flag = data.flag
+            this.ref.detectChanges()
             this.io.socket().emit('notification received', data.flag, localStorage.getItem('token'))
             return
           }

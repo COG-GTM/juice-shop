@@ -104,6 +104,7 @@ export class ServerStartedNotificationComponent implements OnInit {
     localStorage.removeItem('showDisabledChallenges')
     localStorage.removeItem('showOnlyTutorialChallenges')
     localStorage.removeItem('displayedChallengeCategories')
+    this.io.authenticate()
     this.hackingProgress.cleared = true
   }
 }

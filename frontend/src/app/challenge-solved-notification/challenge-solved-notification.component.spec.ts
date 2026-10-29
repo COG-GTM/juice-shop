@@ -139,6 +139,18 @@ describe('ChallengeSolvedNotificationComponent', () => {
         expect(mockSocket.emit).toHaveBeenCalledWith('notification received', '1234', null)
     })
 
+    it('should still show a repeated notification for a challenge whose notification is already shown', () => {
+        let onChallengeSolved: any
+        mockSocket.on = (event: string, callback: any) => { if (event === 'challenge solved') onChallengeSolved = callback }
+        vi.spyOn(component, 'showNotification')
+        component.ngOnInit()
+        component.notifications = [{ key: 'scoreBoardChallenge', message: 'Score Board', flag: '1234', copied: false }]
+
+        onChallengeSolved({ key: 'scoreBoardChallenge', challenge: 'Score Board', flag: '1234', isRestore: true })
+
+        expect(component.showNotification).toHaveBeenCalled()
+    })
+
     it('should delete notifictions', () => {
         component.notifications = [
             { key: 'foo', message: 'foo', flag: '1234', copied: false },

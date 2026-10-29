@@ -52,7 +52,8 @@ describe('ServerStartedNotificationComponent', () => {
         translateService.onDefaultLangChange = new EventEmitter()
         mockSocket = new MockSocket()
         socketIoService = {
-            socket: vi.fn().mockName("SocketIoService.socket")
+            socket: vi.fn().mockName("SocketIoService.socket"),
+            authenticate: vi.fn().mockName("SocketIoService.authenticate")
         }
         socketIoService.socket.mockReturnValue(mockSocket)
 
@@ -174,5 +175,10 @@ describe('ServerStartedNotificationComponent', () => {
         component.clearProgress()
         expect(cookieService.get('continueCode')).toBeUndefined()
         expect(component.hackingProgress.cleared).toBe(true)
+    })
+
+    it('should drop the socket authentication when clearing the progress', () => {
+        component.clearProgress()
+        expect(socketIoService.authenticate).toHaveBeenCalled()
     })
 })
