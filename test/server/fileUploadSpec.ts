@@ -5,10 +5,12 @@
 
 import chai from 'chai'
 import path from 'node:path'
+import fs from 'node:fs'
+import os from 'node:os'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { Readable, Writable } from 'node:stream'
-import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget, isReachableWithoutSymlinks } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -129,6 +131,36 @@ describe('fileUpload', () => {
         expect(budget.takeEntry()).to.equal(false)
         done()
       }).pipe(sink)
+    })
+  })
+
+  describe('isReachableWithoutSymlinks', () => {
+    let root: string
+
+    beforeEach(() => {
+      root = fs.mkdtempSync(path.join(os.tmpdir(), 'complaints-'))
+      fs.mkdirSync(path.join(root, 'app'))
+      fs.mkdirSync(path.join(root, 'outside', 'complaints'), { recursive: true })
+    })
+
+    afterEach(() => {
+      fs.rmSync(root, { recursive: true, force: true })
+    })
+
+    it('should accept a real uploads/complaints directory', () => {
+      fs.mkdirSync(path.join(root, 'app', 'uploads', 'complaints'), { recursive: true })
+      expect(isReachableWithoutSymlinks(path.join(root, 'app', 'uploads', 'complaints'))).to.equal(true)
+    })
+
+    it('should reject a symlinked uploads parent directory', () => {
+      fs.symlinkSync(path.join(root, 'outside'), path.join(root, 'app', 'uploads'))
+      expect(isReachableWithoutSymlinks(path.join(root, 'app', 'uploads', 'complaints'))).to.equal(false)
+    })
+
+    it('should reject a symlinked complaints directory', () => {
+      fs.mkdirSync(path.join(root, 'app', 'uploads'))
+      fs.symlinkSync(path.join(root, 'outside', 'complaints'), path.join(root, 'app', 'uploads', 'complaints'))
+      expect(isReachableWithoutSymlinks(path.join(root, 'app', 'uploads', 'complaints'))).to.equal(false)
     })
   })
 })
