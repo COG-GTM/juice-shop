@@ -4,7 +4,10 @@
  */
 
 import { type Request, type Response } from 'express'
+import { ValidationError } from 'sequelize'
 import { AddressModel } from '../models/address'
+
+const updatableFields = ['fullName', 'mobileNum', 'zipCode', 'streetAddress', 'city', 'state', 'country'] as const
 
 export function getAddress () {
   return async (req: Request, res: Response) => {
@@ -21,6 +24,30 @@ export function getAddressById () {
     } else {
       res.status(400).json({ status: 'error', data: 'Malicious activity detected.' })
     }
+  }
+}
+
+export function updateAddressById () {
+  return async (req: Request, res: Response) => {
+    const address = await AddressModel.findOne({ where: { id: req.params.id, UserId: req.body.UserId } })
+    if (address == null) {
+      res.status(403).json({ status: 'error', data: 'Malicious activity detected.' })
+      return
+    }
+    const changes: Record<string, unknown> = {}
+    for (const field of updatableFields) {
+      if (req.body[field] !== undefined) changes[field] = req.body[field]
+    }
+    try {
+      await address.update(changes)
+    } catch (error: unknown) {
+      if (error instanceof ValidationError) {
+        res.status(400).json({ message: error.message, errors: error.errors.map(({ path, message }) => ({ field: path, message })) })
+        return
+      }
+      throw error
+    }
+    res.status(200).json({ status: 'success', data: address })
   }
 }
 
