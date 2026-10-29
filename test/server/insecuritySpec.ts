@@ -200,6 +200,37 @@ describe('insecurity', () => {
         expect(res.status.calledWith(403)).to.equal(true)
       })
 
+      it('rejects appendUserId requests with an expired cached token', () => {
+        const token = issueAt(security.sessionLifetimeInSeconds + 60)
+        const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
+        const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+        const next = sinon.spy()
+
+        security.appendUserId()(req, res as any, next)
+
+        expect(next.called).to.equal(false)
+        expect(res.status.calledWith(401)).to.equal(true)
+        expect(req.body.UserId).to.equal(undefined)
+      })
+
+      it('rejects appendUserId requests with a revoked token', () => {
+        const token = issueAt(0)
+        const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
+        const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+        const next = sinon.spy()
+
+        security.appendUserId()(req, res as any, next)
+        expect(next.callCount).to.equal(1)
+        expect(req.body.UserId).to.equal(4711)
+
+        security.authenticatedUsers.revoke(token)
+        req.body = {}
+        security.appendUserId()(req, res as any, next)
+        expect(next.callCount).to.equal(1)
+        expect(res.status.calledWith(401)).to.equal(true)
+        expect(req.body.UserId).to.equal(undefined)
+      })
+
       it('does not remember revocations of unsigned tokens', () => {
         security.authenticatedUsers.revoke('not-a-jwt')
         expect(security.authenticatedUsers.isRevoked('not-a-jwt')).to.equal(false)
