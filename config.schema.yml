@@ -598,11 +598,6 @@ ctf:
         type: string
       code:
         type: string
-    accessLogDisclosureChallenge:
-      name:
-        type: string
-      code:
-        type: string
     dlpPasswordSprayingChallenge:
       name:
         type: string
