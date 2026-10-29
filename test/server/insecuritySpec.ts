@@ -213,10 +213,11 @@ describe('insecurity', () => {
   })
 
   describe('verify', () => {
-    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+    const data = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+    const payload = { data, iat: 1508639612, exp: 9999999999 }
 
     it('accepts tokens signed with the private RSA key', () => {
-      expect(security.verify(security.authorize(payload))).to.equal(true)
+      expect(security.verify(security.authorize({ data }))).to.equal(true)
     })
 
     it('rejects unsigned tokens with algorithm "none"', () => {
