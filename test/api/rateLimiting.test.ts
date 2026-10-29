@@ -41,7 +41,7 @@ void describe('/rest/user/reset-password rate limiting', () => {
     const correct = await request(app)
       .post('/rest/user/reset-password')
       .set({ ...jsonHeader, 'X-Forwarded-For': spoofedIp(99) })
-      .send({ email: ' MORTY@' + config.get<string>('application.domain'), answer: '5N0wb41L', new: 'abcdef', repeat: 'abcdef' })
+      .send({ email, answer: '5N0wb41L', new: 'abcdef', repeat: 'abcdef' })
     assert.equal(correct.status, 429)
   })
 
