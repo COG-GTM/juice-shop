@@ -102,8 +102,8 @@ describe('AdministrationComponent', () => {
     it('should find all feedbacks via FeedbackService', () => {
         component.findAllFeedbacks()
         expect(component.feedbackDataSource.data.length).toBe(2)
-        expect(component.feedbackDataSource.data[0].comment.toString()).toContain('Feedback1')
-        expect(component.feedbackDataSource.data[1].comment.toString()).toContain('Feedback2')
+        expect(component.feedbackDataSource.data[0].comment).toBe('Feedback1')
+        expect(component.feedbackDataSource.data[1].comment).toBe('Feedback2')
     })
 
     it('should give an error if FeedbackService fails to find all feedbacks', () => {
