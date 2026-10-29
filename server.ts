@@ -365,16 +365,24 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .put(security.denyAll())
     .delete(security.denyAll())
   /* Products: Only GET is allowed in order to view products */ // vuln-code-snippet neutral-line changeProductChallenge
-  app.post('/api/Products', security.isAuthorized()) // vuln-code-snippet neutral-line changeProductChallenge
-  // app.put('/api/Products/:id', security.isAuthorized()) // vuln-code-snippet vuln-line changeProductChallenge
+  app.post('/api/Products', security.denyAll()) // vuln-code-snippet neutral-line changeProductChallenge
+  app.put('/api/Products/:id', security.denyAll()) // vuln-code-snippet vuln-line changeProductChallenge
   app.delete('/api/Products/:id', security.denyAll())
   /* Challenges: GET list of challenges allowed. Everything else forbidden entirely */
   app.post('/api/Challenges', security.denyAll())
   app.use('/api/Challenges/:id', security.denyAll())
-  /* Hints: GET and PUT hints allowed. Everything else forbidden */
+  /* Hints: GET hints and PUT to unlock a hint allowed. Everything else forbidden */
   app.post('/api/Hints', security.denyAll())
   app.route('/api/Hints/:id')
     .get(security.denyAll())
+    .put((req: Request, res: Response, next: NextFunction) => {
+      if (req.body?.unlocked !== true) {
+        res.status(400).json({ status: 'error', message: 'Only unlocking a hint is allowed' })
+        return
+      }
+      req.body = { unlocked: true }
+      next()
+    })
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
   app.get('/api/Complaints', security.isAuthorized())
