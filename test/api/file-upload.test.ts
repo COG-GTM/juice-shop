@@ -186,6 +186,19 @@ void describe('/file-upload', () => {
     templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
   })
 
+  void it('POST zip file exceeding the entry limit does not persist any of its entries', async () => {
+    const entries = Array.from({ length: 101 }, (_, i) => path.resolve('uploads/complaints', `entry-limit-${i}.txt`))
+    entries.forEach(entry => { fs.rmSync(entry, { force: true }) })
+    const file = path.resolve(__dirname, '../files/tooManyComplaintEntries.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.deepEqual(entries.filter(entry => fs.existsSync(entry)), [])
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
