@@ -218,4 +218,66 @@ describe('contractEventListener', () => {
     listener.stop()
     expect(pending().length).to.equal(0)
   })
+
+  describe('when stopped while a connection is in flight', () => {
+    let settle: { resolve: (provider: ListenerProvider) => void, reject: (error: Error) => void }
+    let attempts: number
+
+    beforeEach(() => {
+      attempts = 0
+      listener = createListener(async () => {
+        attempts++
+        return await new Promise<ListenerProvider>((resolve, reject) => { settle = { resolve, reject } })
+      })
+    })
+
+    it('does not schedule a retry when the initial connection fails', async () => {
+      const started = listener.ensureStarted().catch(() => {})
+      await new Promise(resolve => setImmediate(resolve))
+      listener.stop()
+      settle.reject(new Error('boom'))
+      await started
+      expect(pending().length).to.equal(0)
+      expect(attempts).to.equal(1)
+    })
+
+    it('destroys the provider when the initial connection succeeds', async () => {
+      const started = listener.ensureStarted()
+      await new Promise(resolve => setImmediate(resolve))
+      listener.stop()
+      const provider = new FakeProvider()
+      settle.resolve(provider)
+      await started
+      expect(listener.isActive()).to.equal(false)
+      expect(provider.destroyed).to.equal(1)
+      expect(pending().length).to.equal(0)
+    })
+
+    it('does not schedule another retry when a timed retry fails', async () => {
+      const started = listener.ensureStarted().catch(() => {})
+      await new Promise(resolve => setImmediate(resolve))
+      settle.reject(new Error('boom'))
+      await started
+      await runScheduledRetry()
+      expect(attempts).to.equal(2)
+      listener.stop()
+      settle.reject(new Error('boom'))
+      await new Promise(resolve => setImmediate(resolve))
+      expect(pending().length).to.equal(0)
+      expect(attempts).to.equal(2)
+    })
+  })
+
+  it('resumes retrying when started again during the cooldown after a stop', async () => {
+    await listener.ensureStarted()
+    providers[0].fail()
+    listener.stop()
+    clock += 400
+    await listener.ensureStarted()
+    expect(providers.length).to.equal(1)
+    expect(pending().map(entry => entry.delayMs)).to.deep.equal([600])
+    await runScheduledRetry()
+    expect(providers.length).to.equal(2)
+    expect(listener.isActive()).to.equal(true)
+  })
 })

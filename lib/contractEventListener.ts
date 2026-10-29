@@ -32,6 +32,7 @@ export class ContractEventListener {
   private connectedAt: number | null = null
   private consecutiveFailures = 0
   private cancelRetry: (() => void) | null = null
+  private stopped = false
 
   constructor (
     private readonly name: string,
@@ -47,12 +48,19 @@ export class ContractEventListener {
   }
 
   async ensureStarted (): Promise<void> {
-    if (this.lastFailureAt !== null && this.provider === null && this.connecting === null &&
-      this.now() - this.lastFailureAt < this.currentRetryDelay()) return
+    this.stopped = false
+    if (this.lastFailureAt !== null && this.provider === null && this.connecting === null) {
+      const remaining = this.lastFailureAt + this.currentRetryDelay() - this.now()
+      if (remaining > 0) {
+        this.scheduleRetry(remaining)
+        return
+      }
+    }
     await this.start()
   }
 
   stop (): void {
+    this.stopped = true
     this.cancelRetry?.()
     this.cancelRetry = null
     if (this.provider !== null) this.release(this.provider, false)
@@ -75,11 +83,15 @@ export class ContractEventListener {
     this.connectedAt = null
     this.consecutiveFailures++
     this.lastFailureAt = now
-    if (this.cancelRetry !== null) return
+    this.scheduleRetry(this.currentRetryDelay())
+  }
+
+  private scheduleRetry (delayMs: number): void {
+    if (this.stopped || this.cancelRetry !== null) return
     this.cancelRetry = this.schedule(() => {
       this.cancelRetry = null
       this.start().catch(() => {})
-    }, this.currentRetryDelay())
+    }, delayMs)
   }
 
   private async open (): Promise<void> {
@@ -97,6 +109,10 @@ export class ContractEventListener {
       throw error
     }
     const current = provider
+    if (this.stopped) {
+      try { Promise.resolve(current.destroy()).catch(() => {}) } catch {}
+      return
+    }
     this.provider = current
     this.connectedAt = this.now()
     if (early.failed) {
