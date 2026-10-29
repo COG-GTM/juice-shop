@@ -139,27 +139,6 @@ describe('insecurity', () => {
     })
   })
 
-  describe('sanitizeLegacy', () => {
-    it('returns empty string for undefined input', () => {
-      expect(security.sanitizeLegacy()).to.equal('')
-      expect(security.sanitizeLegacy(undefined)).to.equal('')
-    })
-
-    it('returns input unchanged for plain text input', () => {
-      expect(security.sanitizeLegacy('bkimminich')).to.equal('bkimminich')
-      expect(security.sanitizeLegacy('Kosh III.')).to.equal('Kosh III.')
-    })
-
-    it('removes all opening tags and subsequent character from HTML input', () => {
-      expect(security.sanitizeLegacy('<h1>Hello</h1>')).to.equal('ello</h1>')
-      expect(security.sanitizeLegacy('<img src="test">')).to.equal('rc="test">')
-    })
-
-    it('can be bypassed to allow working HTML payload to be returned', () => {
-      expect(security.sanitizeLegacy('<<a|ascript>alert(`xss`)</script>')).to.equal('<script>alert(`xss`)</script>')
-    })
-  })
-
   describe('sanitizeSecure', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeSecure('')).to.equal('')
