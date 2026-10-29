@@ -33,7 +33,7 @@ export function updateProductReviews () {
           res.status(403).json({ error: 'You can only edit your own reviews.' })
           return
         }
-        res.json(result)
+        res.json({ modified: result.modified })
       }, (err: unknown) => {
         res.status(500).json(err)
       })
