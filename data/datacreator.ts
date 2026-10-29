@@ -38,6 +38,7 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
 
 const entities = new Entities()
 
@@ -182,6 +183,18 @@ async function createChallenges () {
   }
 }
 
+const privilegedRoles: string[] = [security.roles.admin, security.roles.accounting]
+
+export function resolveSeedPassword (key: string, role: string, defaultPassword: string, email: string) {
+  if (!privilegedRoles.includes(role)) return defaultPassword
+  const override = process.env[`JUICE_SHOP_SEED_PASSWORD_${key.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`]
+  if (override) return override
+  if (process.env.JUICE_SHOP_INSECURE_DEFAULT_CREDENTIALS === 'true') return defaultPassword
+  const generated = crypto.randomBytes(24).toString('base64url')
+  logger.info(`Generated random password for privileged seed account ${email}: ${generated}`)
+  return generated
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
 
@@ -192,7 +205,7 @@ async function createUsers () {
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: resolveSeedPassword(key, role, password, completeEmail),
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
