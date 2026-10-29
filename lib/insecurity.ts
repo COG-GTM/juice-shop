@@ -174,7 +174,7 @@ const hasValidRs256Signature = (token: string) => {
   }
 }
 
-const verifiedAdminOrUserClaims = (req: Request) => {
+export const verifiedAdminOrUserClaims = (req: Request) => {
   const token = utils.jwtFrom(req)
   const decodedToken = token && hasValidRs256Signature(token) && decode(token)
   const isExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp <= Math.floor(Date.now() / 1000)
