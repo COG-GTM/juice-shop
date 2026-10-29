@@ -69,9 +69,19 @@ export class BasketService {
           pdfWindow = window.open(pdfUrl, '_blank')
           if (pdfWindow) pdfWindow.opener = null
         }
-        const revokeWhenClosed = setInterval(() => {
-          if (!pdfWindow || pdfWindow.closed) {
-            clearInterval(revokeWhenClosed)
+        let pdfShown = false
+        let checks = 0
+        const revokeWhenLeft = setInterval(() => {
+          let showsPdf: boolean
+          try {
+            showsPdf = !!pdfWindow && !pdfWindow.closed && pdfWindow.location.href === pdfUrl
+          } catch {
+            showsPdf = false
+          }
+          if (showsPdf) {
+            pdfShown = true
+          } else if (pdfShown || !pdfWindow || pdfWindow.closed || ++checks > 30) {
+            clearInterval(revokeWhenLeft)
             URL.revokeObjectURL(pdfUrl)
           }
         }, 1000)
