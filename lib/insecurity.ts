@@ -124,6 +124,9 @@ export function couponSigningKeyIn (directory: string) {
     try {
       fs.chmodSync(keyFile, 0o600)
     } catch { /* e.g. key file owned by another user */ }
+    if (process.platform !== 'win32' && (fs.statSync(keyFile).mode & 0o077) !== 0) {
+      throw new Error('Coupon signing key is accessible by other users')
+    }
     const persistedKey = fs.readFileSync(keyFile, 'utf8')
     if (persistedKey.length > 0) {
       return persistedKey
