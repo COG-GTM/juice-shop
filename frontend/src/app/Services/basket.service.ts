@@ -52,6 +52,10 @@ export class BasketService {
     return this.http.post(this.host + '/', params).pipe(map((response: any) => response.data), catchError((error) => { throw error }))
   }
 
+  getOrderConfirmation (orderId: string) {
+    return this.http.get(`${this.hostServer}/rest/order/${encodeURIComponent(orderId)}/confirmation`, { responseType: 'blob' }).pipe(catchError((error) => { throw error }))
+  }
+
   checkout (id?: number, couponData?: string, orderDetails?: OrderDetail) {
     return this.http.post(`${this.hostServer}/rest/basket/${id}/checkout`, { couponData, orderDetails }).pipe(map((response: any) => response.orderConfirmation), catchError((error) => { throw error }))
   }
