@@ -58,6 +58,7 @@ export class BasketService {
 
   openOrderConfirmation (orderId: string) {
     const confirmationWindow = window.open('', '_blank')
+    if (confirmationWindow) confirmationWindow.opener = null
     this.getOrderConfirmation(orderId).subscribe({
       next: (pdf: Blob) => {
         const pdfUrl = URL.createObjectURL(pdf)
@@ -66,6 +67,7 @@ export class BasketService {
           pdfWindow.location.href = pdfUrl
         } else {
           pdfWindow = window.open(pdfUrl, '_blank')
+          if (pdfWindow) pdfWindow.opener = null
         }
         const revokeWhenClosed = setInterval(() => {
           if (!pdfWindow || pdfWindow.closed) {
