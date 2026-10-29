@@ -38,6 +38,7 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
 
 const entities = new Entities()
 
@@ -182,17 +183,36 @@ async function createChallenges () {
   }
 }
 
+const privilegedRoles: string[] = [security.roles.admin, security.roles.accounting]
+
+export function usesShippedSecrets (role: string) {
+  return !privilegedRoles.includes(role) || utils.insecureDefaultCredentialsEnabled()
+}
+
+export function resolveSeedPassword (key: string, role: string, defaultPassword: string, email: string) {
+  if (!privilegedRoles.includes(role)) return defaultPassword
+  const envVar = `JUICE_SHOP_SEED_PASSWORD_${key.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()}`
+  const override = process.env[envVar]
+  if (override) return override
+  if (utils.insecureDefaultCredentialsEnabled()) return defaultPassword
+  logger.info(`Privileged seed account ${email} was given a random password. Set ${envVar} to choose one.`)
+  return crypto.randomBytes(24).toString('base64url')
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
+  datacache.accountsWithShippedPassword.clear()
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const seedPassword = resolveSeedPassword(key, role, password, completeEmail)
+        if (seedPassword === password) datacache.accountsWithShippedPassword.add(completeEmail)
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seedPassword,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
@@ -200,7 +220,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, usesShippedSecrets(role) ? securityQuestion.answer : crypto.randomBytes(24).toString('base64url'))
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
