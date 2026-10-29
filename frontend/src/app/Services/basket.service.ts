@@ -61,12 +61,18 @@ export class BasketService {
     this.getOrderConfirmation(orderId).subscribe({
       next: (pdf: Blob) => {
         const pdfUrl = URL.createObjectURL(pdf)
-        if (confirmationWindow) {
-          confirmationWindow.location.href = pdfUrl
+        let pdfWindow = confirmationWindow
+        if (pdfWindow) {
+          pdfWindow.location.href = pdfUrl
         } else {
-          window.open(pdfUrl, '_blank')
+          pdfWindow = window.open(pdfUrl, '_blank')
         }
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
+        const revokeWhenClosed = setInterval(() => {
+          if (!pdfWindow || pdfWindow.closed) {
+            clearInterval(revokeWhenClosed)
+            URL.revokeObjectURL(pdfUrl)
+          }
+        }, 1000)
       },
       error: (err) => {
         confirmationWindow?.close()
