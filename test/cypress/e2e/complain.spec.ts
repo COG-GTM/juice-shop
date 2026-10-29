@@ -24,6 +24,7 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: data
         })
       })
@@ -41,6 +42,7 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: data
         })
       })
