@@ -42,6 +42,8 @@ void describe('/rest/track-order/:id', () => {
       }
       assert.equal(typeof item.eta, 'string')
       assert.equal(typeof item._id, 'string')
+      assert.equal(Object.hasOwn(item, 'UserId'), false)
     }
+    assert.ok(res.body.data.length > 1)
   })
 })
