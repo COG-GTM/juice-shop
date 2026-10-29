@@ -119,6 +119,16 @@ describe('profileImageUrlUpload', () => {
     expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
   })
 
+  it('should keep the previous image when a replacement download fails', async () => {
+    fs.writeFileSync(`${uploadsDir}/${userId}.png`, 'previous')
+    req.body.imageUrl = `${baseUrl}/endless.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(fs.readFileSync(`${uploadsDir}/${userId}.png`, 'utf8')).to.equal('previous')
+    expect(fs.readdirSync(uploadsDir).filter(file => file.endsWith('.part'))).to.deep.equal([])
+  })
+
   it('should not download a response that is not an image', async () => {
     req.body.imageUrl = `${baseUrl}/page.png`
 

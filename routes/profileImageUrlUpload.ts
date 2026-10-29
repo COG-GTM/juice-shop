@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -52,10 +53,12 @@ export function profileImageUrlUpload () {
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`
+          const tempPath = `${filePath}.${randomUUID()}.part`
           try {
-            await pipeline(Readable.fromWeb(response.body as any), byteLimit(MAX_IMAGE_BYTES), fs.createWriteStream(filePath, { flags: 'w' }))
+            await pipeline(Readable.fromWeb(response.body as any), byteLimit(MAX_IMAGE_BYTES), fs.createWriteStream(tempPath, { flags: 'wx' }))
+            await fs.promises.rename(tempPath, filePath)
           } catch (error) {
-            await fs.promises.rm(filePath, { force: true })
+            await fs.promises.rm(tempPath, { force: true })
             throw error
           }
           const user = await UserModel.findByPk(loggedInUser.data.id)
