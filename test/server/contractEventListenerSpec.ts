@@ -4,7 +4,7 @@
  */
 
 import chai from 'chai'
-import { ContractEventListener, type ListenerProvider } from '../../lib/contractEventListener'
+import { ContractEventListener, type ListenerProvider, type RetryScheduler } from '../../lib/contractEventListener'
 const expect = chai.expect
 
 class FakeProvider implements ListenerProvider {
@@ -21,19 +21,39 @@ class FakeProvider implements ListenerProvider {
   }
 }
 
+interface ScheduledRetry { retry: () => void, delayMs: number, cancelled: boolean }
+
 describe('contractEventListener', () => {
   let clock: number
   let providers: FakeProvider[]
+  let scheduled: ScheduledRetry[]
   let listener: ContractEventListener
+
+  const schedule: RetryScheduler = (retry, delayMs) => {
+    const entry = { retry, delayMs, cancelled: false }
+    scheduled.push(entry)
+    return () => { entry.cancelled = true }
+  }
+  const pending = () => scheduled.filter(entry => !entry.cancelled)
+  const runScheduledRetry = async () => {
+    const entry = pending()[0]
+    scheduled.splice(scheduled.indexOf(entry), 1)
+    clock += entry.delayMs
+    entry.retry()
+    await new Promise(resolve => setImmediate(resolve))
+  }
+  const createListener = (connect: (fail: (error: unknown) => void) => Promise<ListenerProvider>) =>
+    new ContractEventListener('Test Listener', connect, 1000, () => clock, schedule, 8000)
 
   beforeEach(() => {
     clock = 0
     providers = []
-    listener = new ContractEventListener('Test Listener', async () => {
+    scheduled = []
+    listener = createListener(async () => {
       const provider = new FakeProvider()
       providers.push(provider)
       return provider
-    }, 1000, () => clock)
+    })
   })
 
   it('opens only one provider for repeated requests', async () => {
@@ -86,10 +106,10 @@ describe('contractEventListener', () => {
 
   it('applies the retry delay when connecting throws', async () => {
     let attempts = 0
-    listener = new ContractEventListener('Test Listener', async () => {
+    listener = createListener(async () => {
       attempts++
       throw new Error('boom')
-    }, 1000, () => clock)
+    })
     try {
       await listener.ensureStarted()
       chai.assert.fail('Expected error was not thrown')
@@ -101,12 +121,12 @@ describe('contractEventListener', () => {
   })
 
   it('ignores errors thrown while destroying a provider', async () => {
-    listener = new ContractEventListener('Test Listener', async () => {
+    listener = createListener(async () => {
       const provider = new FakeProvider()
       provider.destroy = () => { throw new Error('websocket closed') }
       providers.push(provider)
       return provider
-    }, 1000, () => clock)
+    })
     await listener.ensureStarted()
     expect(() => { providers[0].fail() }).to.not.throw()
     expect(listener.isActive()).to.equal(false)
@@ -114,12 +134,12 @@ describe('contractEventListener', () => {
 
   it('releases the provider when the event subscription fails after connecting', async () => {
     let failSubscription: (error: unknown) => void = () => {}
-    listener = new ContractEventListener('Test Listener', async (fail) => {
+    listener = createListener(async (fail) => {
       failSubscription = fail
       const provider = new FakeProvider()
       providers.push(provider)
       return provider
-    }, 1000, () => clock)
+    })
     await listener.ensureStarted()
     failSubscription(new Error('eth_subscribe rejected'))
     expect(providers[0].destroyed).to.equal(1)
@@ -133,12 +153,12 @@ describe('contractEventListener', () => {
   })
 
   it('rejects and destroys the provider when the subscription fails before connecting completes', async () => {
-    listener = new ContractEventListener('Test Listener', async (fail) => {
+    listener = createListener(async (fail) => {
       const provider = new FakeProvider()
       providers.push(provider)
       fail(new Error('eth_subscribe rejected'))
       return provider
-    }, 1000, () => clock)
+    })
     try {
       await listener.ensureStarted()
       chai.assert.fail('Expected error was not thrown')
@@ -149,5 +169,53 @@ describe('contractEventListener', () => {
     expect(listener.isActive()).to.equal(false)
     await listener.ensureStarted()
     expect(providers.length).to.equal(1)
+  })
+
+  it('reconnects on its own after the retry delay without another request', async () => {
+    await listener.ensureStarted()
+    providers[0].fail()
+    expect(pending().map(entry => entry.delayMs)).to.deep.equal([1000])
+    await runScheduledRetry()
+    expect(providers.length).to.equal(2)
+    expect(listener.isActive()).to.equal(true)
+    expect(pending().length).to.equal(0)
+  })
+
+  it('keeps a single pending retry no matter how many requests arrive during the cooldown', async () => {
+    await listener.ensureStarted()
+    providers[0].fail()
+    for (let i = 0; i < 50; i++) await listener.ensureStarted()
+    expect(pending().length).to.equal(1)
+    expect(providers.length).to.equal(1)
+  })
+
+  it('backs off exponentially up to the maximum delay while the upstream keeps failing', async () => {
+    const delays: number[] = []
+    await listener.ensureStarted()
+    for (let i = 0; i < 6; i++) {
+      providers[providers.length - 1].fail()
+      delays.push(pending()[0].delayMs)
+      await runScheduledRetry()
+    }
+    expect(delays).to.deep.equal([1000, 2000, 4000, 8000, 8000, 8000])
+    expect(providers.filter(p => p.destroyed === 0).length).to.equal(1)
+  })
+
+  it('resets the backoff once a provider stayed connected for the maximum delay', async () => {
+    await listener.ensureStarted()
+    for (let i = 0; i < 3; i++) {
+      providers[providers.length - 1].fail()
+      await runScheduledRetry()
+    }
+    clock += 8000
+    providers[providers.length - 1].fail()
+    expect(pending()[0].delayMs).to.equal(1000)
+  })
+
+  it('cancels the pending retry when stopped', async () => {
+    await listener.ensureStarted()
+    providers[0].fail()
+    listener.stop()
+    expect(pending().length).to.equal(0)
   })
 })
