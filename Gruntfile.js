@@ -56,6 +56,7 @@ module.exports = function (grunt) {
               'i18n/.gitkeep',
               'lib/**',
               'models/*.ts',
+              'orders/.gitkeep',
               'node_modules/**',
               'routes/*.ts',
               'uploads/complaints/.gitkeep',
