@@ -206,10 +206,12 @@ async function createUsers () {
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const seedPassword = resolveSeedPassword(key, role, password, completeEmail)
+        if (seedPassword === password) datacache.accountsWithShippedPassword.add(completeEmail)
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password: resolveSeedPassword(key, role, password, completeEmail),
+          password: seedPassword,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
@@ -217,7 +219,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null && usesShippedSecrets(role)) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, usesShippedSecrets(role) ? securityQuestion.answer : crypto.randomBytes(24).toString('base64url'))
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
