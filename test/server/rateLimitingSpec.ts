@@ -35,8 +35,12 @@ describe('rateLimiting', () => {
   })
 
   describe('emailOf', () => {
-    it('normalizes the targeted email address', () => {
-      expect(rateLimiting.emailOf(requestWithBody({ email: ' Jim@Juice-sh.op ' }))).to.equal('jim@juice-sh.op')
+    it('keys on the exact email the reset route looks up', () => {
+      expect(rateLimiting.emailOf(requestWithBody({ email: 'jim@juice-sh.op' }))).to.equal('jim@juice-sh.op')
+    })
+
+    it('keeps case variants of an address in separate buckets', () => {
+      expect(rateLimiting.emailOf(requestWithBody({ email: 'Alice@example.com' }))).to.not.equal(rateLimiting.emailOf(requestWithBody({ email: 'alice@example.com' })))
     })
 
     it('puts all non-string emails into one shared bucket', () => {
