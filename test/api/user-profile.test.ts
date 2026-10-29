@@ -57,7 +57,8 @@ void describe('/profile', () => {
       await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
-        .field('username', payload)
+        .type('form')
+        .send({ username: payload })
         .redirects(0)
         .expect(302)
 
@@ -80,7 +81,8 @@ void describe('/profile', () => {
       await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
-        .field('username', payload)
+        .type('form')
+        .send({ username: payload })
         .redirects(0)
         .expect(302)
 
@@ -89,6 +91,7 @@ void describe('/profile', () => {
         .set(authHeader)
 
       assert.equal(res.status, 200)
+      assert.ok(res.text.includes('child_process'))
       assert.ok(!res.text.includes('uid='))
     })
   }
