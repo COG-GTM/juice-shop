@@ -200,6 +200,21 @@ describe('insecurity', () => {
         expect(res.status.calledWith(403)).to.equal(true)
       })
 
+      it('ignores the customer role of expired and revoked tokens', () => {
+        const customer = { data: { id: 4712, email: 'customer@juice-sh.op', role: security.roles.customer } as unknown as UserModel }
+        const reqFor = (token: string) => ({ headers: { authorization: `Bearer ${token}` } }) as unknown as Request
+        const live = security.authorize(customer)
+        expect(security.isCustomer(reqFor(live))).to.equal(true)
+
+        security.authenticatedUsers.revoke(live)
+        expect(security.isCustomer(reqFor(live))).to.equal(false)
+
+        Date.now = () => realNow() - (security.sessionLifetimeInSeconds + 60) * 1000
+        const expired = security.authorize(customer)
+        Date.now = realNow
+        expect(security.isCustomer(reqFor(expired))).to.equal(false)
+      })
+
       it('rejects appendUserId requests with an expired cached token', () => {
         const token = issueAt(security.sessionLifetimeInSeconds + 60)
         const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
