@@ -9,6 +9,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { Readable, Transform } from 'node:stream'
 import yaml from 'js-yaml'
+import config from 'config'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
 import { type NextFunction, type Request, type Response } from 'express'
@@ -38,6 +39,14 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
   }
   const targetPath = path.resolve(complaintsDirectory, ...segments)
   return targetPath.startsWith(complaintsDirectory + path.sep) && path.dirname(targetPath) === complaintsDirectory ? targetPath : null
+}
+
+function resolvePromotionSubtitlesEntryPath (entryPath: unknown): string | null {
+  if (typeof entryPath !== 'string' || entryPath.includes('\0') || !utils.isChallengeEnabled(challenges.videoXssChallenge)) {
+    return null
+  }
+  const subtitlesPath = path.resolve('frontend/dist/frontend/assets/public/videos', config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt')
+  return path.resolve(complaintsDirectory, entryPath) === subtitlesPath ? subtitlesPath : null
 }
 
 const tempFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW ?? 0)
@@ -101,7 +110,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         }
         const limiter = budget.limiter()
         limiter.on('error', (err: Error) => { abort(err.message) })
-        const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
+        const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) ?? resolvePromotionSubtitlesEntryPath(fileName) : null
         const temp = targetPath !== null ? openComplaintTempFile() : null
         if (targetPath === null || temp === null) {
           entry.pipe(limiter).resume()
@@ -233,5 +242,6 @@ export {
   handleXmlUpload,
   handleYamlUpload,
   resolveComplaintEntryPath,
+  resolvePromotionSubtitlesEntryPath,
   createExtractionBudget
 }
