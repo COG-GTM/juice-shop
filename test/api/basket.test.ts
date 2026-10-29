@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -122,6 +123,19 @@ void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a basket is not allowed via public API', async () => {
     const res = await request(app).post('/rest/basket/1/checkout')
     assert.equal(res.status, 401)
+  })
+
+  void it('POST placing an order with insufficient wallet balance leaves no order PDF behind', async () => {
+    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith('order_'))
+    const before = orderPdfs()
+
+    const res = await request(app)
+      .post('/rest/basket/1/checkout')
+      .set(authHeader)
+      .send({ UserId: 1, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Insufficient wallet balance.'))
+    assert.deepEqual(orderPdfs(), before)
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {

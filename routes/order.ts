@@ -42,15 +42,6 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
-
-          fileWriter.on('finish', () => {
-            void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
-              res.json({ orderConfirmation: orderId })
-            })()
-          })
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
           doc.moveTo(70, 115).lineTo(540, 115).stroke()
@@ -157,7 +148,7 @@ export function placeOrder () {
             }
           }
 
-          db.ordersCollection.insert({
+          await db.ordersCollection.insert({
             promotionalAmount: discountAmount,
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
@@ -169,9 +160,22 @@ export function placeOrder () {
             bonus: totalPoints,
             deliveryPrice: deliveryAmount,
             eta: deliveryMethod.eta.toString()
-          }).then(() => {
-            doc.end()
           })
+
+          const pdfPath = path.join('ftp/', pdfFile)
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
+          fileWriter.on('finish', () => {
+            void (async () => {
+              void basket.update({ coupon: null })
+              await BasketItemModel.destroy({ where: { BasketId: id } })
+              res.json({ orderConfirmation: orderId })
+            })()
+          })
+          fileWriter.on('error', (error: Error) => {
+            doc.unpipe(fileWriter)
+            fs.unlink(pdfPath, () => { next(error) })
+          })
+          doc.end()
         } else {
           next(new Error(`Basket with id=${id} does not exist.`))
         }
