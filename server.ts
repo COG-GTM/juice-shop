@@ -343,12 +343,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100
-  }), rateLimit({
+  }))
+  // vuln-code-snippet end resetPasswordMortyChallenge
+  app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 10,
     keyGenerator ({ body }: Request) { return `reset-password:${String(body?.email ?? '').toLowerCase()}` }
   }))
-  // vuln-code-snippet end resetPasswordMortyChallenge
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/

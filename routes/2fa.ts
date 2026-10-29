@@ -13,14 +13,14 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
-export function verifyRateLimitKey ({ body }: Request) {
+export function verifyRateLimitKey ({ body, ip }: Request) {
   try {
-    const userId = security.decode(body?.tmpToken)?.userId
-    if (userId !== undefined && userId !== null) {
-      return `2fa-verify:user:${String(userId)}`
+    if (security.verify(body?.tmpToken)) {
+      const userId = security.decode(body.tmpToken)?.userId
+      if (userId != null) return `2fa-verify:user:${String(userId)}`
     }
   } catch {}
-  return `2fa-verify:token:${String(body?.tmpToken)}`
+  return `2fa-verify:ip:${String(ip)}`
 }
 
 export async function verify (req: Request, res: Response) {
