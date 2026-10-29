@@ -6,7 +6,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
-import jwt from 'jsonwebtoken'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { challenges, products } from '../data/datacache'
@@ -208,12 +207,9 @@ export function serveOrderConfirmation () {
 }
 
 function verifiedUserFrom (token?: string) {
-  if (!token) return undefined
-  try {
-    jwt.verify(utils.unquote(token), security.publicKey, { algorithms: ['RS256'] })
-  } catch {
-    return undefined
-  }
+  if (!token || !security.verify(utils.unquote(token))) return undefined
+  const exp = (security.decode(utils.unquote(token)) as { exp?: number } | undefined)?.exp
+  if (typeof exp === 'number' && exp * 1000 <= Date.now()) return undefined
   return security.authenticatedUsers.get(token)
 }
 
