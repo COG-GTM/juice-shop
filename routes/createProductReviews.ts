@@ -13,16 +13,16 @@ import * as utils from '../lib/utils'
 
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
+    const productId = Number(req.params.id)
+    if (!Number.isInteger(productId)) {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
+
     const user = security.authenticatedUsers.from(req)
     challengeUtils.solveIf(
       challenges.forgedReviewChallenge,
       () => user?.data?.email !== req.body.author
     )
-
-    const productId = Number(req.params.id)
-    if (!Number.isInteger(productId)) {
-      return res.status(400).json({ error: 'Wrong Params' })
-    }
 
     try {
       await reviewsCollection.insert({
