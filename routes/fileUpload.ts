@@ -106,7 +106,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         if (finalized) return
         finalized = true
         void Promise.all(staged).then(entries => {
-          if (aborted) {
+          if (aborted || !isReachableWithoutSymlinks(complaintsDirectory)) {
             removeStaged(entries)
             return
           }
@@ -169,7 +169,10 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         })
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
-      }).on('error', function (err: unknown) { next(err) })
+      }).on('error', function (err: unknown) {
+        abort(utils.getErrorMessage(err))
+        next(err)
+      })
     }
     res.status(204).end()
   } else {
