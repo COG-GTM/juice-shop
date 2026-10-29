@@ -726,27 +726,6 @@
 		"added": [],
 		"removed": []
 	},
-	"forgedReviewChallenge_1.ts": {
-		"added": [
-			6
-		],
-		"removed": [
-			6
-		]
-	},
-	"forgedReviewChallenge_2_correct.ts": {
-		"added": [],
-		"removed": []
-	},
-	"forgedReviewChallenge_3.ts": {
-		"added": [
-			6,
-			7
-		],
-		"removed": [
-			6
-		]
-	},
 	"localXssChallenge_1.ts": {
 		"added": [],
 		"removed": []
@@ -851,38 +830,6 @@
 	"nftUnlockChallenge_4.sol": {
 		"added": [],
 		"removed": []
-	},
-	"noSqlReviewsChallenge_1.ts": {
-		"added": [
-			6
-		],
-		"removed": [
-			4,
-			6,
-			8,
-			9,
-			6
-		]
-	},
-	"noSqlReviewsChallenge_2.ts": {
-		"added": [
-			6
-		],
-		"removed": [
-			6
-		]
-	},
-	"noSqlReviewsChallenge_3_correct.ts": {
-		"added": [
-			6
-		],
-		"removed": [
-			4,
-			6,
-			8,
-			9,
-			6
-		]
 	},
 	"redirectChallenge_1.ts": {
 		"added": [],
