@@ -84,14 +84,12 @@ export interface Config {
     codingChallengesEnabled: string
     restrictToTutorialsFirst: boolean
     safetyMode: string
-    overwriteUrlForProductTamperingChallenge: string
   }
   hackingInstructor: {
     isEnabled: boolean
     avatarImage: string
+    hintPlaybackSpeed: string
   }
-  products: any[]
-  memories: any[]
   ctf: {
     showFlagsInNotifications: boolean
     showCountryDetailsInNotifications: string
