@@ -296,9 +296,15 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
-    const res = await request(app)
+    const customerRes = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
+    assert.equal(customerRes.status, 403)
+
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + token })
     assert.equal(res.status, 200)
   })
 })
