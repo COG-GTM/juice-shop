@@ -4,6 +4,17 @@ describe('/#/search', () => {
   beforeEach(() => {
     cy.visit('/#/search')
   })
+  describe('search query rendering', () => {
+    it('should render the q parameter as literal text', () => {
+      const payload = '<img src=x onerror=alert(1)>'
+      const alertStub = cy.stub()
+      cy.on('window:alert', alertStub)
+      cy.visit(`/#/search?q=${encodeURIComponent(payload)}`)
+      cy.get('#searchValue').should('have.text', payload)
+      cy.get('#searchValue img').should('not.exist')
+      cy.wrap(alertStub).should('not.have.been.called')
+    })
+  })
   describe('challenge "localXss"', () => {
     // Cypress alert bug
     xit('search query should be susceptible to reflected XSS attacks', () => {
