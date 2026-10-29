@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import logger from '../lib/logger'
 
 interface Product {
   quantity: number
@@ -150,6 +151,21 @@ export function placeOrder () {
 
           const pdfPath = path.join('ftp/', pdfFile)
           const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
+          const discardPdf = (error: unknown) => {
+            const unlinkPdf = () => {
+              fs.unlink(pdfPath, (unlinkError) => {
+                if (unlinkError != null && unlinkError.code !== 'ENOENT') {
+                  logger.warn(`Could not remove ${pdfPath}: ${unlinkError.message}`)
+                }
+                next(error)
+              })
+            }
+            if (fileWriter.closed) {
+              unlinkPdf()
+            } else {
+              fileWriter.once('close', unlinkPdf)
+            }
+          }
           fileWriter.on('finish', () => {
             void (async () => {
               try {
@@ -167,7 +183,7 @@ export function placeOrder () {
                   eta: deliveryMethod.eta.toString()
                 })
               } catch (error: unknown) {
-                fs.unlink(pdfPath, () => { next(error) })
+                discardPdf(error)
                 return
               }
               void basket.update({ coupon: null })
@@ -177,12 +193,7 @@ export function placeOrder () {
           })
           fileWriter.on('error', (error: Error) => {
             doc.unpipe(fileWriter)
-            const removePartialPdf = () => { fs.unlink(pdfPath, () => { next(error) }) }
-            if (fileWriter.closed) {
-              removePartialPdf()
-            } else {
-              fileWriter.once('close', removePartialPdf)
-            }
+            discardPdf(error)
           })
           doc.end()
         } else {
