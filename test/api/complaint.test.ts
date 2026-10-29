@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -20,9 +21,10 @@ before(async () => {
 
 void describe('/api/Complaints', () => {
   void it('POST new complaint', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
       .post('/api/Complaints')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
       .send({
         message: 'You have no clue what https://github.com/eslint/eslint-scope/issues/39 means, do you???'
       })
@@ -33,17 +35,84 @@ void describe('/api/Complaints', () => {
     assert.equal(typeof res.body.data.updatedAt, 'string')
   })
 
+  void it('POST complaint is always filed under the logged-in customer', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ UserId: 3, message: 'Forged complaint for bender' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, security.decode(token).data.id)
+  })
+
+  void it('POST complaint with a token that carries no user is unauthorized', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(authHeader)
+      .send({ message: 'No user' })
+    assert.equal(res.status, 401)
+  })
+
   void it('GET all complaints is forbidden via public API', async () => {
     const res = await request(app)
       .get('/api/Complaints')
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET complaints with an unsigned admin token is unauthorized', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: `Bearer ${header}.${payload}.`, 'content-type': 'application/json' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET complaints returns only the complaints of the logged-in customer', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
+    const jimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const created = await request(app)
+      .post('/api/Complaints')
+      .set(jimHeader)
+      .send({ UserId: jimId, message: 'Jim\'s complaint' })
+    assert.equal(created.status, 201)
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(jimHeader)
+    assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    assert.ok(res.body.data.some((complaint: { id: number }) => complaint.id === created.body.data.id))
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimId)
+    }
+  })
+
+  void it('GET complaints does not leak other customers\' complaints', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+    assert.ok(!res.body.data.some((complaint: { UserId: number }) => complaint.UserId === 3))
+  })
+
+  void it('GET complaints returns all complaints for an admin', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((complaint: { UserId: number }) => complaint.UserId === 3))
+    assert.ok(res.body.data.length >= 2)
+  })
+
+  void it('GET complaints with a token that carries no user is unauthorized', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
   })
 })
 
