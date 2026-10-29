@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -30,6 +32,23 @@ describe('insecurity', () => {
     it('returns undefined if header "x-user-email" is not present', () => {
       expect(security.userEmailFrom({ headers: {} })).to.equal(undefined)
       expect(security.userEmailFrom({})).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that verify against the active public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects RS256 tokens signed with a different private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
     })
   })
 
