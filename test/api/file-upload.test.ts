@@ -114,7 +114,7 @@ void describe('/file-upload', () => {
   }
 
   void it('POST file type YAML with js/function tag is rejected', async () => {
-    const payload = Buffer.from('toJSON: !!js/function \'function () { return "PWNED" }\'\n')
+    const payload = Buffer.from('toJSON: !!js/function \'function () { return "PW" + "NED" }\'\n')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', payload, 'function.yml')
