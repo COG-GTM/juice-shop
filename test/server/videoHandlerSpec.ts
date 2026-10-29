@@ -120,17 +120,27 @@ describe('videoHandler', () => {
       expect(error?.message).to.equal('ENOENT')
     })
 
-    it('should compile the template and read the subtitles only once when the route is created', async () => {
+    it('should compile the template only once when the route is created', async () => {
       const handler = promotionVideo()
       const first = await render(handler)
       readFileSync.withArgs('views/promotionVideo.pug').returns('p #{process.version}')
-      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt').returns('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nreplaced\n')
 
       const second = await render(handler)
 
       expect(second.replace(/nonce="[^"]+"/g, '')).to.equal(first.replace(/nonce="[^"]+"/g, ''))
       expect(reads('views/promotionVideo.pug')).to.equal(1)
-      expect(reads('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(1)
+    })
+
+    it('should serve subtitles that are replaced after the route was created', async () => {
+      const handler = promotionVideo()
+      await render(handler)
+      const replaced = 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nreplaced\n'
+      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt').returns(replaced)
+
+      const html = await render(handler)
+
+      const match = /<script id="subtitle" type="application\/json"[^>]*>([^<]*)<\/script>/.exec(html)
+      expect(JSON.parse(match?.[1] ?? '')).to.equal(replaced)
     })
 
     it('should retry reading the subtitles on the next request after a failure', async () => {

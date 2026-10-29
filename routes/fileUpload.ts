@@ -45,8 +45,8 @@ const tempFileFlags = fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constant
 function openComplaintTempFile (): { tempPath: string, fd: number } | null {
   const tempPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
   try {
-    if (fs.lstatSync(complaintsDirectory).isSymbolicLink()) {
-      throw new Error(`${complaintsDirectory} must not be a symbolic link`)
+    if (fs.lstatSync(complaintsDirectory).isSymbolicLink() || fs.realpathSync(complaintsDirectory) !== path.join(fs.realpathSync('.'), 'uploads', 'complaints')) {
+      throw new Error(`${complaintsDirectory} must not be or be inside a symbolic link`)
     }
     return { tempPath, fd: fs.openSync(tempPath, tempFileFlags) }
   } catch (err) {

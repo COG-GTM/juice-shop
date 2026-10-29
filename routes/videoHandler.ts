@@ -50,25 +50,22 @@ export const getVideo = () => {
 }
 
 export const promotionVideo = () => {
-  const template = compilePromotionTemplate()
-  template.catch(() => {})
-  const loadPage = async () => {
-    const subs = getSubsFromFile()
-    const html = (await template).replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
-    return { html, subs }
+  let template: Promise<string> | null = null
+  const loadTemplate = () => {
+    template ??= compilePromotionTemplate()
+    template.catch(() => { template = null })
+    return template
   }
-  let page: ReturnType<typeof loadPage> | null = loadPage()
-  page.catch(() => {})
+  void loadTemplate()
   return (req: Request, res: Response, next: NextFunction) => {
-    page ??= loadPage()
-    page.then(({ html, subs }) => {
+    loadTemplate().then((compiledTemplate) => {
+      const subs = getSubsFromFile()
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
       const nonce = crypto.randomBytes(16).toString('base64')
+      const html = compiledTemplate.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`)
+        .replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
       res.set('Content-Security-Policy', promotionCsp(nonce))
-      res.send(html.replace(/<script(?=[\s>])(?! id="subtitle")/g, `<script nonce="${nonce}"`))
-    }, (error) => {
-      page = null
-      throw error
+      res.send(html)
     }).catch(next)
   }
 }
