@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -65,6 +65,26 @@ void describe('/profile/image/file', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST profile image file is rejected for a cookie token of a session ended by password change', async () => {
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+    await register(app, { email: 'image-password@be.rt', password: 'kunigunde' })
+    const { token: oldToken } = await login(app, { email: 'image-password@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'image-password@be.rt', password: 'kunigunde' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${oldToken}`)
+      .attach('file', file)
+
+    assert.equal(res.status, 500)
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 })
