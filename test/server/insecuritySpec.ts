@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -79,6 +80,50 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('verify', () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = encode({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, exp: 9999999999 })
+
+    it('accepts tokens signed by the server with RS256', () => {
+      const token = security.authorize({ data: { id: 1 } })
+
+      expect(security.verify(token)).to.equal(true)
+      expect(security.verifiedPayload(token).data.id).to.equal(1)
+    })
+
+    it('rejects unsigned tokens with "alg: none"', () => {
+      const token = `${encode({ alg: 'none', typ: 'JWT' })}.${payload}.`
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects tokens HMAC-signed with the public RSA key', () => {
+      const header = encode({ alg: 'HS256', typ: 'JWT' })
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects RS256 tokens whose payload was tampered with', () => {
+      const [header, , signature] = security.authorize({ data: { id: 2 } }).split('.')
+
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects expired RS256 tokens', () => {
+      const [header, , signature] = security.authorize({ data: { id: 1 } }).split('.')
+      const expired = encode({ data: { id: 1 }, exp: 1 })
+
+      expect(security.verify(`${header}.${expired}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing or malformed tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify(undefined as unknown as string)).to.equal(false)
+      expect(security.verify('not.a.jwt!')).to.equal(false)
     })
   })
 
