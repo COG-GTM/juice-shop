@@ -6,8 +6,6 @@
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
-import { challenges } from '../../data/datacache'
-import { type Challenge } from 'data/types'
 import { b2bOrder } from '../../routes/b2bOrder'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -15,56 +13,83 @@ chai.use(sinonChai)
 describe('b2bOrder', () => {
   let req: any
   let res: any
-  let next: any
-  let save: any
 
   beforeEach(() => {
     req = { body: { } }
-    res = { json: sinon.spy(), status: sinon.spy() }
-    next = sinon.spy()
-    save = () => ({
-      then () { }
-    })
-    challenges.rceChallenge = { solved: false, save } as unknown as Challenge
+    res = { json: sinon.spy(), status: sinon.stub() }
+    res.status.returns(res)
   })
 
-  xit('infinite loop payload does not succeed but solves "rceChallenge"', () => { // FIXME Started failing on Linux regularly
+  it('infinite loop payload is rejected without being evaluated', () => {
     req.body.orderLinesData = '(function dos() { while(true); })()'
 
-    b2bOrder()(req, res, next)
+    b2bOrder()(req, res)
 
-    expect(challenges.rceChallenge.solved).to.equal(true)
+    expect(res.status).to.have.been.calledWith(400)
   })
 
-  // FIXME Disabled as test started failing on Linux regularly
-  xit('timeout after 2 seconds solves "rceOccupyChallenge"', () => {
+  it('catastrophic backtracking regex payload is rejected without being evaluated', () => {
     req.body.orderLinesData = '/((a+)+)b/.test("aaaaaaaaaaaaaaaaaaaaaaaaaaaaa")'
 
-    b2bOrder()(req, res, next)
+    b2bOrder()(req, res)
 
-    expect(challenges.rceOccupyChallenge.solved).to.equal(true)
-  }/*, 3000 */)
-
-  it('deserializing JSON as documented in Swagger should not solve "rceChallenge"', () => {
-    req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
-
-    b2bOrder()(req, res, next)
-
-    expect(challenges.rceChallenge.solved).to.equal(false)
+    expect(res.status).to.have.been.calledWith(400)
   })
 
-  it('deserializing arbitrary JSON should not solve "rceChallenge"', () => {
+  it('sandbox breakout payload is rejected without being evaluated', () => {
+    req.body.orderLinesData = 'this.constructor.constructor("return process")().exit()'
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('JSON as documented in Swagger is accepted', () => {
+    req.body.orderLinesData = '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}]'
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.not.been.called
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('arbitrary JSON object is accepted', () => {
     req.body.orderLinesData = '{"hello": "world", "foo": 42, "bar": [false, true]}'
 
-    b2bOrder()(req, res, next)
-    expect(challenges.rceChallenge.solved).to.equal(false)
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.not.been.called
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 
-  it('deserializing broken JSON should not solve "rceChallenge"', () => {
+  it('broken JSON is rejected', () => {
     req.body.orderLinesData = '{ "productId: 28'
 
-    b2bOrder()(req, res, next)
+    b2bOrder()(req, res)
 
-    expect(challenges.rceChallenge.solved).to.equal(false)
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('JSON primitive is rejected', () => {
+    req.body.orderLinesData = '42'
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('non-string orderLinesData is rejected', () => {
+    req.body.orderLinesData = { productId: 1 }
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('missing orderLinesData is accepted', () => {
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.not.been.called
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
   })
 })
