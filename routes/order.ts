@@ -148,24 +148,28 @@ export function placeOrder () {
             }
           }
 
-          await db.ordersCollection.insert({
-            promotionalAmount: discountAmount,
-            paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
-            addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
-            orderId,
-            delivered: false,
-            email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
-            totalPrice,
-            products: basketProducts,
-            bonus: totalPoints,
-            deliveryPrice: deliveryAmount,
-            eta: deliveryMethod.eta.toString()
-          })
-
           const pdfPath = path.join('ftp/', pdfFile)
           const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
           fileWriter.on('finish', () => {
             void (async () => {
+              try {
+                await db.ordersCollection.insert({
+                  promotionalAmount: discountAmount,
+                  paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
+                  addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
+                  orderId,
+                  delivered: false,
+                  email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+                  totalPrice,
+                  products: basketProducts,
+                  bonus: totalPoints,
+                  deliveryPrice: deliveryAmount,
+                  eta: deliveryMethod.eta.toString()
+                })
+              } catch (error: unknown) {
+                fs.unlink(pdfPath, () => { next(error) })
+                return
+              }
               void basket.update({ coupon: null })
               await BasketItemModel.destroy({ where: { BasketId: id } })
               res.json({ orderConfirmation: orderId })
@@ -173,7 +177,12 @@ export function placeOrder () {
           })
           fileWriter.on('error', (error: Error) => {
             doc.unpipe(fileWriter)
-            fs.unlink(pdfPath, () => { next(error) })
+            const removePartialPdf = () => { fs.unlink(pdfPath, () => { next(error) }) }
+            if (fileWriter.closed) {
+              removePartialPdf()
+            } else {
+              fileWriter.once('close', removePartialPdf)
+            }
           })
           doc.end()
         } else {
