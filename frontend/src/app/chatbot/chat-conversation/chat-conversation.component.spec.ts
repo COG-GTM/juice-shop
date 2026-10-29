@@ -141,6 +141,79 @@ describe('ChatConversationComponent', () => {
         expect(component.isLoading()).toBe(false)
     })
 
+    it('should only send the most recent history that fits the server limits', async () => {
+        async function* emptyHistoryStream() {}
+        chatService.streamMessages.mockReturnValue(emptyHistoryStream())
+        component.messages.set(Array.from({ length: 60 }, (_, i) => ({ role: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant', content: `msg ${i}` })))
+
+        await component.sendMessage('Latest')
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent.length).toBe(50)
+        expect(sent[sent.length - 1]).toEqual({ role: 'user', content: 'Latest' })
+        expect(sent[0].content).toBe('msg 11')
+    })
+
+    it('should shorten an overly long stored assistant reply before sending a follow-up', async () => {
+        async function* emptyHistoryStream () {}
+        chatService.streamMessages.mockReturnValue(emptyHistoryStream())
+        component.messages.set([{ role: 'user', content: 'Tell me everything' }, { role: 'assistant', content: 'a'.repeat(15000) }])
+
+        await component.sendMessage('And then?')
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent.length).toBe(3)
+        expect(sent[1].content.length).toBe(12000)
+        expect(component.messages()[1].content.length).toBe(15000)
+    })
+
+    it('should cap an overly long new prompt so the displayed and sent text match', async () => {
+        async function* emptyStream () {}
+        chatService.streamMessages.mockReturnValue(emptyStream())
+
+        await component.sendMessage('x'.repeat(4001))
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent[sent.length - 1].content.length).toBe(4000)
+        expect(component.messages()[0].content).toBe(sent[sent.length - 1].content)
+    })
+
+    it('should shorten an overly long stored user prompt before sending a follow-up', async () => {
+        async function* emptyHistoryStream () {}
+        chatService.streamMessages.mockReturnValue(emptyHistoryStream())
+        component.messages.set([{ role: 'user', content: 'u'.repeat(5000) }, { role: 'assistant', content: 'Sure' }])
+
+        await component.sendMessage('Thanks')
+
+        const sent = chatService.streamMessages.mock.calls[0][0]
+        expect(sent.length).toBe(3)
+        expect(sent[0].content.length).toBe(4000)
+        expect(sent[2]).toEqual({ role: 'user', content: 'Thanks' })
+        expect(component.messages()[0].content.length).toBe(5000)
+    })
+
+    it('should show a rate limit message when the server throttles the chat', async () => {
+        async function* rateLimitedStream() {
+            yield { error: 'rate_limited' }
+        }
+        chatService.streamMessages.mockReturnValue(rateLimitedStream())
+
+        await component.sendMessage('Hello')
+
+        expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'CHATBOT_ERROR_RATE_LIMITED', error: true })
+    })
+
+    it('should show the LLM unreachable message on connection failure', async () => {
+        async function* failedStream() {
+            yield { error: 'connection_failed' }
+        }
+        chatService.streamMessages.mockReturnValue(failedStream())
+
+        await component.sendMessage('Hello')
+
+        expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'CHATBOT_ERROR_LLM_UNREACHABLE', error: true })
+    })
+
     it('should accumulate streamed content in assistant message', async () => {
         async function* contentStream() {
             yield { deltaContent: 'Hello ' }
