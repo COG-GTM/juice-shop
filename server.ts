@@ -263,6 +263,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  app.use('/support/logs', (req: Request, res: Response) => { res.sendStatus(404) })
+
   // vuln-code-snippet start directoryListingChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
