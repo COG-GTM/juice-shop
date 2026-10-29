@@ -13,28 +13,57 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
+const maxFailedTotpAttempts = 5
+const totpLockoutMs = 15 * 60 * 1000
+const failedTotpAttempts = new Map<number, { count: number, lockedUntil: number }>()
+
+function isLockedOut (userId: number) {
+  const entry = failedTotpAttempts.get(userId)
+  if (entry == null) return false
+  if (entry.lockedUntil > 0 && entry.lockedUntil <= Date.now()) {
+    failedTotpAttempts.delete(userId)
+    return false
+  }
+  return entry.lockedUntil > 0
+}
+
+function recordFailedTotpAttempt (userId: number) {
+  const entry = failedTotpAttempts.get(userId) ?? { count: 0, lockedUntil: 0 }
+  entry.count++
+  if (entry.count >= maxFailedTotpAttempts) {
+    entry.lockedUntil = Date.now() + totpLockoutMs
+  }
+  failedTotpAttempts.set(userId, entry)
+}
+
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    const payload = security.verifySecondFactor(tmpToken)
+    if (payload == null || payload.type !== 'password_valid_needs_second_factor_token' || typeof payload.userId !== 'number') {
+      throw new Error('Invalid token')
+    }
+    const userId: number = payload.userId
 
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
+    if (isLockedOut(userId)) {
+      return res.status(429).send()
     }
 
     const user = await UserModel.findByPk(userId)
-    if (user == null) {
+    if (user == null || !user.totpSecret) {
       throw new Error('No such user found!')
     }
 
-    const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
+    const isValid = typeof totpToken === 'string' && verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
 
     const plainUser = utils.queryResultToJson(user)
 
     if (!isValid) {
+      recordFailedTotpAttempt(userId)
       return res.status(401).send()
     }
+    failedTotpAttempts.delete(userId)
     challengeUtils.solveIf(challenges.twoFactorAuthUnsafeSecretStorageChallenge, () => { return user.email === 'wurstbrot@' + config.get<string>('application.domain') })
 
     const [basket] = await BasketModel.findOrCreate({ where: { UserId: userId } })
