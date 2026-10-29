@@ -6,11 +6,17 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
+import { ownsBasket } from './basket'
 
 export function applyCoupon () {
-  return async ({ params }: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const { params } = req
       const id = params.id
+      if (!await ownsBasket(req, id)) {
+        res.status(403).json({ status: 'error', message: 'Access to this basket is not allowed' })
+        return
+      }
       let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
