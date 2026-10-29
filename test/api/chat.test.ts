@@ -77,22 +77,20 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
 
 async function getOrderByIdToolResult (token: string, orderId: string): Promise<string> {
   let toolResult = ''
-  let callCount = 0
   onLlmRequest = (_req, body, res) => {
-    callCount++
-    if (callCount === 1) {
+    let messages: Array<{ role: string, content?: string }> = []
+    try {
+      messages = JSON.parse(body).messages ?? []
+    } catch {}
+    const toolMsg = messages.find((m) => m.role === 'tool')
+    if (toolMsg) {
+      toolResult = toolMsg.content ?? ''
+      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
+    } else {
       sendSSE(res, [
         toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
         finishChunk('tool_calls')
       ])
-    } else {
-      let messages: Array<{ role: string, content?: string }> = []
-      try {
-        messages = JSON.parse(body).messages ?? []
-      } catch {}
-      const toolMsg = messages.find((m) => m.role === 'tool')
-      if (toolMsg) toolResult = toolMsg.content ?? ''
-      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
     }
   }
 
