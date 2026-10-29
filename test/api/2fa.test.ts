@@ -34,7 +34,7 @@ before(async () => {
 
 void describe('/rest/2fa/verify', () => {
   void it('POST should return a valid authentication when a valid tmp token is passed', async () => {
-    const tmpTokenWurstbrot = security.authorize({
+    const tmpTokenWurstbrot = security.authorizeSecondFactor({
       userId: 10,
       type: 'password_valid_needs_second_factor_token'
     })
@@ -58,7 +58,7 @@ void describe('/rest/2fa/verify', () => {
   })
 
   void it('POST should fail if a invalid totp token is used', async () => {
-    const tmpTokenWurstbrot = security.authorize({
+    const tmpTokenWurstbrot = security.authorizeSecondFactor({
       userId: 10,
       type: 'password_valid_needs_second_factor_token'
     })
@@ -93,6 +93,59 @@ void describe('/rest/2fa/verify', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if the tmp token is an RS256 JWT signed with the application key', async () => {
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }),
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an alg:none tmp token is used', async () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token' })}.`,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should lock out a user after repeated wrong codes regardless of X-Forwarded-For', async () => {
+    const email = 'fooooolockout@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+    await register(app, { email, password, totpSecret })
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email, password })
+    assert.equal(loginRes.body.status, 'totp_token_required')
+    const tmpToken = loginRes.body.data.tmpToken
+
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ tmpToken, totpToken: generateSync({ secret: 'OJQOJNTB46VLWUO4TVKXIULU2WLPFQOJ' }) })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ ...jsonHeader, 'X-Forwarded-For': '10.0.0.99' })
+      .send({ tmpToken, totpToken: generateSync({ secret: totpSecret }) })
+    assert.equal(res.status, 429)
   })
 })
 

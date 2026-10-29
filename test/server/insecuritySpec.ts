@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,41 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('second factor token', () => {
+    it('accepts a freshly issued token and returns its payload', () => {
+      const token = security.authorizeSecondFactor({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+      expect(security.verifySecondFactor(token)).to.include({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+    })
+
+    it('rejects a token with a tampered payload', () => {
+      const [, signature] = security.authorizeSecondFactor({ userId: 10 }).split('.')
+      const forgedPayload = Buffer.from(JSON.stringify({ userId: 1, exp: Date.now() + 60000 })).toString('base64url')
+      expect(security.verifySecondFactor(`${forgedPayload}.${signature}`)).to.equal(null)
+    })
+
+    it('rejects a JWT signed with the application RSA key', () => {
+      expect(security.verifySecondFactor(security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }))).to.equal(null)
+    })
+
+    it('rejects non-string and malformed tokens', () => {
+      expect(security.verifySecondFactor(undefined)).to.equal(null)
+      expect(security.verifySecondFactor({})).to.equal(null)
+      expect(security.verifySecondFactor('')).to.equal(null)
+      expect(security.verifySecondFactor('a.b.c')).to.equal(null)
+    })
+
+    it('rejects an expired token', () => {
+      const clock = sinon.useFakeTimers(Date.now())
+      try {
+        const token = security.authorizeSecondFactor({ userId: 10 })
+        clock.tick(5 * 60 * 1000 + 1)
+        expect(security.verifySecondFactor(token)).to.equal(null)
+      } finally {
+        clock.restore()
+      }
     })
   })
 })
