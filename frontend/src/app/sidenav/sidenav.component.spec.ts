@@ -202,6 +202,13 @@ describe('SidenavComponent', () => {
         expect(userService.logout).toHaveBeenCalled()
     })
 
+    it('should end the server session with the current token after saving the last login IP fails', () => {
+        localStorage.setItem('token', 'TOKEN')
+        userService.saveLastLoginIp.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('TOKEN')
+    })
+
     it('should forward to main page', async () => {
         component.logout()
         await fixture.whenStable()
