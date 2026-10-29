@@ -67,6 +67,16 @@ void describe('/api/Complaints', () => {
     }
   })
 
+  void it('GET complaints without Content-Type header or body', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: jimAuthHeader.Authorization })
+    assert.equal(res.status, 200)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimId)
+    }
+  })
+
   void it('GET complaints is forbidden for tokens not bound to a known user', async () => {
     const res = await request(app)
       .get('/api/Complaints')
