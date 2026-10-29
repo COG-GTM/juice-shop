@@ -94,7 +94,7 @@ describe('insecurity', () => {
     })
 
     it('keeps only allowlisted user claims in the session map', () => {
-      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET', deluxeToken: 'DELUXE' } as unknown as UserModel } as any)
 
       expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
     })
