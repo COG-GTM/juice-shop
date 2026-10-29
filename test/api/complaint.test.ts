@@ -59,6 +59,15 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET complaints with an unsigned admin token is unauthorized', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: `Bearer ${header}.${payload}.`, 'content-type': 'application/json' })
+    assert.equal(res.status, 401)
+  })
+
   void it('GET complaints returns only the complaints of the logged-in customer', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const jimId = security.decode(token).data.id

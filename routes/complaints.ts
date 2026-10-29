@@ -6,10 +6,9 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 const callerFrom = (req: Request) => {
-  const user = security.decode(utils.jwtFrom(req))?.data
+  const user = security.verifiedAdminOrUserClaims(req)
   return user?.id === undefined || user?.id === null ? undefined : user
 }
 
