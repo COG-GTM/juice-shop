@@ -3,13 +3,14 @@
   app.use('/rest/basket', security.isAuthorized(), security.appendUserId())
   /* BasketItems: API only accessible for authenticated users */
   app.use('/api/BasketItems', security.isAuthorized())
-  app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.retrieveOwnBasketItems()))
+  app.use('/api/BasketItems/:id', security.isAuthorized(), utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
   /* Users: Only POST is allowed in order to register a new user */
-  app.get('/api/Users', security.isAuthorized())
+  app.get('/api/Users', security.isAuthorized(), security.isAdmin())
   app.route('/api/Users/:id')
-    .get(security.isAuthorized())
+    .get(security.isAuthorized(), security.isAdmin())
     .put(security.denyAll())
     .delete(security.denyAll())
   /* Products: Only GET is allowed in order to view products */
@@ -23,8 +24,8 @@
   app.route('/api/Hints/:id')
     .get(security.denyAll())
     .delete(security.denyAll())
-  /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
+  /* Complaints: POST allowed when logged in, GET for admins only */
+  app.get('/api/Complaints', security.isAuthorized(), security.isAdmin())
   app.post('/api/Complaints', security.isAuthorized())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
@@ -41,8 +42,8 @@
   app.get('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
-  app.use('/rest/user/authentication-details', security.isAuthorized())
-  app.use('/rest/basket/:id', security.isAuthorized())
+  app.use('/rest/user/authentication-details', security.isAuthorized(), security.isAdmin())
+  app.use('/rest/basket/:id', security.isAuthorized(), utils.asyncHandler(checkBasketOwnership()))
   app.use('/rest/basket/:id/order', security.isAuthorized())
   /* Unauthorized users are not allowed to access B2B API */
   app.use('/b2b/v2', security.isAuthorized())
