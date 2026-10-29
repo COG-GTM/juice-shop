@@ -54,13 +54,14 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 const tokenUserClaims = ['id', 'email', 'username', 'role', 'deluxeToken', 'lastLoginIp', 'profileImage']
+const sessionUserClaims = tokenUserClaims.filter(claim => claim !== 'deluxeToken')
 
-export const tokenPayload = (payload: any = {}) => {
+export const tokenPayload = (payload: any = {}, claims = tokenUserClaims) => {
   if (payload?.data === null || typeof payload?.data !== 'object') {
     return payload
   }
   const data: Record<string, unknown> = {}
-  for (const claim of tokenUserClaims) {
+  for (const claim of claims) {
     if (payload.data[claim] !== undefined) {
       data[claim] = payload.data[claim]
     }
@@ -88,7 +89,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: new Map(),
   idMap: new Map(),
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap.set(token, tokenPayload(user))
+    this.tokenMap.set(token, tokenPayload(user, sessionUserClaims))
     this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
