@@ -55,7 +55,7 @@ void describe('/rest/user/reset-password rate limiting', () => {
 })
 
 void describe('/rest/2fa/verify rate limiting', () => {
-  void it('POST ignores spoofed X-Forwarded-For and locks the account after 10 wrong TOTP codes', async () => {
+  void it('POST ignores spoofed X-Forwarded-For and locks the account after 5 wrong TOTP codes', async () => {
     const tmpToken = security.authorize({
       userId: 10,
       type: 'password_valid_needs_second_factor_token',
@@ -68,15 +68,15 @@ void describe('/rest/2fa/verify rate limiting', () => {
       return code === validTotp ? String(200000 + i) : code
     }
     const statuses: number[] = []
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 6; i++) {
       const res = await request(app)
         .post('/rest/2fa/verify')
         .set({ ...jsonHeader, 'X-Forwarded-For': spoofedIp(i) })
         .send({ tmpToken, totpToken: wrongTotp(i) })
       statuses.push(res.status)
     }
-    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
-    assert.equal(statuses[10], 429)
+    assert.deepEqual(statuses.slice(0, 5), Array(5).fill(401))
+    assert.equal(statuses[5], 429)
 
     const freshTmpToken = security.authorize({
       userId: 10,
