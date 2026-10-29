@@ -2,6 +2,8 @@
 node_modules/
 juiceshop.sqlite
 order_*.pdf
+orders/*
+!orders/.gitkeep
 app/
 !frontend/src/app
 uploads/complaints/*.*
