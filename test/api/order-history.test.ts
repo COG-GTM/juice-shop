@@ -5,13 +5,22 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+
+function forgeToken (alg: 'none' | 'HS256', payload: object) {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${encode({ alg, typ: 'JWT' })}.${encode(payload)}`
+  const signature = alg === 'HS256' ? crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url') : ''
+  return `${unsigned}.${signature}`
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -131,5 +140,23 @@ void describe('/rest/order-history/:id/delivery-status', () => {
       .send({ delivered: false })
 
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/rest/order-history/orders with forged tokens', () => {
+  const forgedPayload = { data: { id: 1, email: 'accountant@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 }
+
+  void it('GET all orders with forged unsigned accounting token (alg none) is rejected', async () => {
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set('Authorization', 'Bearer ' + forgeToken('none', forgedPayload))
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all orders with accounting token HMAC-signed using the public RSA key is rejected', async () => {
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set('Authorization', 'Bearer ' + forgeToken('HS256', forgedPayload))
+    assert.equal(res.status, 403)
   })
 })

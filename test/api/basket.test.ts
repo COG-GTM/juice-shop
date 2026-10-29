@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -17,6 +18,13 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+
+function forgeToken (alg: 'none' | 'HS256', payload: object) {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${encode({ alg, typ: 'JWT' })}.${encode(payload)}`
+  const signature = alg === 'HS256' ? crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url') : ''
+  return `${unsigned}.${signature}`
+}
 
 before(
   async () => {
@@ -36,6 +44,22 @@ before(
 )
 
 void describe('/rest/basket/:id', () => {
+  const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+
+  void it('GET basket with forged unsigned token (alg none) is rejected', async () => {
+    const res = await request(app)
+      .get('/rest/basket/1')
+      .set('Authorization', 'Bearer ' + forgeToken('none', forgedPayload))
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET basket with token HMAC-signed using the public RSA key is rejected', async () => {
+    const res = await request(app)
+      .get('/rest/basket/1')
+      .set('Authorization', 'Bearer ' + forgeToken('HS256', forgedPayload))
+    assert.equal(res.status, 401)
+  })
+
   void it('GET existing basket by id is not allowed via public API', async () => {
     const res = await request(app).get('/rest/basket/1')
     assert.equal(res.status, 401)
