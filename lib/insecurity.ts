@@ -164,6 +164,26 @@ export const isAccounting = () => {
   }
 }
 
+const verifiedTokenPayloadFrom = (req: Request): any => {
+  try {
+    return jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
+  } catch {
+    return undefined
+  }
+}
+
+export const userIdFrom = (req: Request): number | undefined => verifiedTokenPayloadFrom(req)?.data?.id
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (verifiedTokenPayloadFrom(req)?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
