@@ -19,7 +19,12 @@ interface RequestWithRawBody extends Request {
 
 export function retrieveOwnBasketItems () {
   return async (req: Request, res: Response) => {
-    const baskets = await BasketModel.findAll({ where: { UserId: security.userIdFrom(req) ?? null }, attributes: ['id'] })
+    const userId = security.userIdFrom(req)
+    if (userId == null) {
+      res.json({ status: 'success', data: [] })
+      return
+    }
+    const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
     const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(basket => basket.id) } })
     res.json({ status: 'success', data: items })
   }
@@ -27,13 +32,12 @@ export function retrieveOwnBasketItems () {
 
 export function checkBasketItemOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.userIdFrom(req)
+    const ownsBasket = async (basketId: unknown) => userId != null && basketId != null && (await BasketModel.findByPk(basketId as number))?.UserId === userId
     const item = await BasketItemModel.findByPk(req.params.id)
-    if (item?.BasketId != null) {
-      const basket = await BasketModel.findByPk(item.BasketId)
-      if (basket?.UserId !== security.userIdFrom(req)) {
-        res.status(403).json({ error: 'Malicious activity detected' })
-        return
-      }
+    if ((item != null && !(await ownsBasket(item.BasketId))) || (req.body?.BasketId != null && !(await ownsBasket(req.body.BasketId)))) {
+      res.status(403).json({ error: 'Malicious activity detected' })
+      return
     }
     next()
   }
