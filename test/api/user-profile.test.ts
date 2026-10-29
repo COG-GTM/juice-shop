@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +50,34 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile is rejected for a logged out cookie token', async () => {
+    await register(app, { email: 'profile-logout@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'profile-logout@be.rt', password: 'kunigunde' })
+
+    await request(app).get('/profile').set('Cookie', `token=${token}`).expect(200)
+    await request(app).post('/rest/user/logout').set({ Authorization: `Bearer ${token}`, Cookie: `token=${token}` }).expect(204)
+
+    const res = await request(app).get('/profile').set('Cookie', `token=${token}`)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('GET user profile is rejected for a cookie token of a session ended by password change', async () => {
+    await register(app, { email: 'profile-password@be.rt', password: 'kunigunde' })
+    const { token: oldToken } = await login(app, { email: 'profile-password@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'profile-password@be.rt', password: 'kunigunde' })
+
+    await request(app).get('/profile').set('Cookie', `token=${oldToken}`).expect(200)
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: `Bearer ${token}` })
+      .expect(200)
+
+    const res = await request(app).get('/profile').set('Cookie', `token=${oldToken}`)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    await request(app).get('/profile').set('Cookie', `token=${token}`).expect(200)
   })
 })
