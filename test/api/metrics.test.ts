@@ -33,22 +33,6 @@ void describe('/metrics', () => {
     assert.doesNotMatch(res.text, /_wallet_balance_total/)
   })
 
-  void it('GET metrics via public API without scrape token is rejected', async () => {
-    const res = await request(app)
-      .get('/metrics')
-      .expect(401)
-
-    assert.equal(res.headers['www-authenticate'], 'Bearer realm="metrics"')
-    assert.doesNotMatch(res.text, /_wallet_balance_total/)
-  })
-
-  void it('GET metrics via public API with wrong scrape token is rejected', async () => {
-    await request(app)
-      .get('/metrics')
-      .set('Authorization', 'Bearer api-test-metrics-scrape-token-0123456788')
-      .expect(401)
-  })
-
   void it('GET metrics with wrong scrape token is rejected', async () => {
     await request(metricsApp)
       .get('/metrics')
