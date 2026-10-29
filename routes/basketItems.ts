@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -14,6 +15,32 @@ import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
+}
+
+export function retrieveOwnBasketItems () {
+  return async (req: Request, res: Response) => {
+    const userId = security.userIdFrom(req)
+    if (userId == null) {
+      res.json({ status: 'success', data: [] })
+      return
+    }
+    const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(basket => basket.id) } })
+    res.json({ status: 'success', data: items })
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.userIdFrom(req)
+    const ownsBasket = async (basketId: unknown) => userId != null && basketId != null && (await BasketModel.findByPk(basketId as number))?.UserId === userId
+    const item = await BasketItemModel.findByPk(req.params.id)
+    if (item != null && (!(await ownsBasket(item.BasketId)) || (req.body?.BasketId != null && req.body.BasketId != item.BasketId))) { // eslint-disable-line eqeqeq
+      res.status(403).json({ error: 'Malicious activity detected' })
+      return
+    }
+    next()
+  }
 }
 
 export function addBasketItem () {
