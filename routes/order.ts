@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+const ORDER_CONFIRMATIONS_DIR = 'orders/'
+const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
 interface Product {
   quantity: number
   id?: number
@@ -42,7 +45,7 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(ORDER_CONFIRMATIONS_DIR, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -178,6 +181,28 @@ export function placeOrder () {
       }).catch((error: unknown) => {
         next(error)
       })
+  }
+}
+
+export function serveOrderConfirmation () {
+  return async (req: Request, res: Response) => {
+    const token = utils.jwtFrom(req) ?? req.cookies?.token
+    const user = token && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    const email = user?.data?.email
+    if (!email) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+
+    const orderId = req.params.id
+    const order = ORDER_ID_PATTERN.test(orderId) ? await db.ordersCollection.findOne({ orderId }) : null
+    const isOwner = order?.email === email.replace(/[aeiou]/gi, '*') && orderId.startsWith(security.hash(email).slice(0, 4))
+    const pdfPath = path.resolve(ORDER_CONFIRMATIONS_DIR, `order_${orderId}.pdf`)
+    if (!isOwner || !fs.existsSync(pdfPath)) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(pdfPath)
   }
 }
 

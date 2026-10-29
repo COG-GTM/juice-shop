@@ -15,7 +15,10 @@ export function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (!file.includes('/')) {
+    if (security.cutOffPoisonNullByte(file).toLowerCase().startsWith('order_')) {
+      res.status(404)
+      next(new Error('File not found!'))
+    } else if (!file.includes('/')) {
       verify(file, res, next)
     } else {
       res.status(403)
