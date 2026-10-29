@@ -4,22 +4,36 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import jwt from 'jsonwebtoken'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 
 import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 
-export async function basketIdOf (req: Request): Promise<number | undefined> {
+async function userIdOf (req: Request): Promise<number | undefined> {
   const user = security.authenticatedUsers.from(req)
-  if (user?.bid != null) {
-    return user.bid
-  }
   if (user?.data?.id != null) {
-    const basket = await BasketModel.findOne({ where: { UserId: user.data.id } })
-    return basket?.id
+    return user.data.id
   }
-  return undefined
+  const token = utils.jwtFrom(req)
+  if (token == null) {
+    return undefined
+  }
+  return await new Promise<number | undefined>((resolve) => {
+    jwt.verify(token, security.publicKey, (err: Error | null, decoded: any) => {
+      resolve(err === null ? decoded?.data?.id : undefined)
+    })
+  })
+}
+
+export async function basketIdOf (req: Request): Promise<number | undefined> {
+  const userId = await userIdOf(req)
+  if (userId == null) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: userId } })
+  return basket?.id
 }
 
 export async function ownsBasket (req: Request, basketId: unknown): Promise<boolean> {

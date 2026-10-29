@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -128,6 +129,26 @@ void describe('/api/BasketItems/:id', () => {
       .get('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET own basket item by id with valid JWT missing from session cache', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 8, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const token = authHeader.Authorization.split(' ')[1]
+    const cachedUser = security.authenticatedUsers.tokenMap[token]
+    Reflect.deleteProperty(security.authenticatedUsers.tokenMap, token)
+    try {
+      const res = await request(app)
+        .get('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+      assert.equal(res.status, 200)
+    } finally {
+      security.authenticatedUsers.tokenMap[token] = cachedUser
+    }
   })
 
   void it('PUT update newly created basket item', async () => {
