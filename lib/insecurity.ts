@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
+import { expressjwt, UnauthorizedError } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,11 +51,40 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
+
+const isSecondFactorTokenPayload = (payload: unknown) => (payload as { type?: unknown } | undefined)?.type === 'password_valid_needs_second_factor_token'
+
+export const isAuthorized = () => {
+  const middleware = expressjwt({ secret: publicKey, algorithms: jwtAlgorithms, isRevoked: async (req, token) => isSecondFactorTokenPayload(token?.payload) })
+  return (req: Request, res: Response, next: NextFunction) => {
+    void middleware(req, res, next)
+  }
+}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
+}
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const verify = (token: string) => {
+  if (!token) return false
+  try {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+    return true
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+const secondFactorTokenLifetimeMs = 5 * 60 * 1000
+export const secondFactorTokenExpiry = () => Date.now() + secondFactorTokenLifetimeMs
+export const isSecondFactorTokenExpired = (payload: { expiresAt?: unknown } | undefined) => typeof payload?.expiresAt !== 'number' || payload.expiresAt <= Date.now()
+export const verifySecondFactorToken = (token: unknown) => {
+  const payload = typeof token === 'string' && verify(token) ? decode(token) : undefined
+  if (payload?.type !== 'password_valid_needs_second_factor_token') throw new Error('Invalid token type')
+  if (isSecondFactorTokenExpired(payload)) throw new Error('Temporary token expired')
+  return payload
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -188,8 +217,8 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
+      if (err === null && !isSecondFactorTokenPayload(decoded)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
