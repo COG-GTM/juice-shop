@@ -68,6 +68,7 @@ import locales from './data/static/locales.json'
 import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
+import * as complaint from './routes/complaint'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
@@ -452,6 +453,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.get('/api/Complaints', security.appendUserId(), utils.asyncHandler(complaint.getComplaints()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
