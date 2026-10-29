@@ -11,7 +11,7 @@ import * as security from '../lib/insecurity'
 
 export function changePassword () {
   return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = typeof body?.current === 'string' ? body.current : ''
+    const currentPassword: string | null = typeof body?.current === 'string' ? body.current : null
     const newPassword = typeof body?.new === 'string' ? body.new : ''
     const repeatPassword = body?.repeat
 
@@ -42,7 +42,7 @@ export function changePassword () {
         return
       }
 
-      if (!currentPassword || security.hash(currentPassword) !== user.password) {
+      if (currentPassword === null || security.hash(currentPassword) !== user.password) {
         challengeUtils.solveIf(
           challenges.changePasswordBenderChallenge,
           () => user.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
