@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
+import jwt from 'jsonwebtoken'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { challenges, products } from '../data/datacache'
@@ -165,6 +166,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: customer?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
@@ -186,17 +188,16 @@ export function placeOrder () {
 
 export function serveOrderConfirmation () {
   return async (req: Request, res: Response) => {
-    const token = utils.jwtFrom(req) ?? req.cookies?.token
-    const user = token && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
-    const email = user?.data?.email
-    if (!email) {
+    const user = verifiedUserFrom(utils.jwtFrom(req) ?? req.cookies?.token)
+    const userId = user?.data?.id
+    if (userId === undefined || userId === null) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
       return
     }
 
     const orderId = req.params.id
     const order = ORDER_ID_PATTERN.test(orderId) ? await db.ordersCollection.findOne({ orderId }) : null
-    const isOwner = order?.email === email.replace(/[aeiou]/gi, '*') && orderId.startsWith(security.hash(email).slice(0, 4))
+    const isOwner = order?.UserId === userId
     const pdfPath = path.resolve(ORDER_CONFIRMATIONS_DIR, `order_${orderId}.pdf`)
     if (!isOwner || !fs.existsSync(pdfPath)) {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
@@ -204,6 +205,16 @@ export function serveOrderConfirmation () {
     }
     res.sendFile(pdfPath)
   }
+}
+
+function verifiedUserFrom (token?: string) {
+  if (!token) return undefined
+  try {
+    jwt.verify(utils.unquote(token), security.publicKey, { algorithms: ['RS256'] })
+  } catch {
+    return undefined
+  }
+  return security.authenticatedUsers.get(token)
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
