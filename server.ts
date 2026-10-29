@@ -416,6 +416,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Self-registered users always get the customer role; privileged roles cannot be chosen by the caller */
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body !== null && typeof req.body === 'object') {
+      req.body.role = security.roles.customer
+    }
+    next()
+  })
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
