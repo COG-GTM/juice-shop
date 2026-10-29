@@ -32,11 +32,19 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
+    const customer = security.authenticatedUsers.from(req)
+    if (!customer?.data?.id) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
-          const customer = security.authenticatedUsers.from(req)
-          const email = customer ? customer.data ? customer.data.email : '' : ''
+          if (basket.UserId !== customer.data.id) {
+            res.status(403).json({ error: 'Invalid BasketId' })
+            return
+          }
+          const email = customer.data.email ?? ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
           const { default: PDFDocument } = await import('pdfkit')
@@ -47,7 +55,7 @@ export function placeOrder () {
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              await BasketItemModel.destroy({ where: { BasketId: basket.id } })
               res.json({ orderConfirmation: orderId })
             })()
           })
