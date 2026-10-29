@@ -1,52 +1,29 @@
 describe('/api', () => {
-  describe('challenge "restfulXss"', () => {
-    beforeEach(() => {
+  describe('product API', () => {
+    it('should not be possible to create a new product even when logged in', () => {
       cy.login({ email: 'admin', password: 'admin123' })
-    })
-
-    // Cypress alert bug
-    // The challenge also passes but its just that cypress freezes and is unable to perform any action
-    xit('should be possible to create a new product when logged in', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Products`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                  name: 'RestXSS',
-                  description: '<iframe src="javascript:alert(`xss`)">',
-                  price: 47.11
-                })
-              }
-            )
-            if (response.status === 200) {
-              console.log('Success')
-            }
-          })
-
-          cy.visit('/#/search?q=RestXSS')
-          cy.reload()
-          cy.get('img[alt="RestXSS"]').click()
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.expectChallengeSolved({ challenge: 'API-only XSS' })
-        }
+      cy.window().then(async () => {
+        const response = await fetch(
+          `${Cypress.config('baseUrl')}/api/Products`,
+          {
+            method: 'POST',
+            cache: 'no-cache',
+            headers: {
+              'Content-type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+              name: 'RestXSS',
+              description: '<iframe src="javascript:alert(`xss`)">',
+              price: 47.11
+            })
+          }
+        )
+        assert.equal(response.status, 401)
       })
     })
-  })
 
-  describe('challenge "changeProduct"', () => {
-    it('should be possible to change product via PUT request without being logged in', () => {
+    it('should not be possible to change a product via PUT request without being logged in', () => {
       cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
         cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
           cy.window().then(async () => {
@@ -63,13 +40,10 @@ describe('/api', () => {
                 })
               }
             )
-            assert.equal(response.status, 200)
+            assert.equal(response.status, 401)
           })
-
-          cy.visit('/#/search')
         })
       })
-      cy.expectChallengeSolved({ challenge: 'Product Tampering' })
     })
   })
 })
