@@ -13,6 +13,7 @@ import { UserModel } from '../models/user'
 import * as models from '../models/index'
 import { type User } from '../data/types'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 // vuln-code-snippet start loginAdminChallenge loginBenderChallenge loginJimChallenge
 export function login () {
@@ -70,8 +71,8 @@ export function login () {
     if (!challengeUtils.notSolved(challenge) || req.body.email !== email || req.body.password !== password) return
     UserModel.count({ where: { email, password: security.hash(password) } }).then((count: number) => {
       challengeUtils.solveIf(challenge, () => count > 0)
-    }).catch(() => {
-      throw new Error('Unable to verify challenges! Try again')
+    }).catch((error: unknown) => {
+      logger.warn(`Unable to verify challenge ${challenge?.key}: ${utils.getErrorMessage(error)}`)
     })
   }
 
