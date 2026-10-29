@@ -165,8 +165,14 @@ export const isAccounting = () => {
 }
 
 const verifiedTokenPayloadFrom = (req: Request): any => {
+  const [header, payload, signature] = (utils.jwtFrom(req) ?? '').split('.')
+  if (header === undefined || payload === undefined || signature === undefined) return undefined
   try {
-    return jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))) return undefined
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (typeof decoded.exp === 'number' && decoded.exp <= Math.floor(Date.now() / 1000)) return undefined
+    return decoded
   } catch {
     return undefined
   }
