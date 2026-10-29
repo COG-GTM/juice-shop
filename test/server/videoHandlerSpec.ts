@@ -10,7 +10,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { promotionCsp, promotionVideo, serializeSubtitles } from '../../routes/videoHandler'
+import { promotionCsp, promotionVideo, reloadPromotionSubtitles, serializeSubtitles } from '../../routes/videoHandler'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -131,6 +131,21 @@ describe('videoHandler', () => {
       expect(second.replace(/nonce="[^"]+"/g, '')).to.equal(first.replace(/nonce="[^"]+"/g, ''))
       expect(reads('views/promotionVideo.pug')).to.equal(1)
       expect(reads('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(1)
+    })
+
+    it('should re-read the subtitles once after reloadPromotionSubtitles is called', async () => {
+      const handler = promotionVideo()
+      await render(handler)
+      readFileSync.withArgs('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt').returns('WEBVTT\n\n00:00:01.000 --> 00:00:02.000\ncustom\n')
+
+      reloadPromotionSubtitles()
+      const html = await render(handler)
+      await render(handler)
+
+      const match = /<script id="subtitle" type="application\/json"[^>]*>([^<]*)<\/script>/.exec(html)
+      expect(JSON.parse(match?.[1] ?? '')).to.contain('custom')
+      expect(reads('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(2)
+      expect(reads('views/promotionVideo.pug')).to.equal(1)
     })
 
     it('should retry reading the subtitles on the next request after a failure', async () => {
