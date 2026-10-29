@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { BasketItemModel } from '../models/basketitem'
 import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
@@ -81,7 +82,13 @@ export function listOwnBasketItems () {
       return
     }
     const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
-    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(({ id }) => id) }, order: [['id', 'ASC']] })
+    const filters = Object.fromEntries(['id', 'BasketId', 'ProductId', 'quantity']
+      .filter(key => typeof req.query[key] === 'string')
+      .map(key => [key, req.query[key]]))
+    const items = await BasketItemModel.findAll({
+      where: { [Op.and]: [{ BasketId: baskets.map(({ id }) => id) }, filters] },
+      order: [['id', 'ASC']]
+    })
     res.json({ status: 'success', data: items })
   }
 }
