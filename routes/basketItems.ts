@@ -35,7 +35,7 @@ export function checkBasketItemOwnership () {
     const userId = security.userIdFrom(req)
     const ownsBasket = async (basketId: unknown) => userId != null && basketId != null && (await BasketModel.findByPk(basketId as number))?.UserId === userId
     const item = await BasketItemModel.findByPk(req.params.id)
-    if ((item != null && !(await ownsBasket(item.BasketId))) || (req.body?.BasketId != null && !(await ownsBasket(req.body.BasketId)))) {
+    if (item != null && !(await ownsBasket(item.BasketId))) {
       res.status(403).json({ error: 'Malicious activity detected' })
       return
     }
