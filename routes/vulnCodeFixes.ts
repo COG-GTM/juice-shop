@@ -1,9 +1,9 @@
 import fs from 'node:fs'
-import yaml from 'js-yaml'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as accuracy from '../lib/accuracy'
 import * as challengeUtils from '../lib/challengeUtils'
+import { getCodingChallengeInfo } from '../lib/codingChallenges'
 import { type ChallengeKey } from 'models/challenge'
 
 const FixesDir = 'data/static/codefixes'
@@ -77,11 +77,9 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
-      const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
-      if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
-    }
+    const codingChallengeInfos = getCodingChallengeInfo(key)
+    const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }) => id === selectedFix + 1)
+    if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     if (selectedFix === fixData.correct) {
       await challengeUtils.solveFixIt(key)
       res.status(200).json({

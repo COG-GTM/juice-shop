@@ -4,10 +4,8 @@
  */
 
 import { type NextFunction, type Request, type Response } from 'express'
-import yaml from 'js-yaml'
-import fs from 'node:fs'
 
-import { getCodeChallenges } from '../lib/codingChallenges'
+import { getCodeChallenges, getCodingChallengeInfo } from '../lib/codingChallenges'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as accuracy from '../lib/accuracy'
 import * as utils from '../lib/utils'
@@ -86,9 +84,9 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
   const selectedLines: number[] = req.body.selectedLines
   const verdict = getVerdict(vulnLines, neutralLines, selectedLines)
   let hint
-  if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-    const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
-    if (codingChallengeInfos?.hints) {
+  const codingChallengeInfos = getCodingChallengeInfo(key)
+  if (codingChallengeInfos) {
+    if (codingChallengeInfos.hints) {
       if (accuracy.getFindItAttempts(key) > codingChallengeInfos.hints.length) {
         if (vulnLines.length === 1) {
           hint = res.__('Line {{vulnLine}} is responsible for this vulnerability or security flaw. Select it and submit to proceed.', { vulnLine: vulnLines[0].toString() })
