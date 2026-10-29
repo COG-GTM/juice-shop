@@ -73,17 +73,16 @@ async function findOwnBasketItem (req: Request, userId: number) {
   return basket != null ? item : null
 }
 
-export function onlyOwnBasketItemsInList () {
-  return async (req: Request, res: Response, context: { instance: Array<{ BasketId?: number | null }>, continue: any }) => {
+export function listOwnBasketItems () {
+  return async (req: Request, res: Response) => {
     const userId = security.authenticatedUsers.from(req)?.data?.id
     if (userId == null) {
-      context.instance = []
-      return context.continue
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
     }
     const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
-    const ownBasketIds = new Set(baskets.map(({ id }) => id))
-    context.instance = context.instance.filter(item => item.BasketId != null && ownBasketIds.has(item.BasketId))
-    return context.continue
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(({ id }) => id) }, order: [['id', 'ASC']] })
+    res.json({ status: 'success', data: items })
   }
 }
 
