@@ -519,13 +519,28 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // store the security answer of a newly registered user together with the account
     if (name === 'User') {
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
-        const { securityQuestion, securityAnswer } = req.body
-        if (securityQuestion?.id !== undefined && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+      const securityAnswerFrom = (body: any) => {
+        const { securityQuestion, securityAnswer } = body
+        return (securityQuestion?.id !== undefined || securityAnswer !== undefined) ? { questionId: securityQuestion?.id, answer: securityAnswer } : null
+      }
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any }) => {
+        const securityAnswer = securityAnswerFrom(req.body)
+        if (securityAnswer !== null) {
+          const question = (typeof securityAnswer.answer === 'string' && securityAnswer.answer.length > 0) ? await SecurityQuestionModel.findByPk(securityAnswer.questionId) : null
+          if (question === null) {
+            throw new finale.Errors.BadRequestError('Invalid security question or answer')
+          }
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number, destroy: (options: { force: boolean }) => Promise<void> }, continue: any }) => {
+        const securityAnswer = securityAnswerFrom(req.body)
+        if (securityAnswer !== null) {
           try {
-            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
-          } catch (err: unknown) {
-            console.log(err)
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityAnswer.questionId, answer: securityAnswer.answer })
+          } catch {
+            await context.instance.destroy({ force: true })
+            throw new finale.Errors.BadRequestError('Security answer could not be stored')
           }
         }
         return context.continue

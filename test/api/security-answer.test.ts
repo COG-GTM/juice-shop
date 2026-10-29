@@ -125,6 +125,26 @@ void describe('/api/SecurityAnswers', () => {
     const resetRes = await resetPassword('registered.with.answer@te.st', 'Horst')
     assert.equal(resetRes.status, 200)
   })
+
+  void it('POST user registration with invalid security question is rejected without creating the user', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'invalid.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 999999 },
+        securityAnswer: 'Horst'
+      })
+    assert.equal(userRes.status, 400)
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'invalid.question@te.st', password: '12345' })
+    assert.equal(loginRes.status, 401)
+  })
 })
 
 void describe('/api/SecurityAnswers/:id', () => {
