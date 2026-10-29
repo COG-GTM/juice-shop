@@ -6,7 +6,7 @@
         }),
         execute: async ({ discount, orderId }) => {
           if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
-          const eligibility = await claimCouponEligibleOrder(req, orderId)
+          const eligibility = await couponEligibleOrder(req, orderId)
           if (eligibility.error) return eligibility
           const couponCode = security.generateCoupon(discount)
           return { couponCode, discount }
