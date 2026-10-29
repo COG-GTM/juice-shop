@@ -32,10 +32,19 @@ export function profileImageFileUpload () {
       next(new Error(`Profile image upload does not accept this file type${uploadedFileType ? (': ' + uploadedFileType.mime) : '.'}`))
       return
     }
-    const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
+    let loggedInUser = security.authenticatedUsers.from(req)
     if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
-      return
+      const cookieUser = security.authenticatedUsers.get(req.cookies.token)
+      if (!cookieUser) {
+        next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+        return
+      }
+      if (!security.isValidCsrfToken(req.cookies.token, req.body?._csrf)) {
+        res.status(401)
+        next(new Error('Missing or invalid CSRF token'))
+        return
+      }
+      loggedInUser = cookieUser
     }
 
     const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
@@ -52,6 +61,7 @@ export function profileImageFileUpload () {
       }
     } catch (error) {
       next(error)
+      return
     }
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')

@@ -95,7 +95,7 @@ export function getUserProfile () {
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn(user))
+      res.send(fn({ ...user.get({ plain: true }), csrfToken: security.csrfTokenFor(req.cookies.token) }))
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
