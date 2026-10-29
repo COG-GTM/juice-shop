@@ -1,6 +1,9 @@
 import fs from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import yaml from 'js-yaml'
 import logger from './logger'
+import * as utils from './utils'
 
 export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data', './data/static/web3-snippets', './frontend/src/app', './models'])
 
@@ -109,4 +112,38 @@ export async function getCodeChallenges (): Promise<Map<string, CachedCodeChalle
     }
   }
   return _internalCodeChallenges
+}
+
+export interface CodingChallengeInfo {
+  fixes: Array<{ id: number, explanation: string }>
+  hints: string[]
+}
+
+const isFixInfo = (fix: unknown): fix is { id: number, explanation: string } =>
+  typeof fix === 'object' && fix !== null &&
+  typeof (fix as Record<string, unknown>).id === 'number' &&
+  typeof (fix as Record<string, unknown>).explanation === 'string'
+
+const codingChallengeInfos = new Map<string, CodingChallengeInfo | null>()
+export function getCodingChallengeInfo (key: string): CodingChallengeInfo | null {
+  if (typeof key !== 'string' || !/^[a-zA-Z0-9]+$/.test(key)) return null
+  if (codingChallengeInfos.has(key)) return codingChallengeInfos.get(key) ?? null
+
+  let info: CodingChallengeInfo | null = null
+  const infoFile = `./data/static/codefixes/${key}.info.yml`
+  if (existsSync(infoFile)) {
+    try {
+      const parsed = yaml.safeLoad(readFileSync(infoFile, 'utf8')) as { fixes?: unknown, hints?: unknown } | undefined
+      const fixes: unknown = parsed?.fixes
+      const hints: unknown = parsed?.hints
+      info = {
+        fixes: Array.isArray(fixes) ? fixes.filter(isFixInfo) : [],
+        hints: Array.isArray(hints) ? hints.filter((hint): hint is string => typeof hint === 'string') : []
+      }
+    } catch (error) {
+      logger.warn(`Coding challenge info file ${infoFile} could not be parsed: ${utils.getErrorMessage(error)}`)
+    }
+  }
+  codingChallengeInfos.set(key, info)
+  return info
 }
