@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -126,16 +126,27 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order with insufficient wallet balance leaves no order PDF behind', async () => {
-    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith('order_'))
-    const before = orderPdfs()
+    const email = `wallet-${Date.now()}@juice-sh.op`
+    await register(app, { email, password: 'insufficient-funds' })
+    const { token, bid } = await login(app, { email, password: 'insufficient-funds' })
+    const userHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const whoAmI = await request(app).get('/rest/user/whoami').set({ Cookie: `token=${token}` })
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(userHeader)
+      .send({ BasketId: bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const orderPdfPrefix = `order_${security.hash(email).slice(0, 4)}-`
+    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(orderPdfPrefix))
 
     const res = await request(app)
-      .post('/rest/basket/1/checkout')
-      .set(authHeader)
-      .send({ UserId: 1, orderDetails: { paymentId: 'wallet' } })
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(userHeader)
+      .send({ UserId: whoAmI.body.user.id, orderDetails: { paymentId: 'wallet' } })
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Insufficient wallet balance.'))
-    assert.deepEqual(orderPdfs(), before)
+    assert.deepEqual(orderPdfs(), [])
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
