@@ -71,7 +71,7 @@ describe('codingChallengeFixes', () => {
       for (const challenge of codingChallenges) {
         const info = getCodingChallengeInfo(challenge)
         expect(info?.fixes.length, `Coding challenge ${challenge} has no valid fix explanations`).to.be.greaterThan(0)
-        expect(info?.hints.length, `Coding challenge ${challenge} has no valid hints`).to.be.greaterThan(0)
+        expect(info?.hints?.length, `Coding challenge ${challenge} has no valid hints`).to.be.greaterThan(0)
       }
     })
   })

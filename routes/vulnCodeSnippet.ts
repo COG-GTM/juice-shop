@@ -86,7 +86,7 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
   let hint
   const codingChallengeInfos = getCodingChallengeInfo(key)
   if (codingChallengeInfos) {
-    if (codingChallengeInfos.hints.length > 0) {
+    if (codingChallengeInfos.hints) {
       if (accuracy.getFindItAttempts(key) > codingChallengeInfos.hints.length) {
         if (vulnLines.length === 1) {
           hint = res.__('Line {{vulnLine}} is responsible for this vulnerability or security flaw. Select it and submit to proceed.', { vulnLine: vulnLines[0].toString() })

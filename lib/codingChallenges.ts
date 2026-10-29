@@ -116,7 +116,7 @@ export async function getCodeChallenges (): Promise<Map<string, CachedCodeChalle
 
 export interface CodingChallengeInfo {
   fixes: Array<{ id: number, explanation: string }>
-  hints: string[]
+  hints?: string[]
 }
 
 const isFixInfo = (fix: unknown): fix is { id: number, explanation: string } =>
@@ -138,7 +138,7 @@ export function getCodingChallengeInfo (key: string): CodingChallengeInfo | null
       const hints: unknown = parsed?.hints
       info = {
         fixes: Array.isArray(fixes) ? fixes.filter(isFixInfo) : [],
-        hints: Array.isArray(hints) ? hints.filter((hint): hint is string => typeof hint === 'string') : []
+        hints: Array.isArray(hints) ? hints.filter((hint): hint is string => typeof hint === 'string') : undefined
       }
     } catch (error) {
       logger.warn(`Coding challenge info file ${infoFile} could not be parsed: ${utils.getErrorMessage(error)}`)
