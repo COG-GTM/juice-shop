@@ -14,9 +14,10 @@ import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { SocketIoService } from '../Services/socket-io.service'
+import { UserService } from '../Services/user.service'
 
 import { ChallengeSolvedNotificationComponent } from './challenge-solved-notification.component'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { EventEmitter } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
@@ -42,12 +43,20 @@ describe('ChallengeSolvedNotificationComponent', () => {
     let countryMappingService: any
     let snackBarHelperService: any
     let mockSocket: any
+    let userService: any
+    let loggedInState: Subject<any>
 
     beforeEach(async () => {
         mockSocket = new MockSocket()
         socketIoService = {
-            socket: vi.fn().mockName("SocketIoService.socket")
+            socket: vi.fn().mockName("SocketIoService.socket"),
+            authenticate: vi.fn().mockName("SocketIoService.authenticate")
         }
+        loggedInState = new Subject<any>()
+        userService = {
+            getLoggedInState: vi.fn().mockName("UserService.getLoggedInState")
+        }
+        userService.getLoggedInState.mockReturnValue(loggedInState.asObservable())
         socketIoService.socket.mockReturnValue(mockSocket)
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
@@ -92,6 +101,7 @@ describe('ChallengeSolvedNotificationComponent', () => {
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CountryMappingService, useValue: countryMappingService },
                 { provide: SnackBarHelperService, useValue: snackBarHelperService },
+                { provide: UserService, useValue: userService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -107,6 +117,26 @@ describe('ChallengeSolvedNotificationComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy()
+    })
+
+    it('should re-authenticate the socket whenever the login state changes', () => {
+        loggedInState.next(true)
+        loggedInState.next(false)
+
+        expect(socketIoService.authenticate).toHaveBeenCalledTimes(2)
+    })
+
+    it('should add a CTF flag delivered after login to the already shown notification', () => {
+        let onChallengeSolved: any
+        mockSocket.on = (event: string, callback: any) => { if (event === 'challenge solved') onChallengeSolved = callback }
+        vi.spyOn(mockSocket, 'emit')
+        component.ngOnInit()
+        component.notifications = [{ key: 'scoreBoardChallenge', message: 'Score Board', flag: undefined as any, copied: false }]
+
+        onChallengeSolved({ key: 'scoreBoardChallenge', challenge: 'Score Board', flag: '1234' })
+
+        expect(component.notifications).toEqual([{ key: 'scoreBoardChallenge', message: 'Score Board', flag: '1234', copied: false }])
+        expect(mockSocket.emit).toHaveBeenCalledWith('notification received', '1234', null)
     })
 
     it('should delete notifictions', () => {

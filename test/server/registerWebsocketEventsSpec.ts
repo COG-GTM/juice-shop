@@ -10,8 +10,11 @@ import { EventEmitter } from 'events'
 import type { Challenge } from 'data/types'
 import { challenges, notifications } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
+import { grantFlagAccess, notificationFor } from '../../lib/challengeUtils'
 import {
+  authenticateSocket,
   registerChallengeVerificationEvents,
+  registerSocketAuthentication,
   registerNotificationAcknowledgement,
   resetVerificationRateLimits,
   verifiedUserIdFrom,
@@ -106,8 +109,74 @@ describe('registerWebsocketEvents', () => {
     })
   })
 
+  describe('flag delivery in CTF mode', () => {
+    const notification = { key: 'scoreBoardChallenge', flag: 'queued-flag' }
+    const receivedNotifications = (target: EventEmitter) => {
+      const received: any[] = []
+      target.on('challenge solved', (data: any) => received.push(data))
+      return received
+    }
+
+    it('strips flags from notifications for unauthenticated sockets', () => {
+      expect(notificationFor(socket, notification)).to.deep.equal({ key: 'scoreBoardChallenge' })
+    })
+
+    it('includes flags for sockets presenting a valid login token in the handshake', () => {
+      const authenticated = Object.assign(new EventEmitter(), { id: 'socket-2', handshake: { auth: { token: security.authorize({ data: { id: 42 } }) } } })
+      registerSocketAuthentication(authenticated)
+
+      expect(notificationFor(authenticated, notification)).to.deep.equal(notification)
+    })
+
+    it('ignores forged handshake tokens', () => {
+      const [header, , signature] = security.authorize({ data: { id: 42 } }).split('.')
+      const forgedPayload = Buffer.from(JSON.stringify({ data: { id: 1 } })).toString('base64url')
+      const forged = Object.assign(new EventEmitter(), { id: 'socket-3', handshake: { auth: { token: `${header}.${forgedPayload}.${signature}` } } })
+      registerSocketAuthentication(forged)
+
+      expect(notificationFor(forged, notification)).to.deep.equal({ key: 'scoreBoardChallenge' })
+    })
+
+    it('replays pending notifications with flags once when a socket authenticates after connecting', () => {
+      registerSocketAuthentication(socket)
+      const received = receivedNotifications(socket)
+      const token = security.authorize({ data: { id: 42 } })
+
+      socket.emit('authenticate', token)
+      socket.emit('authenticate', token)
+
+      expect(received).to.deep.equal([{ key: 'scoreBoardChallenge', flag: 'queued-flag' }])
+    })
+
+    it('does not replay pending notifications for an invalid authentication attempt', () => {
+      registerSocketAuthentication(socket)
+      const received = receivedNotifications(socket)
+
+      socket.emit('authenticate', 'not-a-token')
+
+      expect(received).to.have.lengthOf(0)
+    })
+
+    it('revokes flag access when a socket re-authenticates without a valid token', () => {
+      authenticateSocket(socket, security.authorize({ data: { id: 42 } }))
+      authenticateSocket(socket, null)
+
+      expect(notificationFor(socket, notification)).to.deep.equal({ key: 'scoreBoardChallenge' })
+    })
+
+    it('stops delivering flags once the login token has expired', () => {
+      grantFlagAccess(socket, Date.now() - 1)
+
+      expect(notificationFor(socket, notification)).to.deep.equal({ key: 'scoreBoardChallenge' })
+    })
+  })
+
   describe('outside CTF mode', () => {
     beforeEach(() => { ctfMode = false })
+
+    it('keeps flags in notifications for anonymous sockets', () => {
+      expect(notificationFor(socket, { key: 'scoreBoardChallenge', flag: 'queued-flag' })).to.deep.equal({ key: 'scoreBoardChallenge', flag: 'queued-flag' })
+    })
 
     it('still solves challenges for anonymous sockets', () => {
       socket.emit('verifyLocalXssChallenge', localXssPayload)

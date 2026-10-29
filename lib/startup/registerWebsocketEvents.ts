@@ -29,16 +29,45 @@ const hasValidSignature = (token: string) => {
   }
 }
 
-export const verifiedUserIdFrom = (token: unknown): number | undefined => {
+export const verifiedSessionFrom = (token: unknown): { userId: number, expiresAt: number } | undefined => {
   if (typeof token !== 'string' || token.length === 0 || !hasValidSignature(token)) {
     return undefined
   }
   const payload = security.decode(token) as { exp?: number, data?: { id?: unknown } } | undefined
-  if (typeof payload?.exp === 'number' && payload.exp * 1000 < Date.now()) {
+  const expiresAt = typeof payload?.exp === 'number' ? payload.exp * 1000 : Number.POSITIVE_INFINITY
+  if (expiresAt < Date.now()) {
     return undefined
   }
   const id = payload?.data?.id
-  return typeof id === 'number' ? id : undefined
+  return typeof id === 'number' ? { userId: id, expiresAt } : undefined
+}
+
+export const verifiedUserIdFrom = (token: unknown): number | undefined => verifiedSessionFrom(token)?.userId
+
+export const authenticateSocket = (socket: any, token: unknown) => {
+  const session = verifiedSessionFrom(token)
+  if (session === undefined) {
+    challengeUtils.revokeFlagAccess(socket)
+    return false
+  }
+  const hadFlagAccess = challengeUtils.canReceiveFlags(socket)
+  challengeUtils.grantFlagAccess(socket, session.expiresAt)
+  return !hadFlagAccess
+}
+
+const emitPendingNotifications = (socket: any) => {
+  notifications.forEach((notification: any) => {
+    socket.emit('challenge solved', challengeUtils.notificationFor(socket, notification))
+  })
+}
+
+export const registerSocketAuthentication = (socket: any) => {
+  authenticateSocket(socket, socket.handshake?.auth?.token)
+  socket.on('authenticate', (token: unknown) => {
+    if (authenticateSocket(socket, token) && requiresAuthenticatedVerification()) {
+      emitPendingNotifications(socket)
+    }
+  })
 }
 
 export const isVerificationRateLimited = (key: string, now = Date.now()) => {
@@ -113,9 +142,8 @@ const registerWebsocketEvents = (server: any) => {
       firstConnectedSocket = socket.id
     }
 
-    notifications.forEach((notification: any) => {
-      socket.emit('challenge solved', notification)
-    })
+    registerSocketAuthentication(socket)
+    emitPendingNotifications(socket)
 
     registerNotificationAcknowledgement(socket)
     registerChallengeVerificationEvents(socket)

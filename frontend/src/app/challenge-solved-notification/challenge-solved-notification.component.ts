@@ -10,6 +10,7 @@ import { ChangeDetectorRef, Component, NgZone, type OnInit, inject } from '@angu
 import { CookieService } from 'ngy-cookie'
 import { CountryMappingService } from '../Services/country-mapping.service'
 import { SocketIoService } from '../Services/socket-io.service'
+import { UserService } from '../Services/user.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule } from '@angular/material/card'
@@ -51,6 +52,7 @@ export class ChallengeSolvedNotificationComponent implements OnInit {
   private readonly cookieService = inject(CookieService)
   private readonly ref = inject(ChangeDetectorRef)
   private readonly io = inject(SocketIoService)
+  private readonly userService = inject(UserService)
   private readonly snackBarHelperService = inject(SnackBarHelperService)
   private readonly router = inject(Router)
 
@@ -64,6 +66,15 @@ export class ChallengeSolvedNotificationComponent implements OnInit {
     this.ngZone.runOutsideAngular(() => {
       this.io.socket().on('challenge solved', (data: ChallengeSolvedMessage) => {
         if (data?.challenge) {
+          const shownNotification = this.notifications.find(({ key }) => key === data.key)
+          if (shownNotification) {
+            if (data.flag && !shownNotification.flag) {
+              shownNotification.flag = data.flag
+              this.ref.detectChanges()
+            }
+            this.io.socket().emit('notification received', data.flag, localStorage.getItem('token'))
+            return
+          }
           if (!data.hidden) {
             this.showNotification(data)
           }
@@ -78,6 +89,10 @@ export class ChallengeSolvedNotificationComponent implements OnInit {
           this.io.socket().emit('notification received', data.flag, localStorage.getItem('token'))
         }
       })
+    })
+
+    this.userService.getLoggedInState().subscribe(() => {
+      this.io.authenticate()
     })
 
     this.configurationService.getApplicationConfiguration().subscribe((config) => {
