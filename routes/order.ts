@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+const ORDER_CONFIRMATIONS_DIR = 'orders/'
+const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
 interface Product {
   quantity: number
   id?: number
@@ -42,7 +45,7 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(ORDER_CONFIRMATIONS_DIR, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -162,6 +165,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: customer?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
@@ -179,6 +183,34 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+export function serveOrderConfirmation () {
+  return async (req: Request, res: Response) => {
+    const user = verifiedUserFrom(utils.jwtFrom(req) ?? req.cookies?.token)
+    const userId = user?.data?.id
+    if (userId === undefined || userId === null) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+
+    const orderId = req.params.id
+    const order = ORDER_ID_PATTERN.test(orderId) ? await db.ordersCollection.findOne({ orderId }) : null
+    const isOwner = order?.UserId === userId
+    const pdfPath = path.resolve(ORDER_CONFIRMATIONS_DIR, `order_${orderId}.pdf`)
+    if (!isOwner || !fs.existsSync(pdfPath)) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(pdfPath)
+  }
+}
+
+function verifiedUserFrom (token?: string) {
+  if (!token || !security.verify(utils.unquote(token))) return undefined
+  const exp = (security.decode(utils.unquote(token)) as { exp?: number } | undefined)?.exp
+  if (typeof exp === 'number' && exp * 1000 <= Date.now()) return undefined
+  return security.authenticatedUsers.get(token)
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
