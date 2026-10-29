@@ -8,7 +8,7 @@ import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { Readable, Writable } from 'node:stream'
-import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, resolvePromotionSubtitlesEntryPath, createExtractionBudget } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -108,6 +108,36 @@ describe('fileUpload', () => {
     it('should reject non-string entry names', () => {
       expect(resolveComplaintEntryPath(undefined)).to.equal(null)
       expect(resolveComplaintEntryPath(42)).to.equal(null)
+    })
+  })
+
+  describe('resolvePromotionSubtitlesEntryPath', () => {
+    const subtitlesPath = path.resolve('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')
+
+    beforeEach(() => {
+      challenges.videoXssChallenge = { solved: false, save } as unknown as Challenge
+    })
+
+    it('should allow the videoXssChallenge entry that targets the promotion subtitles', () => {
+      expect(resolvePromotionSubtitlesEntryPath('../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')).to.equal(subtitlesPath)
+    })
+
+    const otherEntries = [
+      '../../data/static/codefixes/directoryListingChallenge.info.yml',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.mp4',
+      '../../frontend/dist/frontend/assets/public/videos/other.vtt',
+      '../../data/static/owasp_promo.vtt',
+      '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt\0',
+      'owasp_promo.vtt'
+    ]
+    otherEntries.forEach(entry => {
+      it(`should reject entry ${JSON.stringify(entry)}`, () => {
+        expect(resolvePromotionSubtitlesEntryPath(entry)).to.equal(null)
+      })
+    })
+
+    it('should reject non-string entry names', () => {
+      expect(resolvePromotionSubtitlesEntryPath(undefined)).to.equal(null)
     })
   })
 
