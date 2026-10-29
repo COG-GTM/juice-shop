@@ -163,6 +163,23 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.role, 'customer')
   })
 
+  void it('POST new user with accounting role cannot access accounting-only order history', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'mallory@evil.test',
+        password: 'mallory123',
+        passwordRepeat: 'mallory123',
+        role: 'accounting'
+      })
+    const { token } = await login(app, { email: 'mallory@evil.test', password: 'mallory123' })
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 403)
+  })
+
   void it('POST user with invalid role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
