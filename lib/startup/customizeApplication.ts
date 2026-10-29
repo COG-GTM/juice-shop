@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import config from 'config'
 import * as utils from '../utils'
+import { reloadPromotionSubtitles } from '../../routes/videoHandler'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
 
@@ -68,6 +69,7 @@ const customizePromotionVideo = async () => {
 
 const customizePromotionSubtitles = async () => {
   await retrieveCustomFile('application.promotion.subtitles', 'frontend/dist/frontend/assets/public/videos')
+  reloadPromotionSubtitles()
 }
 
 const retrieveCustomFile = async (sourceProperty: string, destinationFolder: string) => {

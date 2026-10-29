@@ -17,6 +17,12 @@ import * as utils from '../lib/utils'
 
 const entities = new Entities()
 
+let subtitlesVersion = 0
+
+export function reloadPromotionSubtitles () {
+  subtitlesVersion++
+}
+
 export const getVideo = () => {
   return (req: Request, res: Response) => {
     const path = videoPath()
@@ -57,9 +63,14 @@ export const promotionVideo = () => {
     const html = (await template).replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeSubtitles(subs) + '</script>')
     return { html, subs }
   }
+  let loadedVersion = subtitlesVersion
   let page: ReturnType<typeof loadPage> | null = loadPage()
   page.catch(() => {})
   return (req: Request, res: Response, next: NextFunction) => {
+    if (loadedVersion !== subtitlesVersion) {
+      loadedVersion = subtitlesVersion
+      page = null
+    }
     page ??= loadPage()
     page.then(({ html, subs }) => {
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
