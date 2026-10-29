@@ -42,7 +42,7 @@ export function changePassword () {
         return
       }
 
-      if (security.hash(currentPassword) !== user.password) {
+      if (!currentPassword || security.hash(currentPassword) !== user.password) {
         challengeUtils.solveIf(
           challenges.changePasswordBenderChallenge,
           () => user.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
