@@ -74,6 +74,7 @@ import { placeOrder } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
+import * as complaints from './routes/complaints'
 import * as twoFactorAuth from './routes/2fa'
 import { applyCoupon } from './routes/coupon'
 import dataErasure from './routes/dataErasure'
@@ -452,6 +453,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* Complaints: list only the caller's own complaints (admins see all) */
+  app.get('/api/Complaints', utils.asyncHandler(complaints.listComplaints()))
+  app.post('/api/Complaints', complaints.setComplaintOwner())
+
+  /* BasketItems: Only items in the caller's own basket can be viewed or removed */
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -530,6 +538,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         context.instance = toVisibleUser(context.instance)
         return context.continue
       })
+    }
+
+    if (name === 'BasketItem') {
+      resource.list.fetch.after(basketItems.onlyOwnBasketItemsInList())
     }
 
     // translate challenge descriptions on-the-fly
