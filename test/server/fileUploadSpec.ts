@@ -81,6 +81,7 @@ describe('fileUpload', () => {
       '../../ftp/zipslip-test.md',
       '../../frontend/dist/frontend/index.html',
       '../../build/routes/login.js',
+      '../../node_modules/svg-captcha/index.js',
       '../../data/static/users.yml',
       '../../test-zip-slip.txt',
       '../../views/promotionVideo.pug',
