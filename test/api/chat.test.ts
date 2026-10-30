@@ -324,6 +324,15 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       assert.equal(toolCallDeltas(res.text).length, 0)
     })
 
+    void it('are not streamed for an expired admin token', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+      const res = await chatAs({ Authorization: `Bearer ${token}` })
+
+      assert.equal(res.status, 200)
+      assert.equal(toolCallDeltas(res.text).length, 0)
+    })
+
     void it('are streamed to admins', { timeout: 15000 }, async () => {
       scriptToolCall()
       const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
