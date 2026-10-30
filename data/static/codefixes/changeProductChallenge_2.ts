@@ -34,8 +34,8 @@
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
-  app.get('/api/SecurityAnswers', security.denyAll())
+  /* SecurityAnswers: Only created server-side during user registration. */
+  app.use('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
