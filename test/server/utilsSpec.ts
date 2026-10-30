@@ -169,6 +169,7 @@ describe('utils', () => {
     it('accepts plain email addresses', () => {
       expect(utils.isValidEmail('admin@juice-sh.op')).to.equal(true)
       expect(utils.isValidEmail('a&b@kasper.le')).to.equal(true)
+      expect(utils.isValidEmail('a`b@kasper.le')).to.equal(true)
     })
 
     it('rejects strings without exactly one @', () => {
