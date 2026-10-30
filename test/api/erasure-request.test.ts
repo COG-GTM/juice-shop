@@ -14,9 +14,10 @@ import { PrivacyRequestModel } from '../../models/privacyRequests'
 let app: Express
 
 const bjoern = { email: 'bjoern@owasp.org', password: 'kitten lesser pooch karate buffoon indoors' }
+const jim = { email: 'jim@juice-sh.op', password: 'ncc-1701' }
 
-async function erasureForm () {
-  const { token } = await login(app, bjoern)
+async function erasureForm (user = bjoern) {
+  const { token } = await login(app, user)
   const res = await request(app)
     .get('/dataerasure/')
     .set({ Cookie: 'token=' + token })
@@ -104,7 +105,7 @@ void describe('/dataerasure', () => {
 
   void it('POST erasure request with CSRF token of another session is rejected', async () => {
     const { token } = await erasureForm()
-    const { csrfToken } = await erasureForm()
+    const { csrfToken } = await erasureForm(jim)
 
     const res = await request(app)
       .post('/dataerasure/')
