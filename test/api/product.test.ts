@@ -133,6 +133,26 @@ void describe('/api/Products/:id', () => {
       .send({ price: original.body.data.price })
   })
 
+  void it('PUT update existing product ignores non-price attributes for accounting users', async () => {
+    const login = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({
+        email: 'accountant@' + config.get<string>('application.domain'),
+        password: 'i am an awesome accountant'
+      })
+    const accountingHeader = { Authorization: 'Bearer ' + login.body.authentication.token, 'content-type': 'application/json' }
+    const original = await request(app).get('/api/Products/' + tamperingProductId)
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(accountingHeader)
+      .send({ name: 'Hacked', description: '<iframe src="javascript:alert(`xss`)">', price: original.body.data.price })
+    assert.equal(res.status, 200)
+    const product = await request(app).get('/api/Products/' + tamperingProductId)
+    assert.equal(product.body.data.name, original.body.data.name)
+    assert.equal(product.body.data.description, original.body.data.description)
+  })
+
   void it('DELETE existing product is forbidden via public API', async () => {
     const res = await request(app)
       .delete('/api/Products/1')

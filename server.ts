@@ -452,6 +452,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* Products: Accounting may only change the price of a product */
+  app.put('/api/Products/:id', (req: Request, res: Response, next: NextFunction) => {
+    req.body = { price: req.body?.price }
+    next()
+  })
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
