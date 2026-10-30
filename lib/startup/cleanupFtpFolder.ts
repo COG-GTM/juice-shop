@@ -14,6 +14,7 @@ const cleanupFtpFolder = async () => {
     for (const filename of files) {
       await fs.remove(filename)
     }
+    await fs.remove('data/orders')
   } catch (err) {
     logger.warn('Error listing PDF files in /ftp folder: ' + utils.getErrorMessage(err))
   }

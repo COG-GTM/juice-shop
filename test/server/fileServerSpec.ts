@@ -60,6 +60,25 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  it('should not serve order confirmation PDFs from folder /ftp', () => {
+    req.params.file = 'order_1a2b-0123456789abcdef.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should not serve order confirmation PDFs via Poison Null Byte variants', () => {
+    req.params.file = 'ORDER_1a2b-0123456789abcdef.pdf%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
   it('should raise error for disallowed file type', () => {
     req.params.file = 'nice.try'
 
