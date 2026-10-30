@@ -115,8 +115,19 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           if (discarded) return
           discarded = true
           pendingDiscards.delete(discard)
-          output.destroy()
-          fs.rm(temp.tempPath, { force: true }, () => {})
+          const removeTempFile = () => {
+            fs.rm(temp.tempPath, { force: true }, (err) => {
+              if (err != null) {
+                logger.warn(`Could not remove temporary complaint file: ${err.message}`)
+              }
+            })
+          }
+          if (output.closed) {
+            removeTempFile()
+          } else {
+            output.once('close', removeTempFile)
+            output.destroy()
+          }
         }
         pendingDiscards.add(discard)
         output.on('error', (err: Error) => {
