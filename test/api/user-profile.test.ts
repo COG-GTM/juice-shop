@@ -51,4 +51,35 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders Pug interpolation in username as literal text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'x #{7*7}')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x #{7*7}'))
+    assert.ok(!res.text.includes('x 49'))
+  })
+
+  void it('GET user profile renders Pug code lines in username as literal text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'x\n- throw new Error(\'ssti\')')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('- throw new Error(&#39;ssti&#39;)'))
+  })
 })
