@@ -43,7 +43,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve(complaintsDir, fileName) === path.resolve('ftp/legal.md') })
                 const targetPath = path.resolve(complaintsDir, path.basename(fileName))
                 const relativePath = path.relative(complaintsDir, targetPath)
-                if (entry.type === 'File' && relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                if (entry.type === 'File' && relativePath !== '' && relativePath !== '..' && !relativePath.startsWith(`..${path.sep}`) && !path.isAbsolute(relativePath)) {
                   entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
