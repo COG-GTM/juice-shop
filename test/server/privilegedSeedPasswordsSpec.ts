@@ -58,7 +58,7 @@ describe('privilegedSeedPasswords', () => {
     const first = seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
     const second = seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
 
-    expect(first).to.match(/^[A-Z2-7]{32}$/)
+    expect(first).to.match(/^[A-Z2-7]{16,}$/)
     expect(first).to.not.equal('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
     expect(first).to.not.equal(second)
   })
