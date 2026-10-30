@@ -10,6 +10,7 @@ import path from 'node:path'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
+import { Transform } from 'node:stream'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -24,6 +25,10 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+const MAX_ZIP_ENTRIES = 100
+const MAX_EXTRACTED_BYTES = 10 * 1024 * 1024
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,14 +40,31 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let entryCount = 0
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const absolutePath = path.resolve(complaintsDir, entry.path)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                if (entry.type === 'File' && ++entryCount <= MAX_ZIP_ENTRIES && absolutePath.startsWith(complaintsDir + path.sep)) {
+                  let limitExceeded = false
+                  const limiter = new Transform({
+                    transform (chunk: Buffer, _encoding, callback) {
+                      extractedBytes += chunk.length
+                      if (extractedBytes > MAX_EXTRACTED_BYTES) {
+                        limitExceeded = true
+                        callback()
+                      } else {
+                        callback(null, chunk)
+                      }
+                    }
+                  })
+                  entry.pipe(limiter).pipe(fs.createWriteStream(absolutePath)
+                    .on('error', function (err) { next(err) })
+                    .on('finish', function () {
+                      if (limitExceeded) { fs.unlink(absolutePath, function (err) { if (err != null) { next(err) } }) }
+                    }))
                 } else {
                   entry.autodrain()
                 }
