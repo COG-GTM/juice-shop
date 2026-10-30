@@ -6,12 +6,14 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import config from 'config'
 import { type compileTemplate } from 'pug'
+import { AllHtmlEntities as Entities } from 'html-entities'
 
 import { themes } from '../views/themes/themes'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const entities = new Entities()
 let renderProfile: compileTemplate | undefined
 
 async function profileTemplate () {
@@ -65,7 +67,7 @@ export function getUserProfile () {
       })
 
       res.send(fn({
-        username: user.username,
+        username: entities.decode(user.username),
         email: user.email,
         profileImage: user.profileImage,
         emailHash: security.hash(user.email),
