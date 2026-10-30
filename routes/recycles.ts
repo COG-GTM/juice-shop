@@ -7,18 +7,28 @@ import { type Request, type Response } from 'express'
 import { RecycleModel } from '../models/recycle'
 
 import * as utils from '../lib/utils'
+import * as security from '../lib/insecurity'
 
-export const getRecycleItem = () => (req: Request, res: Response) => {
+export const getRecycleItem = () => [security.isAuthorized(), (req: Request, res: Response) => {
+  const id = /^[1-9]\d{0,9}$/.test(req.params.id) ? Number.parseInt(req.params.id, 10) : NaN
+  if (!Number.isSafeInteger(id)) {
+    return res.status(400).send({ error: 'Invalid recycle id.' })
+  }
+  const userId = security.decode(utils.jwtFrom(req))?.data?.id
+  if (!userId) {
+    return res.status(401).send({ error: 'Authentication required.' })
+  }
   RecycleModel.findAll({
-    where: {
-      id: JSON.parse(req.params.id)
-    }
+    where: { id }
   }).then((Recycle) => {
+    if (Recycle.some((recycle) => recycle.UserId !== userId)) {
+      return res.status(403).send({ error: 'Not allowed to access this recycle.' })
+    }
     return res.send(utils.queryResultToJson(Recycle))
   }).catch((_: unknown) => {
     return res.send('Error fetching recycled items. Please try again')
   })
-}
+}]
 
 export const blockRecycleItems = () => (req: Request, res: Response) => {
   const errMsg = { err: 'Sorry, this endpoint is not supported.' }
