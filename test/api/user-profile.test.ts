@@ -56,6 +56,19 @@ void describe('/profile', () => {
     assert.equal(user?.username, 'Localhorst')
   })
 
+  void it('POST accepts the seeded username E=ma² unchanged', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'E=ma²' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.equal(user?.username, 'E=ma²')
+  })
+
   for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51)]) {
     void it(`POST rejects username ${JSON.stringify(payload).substring(0, 40)} without saving it`, async () => {
       const res = await request(app)

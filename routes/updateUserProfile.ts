@@ -11,7 +11,7 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
-const validUsername = /^[\p{L}\p{N} ._'-]{0,50}$/u
+const validUsername = /^[\p{L}\p{N} ._'=-]{0,50}$/u
 
 export function isValidUsername (username: unknown): username is string {
   return typeof username === 'string' && validUsername.test(username)
