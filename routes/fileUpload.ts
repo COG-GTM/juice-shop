@@ -9,7 +9,9 @@ import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
+import crypto from 'node:crypto'
 import unzipper from 'unzipper'
+import { pipeline, Transform, Writable } from 'node:stream'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -24,6 +26,63 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const complaintsDir = path.resolve('uploads/complaints')
+const MAX_ZIP_ENTRIES = 100
+const MAX_EXTRACTED_BYTES = 10 * 1024 * 1024
+
+function extractComplaintZip (zipFile: string, next: NextFunction) {
+  let entryCount = 0
+  let extractedBytes = 0
+  let aborted = false
+  const source = fs.createReadStream(zipFile)
+  const parser = unzipper.Parse()
+  const abort = () => {
+    if (aborted) return
+    aborted = true
+    source.unpipe(parser)
+    source.destroy()
+    parser.destroy()
+  }
+  source.pipe(parser)
+    .on('entry', function (entry: any) {
+      if (aborted) return
+      if (++entryCount > MAX_ZIP_ENTRIES) {
+        abort()
+        return
+      }
+      const absolutePath = path.resolve(complaintsDir, entry.path)
+      challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
+      const budget = new Transform({
+        transform (chunk: Buffer, _encoding, callback) {
+          extractedBytes += chunk.length
+          if (extractedBytes > MAX_EXTRACTED_BYTES) {
+            abort()
+            callback(new Error('Extracted size limit exceeded'))
+          } else {
+            callback(null, chunk)
+          }
+        }
+      })
+      if (entry.type === 'File' && path.dirname(absolutePath) === complaintsDir) {
+        const tempPath = path.join(complaintsDir, `.${crypto.randomUUID()}.tmp`)
+        pipeline(entry, budget, fs.createWriteStream(tempPath, { flags: 'wx' }), (err) => {
+          if (err != null) {
+            fs.unlink(tempPath, () => {})
+            abort()
+            return
+          }
+          fs.rename(tempPath, absolutePath, (err) => {
+            if (err != null) fs.unlink(tempPath, () => {})
+          })
+        })
+      } else {
+        pipeline(entry, budget, new Writable({ write (_chunk, _encoding, callback) { callback() } }), (err) => {
+          if (err != null) abort()
+        })
+      }
+    }).on('error', function (err: unknown) { if (!aborted) next(err) })
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -35,18 +94,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
-              .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
-                  entry.autodrain()
-                }
-              }).on('error', function (err: unknown) { next(err) })
+            extractComplaintZip(tempFile, next)
           })
         })
       })
