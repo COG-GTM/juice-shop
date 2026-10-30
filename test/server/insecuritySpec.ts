@@ -110,16 +110,16 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
 
-    it('refreshes the cached user data of every session of a user', () => {
-      security.authenticatedUsers.put('22221', { data: { id: 2, password: 'old' } as unknown as UserModel, bid: 7 })
-      security.authenticatedUsers.put('22222', { data: { id: 2, password: 'old' } as unknown as UserModel })
-      security.authenticatedUsers.put('33333', { data: { id: 3, password: 'other' } as unknown as UserModel })
+    it('refreshes the cached user data of every session of a user without spreading the new password hash', () => {
+      security.authenticatedUsers.put('22221', { data: { id: 2, password: 'old', totpSecret: 'A' } as unknown as UserModel, bid: 7 })
+      security.authenticatedUsers.put('22222', { data: { id: 2, password: 'old', totpSecret: 'A' } as unknown as UserModel })
+      security.authenticatedUsers.put('33333', { data: { id: 3, password: 'other', totpSecret: 'C' } as unknown as UserModel })
 
-      security.authenticatedUsers.refreshAllFor({ data: { id: 2, password: 'new' } as unknown as UserModel })
+      security.authenticatedUsers.refreshAllFor({ data: { id: 2, password: 'new', totpSecret: 'B' } as unknown as UserModel })
 
-      expect(security.authenticatedUsers.get('22221')).to.deep.equal({ data: { id: 2, password: 'new' }, bid: 7 })
-      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ data: { id: 2, password: 'new' } })
-      expect(security.authenticatedUsers.get('33333')).to.deep.equal({ data: { id: 3, password: 'other' } })
+      expect(security.authenticatedUsers.get('22221')).to.deep.equal({ data: { id: 2, password: 'old', totpSecret: 'B' }, bid: 7 })
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ data: { id: 2, password: 'old', totpSecret: 'B' } })
+      expect(security.authenticatedUsers.get('33333')).to.deep.equal({ data: { id: 3, password: 'other', totpSecret: 'C' } })
     })
   })
 

@@ -94,7 +94,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   refreshAllFor: function (user: ResponseWithUser) {
     for (const [token, cached] of Object.entries(this.tokenMap)) {
       if (cached?.data?.id === user.data.id) {
-        this.tokenMap[token] = { ...cached, data: user.data }
+        // keep each session's own password hash so a password change never exposes the new hash to other sessions
+        this.tokenMap[token] = { ...cached, data: { ...user.data, password: cached.data.password } as unknown as UserModel }
       }
     }
   }
