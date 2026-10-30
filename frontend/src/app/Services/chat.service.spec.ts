@@ -138,4 +138,38 @@ describe('ChatService', () => {
     await processPromise
     expect(chunks).toEqual([{ error: 'connection_failed' }])
   })
+
+  it('should report rate limiting separately from connection failures', async () => {
+    const generator = service.streamMessages([{ role: 'user', content: 'again' }])
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.flush('Too many requests', { status: 429, statusText: 'Too Many Requests' })
+
+    await processPromise
+    expect(chunks).toEqual([{ error: 'rate_limited' }])
+  })
+
+  it('should report an expired or invalid session separately from connection failures', async () => {
+    const generator = service.streamMessages([{ role: 'user', content: 'again' }])
+
+    const chunks: ChatChunk[] = []
+    const processPromise = (async () => {
+      for await (const chunk of generator) {
+        chunks.push(chunk)
+      }
+    })()
+
+    const req = httpMock.expectOne('http://localhost:3000/rest/chat')
+    req.flush('UnauthorizedError', { status: 401, statusText: 'Unauthorized' })
+
+    await processPromise
+    expect(chunks).toEqual([{ error: 'unauthorized' }])
+  })
 })
