@@ -27,6 +27,22 @@
                 placeholder="{{'MANDATORY_CURRENT_PASSWORD' | translate }}"
                 autocomplete="off">
             </mat-form-field>
+            <mat-form-field appearance="outline" color="tertiary">
+              <mat-label translate>LABEL_TWO_FACTOR_AUTH_TOKEN</mat-label>
+              <input
+                #disableToken
+                id="totpTokenDisable"
+                formControlName="totpTokenControl"
+                type="text"
+                matInput
+                aria-label="Field to enter the current token from your authenticator. This must have 6 digits."
+                placeholder="{{'2FA_ENTER_CODE_PLACEHOLDER' | translate }}"
+                minlength="6" maxlength="6" pattern="^[\d]{6}$"
+                autocomplete="off"
+              >
+              <mat-error translate>INVALID_TWO_FACTOR_AUTH_TOKEN</mat-error>
+              <mat-hint align="end">{{disableToken.value?.length || 0}}/6</mat-hint>
+            </mat-form-field>
               <button
                 type="submit"
                 id="disableTwoFactorAuth"
