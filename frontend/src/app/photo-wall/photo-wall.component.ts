@@ -20,6 +20,7 @@ import { MatIconButton, MatButtonModule } from '@angular/material/button'
 import { MatIconModule } from '@angular/material/icon'
 
 import { MatCardModule, MatCardTitle, MatCardContent } from '@angular/material/card'
+import { isLoggedIn } from '../Services/auth-session'
 
 library.add(faTwitter)
 
@@ -104,7 +105,7 @@ export class PhotoWallComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return isLoggedIn()
   }
 
   resetForm () {

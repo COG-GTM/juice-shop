@@ -12,8 +12,7 @@ describe('/b2b/v2/order', () => {
                 method: 'POST',
                 cache: 'no-cache',
                 headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
+                  'Content-type': 'application/json'
                 },
                 body: JSON.stringify({
                   orderLinesData: '(function dos() { while(true); })()'
@@ -42,8 +41,7 @@ describe('/b2b/v2/order', () => {
                 method: 'POST',
                 cache: 'no-cache',
                 headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
+                  'Content-type': 'application/json'
                 },
                 body: JSON.stringify({
                   orderLinesData:

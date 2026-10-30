@@ -24,6 +24,7 @@ import { MatButtonModule, MatIconButton } from '@angular/material/button'
 import { MatDivider } from '@angular/material/divider'
 import { MatTooltip } from '@angular/material/tooltip'
 import { AsyncPipe } from '@angular/common'
+import { isLoggedIn } from '../Services/auth-session'
 
 library.add(faPaperPlane, faArrowCircleLeft, faUserEdit, faThumbsUp, faCrown)
 
@@ -100,6 +101,6 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return isLoggedIn()
   }
 }

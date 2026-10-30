@@ -28,7 +28,6 @@ import { ActivatedRoute, type ParamMap, Router } from '@angular/router'
 import { WalletService } from '../Services/wallet.service'
 import { DeliveryService } from '../Services/delivery.service'
 import { UserService } from '../Services/user.service'
-import { CookieService } from 'ngy-cookie'
 import { Location } from '@angular/common'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatIconModule } from '@angular/material/icon'
@@ -40,6 +39,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatDivider } from '@angular/material/divider'
 import { PaymentMethodComponent } from '../payment-method/payment-method.component'
 import { MatCardModule } from '@angular/material/card'
+import { startSession } from '../Services/auth-session'
 
 library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, faStickyNote, faHandHoldingUsd, faCoffee, faTimes, faStripe, faPalette)
 
@@ -51,7 +51,6 @@ library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, f
 })
 export class PaymentComponent implements OnInit {
   private readonly location = inject(Location)
-  private readonly cookieService = inject(CookieService)
   private readonly userService = inject(UserService)
   private readonly deliveryService = inject(DeliveryService)
   private readonly walletService = inject(WalletService)
@@ -229,8 +228,7 @@ export class PaymentComponent implements OnInit {
     } else if (this.mode === 'deluxe') {
       this.userService.upgradeToDeluxe(this.paymentMode, this.paymentId).subscribe({
         next: (data) => {
-          localStorage.setItem('token', data.token)
-          this.cookieService.put('token', data.token)
+          startSession(data.token)
           this.ngZone.run(async () => await this.router.navigate(['/deluxe-membership']))
         },
         error: (err) => { console.log(err) }

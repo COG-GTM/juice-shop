@@ -55,11 +55,13 @@ describe('SidenavComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -159,12 +161,12 @@ describe('SidenavComponent', () => {
     it('should remove authentication token from localStorage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
-        expect(removeItemSpy).toHaveBeenCalledWith('token')
+        expect(removeItemSpy).toHaveBeenCalledWith('session')
     })
 
-    it('should remove authentication token from cookies', () => {
+    it('should ask the server to clear the session cookie', () => {
         component.logout()
-        expect(cookieService.remove).toHaveBeenCalledWith('token')
+        expect(userService.logout).toHaveBeenCalled()
     })
 
     it('should remove basket id from session storage', () => {

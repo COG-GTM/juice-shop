@@ -103,9 +103,7 @@ describe('/profile', () => {
           cache: 'no-cache',
           headers: {
             'Content-type': 'application/x-www-form-urlencoded',
-            Authorization: `Bearer ${localStorage.getItem('token')}`,
-            Origin: 'http://htmledit.squarefree.com', // FIXME Not allowed by browser due to "unsafe header not permitted"
-            Cookie: `token=${localStorage.getItem('token')}` // FIXME Not allowed by browser due to "unsafe header not permitted"
+            Origin: 'http://htmledit.squarefree.com' // FIXME Not allowed by browser due to "unsafe header not permitted"
           },
           body: formData
         })

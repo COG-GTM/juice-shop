@@ -13,8 +13,7 @@ describe('/dataerasure', () => {
           cache: 'no-cache',
           headers: {
             'Content-type': 'application/x-www-form-urlencoded',
-            Origin: `${Cypress.config('baseUrl')}/`,
-            Cookie: `token=${localStorage.getItem('token')}`
+            Origin: `${Cypress.config('baseUrl')}/`
           },
           body: params
         })

@@ -111,6 +111,27 @@ describe('insecurity', () => {
     })
   })
 
+  describe('bearerTokenFromSessionCookie', () => {
+    const run = (req: any) => {
+      let called = false
+      security.bearerTokenFromSessionCookie()(req, {} as any, () => { called = true })
+      expect(called).to.equal(true)
+      return req
+    }
+
+    it('uses the HttpOnly session cookie when no bearer token is sent', () => {
+      expect(run({ headers: {}, cookies: { token: 'cookieToken' } }).headers.authorization).to.equal('Bearer cookieToken')
+    })
+
+    it('keeps an explicit bearer token', () => {
+      expect(run({ headers: { authorization: 'Bearer headerToken' }, cookies: { token: 'cookieToken' } }).headers.authorization).to.equal('Bearer headerToken')
+    })
+
+    it('leaves requests without session cookie untouched', () => {
+      expect(run({ headers: {}, cookies: {} }).headers.authorization).to.equal(undefined)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

@@ -23,6 +23,7 @@ import { of, throwError } from 'rxjs'
 import { UserService } from '../Services/user.service'
 import { CookieModule } from 'ngy-cookie'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { isLoggedIn } from '../Services/auth-session'
 
 describe('OAuthComponent', () => {
     let component: OAuthComponent
@@ -81,7 +82,7 @@ describe('OAuthComponent', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockReturnValue(throwError({ error: 'Error' }))
         component.ngOnInit()
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
@@ -102,7 +103,7 @@ describe('OAuthComponent', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.login.mockReturnValue(throwError({ error: 'Error' }))
         component.login({ email: '' })
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 })

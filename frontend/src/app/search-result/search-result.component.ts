@@ -23,6 +23,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule, MatCardTitle, MatCardContent } from '@angular/material/card'
 import { AsyncPipe } from '@angular/common'
 import { ProductComponent } from '../product/product.component'
+import { isLoggedIn } from '../Services/auth-session'
 
 library.add(faEye, faCartPlus)
 
@@ -202,7 +203,7 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   }
 
   isLoggedIn (): boolean {
-    return localStorage.getItem('token') !== null
+    return isLoggedIn()
   }
 
   isDeluxe () {
