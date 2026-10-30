@@ -8,6 +8,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
   return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
@@ -52,9 +53,20 @@ export function changePassword () {
       }
 
       await user.update({ password: newPassword })
+      revokeOtherSessions(user.id, utils.unquote(token))
       res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
     }
   }
+}
+
+function revokeOtherSessions (userId: number, currentToken: string) {
+  const { tokenMap, idMap } = security.authenticatedUsers
+  for (const [token, session] of Object.entries(tokenMap)) {
+    if (token !== currentToken && session?.data?.id === userId) {
+      delete tokenMap[token]
+    }
+  }
+  idMap[userId] = currentToken
 }

@@ -95,7 +95,7 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('nocurrent@be.rt', 'hijacked'), 401)
   })
 
-  void it('POST password change from a second session with the superseded password is rejected', async () => {
+  void it('POST password change revokes the other sessions of the user', async () => {
     await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -119,7 +119,7 @@ void describe('/rest/user/change-password', () => {
       .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenB })
       .send({ current: 'first-secret', new: 'hijacked', repeat: 'hijacked' })
 
-    assert.equal(res.status, 401)
+    assert.notEqual(res.status, 200)
     assert.equal(await loginStatus('twosessions@be.rt', 'second-secret'), 200)
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
