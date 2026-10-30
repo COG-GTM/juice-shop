@@ -43,6 +43,44 @@ void describe('/api/Users', () => {
     }
   })
 
+  void it('GET all users cannot be searched by password hash', async () => {
+    const res = await request(app).get('/api/Users?id=1&q=0192023a7bbd73250516f069df18b500').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
+  })
+
+  void it('GET all users cannot be searched by TOTP secret', async () => {
+    const res = await request(app).get('/api/Users?q=IFTXE3SPOEYVURT2').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
+  })
+
+  void it('GET all users can still be searched by email', async () => {
+    const res = await request(app).get('/api/Users?q=wurstbrot').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((user: { email: string }) => user.email.startsWith('wurstbrot@')))
+  })
+
+  void it('GET all users ignores filters on excluded attributes', async () => {
+    const res = await request(app).get('/api/Users?id=1&password=00000000000000000000000000000000&totpSecret=X').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].id, 1)
+  })
+
+  void it('GET all users cannot be sorted by excluded attributes', async () => {
+    for (const sort of ['password', '-password', 'totpSecret', 'email,-totpSecret']) {
+      const res = await request(app).get(`/api/Users?sort=${encodeURIComponent(sort)}`).set(authHeader)
+      assert.equal(res.status, 400, `sort=${sort}`)
+    }
+  })
+
+  void it('GET all users can still be sorted by email', async () => {
+    const res = await request(app).get('/api/Users?sort=-email').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 1)
+  })
+
   void it('POST new user', async () => {
     const res = await request(app)
       .post('/api/Users')
