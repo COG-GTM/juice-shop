@@ -47,6 +47,12 @@ export function upgradeToDeluxe () {
         const userWithStatus = utils.queryResultToJson(updatedUser)
         const updatedToken = security.authorize(userWithStatus)
         security.authenticatedUsers.put(updatedToken, userWithStatus)
+        const bearer = utils.jwtFrom(req)
+        security.authenticatedUsers.revoke(bearer)
+        const cookie = req.cookies?.token
+        if (cookie && cookie !== bearer && security.sessionUserId(cookie) === user.id) {
+          security.authenticatedUsers.revoke(cookie)
+        }
         res.status(200).json({ status: 'success', data: { confirmation: 'Congratulations! You are now a deluxe member!', token: updatedToken } })
       } catch (error) {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })

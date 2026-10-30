@@ -84,6 +84,10 @@ void describe('/rest/deluxe-membership', () => {
       email: `bender@${config.get<string>('application.domain')}`,
       password: 'OhG0dPlease1nsertLiquor!'
     })
+    const { token: cookieToken } = await login(app, {
+      email: `bender@${config.get<string>('application.domain')}`,
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     const cardsRes = await request(app)
@@ -95,6 +99,7 @@ void describe('/rest/deluxe-membership', () => {
     const res = await request(app)
       .post('/rest/deluxe-membership')
       .set(authHeader)
+      .set('Cookie', `token=${cookieToken}`)
       .send({
         paymentMode: 'card',
         paymentId: cardsRes.body.data[0].id.toString()
@@ -102,6 +107,10 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    await request(app).get('/api/Cards').set(authHeader).expect(401)
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + cookieToken }).expect(401)
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + res.body.data.token }).expect(200)
   })
 
   void it('POST upgrade deluxe membership status for customers with wallet payment', async () => {

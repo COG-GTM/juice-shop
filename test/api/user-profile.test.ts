@@ -51,4 +51,21 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username reissues the token without extending the session', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${token}`)
+      .field('username', 'Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? [])
+    const reissued = cookies.map(c => /^token=([^;]+)/.exec(c)?.[1]).find(t => t !== undefined)
+    assert.ok(reissued)
+    assert.notEqual(reissued, token)
+    const expOf = (jwt: string) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString('utf8')).exp
+    assert.equal(expOf(reissued), expOf(token))
+  })
 })
