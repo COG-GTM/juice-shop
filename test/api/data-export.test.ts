@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -20,6 +20,22 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/data-export', () => {
+  void it('Export data does not include orders of another user whose email masks to the same value', async () => {
+    const email = 'edmin@' + config.get<string>('application.domain')
+    await register(app, { email, password: 'edmin123' })
+    const { token } = await login(app, { email, password: 'edmin123' })
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, email)
+    assert.deepEqual(parsedData.orders, [])
+  })
+
   void it('Export data without use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

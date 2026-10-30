@@ -17,20 +17,21 @@ export function dataExport () {
     try {
       const loggedInUser = security.authenticatedUsers.get(req.headers?.authorization?.replace('Bearer ', ''))
       if (loggedInUser?.data?.email && loggedInUser.data.id) {
+        const userId = loggedInUser.data.id
         const username = loggedInUser.data.username
         const email = loggedInUser.data.email
         const updatedEmail = email.replace(/[aeiou]/gi, '*')
 
         let memories, orders, reviews
         try {
-          memories = await MemoryModel.findAll({ where: { UserId: req.body.UserId } })
+          memories = await MemoryModel.findAll({ where: { UserId: userId } })
         } catch (error) {
           next(error)
           return
         }
 
         try {
-          orders = await db.ordersCollection.find({ email: updatedEmail })
+          orders = await db.ordersCollection.find({ UserId: userId })
         } catch (error) {
           next(new Error(`Error retrieving orders for ${updatedEmail}`))
           return
