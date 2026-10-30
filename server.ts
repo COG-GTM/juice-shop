@@ -474,6 +474,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Created records are attributed to the authenticated caller (or nobody), never to a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
+  app.post('/api/Complaints', security.bindUserId())
+  app.post('/api/Recycles', security.bindUserId())
+  app.post('/api/PrivacyRequests', security.bindUserId())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
