@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -19,6 +20,23 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/api/PrivacyRequests', () => {
+  void it('POST new privacy request ignores a passed user ID of another user', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const res = await request(app)
+      .post('/api/PrivacyRequests')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        UserId: 1,
+        deletionRequested: true
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 4)
+  })
+
   void it('POST new complaint', async () => {
     const res = await request(app)
       .post('/api/PrivacyRequests')
