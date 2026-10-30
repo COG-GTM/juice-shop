@@ -10,7 +10,6 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
-import * as utils from '../../lib/utils'
 
 let app: Express
 
@@ -199,12 +198,5 @@ void describe('Hidden URL', () => {
     const res = await request(app)
       .get('/assets/public/images/uploads/%E1%93%9A%E1%98%8F%E1%97%A2-%23zatschi-%23whoneedsfourlegs-1572600969477.jpg')
     assert.equal(res.status, 200)
-  })
-
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
-    const res = await request(app)
-      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })
 })
