@@ -51,6 +51,13 @@ export function placeOrder () {
               res.json({ orderConfirmation: orderId })
             })()
           })
+          const abortOrder = (error: unknown) => {
+            fileWriter.removeAllListeners('finish')
+            doc.unpipe(fileWriter)
+            fileWriter.destroy()
+            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            next(error)
+          }
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
           doc.moveTo(70, 115).lineTo(540, 115).stroke()
@@ -67,17 +74,17 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockDeductions: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
+                  stockDeductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
                 }
               } catch (error: unknown) {
-                next(error)
+                abortOrder(error)
                 return
               }
               let itemPrice: number
@@ -137,22 +144,50 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (totalPrice < 0) {
+            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return true })
+            abortOrder(new Error('Order total must not be negative.'))
+            return
+          }
+
+          const deductedStock: typeof stockDeductions = []
+          const restoreStock = async () => {
+            for (const { ProductId, quantity } of deductedStock) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } })
+            }
+          }
+          try {
+            for (const deduction of stockDeductions) {
+              await QuantityModel.decrement({ quantity: deduction.quantity }, { where: { ProductId: deduction.ProductId } })
+              deductedStock.push(deduction)
+            }
+          } catch (error: unknown) {
+            await restoreStock().catch(() => {})
+            abortOrder(error)
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
+              try {
+                const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+                if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
+                  await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+                } else {
+                  await restoreStock().catch(() => {})
+                  abortOrder(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } catch (error: unknown) {
+                await restoreStock().catch(() => {})
+                abortOrder(error)
                 return
               }
             }
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
-              next(error)
+              abortOrder(error)
               return
             }
           }
@@ -185,19 +220,29 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return capDiscount(discount)
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
-    const campaign = campaigns[couponCode as keyof typeof campaigns]
+    const [couponCode, clientDate] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
+    const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+    if (campaign) {
+      if (isCampaignActive(campaign, Date.now())) {
+        return capDiscount(campaign.discount)
+      }
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return Number(clientDate) === campaign.validOn })
     }
   }
   return 0
+}
+
+function capDiscount (discount: number) {
+  return Math.min(Math.max(discount, 0), security.MAX_COUPON_DISCOUNT)
+}
+
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+function isCampaignActive (campaign: { validOn: number }, now: number) {
+  return now >= campaign.validOn && now < campaign.validOn + ONE_DAY_IN_MS
 }
 
 const campaigns = {
