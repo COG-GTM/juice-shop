@@ -113,6 +113,16 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST file type YAML with js-yaml function tag does not execute code', async () => {
+    const payload = 'toJSON: !!js/function "function () { global.yamlRcePwned = true; return process.pid }"\n'
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from(payload), 'rce.yml')
+    assert.equal(res.status, 410)
+    assert.equal((global as any).yamlRcePwned, undefined)
+    assert.ok(res.text.includes('unknown tag'))
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
