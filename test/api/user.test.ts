@@ -191,6 +191,24 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.role, 'customer')
   })
 
+  void it('self-registered accounting user cannot access accounting routes', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({ email: 'mallory.accounting@horstma.nn', password: 'hooooorst', role: 'accounting' })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'mallory.accounting@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+    const headers = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+
+    const orders = await request(app).get('/rest/order-history/orders').set(headers)
+    assert.equal(orders.status, 403)
+
+    const delivery = await request(app).put('/rest/order-history/1/delivery-status').set(headers).send({ delivered: false })
+    assert.equal(delivery.status, 403)
+  })
+
   void it('POST user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
