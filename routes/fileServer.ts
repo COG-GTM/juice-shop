@@ -11,11 +11,13 @@ import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
+const ftpDir = path.resolve('ftp')
+
 export function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (!file.includes('/')) {
+    if (!/[/\\:]/.test(file)) {
       verify(file, res, next)
     } else {
       res.status(403)
@@ -30,7 +32,13 @@ export function servePublicFiles () {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      const resolved = path.resolve(ftpDir, file)
+      if (path.dirname(resolved) !== ftpDir) {
+        res.status(403)
+        next(new Error('File names must not leave the ftp folder!'))
+        return
+      }
+      res.sendFile(resolved)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
