@@ -204,14 +204,18 @@ void describe('Hidden URL', () => {
   void it('GET access log directory listing is not exposed', async () => {
     const res = await request(app)
       .get('/support/logs')
-    assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('main.js'))
     assert.ok(!res.text.includes('access.log.'))
   })
 
   void it('GET access log file is not exposed', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('text/html'))
+    assert.ok(res.text.includes('main.js'))
     assert.ok(!res.text.includes('HTTP/1.1"'))
   })
 })
