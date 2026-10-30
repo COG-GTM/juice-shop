@@ -74,6 +74,19 @@ void describe('/api/Products', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('POST new product rejects HTML in product name for accounting users', async () => {
+    const res = await request(app)
+      .post('/api/Products')
+      .set(await accountingHeader())
+      .send({
+        name: '<script src=//evil/x.js></script>',
+        description: 'Tasty juice',
+        price: 1.99,
+        image: 'xss4juice.jpg'
+      })
+    assert.equal(res.status, 400)
+  })
+
   void it('POST new product is allowed for accounting users and sanitizes XSS attacks in description', async () => {
     const res = await request(app)
       .post('/api/Products')
@@ -155,6 +168,17 @@ void describe('/api/Products/:id', () => {
       .put('/api/Products/1')
       .set(headers)
       .send({ description: original.description })
+  })
+
+  void it('PUT update existing product rejects HTML in product name for accounting users', async () => {
+    const original = (await request(app).get('/api/Products/1')).body.data
+    const res = await request(app)
+      .put('/api/Products/1')
+      .set(await accountingHeader())
+      .send({ name: '<img src=x onerror=alert(1)>' })
+    assert.equal(res.status, 400)
+    const product = (await request(app).get('/api/Products/1')).body.data
+    assert.equal(product.name, original.name)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
