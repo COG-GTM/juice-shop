@@ -12,6 +12,8 @@ import * as security from '../../lib/insecurity'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: security.roles.admin } }), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, role: security.roles.customer } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -39,11 +41,35 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET complaints as non-admin only returns own complaints', async () => {
+    await request(app)
+      .post('/api/Complaints')
+      .set(customerHeader)
+      .send({ UserId: 2, message: 'My own complaint' })
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(customerHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 2)
+    }
+  })
+
+  void it('GET complaints with token without user id returns no complaints', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
+  })
+
+  void it('GET all complaints as admin', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((complaint: { UserId: number }) => complaint.UserId !== 1))
   })
 })
 
