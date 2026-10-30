@@ -115,9 +115,11 @@ async function claimCouponEligibleOrder (req: Request, orderId: string): Promise
   const order = await db.ordersCollection.findOne({ orderId })
   if (!order || order.email !== user.email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  if (order.couponIssued) return {}
+  const couponMonth = utils.toMMMYY(new Date())
+  if (order.couponIssued === couponMonth) return {}
+  if (order.couponIssued) return { error: 'A coupon has already been issued for this order' }
   try {
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: couponMonth } })
     return {}
   } catch {
     return { error: 'The coupon could not be issued right now, please try again' }
