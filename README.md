@@ -42,6 +42,7 @@ For a detailed introduction, full list of features and architecture overview ple
     - [Packaged Distributions](#packaged-distributions)
     - [Docker Container](#docker-container)
     - [Vagrant](#vagrant)
+    - [Default credentials](#default-credentials)
 - [Demo](#demo)
 - [Documentation](#documentation)
     - [Node.js version compatibility](#nodejs-version-compatibility)
@@ -118,6 +119,14 @@ For a detailed introduction, full list of features and architecture overview ple
    of the repository)
 3. Run `cd vagrant && vagrant up`
 4. Browse to [192.168.56.110](http://192.168.56.110)
+
+### Default credentials
+
+Accounts with the `admin` or `accounting` role from `data/static/users.yml` are seeded with a random
+password and security answer (and, where they use 2FA, a random TOTP secret) on every start, so their documented credentials
+do not work on a default installation. Set the environment variable `JUICE_SHOP_DEMO_CREDENTIALS=enabled`
+to seed them with the documented credentials instead (e.g. for training sessions or when running the API
+and end-to-end tests).
 
 ## Demo
 
