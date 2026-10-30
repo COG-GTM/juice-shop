@@ -254,6 +254,18 @@ void describe('/rest/user/data-export', () => {
     assert.ok(stale.text.includes('Wrong answer to CAPTCHA. Please try again.'))
   })
 
+  void it('Concurrently issued CAPTCHAs allow at most one export', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const answers = await Promise.all([requestCaptcha(authHeader), requestCaptcha(authHeader)])
+    const statuses: number[] = []
+    for (const answer of answers) {
+      statuses.push((await exportData(authHeader, { answer, format: '1' })).status)
+    }
+    assert.ok(statuses.filter(status => status === 200).length <= 1)
+  })
+
   void it('Non-string CAPTCHA answer is rejected', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }

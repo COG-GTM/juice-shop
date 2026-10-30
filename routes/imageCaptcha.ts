@@ -58,6 +58,7 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       return
     }
     const consumed = await ImageCaptchaModel.destroy({ where: { id: captcha.id } })
+    await ImageCaptchaModel.destroy({ where: { UserId } })
     if (consumed === 1 && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
       next()
     } else {
