@@ -63,6 +63,11 @@ For a detailed introduction, full list of features and architecture overview ple
 > [_Setting up external dependencies_ documentation](https://pwning.owasp-juice.shop/companion-guide/snapshot/part1/running.html#_setting_up_external_dependencies)
 > for instructions on configuring local or cloud-based AI providers.
 
+> Privileged seed accounts (roles `admin` and `accounting`) no longer use the passwords from
+> `data/static/users.yml` by default. A random password is generated for each of them on every start and
+> logged once; set `JUICE_SHOP_SEED_PASSWORD_<KEY>` (e.g. `JUICE_SHOP_SEED_PASSWORD_ADMIN`) to choose one.
+> Set `JUICE_SHOP_INSECURE_SEED_CREDENTIALS=true` to restore the original training credentials and TOTP secrets.
+
 ### From Sources
 
 ![GitHub repo size](https://img.shields.io/github/repo-size/juice-shop/juice-shop.svg)

@@ -38,6 +38,7 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
 
 const entities = new Entities()
 
@@ -182,6 +183,22 @@ async function createChallenges () {
   }
 }
 
+const privilegedRoles = [security.roles.admin, security.roles.accounting]
+
+function seedCredentialsFor ({ key, role, password, totpSecret }: Pick<StaticUser, 'key' | 'role' | 'password' | 'totpSecret'>) {
+  if (process.env.JUICE_SHOP_INSECURE_SEED_CREDENTIALS === 'true' || !privilegedRoles.includes(role)) {
+    return { password, totpSecret }
+  }
+  const envName = `JUICE_SHOP_SEED_PASSWORD_${key.replace(/[^A-Za-z0-9]/g, '_').toUpperCase()}`
+  const configuredPassword = process.env[envName]
+  if (configuredPassword) {
+    return { password: configuredPassword, totpSecret: '' }
+  }
+  const generatedPassword = crypto.randomBytes(18).toString('base64url')
+  logger.warn(`Generated password for privileged seed account "${key}" (set ${envName} to override): ${generatedPassword}`)
+  return { password: generatedPassword, totpSecret: '' }
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
 
@@ -189,14 +206,15 @@ async function createUsers () {
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const credentials = seedCredentialsFor({ key, role, password, totpSecret })
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: credentials.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: credentials.totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
