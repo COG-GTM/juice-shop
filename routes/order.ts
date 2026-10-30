@@ -19,6 +19,7 @@ import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import * as db from '../data/mongodb'
 
 interface Product {
@@ -132,6 +133,7 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
+          let walletChange = 0
           if (req.body.UserId) {
             try {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -139,8 +141,10 @@ export function placeOrder () {
                   next(new Error('Insufficient wallet balance.'))
                   return
                 }
+                walletChange = totalPoints - totalPrice
               } else {
                 await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+                walletChange = totalPoints
               }
             } catch (error: unknown) {
               next(error)
@@ -148,12 +152,23 @@ export function placeOrder () {
             }
           }
 
+          const appliedStockReductions: typeof stockReductions = []
+          const failCheckout = async (error: unknown) => {
+            try {
+              await revertCheckout(req.body.UserId, walletChange, appliedStockReductions)
+            } catch (revertError: unknown) {
+              logger.error(`Could not revert failed checkout of basket ${id}: ${utils.getErrorMessage(revertError)}`)
+            }
+            next(error)
+          }
+
           try {
-            for (const { ProductId, quantity } of stockReductions) {
-              await QuantityModel.decrement({ quantity }, { where: { ProductId } })
+            for (const reduction of stockReductions) {
+              await QuantityModel.decrement({ quantity: reduction.quantity }, { where: { ProductId: reduction.ProductId } })
+              appliedStockReductions.push(reduction)
             }
           } catch (error: unknown) {
-            next(error)
+            await failCheckout(error)
             return
           }
 
@@ -171,7 +186,7 @@ export function placeOrder () {
             eta: deliveryMethod.eta.toString()
           }).then(() => {
             doc.end()
-          })
+          }, failCheckout)
         } else {
           next(new Error(`Basket with id=${id} does not exist.`))
         }
@@ -190,6 +205,15 @@ async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bo
     { where: { UserId, balance: { [Op.gte]: totalPrice } } }
   )
   return debitedWallets === 1
+}
+
+async function revertCheckout (UserId: number | undefined, walletChange: number, stockReductions: Array<{ ProductId: number, quantity: number }>) {
+  for (const { ProductId, quantity } of stockReductions) {
+    await QuantityModel.increment({ quantity }, { where: { ProductId } })
+  }
+  if (UserId && walletChange !== 0) {
+    await WalletModel.increment({ balance: -walletChange }, { where: { UserId } })
+  }
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
