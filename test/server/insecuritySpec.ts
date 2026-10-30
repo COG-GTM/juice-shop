@@ -119,35 +119,46 @@ describe('insecurity', () => {
       expect(nextCalled).to.equal(true)
       return req.body
     }
-    const tokenExpiringIn = (seconds: number) => [{ alg: 'RS256', typ: 'JWT' }, { data: {}, exp: Math.floor(Date.now() / 1000) + seconds }]
-      .map(part => Buffer.from(JSON.stringify(part)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_'))
-      .join('.') + '.c2ln'
+    const encode = (part: object | string) => Buffer.from(typeof part === 'string' ? part : JSON.stringify(part)).toString('base64url')
+    const unsignedToken = (payload: object) => `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`
+    const hmacWithPublicKeyToken = (payload: object) => {
+      const input = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}`
+      return `${input}.${crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')}`
+    }
 
     it('replaces a client-supplied UserId with the id of the authenticated user', () => {
-      const token = tokenExpiringIn(3600)
+      const token = security.authorize({ data: { id: 9 } })
       security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
 
       expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1, comment: 'x' } })).to.deep.equal({ UserId: 2, comment: 'x' })
     })
 
     it('sets UserId to null for a token sent only as cookie', () => {
-      const token = tokenExpiringIn(3600)
+      const token = security.authorize({ data: { id: 3 } })
       security.authenticatedUsers.put(token, { data: { id: 3 } as unknown as UserModel })
 
       expect(bind({ headers: {}, cookies: { token }, body: { UserId: 3 } }).UserId).to.equal(null)
     })
 
-    it('accepts a token without expiry claim', () => {
-      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
-
-      expect(bind({ headers: { authorization: 'Bearer 22222' }, body: { UserId: 1 } }).UserId).to.equal(2)
-    })
-
     it('sets UserId to null for an expired token', () => {
-      const token = tokenExpiringIn(-60)
+      const token = security.authorize({ data: { id: 2 }, exp: Math.floor(Date.now() / 1000) - 60 })
       security.authenticatedUsers.put(token, { data: { id: 2 } as unknown as UserModel })
 
       expect(bind({ headers: { authorization: 'Bearer ' + token }, cookies: { token }, body: { UserId: 2 } }).UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for a cached session whose token is not RS256-signed', () => {
+      for (const token of [unsignedToken({ data: { id: 1 } }), hmacWithPublicKeyToken({ data: { id: 1 } })]) {
+        security.authenticatedUsers.put(token, { data: { id: 1 } as unknown as UserModel })
+
+        expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1 } }).UserId).to.equal(null)
+      }
+    })
+
+    it('sets UserId to null for a token whose payload is not valid JSON', () => {
+      const token = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode('not-json')}.c2ln`
+
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1 } }).UserId).to.equal(null)
     })
 
     it('uses the id from a validly signed token when no session is cached', () => {
@@ -163,13 +174,8 @@ describe('insecurity', () => {
     })
 
     it('sets UserId to null for an uncached token that is not RS256-signed', () => {
-      const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
-      const unsigned = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { id: 1 } })}.`
-      const hmacInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ data: { id: 1 } })}`
-      const hmacWithPublicKey = `${hmacInput}.${crypto.createHmac('sha256', security.publicKey).update(hmacInput).digest('base64url')}`
-
-      expect(bind({ headers: { authorization: 'Bearer ' + unsigned }, body: { UserId: 1 } }).UserId).to.equal(null)
-      expect(bind({ headers: { authorization: 'Bearer ' + hmacWithPublicKey }, body: { UserId: 1 } }).UserId).to.equal(null)
+      expect(bind({ headers: { authorization: 'Bearer ' + unsignedToken({ data: { id: 1 } }) }, body: { UserId: 1 } }).UserId).to.equal(null)
+      expect(bind({ headers: { authorization: 'Bearer ' + hmacWithPublicKeyToken({ data: { id: 1 } }) }, body: { UserId: 1 } }).UserId).to.equal(null)
     })
 
     it('sets UserId to null for anonymous requests', () => {
