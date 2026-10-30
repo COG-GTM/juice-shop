@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import { defineConfig } from 'cypress'
 import * as security from './lib/insecurity'
 import config from 'config'
@@ -21,6 +22,11 @@ export default defineConfig({
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
+        },
+        ForgeHs256Jwt ({ secret, payload }: { secret: string, payload: object }) {
+          const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+          const unsigned = `${encode({ typ: 'JWT', alg: 'HS256' })}.${encode(payload)}`
+          return `${unsigned}.${crypto.createHmac('sha256', secret).update(unsigned).digest('base64url')}`
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {
