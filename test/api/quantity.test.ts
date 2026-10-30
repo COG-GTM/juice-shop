@@ -18,7 +18,23 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
+function assertPublicQuantities (data: any[]) {
+  assert.ok(data.length > 0)
+  for (const entry of data) {
+    assert.deepEqual(Object.keys(entry).sort(), ['ProductId', 'quantity'])
+    assert.ok(entry.quantity <= 6)
+  }
+}
+
 void describe('/api/Quantitys', () => {
+  void it('GET quantity of all items anonymously only exposes capped availability', async () => {
+    const res = await request(app)
+      .get('/api/Quantitys')
+
+    assert.equal(res.status, 200)
+    assertPublicQuantities(res.body.data)
+  })
+
   void it('GET quantity of all items for customers', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
@@ -29,6 +45,7 @@ void describe('/api/Quantitys', () => {
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
 
     assert.equal(res.status, 200)
+    assertPublicQuantities(res.body.data)
   })
 
   void it('GET quantity of all items for admin', async () => {
@@ -53,6 +70,8 @@ void describe('/api/Quantitys', () => {
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
 
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((entry: any) => entry.quantity > 6))
+    assert.ok(res.body.data.every((entry: any) => 'limitPerUser' in entry && 'id' in entry))
   })
 
   void it('POST quantity is forbidden for customers', async () => {
