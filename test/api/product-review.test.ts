@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import * as db from '../../data/mongodb'
 
 let app: Express
 
@@ -34,17 +35,40 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects injected mongoDB sleep command', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 400)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews rejects injected JavaScript in product id', async () => {
+    const res = await request(app)
+      .get('/rest/products/1;while(1){}/reviews')
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET product reviews includes reviews created under an alternate numeric id spelling', async () => {
+    await request(app)
+      .put('/rest/products/01/reviews')
+      .send({ message: 'Zero-padded id review', author: 'Anonymous' })
+    for (const spelling of ['1', '01']) {
+      const res = await request(app)
+        .get(`/rest/products/${spelling}/reviews`)
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Zero-padded id review'))
+    }
+    await db.reviewsCollection.remove({ message: 'Zero-padded id review' })
+  })
+
+  void it('GET product reviews rejects product ids beyond the safe integer range', async () => {
+    const res = await request(app)
+      .get('/rest/products/9007199254740993/reviews')
     assert.equal(res.status, 400)
   })
 
