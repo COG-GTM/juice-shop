@@ -213,6 +213,7 @@ void describe('Hidden URL', () => {
   void it('GET a log file whose name contains backslash traversal fails with a 403 error', async () => {
     const res = await request(app)
       .get('/support/logs/..%5c..%5cpackage.json')
+      .set(await adminAuthHeader())
     assert.equal(res.status, 403)
     assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
   })
