@@ -215,6 +215,23 @@ describe('insecurity', () => {
         expect(security.isCustomer(reqFor(expired))).to.equal(false)
       })
 
+      it('verifies only signed, unexpired and unrevoked tokens', () => {
+        const live = security.authorize(user)
+        expect(security.verify(live)).to.equal(true)
+
+        security.authenticatedUsers.revoke(live)
+        expect(security.verify(live)).to.equal(false)
+
+        Date.now = () => realNow() - (security.sessionLifetimeInSeconds + 60) * 1000
+        const expired = security.authorize(user)
+        Date.now = realNow
+        expect(security.verify(expired)).to.equal(false)
+
+        const tampered = security.authorize(user).split('.')
+        tampered[1] = Buffer.from(JSON.stringify({ ...user, exp: 9999999999 })).toString('base64url')
+        expect(security.verify(tampered.join('.'))).to.equal(false)
+      })
+
       it('rejects appendUserId requests with an expired cached token', () => {
         const token = issueAt(security.sessionLifetimeInSeconds + 60)
         const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request

@@ -134,6 +134,23 @@ void describe('/rest/order-history/orders', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('GET all orders is forbidden for an expired accountant token', async () => {
+    const realNow = Date.now
+    Date.now = () => realNow() - (security.sessionLifetimeInSeconds + 60) * 1000
+    let token: string
+    try {
+      token = security.authorize({ status: 'success', data: { id: 15, email: 'accountant@' + config.get<string>('application.domain'), role: security.roles.accounting } })
+    } finally {
+      Date.now = realNow
+    }
+
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 403)
+  })
+
   void it('GET all orders for accountant', async () => {
     const { token } = await login(app, {
       email: 'accountant@' + config.get<string>('application.domain'),

@@ -76,7 +76,15 @@ export const isAuthorized = () => {
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 // exp is set explicitly because jsonwebtoken 0.4.0 ignores the expiresIn option
 export const authorize = (user = {}) => jwt.sign({ ...user, jti: crypto.randomUUID(), exp: nowInSeconds() + sessionLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+const hasValidSignature = (token: string) => {
+  try {
+    return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
+  } catch {
+    return false
+  }
+}
+
+export const verify = (token: string) => token ? hasValidSignature(token) && !isExpired(token) && !authenticatedUsers.isRevoked(token) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 const claimsOf = (token: string) => {
@@ -103,16 +111,6 @@ const isExpired = (token: string) => {
 const isPastLifetime = (token: string) => {
   const exp = expiryOf(token)
   return !!exp && exp <= nowInSeconds()
-}
-
-const isLiveSession = (token?: string) => !!token && !isPastLifetime(token) && !authenticatedUsers.isRevoked(token)
-
-const hasValidSignature = (token: string) => {
-  try {
-    return verify(token)
-  } catch {
-    return false
-  }
 }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -271,7 +269,7 @@ export const deluxeToken = (email: string) => {
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
-    const decodedToken = verify(token) && !isExpired(token) && !authenticatedUsers.isRevoked(token) && decode(token)
+    const decodedToken = verify(token) && decode(token)
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -282,13 +280,13 @@ export const isAccounting = () => {
 
 export const isDeluxe = (req: Request) => {
   const token = utils.jwtFrom(req)
-  const decodedToken = verify(token) && isLiveSession(token) && decode(token)
+  const decodedToken = verify(token) && decode(token)
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
   const token = utils.jwtFrom(req)
-  const decodedToken = verify(token) && isLiveSession(token) && decode(token)
+  const decodedToken = verify(token) && decode(token)
   return decodedToken?.data?.role === roles.customer
 }
 

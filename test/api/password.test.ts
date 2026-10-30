@@ -97,6 +97,33 @@ void describe('/rest/user/change-password', () => {
     await request(app).post('/rest/deluxe-membership').set({ Authorization: 'Bearer ' + otherToken }).send({}).expect(401)
   })
 
+  void it('GET password change ends other sessions on basket and login IP routes', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'stolentoken@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token: stolenToken, bid } = await login(app, { email: 'stolentoken@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'stolentoken@be.rt', password: 'kunigunde' })
+
+    await request(app).get('/rest/basket/' + bid).set({ Authorization: 'Bearer ' + stolenToken }).expect(200)
+    await request(app).get('/rest/saveLoginIp').set({ Authorization: 'Bearer ' + stolenToken }).expect(200)
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    await request(app).get('/rest/basket/' + bid).set({ Authorization: 'Bearer ' + stolenToken }).expect(401)
+    await request(app).get('/rest/saveLoginIp').set({ Authorization: 'Bearer ' + stolenToken }).expect(401)
+    await request(app).get('/rest/basket/' + bid).set({ Authorization: 'Bearer ' + token }).expect(200)
+    await request(app).get('/rest/saveLoginIp').set({ Authorization: 'Bearer ' + token }).expect(200)
+  })
+
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
