@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -18,6 +19,7 @@ import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import * as db from '../data/mongodb'
 
 interface Product {
@@ -67,19 +69,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockReductions: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockReductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +133,41 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
+          let walletChange = 0
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+                walletChange = totalPoints - totalPrice
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+                walletChange = totalPoints
+              }
             } catch (error: unknown) {
               next(error)
               return
             }
+          }
+
+          const appliedStockReductions: typeof stockReductions = []
+          const failCheckout = async (error: unknown) => {
+            for (const revertError of await revertCheckout(req.body.UserId, walletChange, appliedStockReductions)) {
+              logger.error(`Could not revert failed checkout of basket ${id}: ${utils.getErrorMessage(revertError)}`)
+            }
+            next(error)
+          }
+
+          try {
+            for (const reduction of stockReductions) {
+              await QuantityModel.decrement({ quantity: reduction.quantity }, { where: { ProductId: reduction.ProductId } })
+              appliedStockReductions.push(reduction)
+            }
+          } catch (error: unknown) {
+            await failCheckout(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -171,7 +184,7 @@ export function placeOrder () {
             eta: deliveryMethod.eta.toString()
           }).then(() => {
             doc.end()
-          })
+          }, failCheckout)
         } else {
           next(new Error(`Basket with id=${id} does not exist.`))
         }
@@ -179,6 +192,27 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
+}
+
+async function revertCheckout (UserId: number | undefined, walletChange: number, stockReductions: Array<{ ProductId: number, quantity: number }>) {
+  const compensations: Array<Promise<unknown>> = stockReductions.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } }))
+  if (UserId && walletChange !== 0) {
+    compensations.unshift(WalletModel.increment({ balance: -walletChange }, { where: { UserId } }))
+  }
+  return (await Promise.allSettled(compensations))
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map(({ reason }) => reason)
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
