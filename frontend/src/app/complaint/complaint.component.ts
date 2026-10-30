@@ -20,6 +20,7 @@ import { MatFormFieldModule, MatLabel, MatHint, MatError } from '@angular/materi
 import { MatCardModule } from '@angular/material/card'
 
 import { MatIconModule } from '@angular/material/icon'
+import { authToken } from '../Services/auth-session'
 
 library.add(faBomb)
 
@@ -41,7 +42,7 @@ export class ComplaintComponent implements OnInit {
   public fileUploadError: any = undefined // For controlling error handling related to file input.
   public uploader: FileUploader = new FileUploader({
     url: environment.hostServer + '/file-upload',
-    authToken: `Bearer ${localStorage.getItem('token')}`,
+    authToken: authToken() ? `Bearer ${authToken()}` : undefined,
     allowedMimeType: ['application/pdf', 'application/xml', 'text/xml', 'application/zip', 'application/x-zip-compressed', 'multipart/x-zip', 'application/yaml', 'application/x-yaml', 'text/yaml', 'text/x-yaml'],
     maxFileSize: 100000
   })

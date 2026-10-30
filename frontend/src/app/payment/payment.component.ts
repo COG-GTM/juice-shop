@@ -39,6 +39,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatDivider } from '@angular/material/divider'
 import { PaymentMethodComponent } from '../payment-method/payment-method.component'
 import { MatCardModule } from '@angular/material/card'
+import { startSession } from '../Services/auth-session'
 
 library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, faStickyNote, faHandHoldingUsd, faCoffee, faTimes, faStripe, faPalette)
 
@@ -227,7 +228,7 @@ export class PaymentComponent implements OnInit {
     } else if (this.mode === 'deluxe') {
       this.userService.upgradeToDeluxe(this.paymentMode, this.paymentId).subscribe({
         next: (data) => {
-          localStorage.setItem('token', data.token)
+          startSession(data.token)
           this.ngZone.run(async () => await this.router.navigate(['/deluxe-membership']))
         },
         error: (err) => { console.log(err) }
