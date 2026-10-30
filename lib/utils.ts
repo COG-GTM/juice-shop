@@ -38,7 +38,7 @@ export const isUrl = (url: string) => {
 }
 
 export const isValidEmail = (email: unknown) => {
-  return typeof email === 'string' && /^[^\s@<>"'`]+@[^\s@<>"'`]+$/.test(email)
+  return typeof email === 'string' && /^[^\s@<>"']+@[^\s@<>"']+$/.test(email)
 }
 
 export const startsWith = (str: string, prefix: string) => str ? str.indexOf(prefix) === 0 : false
