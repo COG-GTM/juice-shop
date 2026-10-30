@@ -680,6 +680,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.
 restoreOverwrittenFilesWithOriginals().then(() => {
+  security.publishPublicKey()
   configureApp(app, sequelize)
 }).catch((err) => {
   console.error(err)
