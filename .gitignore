@@ -65,5 +65,9 @@ config/*.yml
 !config/oss.yml
 !config/defcon33.yml
 
+# JWT signing key (generated at startup unless JWT_PRIVATE_KEY is set) and its derived public key
+jwt.key
+encryptionkeys/jwt.pub
+
 # System Files
 .DS_Store
