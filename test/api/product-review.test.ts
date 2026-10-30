@@ -34,11 +34,20 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews does not evaluate an injected mongoDB sleep command', async () => {
+    const t0 = Date.now()
     const res = await request(app)
-      .get('/rest/products/sleep(1)/reviews')
+      .get('/rest/products/sleep(2000)/reviews')
+    assert.ok(Date.now() - t0 < 2000)
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('GET product reviews does not evaluate injected JavaScript', async () => {
+    const res = await request(app)
+      .get('/rest/products/' + encodeURIComponent('1 || true') + '/reviews')
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
@@ -139,5 +148,27 @@ void describe('/rest/products/reviews', () => {
     assert.ok(Array.isArray(res.body.original))
     assert.ok(Array.isArray(res.body.updated))
     assert.equal(res.body.modified, totalReviews)
+  })
+})
+
+void describe('/rest/products/:id/reviews with non-canonical product ids', () => {
+  void it('GET product reviews includes reviews created under a numerically equivalent product id', async () => {
+    await request(app)
+      .put('/rest/products/02/reviews')
+      .send({ message: 'Padded id review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/2/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Padded id review'))
+  })
+
+  void it('GET product reviews includes reviews created under a non-numeric product id', async () => {
+    await request(app)
+      .put('/rest/products/custom/reviews')
+      .send({ message: 'Custom id review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/custom/reviews')
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data.map((review: { message: string }) => review.message), ['Custom id review'])
   })
 })
