@@ -59,7 +59,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new admin', async () => {
+  void it('POST new user with admin role is created as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -74,7 +74,7 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'admin')
+    assert.equal(res.body.data.role, 'customer')
   })
 
   void it('POST new blank user', async () => {
@@ -127,7 +127,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new deluxe user', async () => {
+  void it('POST new user with deluxe role is created as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -142,10 +142,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'deluxe')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST new accounting user', async () => {
+  void it('POST new user with accounting role is created as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -160,10 +160,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'accounting')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST user not belonging to customer, deluxe, accounting, admin is forbidden', async () => {
+  void it('POST user with arbitrary role is created as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -172,11 +172,47 @@ void describe('/api/Users', () => {
         password: 'hooooorst',
         role: 'accountinguser'
       })
-    assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
-    assert.equal(res.body.errors[0].field, 'role')
-    assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
+  })
+
+  void it('POST user ignores privileged attributes', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        deluxeToken: 'forged',
+        isActive: false,
+        profileImage: '/assets/public/images/uploads/defaultAdmin.png'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
+    assert.equal(res.body.data.deluxeToken, '')
+    assert.equal(res.body.data.isActive, true)
+    assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+  })
+
+  void it('POST user with admin role cannot log in as admin', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst7@horstma.nn',
+        password: 'hooooorst',
+        role: 'admin'
+      })
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({
+        email: 'horst7@horstma.nn',
+        password: 'hooooorst'
+      })
+    assert.equal(res.status, 200)
+    const decoded = security.decode(res.body.authentication.token) as { data: { role: string } }
+    assert.equal(decoded.data.role, 'customer')
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
