@@ -45,7 +45,8 @@ describe('ChatConversationComponent', () => {
             whoAmI: vi.fn().mockName("UserService.whoAmI")
         }
         loginGuard = {
-            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode")
+            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
+            forbidRoute: vi.fn().mockName("LoginGuard.forbidRoute")
         }
         cookieService = {
             get: vi.fn().mockName("CookieService.get"),
@@ -201,6 +202,18 @@ describe('ChatConversationComponent', () => {
         await component.sendMessage('Hello')
 
         expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'CHATBOT_ERROR_RATE_LIMITED', error: true })
+    })
+
+    it('should ask the user to log in again when the session is rejected', async () => {
+        async function* unauthorizedStream() {
+            yield { error: 'unauthorized' }
+        }
+        chatService.streamMessages.mockReturnValue(unauthorizedStream())
+
+        await component.sendMessage('Hello')
+
+        expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'UNAUTHORIZED_ACCESS_ERROR', error: true })
+        expect(loginGuard.forbidRoute).toHaveBeenCalledWith('UNAUTHORIZED_ACCESS_ERROR')
     })
 
     it('should show the LLM unreachable message on connection failure', async () => {
