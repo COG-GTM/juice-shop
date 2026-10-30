@@ -28,6 +28,7 @@ describe('insecurity', () => {
     })
 
     it('publishes the active public key to encryptionkeys/jwt.pub', () => {
+      security.publishPublicKey()
       expect(fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')).to.equal(security.publicKey)
     })
   })

@@ -37,10 +37,12 @@ const loadSigningKeys = () => {
 const signingKeys = loadSigningKeys()
 const privateKey = signingKeys.privateKey
 export const publicKey = signingKeys.publicKey
-try {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-} catch (error: unknown) {
-  logger.warn(`Could not write public key to encryptionkeys/jwt.pub: ${utils.getErrorMessage(error)}`)
+export const publishPublicKey = () => {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  } catch (error: unknown) {
+    logger.warn(`Could not write public key to encryptionkeys/jwt.pub: ${utils.getErrorMessage(error)}`)
+  }
 }
 
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
