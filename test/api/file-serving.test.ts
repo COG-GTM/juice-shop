@@ -132,23 +132,27 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.ok(!res.text.includes('<title>listing directory /encryptionkeys</title>'))
   })
 
-  void it('GET a non-existing file in will return a 404 error', async () => {
+  void it('GET a non-public file will return a 403 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/doesnotexist.md')
-    assert.equal(res.status, 404)
+    assert.equal(res.status, 403)
   })
 
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET the Premium Content AES key fails with 403 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET the public JWT key', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
     assert.equal(res.status, 200)
   })
 
