@@ -12,7 +12,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
-import { demoCredentialsEnabled } from '../data/privilegedSeedPasswords'
+import { demoCredentialsEnabled } from '../data/seedCredentials'
 
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
@@ -56,12 +56,12 @@ export function resetPassword () {
 }
 
 function verifySecurityAnswerChallenges (user: UserModel, answer: string) {
-  challengeUtils.solveIf(challenges.resetPasswordJimChallenge, () => { return user.id === users.jim.id && answer === 'Samuel' })
-  challengeUtils.solveIf(challenges.resetPasswordBenderChallenge, () => { return user.id === users.bender.id && answer === 'Stop\'n\'Drop' })
+  challengeUtils.solveIf(challenges.resetPasswordJimChallenge, () => { return demoCredentialsEnabled() && user.id === users.jim.id && answer === 'Samuel' })
+  challengeUtils.solveIf(challenges.resetPasswordBenderChallenge, () => { return demoCredentialsEnabled() && user.id === users.bender.id && answer === 'Stop\'n\'Drop' })
   challengeUtils.solveIf(challenges.resetPasswordBjoernChallenge, () => { return demoCredentialsEnabled() && user.id === users.bjoern.id && answer === 'West-2082' })
-  challengeUtils.solveIf(challenges.resetPasswordMortyChallenge, () => { return user.id === users.morty.id && answer === '5N0wb41L' })
-  challengeUtils.solveIf(challenges.resetPasswordBjoernOwaspChallenge, () => { return user.id === users.bjoernOwasp.id && answer === 'Zaya' })
-  challengeUtils.solveIf(challenges.resetPasswordUvoginChallenge, () => { return user.id === users.uvogin.id && answer === 'Silence of the Lambs' })
+  challengeUtils.solveIf(challenges.resetPasswordMortyChallenge, () => { return demoCredentialsEnabled() && user.id === users.morty.id && answer === '5N0wb41L' })
+  challengeUtils.solveIf(challenges.resetPasswordBjoernOwaspChallenge, () => { return demoCredentialsEnabled() && user.id === users.bjoernOwasp.id && answer === 'Zaya' })
+  challengeUtils.solveIf(challenges.resetPasswordUvoginChallenge, () => { return demoCredentialsEnabled() && user.id === users.uvogin.id && answer === 'Silence of the Lambs' })
   challengeUtils.solveIf(challenges.geoStalkingMetaChallenge, () => {
     const securityAnswer = ((() => {
       const memories = config.get<MemoryConfig[]>('memories')
