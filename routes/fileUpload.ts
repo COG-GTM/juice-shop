@@ -80,7 +80,7 @@ function createExtractionBudget () {
   let remainingEntries = maxComplaintZipEntries
   let remainingBytes = maxComplaintZipUncompressedBytes
   return {
-    takeEntry: () => remainingEntries-- > 0 && remainingBytes > 0,
+    takeEntry: () => remainingEntries-- > 0 && remainingBytes >= 0,
     limiter: () => new Transform({
       transform (chunk: Buffer, _encoding, callback) {
         remainingBytes -= chunk.length
@@ -126,6 +126,10 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             return
           }
           entries.forEach(entry => {
+            if (aborted) {
+              fs.rm(entry.tempPath, { force: true }, () => {})
+              return
+            }
             fs.rename(entry.tempPath, entry.targetPath, (err) => {
               if (err != null) {
                 logger.warn(`Could not store complaint zip entry: ${err.message}`)
