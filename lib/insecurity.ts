@@ -75,7 +75,10 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 // exp is set explicitly because jsonwebtoken 0.4.0 ignores the expiresIn option
-export const authorize = (user = {}) => jwt.sign({ ...user, jti: crypto.randomUUID(), exp: nowInSeconds() + sessionLifetimeInSeconds }, privateKey, { algorithm: 'RS256' })
+export const authorize = (user = {}, notAfter?: number) => {
+  const exp = Math.min(notAfter ?? Infinity, nowInSeconds() + sessionLifetimeInSeconds)
+  return jwt.sign({ ...user, jti: crypto.randomUUID(), exp }, privateKey, { algorithm: 'RS256' })
+}
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 

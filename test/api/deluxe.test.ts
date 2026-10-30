@@ -102,6 +102,9 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    await request(app).get('/api/Cards').set(authHeader).expect(401)
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + res.body.data.token }).expect(200)
   })
 
   void it('POST upgrade deluxe membership status for customers with wallet payment', async () => {

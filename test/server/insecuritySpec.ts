@@ -134,6 +134,16 @@ describe('insecurity', () => {
         expect(security.expiryOf(token)).to.be.closeTo(Math.floor(realNow() / 1000) + 6 * 60 * 60, 2)
       })
 
+      it('caps a reissued token at the expiry of the token it replaces', () => {
+        const notAfter = Math.floor(realNow() / 1000) + 60
+        expect(security.expiryOf(security.authorize(user, notAfter))).to.equal(notAfter)
+      })
+
+      it('never issues a token that outlives the session lifetime', () => {
+        const token = security.authorize(user, Math.floor(realNow() / 1000) + 10 * security.sessionLifetimeInSeconds)
+        expect(security.expiryOf(token)).to.be.closeTo(Math.floor(realNow() / 1000) + security.sessionLifetimeInSeconds, 2)
+      })
+
       it('issues a distinct token for every login', () => {
         expect(security.authorize(user)).to.not.equal(security.authorize(user))
       })

@@ -95,6 +95,7 @@ void describe('/rest/user/change-password', () => {
       await request(app).get(route).set({ Authorization: 'Bearer ' + token }).expect(200)
     }
     await request(app).post('/rest/deluxe-membership').set({ Authorization: 'Bearer ' + otherToken }).send({}).expect(401)
+    await request(app).post('/rest/user/data-export').set({ Authorization: 'Bearer ' + otherToken }).send({}).expect(401)
   })
 
   void it('GET password change with passing wrong current password', async () => {
