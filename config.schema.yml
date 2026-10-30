@@ -132,6 +132,8 @@ challenges:
   safetyMode:
     type: string
     enum: ['enabled', 'disabled','auto']
+  seedDemoUsers:
+    type: boolean
   csafHashValue:
     type: string
   metricsIgnoredUserAgents:

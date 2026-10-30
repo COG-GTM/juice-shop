@@ -1,2 +1,3 @@
 challenges:
+  seedDemoUsers: true
   restrictToTutorialsFirst: true

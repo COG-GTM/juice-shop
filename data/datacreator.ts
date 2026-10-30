@@ -38,6 +38,8 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
+import { generateSecret } from 'otplib'
 
 const entities = new Entities()
 
@@ -182,25 +184,32 @@ async function createChallenges () {
   }
 }
 
+const randomCredential = () => crypto.randomBytes(24).toString('base64url')
+
 async function createUsers () {
   const users = await loadStaticUserData()
+  const seedDemoUsers = config.get<boolean>('challenges.seedDemoUsers')
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const credentials = seedDemoUsers
+          ? { password, totpSecret, securityAnswer: securityQuestion?.answer }
+          : { password: randomCredential(), totpSecret: totpSecret ? generateSecret() : totpSecret, securityAnswer: randomCredential() }
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: credentials.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: credentials.totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (!seedDemoUsers && key === 'admin') logger.info(`Generated initial password for ${completeEmail}: ${credentials.password}`)
+        if (securityQuestion != null && credentials.securityAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, credentials.securityAnswer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
@@ -688,7 +697,7 @@ async function createSecurityQuestions () {
 
 async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string) {
   return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }).catch((err: unknown) => {
-    logger.error(`Could not insert SecurityAnswer ${answer} mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
+    logger.error(`Could not insert SecurityAnswer mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
   })
 }
 

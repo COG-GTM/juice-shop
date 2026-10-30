@@ -3,3 +3,5 @@ application:
   chatBot:
     llmApiUrl: 'http://localhost:43210/v1'
     llmMaxRetries: 0
+challenges:
+  seedDemoUsers: true

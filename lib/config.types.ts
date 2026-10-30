@@ -80,6 +80,7 @@ export interface ChallengesConfig {
   overwriteUrlForProductTamperingChallenge: string
   xssBonusPayload: string
   safetyOverride: boolean
+  seedDemoUsers: boolean
   csafHashValue: string
 }
 
