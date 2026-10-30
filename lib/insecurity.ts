@@ -166,7 +166,8 @@ export const isAccounting = () => {
 
 export const isAdmin = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.admin
+  const notExpired = typeof decodedToken?.exp === 'number' && decodedToken.exp * 1000 > Date.now()
+  return notExpired && decodedToken?.data?.role === roles.admin
 }
 
 export const requireAdmin = () => {

@@ -196,6 +196,27 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const requestWith = (token: string) => ({ headers: { authorization: 'Bearer ' + token } }) as unknown as Request
+
+    it('accepts a valid admin token', () => {
+      expect(security.isAdmin(requestWith(security.authorize({ data: { role: 'admin' } })))).to.equal(true)
+    })
+
+    it('rejects a valid non-admin token', () => {
+      expect(security.isAdmin(requestWith(security.authorize({ data: { role: 'customer' } })))).to.equal(false)
+    })
+
+    it('rejects an expired admin token', () => {
+      const sevenHoursAgo = Math.floor(Date.now() / 1000) - 7 * 60 * 60
+      expect(security.isAdmin(requestWith(security.authorize({ data: { role: 'admin' }, iat: sevenHoursAgo })))).to.equal(false)
+    })
+
+    it('rejects requests without token', () => {
+      expect(security.isAdmin({ headers: {} } as unknown as Request)).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
