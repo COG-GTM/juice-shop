@@ -604,7 +604,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
-  app.get('/rest/repeat-notification', utils.asyncHandler(repeatNotification()))
+  app.get('/rest/repeat-notification',
+    rateLimit({ windowMs: 60 * 1000, max: 30, validate: false }),
+    utils.asyncHandler(repeatNotification())
+  )
   app.get('/rest/continue-code', utils.asyncHandler(continueCode()))
   app.get('/rest/continue-code-findIt', utils.asyncHandler(continueCodeFindIt()))
   app.get('/rest/continue-code-fixIt', utils.asyncHandler(continueCodeFixIt()))
