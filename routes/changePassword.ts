@@ -24,14 +24,14 @@ export function changePassword () {
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+    if (token === null || !security.verify(token)) {
+      next(Object.assign(new Error('Blocked illegal activity by ' + connection.remoteAddress), { status: 401 }))
       return
     }
 
     const loggedInUser = security.authenticatedUsers.get(token)
     if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+      next(Object.assign(new Error('Blocked illegal activity by ' + connection.remoteAddress), { status: 401 }))
       return
     }
 

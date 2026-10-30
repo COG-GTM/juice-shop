@@ -63,6 +63,13 @@ export const isRevoked = (token?: string | null) => {
   return true
 }
 
+const tokenLifetimeSeconds = 6 * 60 * 60
+export const isExpired = (token?: string | null) => {
+  if (!token) return false
+  const exp = jws.decode(utils.unquote(token))?.payload?.exp
+  return typeof exp === 'number' && exp * 1000 <= Date.now()
+}
+
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
@@ -82,6 +89,8 @@ export const isAuthorized = () => {
         next(err)
       } else if (isRevoked(utils.jwtFrom(req))) {
         next(Object.assign(new Error('Token has been revoked'), { name: 'UnauthorizedError', status: 401 }))
+      } else if (isExpired(utils.jwtFrom(req))) {
+        next(Object.assign(new Error('Token has expired'), { name: 'UnauthorizedError', status: 401 }))
       } else {
         next()
       }
@@ -89,8 +98,8 @@ export const isAuthorized = () => {
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token && !isRevoked(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user }, privateKey, { algorithm: 'RS256' })
+export const verify = (token: string) => token && !isRevoked(token) && !isExpired(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -109,12 +118,12 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
-    if (isRevoked(token)) return
+    if (isRevoked(token) || isExpired(token)) return
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token && !isRevoked(token) ? this.tokenMap[utils.unquote(token)] : undefined
+    return token && !isRevoked(token) && !isExpired(token) ? this.tokenMap[utils.unquote(token)] : undefined
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
