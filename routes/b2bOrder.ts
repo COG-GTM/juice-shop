@@ -9,8 +9,8 @@ import * as security from '../lib/insecurity'
 
 export function b2bOrder () {
   return ({ body }: Request, res: Response) => {
-    const orderLinesData = body.orderLinesData ?? ''
-    if (orderLinesData !== '' && (typeof orderLinesData !== 'string' || !isJson(orderLinesData))) {
+    const orderLinesData = body.orderLinesData
+    if (orderLinesData !== undefined && (typeof orderLinesData !== 'string' || !isJson(orderLinesData))) {
       res.status(400).json({ status: 'error', data: 'orderLinesData must be a JSON string.' })
       return
     }

@@ -44,6 +44,31 @@ describe('b2bOrder', () => {
     expect(res.status).to.have.been.calledWith(400)
   })
 
+  it('empty string is rejected', () => {
+    req.body.orderLinesData = ''
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('null is rejected', () => {
+    req.body.orderLinesData = null
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('missing orderLinesData is accepted', () => {
+    req.body.cid = 'JS0815DE'
+
+    b2bOrder()(req, res)
+
+    expect(res.status.called).to.equal(false)
+    expect(res.json).to.have.been.calledWithMatch({ cid: 'JS0815DE' })
+  })
+
   it('JSON as documented in Swagger is accepted', () => {
     req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
     req.body.cid = 'JS0815DE'
