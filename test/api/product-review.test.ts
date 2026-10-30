@@ -84,9 +84,7 @@ void describe('/rest/products/reviews', () => {
       })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.modified, 1)
-    assert.ok(Array.isArray(res.body.original))
-    assert.ok(Array.isArray(res.body.updated))
+    assert.deepEqual(res.body, { modified: 1 })
   })
 
   void it('PATCH product review of another user is forbidden', async () => {
