@@ -6,12 +6,32 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('authorize', () => {
+    it('issues tokens that verify against the active public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects tokens signed with any other RSA private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(), { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
+    })
+
+    it('publishes the active public key to encryptionkeys/jwt.pub', () => {
+      expect(fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')).to.equal(security.publicKey)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
