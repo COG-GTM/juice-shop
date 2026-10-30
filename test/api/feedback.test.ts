@@ -286,6 +286,14 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('PATCH existing feedback is forbidden', async () => {
+    const res = await request(app)
+      .patch('/api/Feedbacks/1')
+      .set(authHeader)
+      .send({ rating: 0 })
+    assert.equal(res.status, 401)
+  })
+
   void it('DELETE existing feedback as admin', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
