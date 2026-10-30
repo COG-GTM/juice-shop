@@ -91,6 +91,23 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as plain text instead of HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<img src=x onerror=alert(1)>' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+        const table: HTMLElement = fixture.nativeElement.querySelector('.user-table')
+        expect(table.querySelector('img')).toBeNull()
+        expect(table.textContent).toContain('<img src=x onerror=alert(1)>')
+    })
+
+    it('should not mark feedback comments as trusted HTML', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllFeedbacks()
+        fixture.detectChanges()
+        expect(typeof component.feedbackDataSource.data[0].comment).toBe('string')
+        expect(fixture.nativeElement.querySelector('.customer-table iframe')).toBeNull()
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
