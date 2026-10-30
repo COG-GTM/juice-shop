@@ -25,6 +25,7 @@ export type Card = CardModel
 export type Product = ProductModel
 
 export interface Review {
+  product?: number | string
   text: string
   author: string
   liked: boolean
