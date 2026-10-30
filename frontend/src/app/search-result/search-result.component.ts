@@ -56,7 +56,6 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private resizeObserver?: ResizeObserver
   public emptyState = false
 
-  // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
     const products = this.productService.search('')
     const quantities = this.quantityService.getAll()
@@ -102,8 +101,6 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
       error: (err) => { console.log(err) }
     })
   }
-
-  // vuln-code-snippet end restfulXssChallenge
 
   ngOnDestroy () {
     if (this.routerSubscription) {
