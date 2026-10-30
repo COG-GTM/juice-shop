@@ -5,6 +5,8 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -201,6 +203,29 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+  describe('JWT signing key', () => {
+    it('is an RSA key of at least 2048 bits', () => {
+      const key = crypto.createPublicKey(security.publicKey)
+      expect(key.asymmetricKeyType).to.equal('rsa')
+      expect(key.asymmetricKeyDetails?.modulusLength).to.be.at.least(2048)
+    })
+
+    it('is not the formerly hard-coded and publicly known key pair', () => {
+      expect(security.publicKey).to.not.include('MIGJAoGBAM3CosR73CBNcJsLv5E90NsFt6qN1uziQ484gbOoule8leXHFbyIzPQRozgEpSpiwhr6d2/c0CfZHEJ3m5tV0klxfjfM7oqjRMURnH/rmBjcETQ7qzIISZQ/iptJ3p7Gi78X5ZMhLNtDkUFU9WaGdiEb+SnC39wjErmJSfmGb7i1AgMBAAE=')
+    })
+
+    it('issues RS256 tokens that verify against the published public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('test@juice-sh.op')
+    })
+
+    it('rejects tokens signed with a different RSA key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+      const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
     })
   })
 })

@@ -19,8 +19,27 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-export const publicKey = fs ? fs.readFileSync('encryptionkeys/jwt.pub', 'utf8') : 'placeholder-public-key'
-const privateKey = '-----BEGIN RSA PRIVATE KEY-----\r\nMIICXAIBAAKBgQDNwqLEe9wgTXCbC7+RPdDbBbeqjdbs4kOPOIGzqLpXvJXlxxW8iMz0EaM4BKUqYsIa+ndv3NAn2RxCd5ubVdJJcX43zO6Ko0TFEZx/65gY3BE0O6syCEmUP4qbSd6exou/F+WTISzbQ5FBVPVmhnYhG/kpwt/cIxK5iUn5hm+4tQIDAQABAoGBAI+8xiPoOrA+KMnG/T4jJsG6TsHQcDHvJi7o1IKC/hnIXha0atTX5AUkRRce95qSfvKFweXdJXSQ0JMGJyfuXgU6dI0TcseFRfewXAa/ssxAC+iUVR6KUMh1PE2wXLitfeI6JLvVtrBYswm2I7CtY0q8n5AGimHWVXJPLfGV7m0BAkEA+fqFt2LXbLtyg6wZyxMA/cnmt5Nt3U2dAu77MzFJvibANUNHE4HPLZxjGNXN+a6m0K6TD4kDdh5HfUYLWWRBYQJBANK3carmulBwqzcDBjsJ0YrIONBpCAsXxk8idXb8jL9aNIg15Wumm2enqqObahDHB5jnGOLmbasizvSVqypfM9UCQCQl8xIqy+YgURXzXCN+kwUgHinrutZms87Jyi+D8Br8NY0+Nlf+zHvXAomD2W5CsEK7C+8SLBr3k/TsnRWHJuECQHFE9RA2OP8WoaLPuGCyFXaxzICThSRZYluVnWkZtxsBhW2W8z1b8PvWUE7kMy7TnkzeJS2LSnaNHoyxi7IaPQUCQCwWU4U+v4lD7uYBw00Ga/xt+7+UqFPlPVdz1yyr4q24Zxaw0LgmuEvgU5dycq8N7JxjTubX0MIRR+G9fmDBBl8=\r\n-----END RSA PRIVATE KEY-----'
+// The JWT signing key is supplied via JWT_PRIVATE_KEY (PEM) or JWT_PRIVATE_KEY_FILE (path to a PEM file).
+// Without either, an ephemeral key pair is generated at startup, so issued tokens do not survive a restart.
+const MIN_RSA_MODULUS_LENGTH = 2048
+
+const loadSigningKey = (): crypto.KeyObject => {
+  const pem = process.env.JWT_PRIVATE_KEY
+    ? process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
+    : process.env.JWT_PRIVATE_KEY_FILE ? fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8') : undefined
+  if (!pem) {
+    return crypto.generateKeyPairSync('rsa', { modulusLength: MIN_RSA_MODULUS_LENGTH }).privateKey
+  }
+  const key = crypto.createPrivateKey(pem)
+  if (key.asymmetricKeyType !== 'rsa' || (key.asymmetricKeyDetails?.modulusLength ?? 0) < MIN_RSA_MODULUS_LENGTH) {
+    throw new Error(`JWT signing key must be an RSA private key of at least ${MIN_RSA_MODULUS_LENGTH} bits`)
+  }
+  return key
+}
+
+const signingKey = loadSigningKey()
+const privateKey = signingKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+export const publicKey = crypto.createPublicKey(signingKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 
 interface ResponseWithUser {
   status?: string
