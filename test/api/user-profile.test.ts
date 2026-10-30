@@ -57,7 +57,8 @@ void describe('/profile', () => {
       const update = await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
-        .field('username', username)
+        .type('form')
+        .send({ username })
         .redirects(0)
       assert.equal(update.status, 302)
 
@@ -75,7 +76,8 @@ void describe('/profile', () => {
     const update = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', '<<a|ascript>alert(`xss`)</script>')
+      .type('form')
+      .send({ username: '<<a|ascript>alert(`xss`)</script>' })
       .redirects(0)
     assert.equal(update.status, 302)
 
