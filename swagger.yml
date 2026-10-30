@@ -21,7 +21,7 @@ paths:
       operationId: createCustomerOrder
       tags: [Order]
       description: 'Create new customer order'
-      responses: { '200': { description: 'New customer order is created', content: { application/json: { schema: { $ref: '#/components/schemas/OrderConfirmation' } } } } }
+      responses: { '200': { description: 'New customer order is created', content: { application/json: { schema: { $ref: '#/components/schemas/OrderConfirmation' } } } }, '400': { description: 'orderLinesData is not a JSON string of order lines' } }
       requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } }, description: 'Customer order to be placed' }
 components:
   securitySchemes:
@@ -44,7 +44,7 @@ components:
       type: array
       items: { $ref: '#/components/schemas/OrderLine' }
     OrderLinesData:
-      description: 'Order line(s) in customer specific JSON format'
+      description: 'Order line(s) as a JSON string: a single OrderLine object or an array of them (customerReference may be a string or an array of strings, couponCode is an optional string)'
       type: string
       example: '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"},{"productId": 13,"quantity": 2000,"customerReference": "PO0000003.4"}]'
 security:
