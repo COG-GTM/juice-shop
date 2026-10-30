@@ -37,4 +37,13 @@ void describe('/rest/repeat-notification', () => {
 
     assert.equal(res.status, 200)
   })
+
+  void it('GET is rate limited', async () => {
+    let status = 200
+    for (let i = 0; i < 40 && status !== 429; i++) {
+      status = (await request(app).get('/rest/repeat-notification?challenge=Error%20Handling&socketId=unknown')).status
+    }
+
+    assert.equal(status, 429)
+  })
 })

@@ -9,12 +9,14 @@ import { Injectable, inject } from '@angular/core'
 import { type Observable } from 'rxjs'
 import { catchError, map } from 'rxjs/operators'
 import { type Challenge } from '../Models/challenge.model'
+import { SocketIoService } from './socket-io.service'
 
 @Injectable({
   providedIn: 'root'
 })
 export class ChallengeService {
   private readonly http = inject(HttpClient)
+  private readonly io = inject(SocketIoService)
 
   private readonly hostServer = environment.hostServer
   private readonly host = this.hostServer + '/api/Challenges'
@@ -24,7 +26,12 @@ export class ChallengeService {
   }
 
   repeatNotification (challengeName: string) {
-    return this.http.get(this.hostServer + '/rest/repeat-notification', { params: { challenge: challengeName }, responseType: 'text' as const }).pipe(catchError((err) => { throw err }))
+    const params: Record<string, string> = { challenge: challengeName }
+    const socketId = this.io.socket()?.id
+    if (socketId) {
+      params.socketId = socketId
+    }
+    return this.http.get(this.hostServer + '/rest/repeat-notification', { params, responseType: 'text' as const }).pipe(catchError((err) => { throw err }))
   }
 
   continueCode () {
