@@ -21,6 +21,7 @@ import { TranslateModule } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatNavList, MatListSubheaderCssMatStyler, MatListItem } from '@angular/material/list'
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
+import { endSession, isLoggedIn } from '../Services/auth-session'
 
 @Component({
   selector: 'sidenav',
@@ -62,7 +63,7 @@ export class SidenavComponent implements OnInit {
     this.getApplicationDetails()
     this.getScoreBoardStatus()
 
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn()) {
       this.getUserDetails()
     } else {
       this.userEmail = ''
@@ -85,12 +86,12 @@ export class SidenavComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return isLoggedIn()
   }
 
   logout () {
     this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    localStorage.removeItem('token')
+    endSession()
     this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')

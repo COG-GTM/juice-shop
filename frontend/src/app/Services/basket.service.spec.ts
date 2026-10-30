@@ -8,6 +8,7 @@ import { TestBed } from '@angular/core/testing'
 
 import { BasketService } from './basket.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { endSession, startSession } from './auth-session'
 
 describe('BasketService', () => {
     beforeEach(() => {
@@ -118,7 +119,7 @@ describe('BasketService', () => {
         const service = TestBed.inject(BasketService)
         const httpMock = TestBed.inject(HttpTestingController)
 
-        localStorage.setItem('token', 'token')
+        startSession('token')
         sessionStorage.setItem('bid', '42')
         const totals: number[] = []
         service.getItemTotal().subscribe((t) => totals.push(t))
@@ -135,7 +136,7 @@ describe('BasketService', () => {
             }
         })
         expect(totals).toEqual([5])
-        localStorage.removeItem('token')
+        endSession()
         httpMock.verify()
     })
 
@@ -143,7 +144,7 @@ describe('BasketService', () => {
         const service = TestBed.inject(BasketService)
         const httpMock = TestBed.inject(HttpTestingController)
 
-        localStorage.setItem('token', 'token')
+        startSession('token')
         sessionStorage.setItem('bid', '99')
         const consoleSpy = vi.spyOn(console, 'log')
         consoleSpy.mockClear()
@@ -153,14 +154,14 @@ describe('BasketService', () => {
         req.error(new ErrorEvent('Request failed'), { status: 500, statusText: 'Internal Error' })
 
         expect(consoleSpy).toHaveBeenCalled()
-        localStorage.removeItem('token')
+        endSession()
         httpMock.verify()
     })
 
     it('should emit total number of guest basket items when anonymous', () => {
         const service = TestBed.inject(BasketService)
 
-        localStorage.removeItem('token')
+        endSession()
         sessionStorage.setItem('guestBasket', JSON.stringify([
             { ProductId: 1, quantity: 2 },
             { ProductId: 2, quantity: 3 }
@@ -197,7 +198,7 @@ describe('BasketService', () => {
         const service = TestBed.inject(BasketService)
         const httpMock = TestBed.inject(HttpTestingController)
 
-        localStorage.removeItem('token')
+        endSession()
         sessionStorage.setItem('guestBasket', JSON.stringify([
             { ProductId: 1, quantity: 2 },
             { ProductId: 1, quantity: 1 },
