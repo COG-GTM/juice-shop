@@ -55,14 +55,11 @@ export function oauthLogin () {
 
     let user: UserModel
     try {
-      let created: boolean
-      [user, created] = await UserModel.findOrCreate({
+      [user] = await UserModel.findOrCreate({
         where: { email },
         defaults: { email, password: crypto.randomBytes(32).toString('base64') }
       })
-      if (created) {
-        await WalletModel.create({ UserId: user.id })
-      }
+      await WalletModel.findOrCreate({ where: { UserId: user.id } })
     } catch {
       res.status(401).json({ status: 'error', message: 'Invalid OAuth access token.' })
       return
