@@ -224,6 +224,13 @@ describe('insecurity', () => {
       }
     })
 
+    it('rejects malformed tokens without throwing', () => {
+      expect(security.verify('unknown')).to.equal(false)
+      expect(security.isExpired('unknown')).to.equal(false)
+      expect(security.decode('unknown')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('unknown')).to.equal(undefined)
+    })
+
     it('treats signed tokens without exp claim as expired', () => {
       const token = security.authorize({ data: { id: 53 }, exp: undefined })
       expect(security.decode(token).exp).to.equal(undefined)
