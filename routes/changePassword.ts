@@ -8,13 +8,13 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
-    const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const currentPassword: string | null = typeof body?.current === 'string' ? body.current : null
+    const newPassword = typeof body?.new === 'string' ? body.new : ''
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -36,11 +36,6 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
-      return
-    }
-
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
@@ -48,14 +43,30 @@ export function changePassword () {
         return
       }
 
-      await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
-      res.json({ user })
+      if (currentPassword === null || security.hash(currentPassword) !== user.password) {
+        challengeUtils.solveIf(
+          challenges.changePasswordBenderChallenge,
+          () => user.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
+        )
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
+      await user.update({ password: newPassword })
+      revokeOtherSessions(user.id, utils.unquote(token))
+      res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
     }
   }
+}
+
+function revokeOtherSessions (userId: number, currentToken: string) {
+  const { tokenMap, idMap } = security.authenticatedUsers
+  for (const [token, session] of Object.entries(tokenMap)) {
+    if (token !== currentToken && session?.data?.id === userId) {
+      delete tokenMap[token]
+    }
+  }
+  idMap[userId] = currentToken
 }
