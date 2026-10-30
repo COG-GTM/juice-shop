@@ -12,6 +12,7 @@ application:
   showGitHubLinks: true
   localBackupEnabled: true
   numberOfRandomFakeUsers: 0
+  seedKnownCredentials: false # seeds the published training passwords, 2FA secret and security answers for pre-loaded users; when false they are randomized on every start
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop
   customMetricsPrefix: juiceshop

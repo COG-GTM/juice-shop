@@ -36,6 +36,8 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
+import crypto from 'node:crypto'
+import { generateSecret } from 'otplib'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
 
@@ -182,25 +184,41 @@ async function createChallenges () {
   }
 }
 
+function randomCredential () {
+  return crypto.randomBytes(24).toString('base64url')
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
+  const seedKnownCredentials = config.has('application.seedKnownCredentials') && config.get<boolean>('application.seedKnownCredentials')
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        let seededPassword = password
+        let seededTotpSecret = totpSecret
+        let seededSecurityAnswer = securityQuestion?.answer
+        if (!seedKnownCredentials) {
+          seededPassword = key === 'admin' && process.env.JUICE_SHOP_ADMIN_PASSWORD ? process.env.JUICE_SHOP_ADMIN_PASSWORD : randomCredential()
+          seededTotpSecret = totpSecret ? generateSecret() : totpSecret
+          seededSecurityAnswer = randomCredential()
+          if (key === 'admin' && !process.env.JUICE_SHOP_ADMIN_PASSWORD) {
+            logger.info(`Generated one-time bootstrap password for ${completeEmail}: ${seededPassword}`)
+          }
+        }
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seededPassword,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: seededTotpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (securityQuestion != null && seededSecurityAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, seededSecurityAnswer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
@@ -688,7 +706,7 @@ async function createSecurityQuestions () {
 
 async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string) {
   return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }).catch((err: unknown) => {
-    logger.error(`Could not insert SecurityAnswer ${answer} mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
+    logger.error(`Could not insert SecurityAnswer mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
   })
 }
 
