@@ -169,7 +169,6 @@ void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
-  app.locals.captchaId = 0
   app.locals.captchaReqId = 1
   app.locals.captchaBypassReqTimes = []
   app.locals.abused_ssti_bug = false
@@ -346,6 +345,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
+  app.get('/rest/captcha', rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }))
+  app.post('/api/Feedbacks', rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }))
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
