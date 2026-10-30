@@ -112,6 +112,20 @@ void describe('/rest/products/:id/reviews', () => {
     }
   })
 
+  void it('PUT product review creation is rate limited per user', async () => {
+    const { token } = await login(app, { email: 'mc.safesearch@juice-sh.op', password: 'Mr. N00dles' })
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .put('/rest/products/1/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ message: '' })
+      statuses.push(res.status)
+    }
+    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(400))
+    assert.equal(statuses[10], 429)
+  })
+
   void it('PUT product review is rejected for a valid token without a login session', async () => {
     const token = security.authorize({ data: { id: 1, email: 'jwt.only@juice-sh.op' } } as any)
     const res = await request(app)
