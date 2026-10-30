@@ -125,6 +125,44 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST concurrent password changes from two sessions let exactly one succeed', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'concurrent@be.rt',
+        password: 'shared-secret'
+      })
+      .expect(201)
+
+    const { token: tokenA } = await login(app, { email: 'concurrent@be.rt', password: 'shared-secret' })
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    const { token: tokenB } = await login(app, { email: 'concurrent@be.rt', password: 'shared-secret' })
+    assert.notEqual(tokenA, tokenB)
+
+    const [resA, resB] = await Promise.all([
+      request(app)
+        .post('/rest/user/change-password')
+        .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenA })
+        .send({ current: 'shared-secret', new: 'alpha-secret', repeat: 'alpha-secret' }),
+      request(app)
+        .post('/rest/user/change-password')
+        .set({ ...jsonHeader, Authorization: 'Bearer ' + tokenB })
+        .send({ current: 'shared-secret', new: 'beta-secret', repeat: 'beta-secret' })
+    ])
+
+    const statuses = [resA.status, resB.status].sort()
+    assert.deepEqual(statuses, [200, 401])
+    const winner = resA.status === 200 ? { token: tokenA, password: 'alpha-secret' } : { token: tokenB, password: 'beta-secret' }
+    const loser = resA.status === 200 ? 'beta-secret' : 'alpha-secret'
+    assert.equal(await loginStatus('concurrent@be.rt', winner.password), 200)
+    assert.equal(await loginStatus('concurrent@be.rt', loser), 401)
+    await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + winner.token })
+      .expect(200)
+  })
+
   void it('POST password change revokes all other sessions of the user but keeps the current one', async () => {
     await request(app)
       .post('/api/Users')
