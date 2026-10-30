@@ -56,6 +56,10 @@ export class BasketService {
     return this.http.post(`${this.hostServer}/rest/basket/${id}/checkout`, { couponData, orderDetails }).pipe(map((response: any) => response.orderConfirmation), catchError((error) => { throw error }))
   }
 
+  getOrderConfirmation (orderId: string): Observable<Blob> {
+    return this.http.get(`${this.hostServer}/rest/order-confirmation/${encodeURIComponent(orderId)}`, { responseType: 'blob' }).pipe(catchError((error) => { throw error }))
+  }
+
   applyCoupon (id?: number, coupon?: string) {
     return this.http.put(`${this.hostServer}/rest/basket/${id}/coupon/${coupon}`, {}).pipe(map((response: any) => response.discount), catchError((error) => { throw error }))
   }
