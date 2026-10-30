@@ -166,6 +166,9 @@ export class ChatConversationComponent implements OnInit {
         })
         this.scrollToBottom()
         if (chunk.error === 'unauthorized') {
+          localStorage.removeItem('token')
+          this.cookieService.remove('token')
+          this.userService.isLoggedIn.next(false)
           this.loginGuard.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
         }
         break
