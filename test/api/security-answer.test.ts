@@ -77,6 +77,8 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(typeof res.body.data.id, 'number')
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
+    assert.notEqual(res.body.data.answer, 'Horst')
+    assert.match(res.body.data.answer, /^[0-9a-f]{32}:[0-9a-f]{64}$/)
   })
 
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
