@@ -13,6 +13,7 @@ import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { loadStaticUserData } from '../../data/staticData'
 import { isPrivilegedRole } from '../../data/privilegedSeedPasswords'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 
@@ -42,6 +43,15 @@ void describe('seeded accounts without JUICE_SHOP_DEMO_CREDENTIALS', async () =>
         .expect(401)
     })
   }
+
+  void it('does not solve credential challenges for privileged accounts whose static password was rejected', async () => {
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `admin@${domain}`, password: 'admin123' })
+      .expect(401)
+    assert.equal(challenges.weakPasswordChallenge.solved, false)
+  })
 
   void it('POST login still accepts the static password of customer accounts', async () => {
     await request(app)
