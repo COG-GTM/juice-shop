@@ -107,18 +107,14 @@ export function quantityCheckBeforeBasketItemUpdate () {
         return
       }
       const rawQuantity = req.body?.quantity
-      const quantity = typeof rawQuantity === 'string' && /^-?\d+$/.test(rawQuantity) ? Number(rawQuantity) : rawQuantity
+      const quantity = typeof rawQuantity === 'string' && /^\d+$/.test(rawQuantity) ? Number(rawQuantity) : rawQuantity
       const otherFields = Object.keys(req.body ?? {}).filter(key => key !== 'quantity' && key !== 'UserId')
-      if (otherFields.length > 0 || !Number.isSafeInteger(quantity)) {
+      if (otherFields.length > 0 || !Number.isSafeInteger(quantity) || quantity < 1) {
         res.status(400).json({ error: 'Only the quantity of a basket item can be updated.' })
         return
       }
       req.body = { quantity }
-      if (quantity) {
-        await quantityCheck(req, res, next, item.ProductId, quantity)
-      } else {
-        next()
-      }
+      await quantityCheck(req, res, next, item.ProductId, quantity)
     } catch (error) {
       next(error)
     }
