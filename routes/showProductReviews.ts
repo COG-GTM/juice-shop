@@ -37,12 +37,15 @@ export function showProductReviews () {
       const t1 = new Date().getTime()
       challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => { return (t1 - t0) > 2000 })
       const user = security.authenticatedUsers.from(req)
-      for (let i = 0; i < reviews.length; i++) {
-        if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
-          reviews[i].liked = true
-        }
-      }
-      res.json(utils.queryResultToJson(reviews))
+      const publicReviews = reviews.map(({ _id, product, message, author, likesCount, likedBy }) => ({
+        _id,
+        product,
+        message,
+        author,
+        likesCount,
+        liked: user === undefined || likedBy.includes(user.data.email) ? true : undefined
+      }))
+      res.json(utils.queryResultToJson(publicReviews))
     }, () => {
       res.status(400).json({ error: 'Wrong Params' })
     })
