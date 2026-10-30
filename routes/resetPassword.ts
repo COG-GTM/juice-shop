@@ -16,6 +16,7 @@ import { UserModel } from '../models/user'
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000
+const MAX_TRACKED_ACCOUNTS = 10000
 const failedAttempts = new Map<string, { count: number, firstFailure: number }>()
 
 function isLockedOut (key: string) {
@@ -28,9 +29,23 @@ function isLockedOut (key: string) {
   return entry.count >= MAX_FAILED_ATTEMPTS
 }
 
+function pruneFailedAttempts () {
+  const now = Date.now()
+  for (const [key, entry] of failedAttempts) {
+    if (now - entry.firstFailure > LOCKOUT_WINDOW_MS) failedAttempts.delete(key)
+  }
+  while (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) {
+    const oldestKey = failedAttempts.keys().next().value
+    if (oldestKey === undefined) break
+    failedAttempts.delete(oldestKey)
+  }
+}
+
 function recordFailedAttempt (key: string) {
   const entry = failedAttempts.get(key)
   if (!entry || Date.now() - entry.firstFailure > LOCKOUT_WINDOW_MS) {
+    failedAttempts.delete(key)
+    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneFailedAttempts()
     failedAttempts.set(key, { count: 1, firstFailure: Date.now() })
   } else {
     entry.count++
