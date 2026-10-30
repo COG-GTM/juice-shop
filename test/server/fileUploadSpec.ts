@@ -82,6 +82,7 @@ describe('fileUpload', () => {
       '../../frontend/dist/frontend/index.html',
       '../../build/routes/login.js',
       '../../data/static/users.yml',
+      '../../test-zip-slip.txt',
       '../../views/promotionVideo.pug',
       '../../views/userProfile.pug',
       'nested/../../../views/promotionVideo.pug',
