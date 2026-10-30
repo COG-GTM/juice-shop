@@ -103,7 +103,7 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
 const COUPON_DISCOUNT = 10
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
-  const userId = userIdFromToken(req)
+  const userId = security.verify(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
   const user = userId ? await UserModel.findByPk(userId, { attributes: ['email'] }) : null
   if (!user?.email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
