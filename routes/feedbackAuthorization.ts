@@ -11,7 +11,10 @@ import * as utils from '../lib/utils'
 const callerFrom = (req: Request): { id?: number, role?: string } | undefined => {
   const token = utils.jwtFrom(req)
   try {
-    return security.verify(token) ? security.decode(token)?.data : undefined
+    if (!security.verify(token)) return undefined
+    const payload = security.decode(token)
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+    return payload?.data
   } catch {
     return undefined
   }
