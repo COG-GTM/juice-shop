@@ -268,11 +268,6 @@
     id: 10
     answer: "Used Emporium"
 -
-  email: testing
-  password: 'IamUsedForTesting'
-  key: LetUsTest
-  role: 'admin'
--
   email: basil
   password: 'my little nest of vipers'
   key: basil
