@@ -133,3 +133,45 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:id/confirmation', () => {
+  void it('GET order confirmation PDF is only available to the customer who placed the order', async () => {
+    const jim = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    const bender = await login(app, {
+      email: 'bender@' + config.get<string>('application.domain'),
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+
+    const checkout = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set({ Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' })
+    assert.equal(checkout.status, 200)
+    const orderId = checkout.body.orderConfirmation
+
+    const own = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + jim.token })
+    assert.equal(own.status, 200)
+    assert.ok(own.headers['content-type']?.includes('application/pdf'))
+
+    const foreign = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + bender.token })
+    assert.equal(foreign.status, 404)
+
+    const anonymous = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+    assert.equal(anonymous.status, 401)
+
+    const ftpFile = await request(app)
+      .get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(ftpFile.status, 404)
+
+    const ftpListing = await request(app)
+      .get('/ftp')
+    assert.ok(!ftpListing.text.includes(`order_${orderId}.pdf`))
+  })
+})
