@@ -5,9 +5,9 @@
 
 import { Component, type OnInit, inject } from '@angular/core'
 import { TrackOrderService } from '../Services/track-order.service'
+import { OrderHistoryService } from '../Services/order-history.service'
 import { ActivatedRoute, type ParamMap, RouterLink } from '@angular/router'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow } from '@angular/material/table'
-import { BasketService } from '../Services/basket.service'
 import { AddressService } from '../Services/address.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { library } from '@fortawesome/fontawesome-svg-core'
@@ -33,7 +33,7 @@ export class OrderCompletionComponent implements OnInit {
   private readonly addressService = inject(AddressService)
   private readonly trackOrderService = inject(TrackOrderService)
   activatedRoute = inject(ActivatedRoute)
-  private readonly basketService = inject(BasketService)
+  private readonly orderHistoryService = inject(OrderHistoryService)
 
   public tableColumns = ['product', 'price', 'quantity', 'total price']
   public dataSource
@@ -94,8 +94,12 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    const redirectUrl = `${this.basketService.hostServer}/ftp/order_${this.orderId}.pdf`
-    window.open(redirectUrl, '_blank')
+    this.orderHistoryService.getConfirmation(this.orderId).subscribe({
+      next: (pdf: Blob) => {
+        window.open(URL.createObjectURL(pdf), '_blank')
+      },
+      error: (err) => { console.log(err) }
+    })
   }
 
   truncateTweet = (tweet: string, maxLength = 140) => {

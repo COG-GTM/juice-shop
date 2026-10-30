@@ -26,6 +26,11 @@ export function servePublicFiles () {
   function verify (file: string, res: Response, next: NextFunction) {
     if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
       file = security.cutOffPoisonNullByte(file)
+      if (isOrderConfirmation(file)) {
+        res.status(403)
+        next(new Error('Order confirmations are not publicly accessible!'))
+        return
+      }
 
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
@@ -47,6 +52,10 @@ export function servePublicFiles () {
       return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
         challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
     })
+  }
+
+  function isOrderConfirmation (file: string) {
+    return /^order_.*\.pdf$/i.test(file)
   }
 
   function endsWithAllowlistedFileType (param: string) {

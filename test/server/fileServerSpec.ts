@@ -35,6 +35,25 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.pdf/))
   })
 
+  it('should not serve order confirmation PDFs from folder /ftp', () => {
+    req.params.file = 'order_1234-0123456789abcdef.pdf'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should not serve order confirmation PDFs from folder /ftp via poison null byte', () => {
+    req.params.file = 'order_1234-0123456789abcdef.pdf%00.md'
+
+    servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+  })
+
   it('should serve Markdown files from folder /ftp', () => {
     req.params.file = 'test.md'
 

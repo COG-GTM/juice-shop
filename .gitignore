@@ -6,6 +6,8 @@ app/
 !frontend/src/app
 uploads/complaints/*.*
 !uploads/complaints/.gitkeep
+uploads/orders/*.*
+!uploads/orders/.gitkeep
 ftp/legal.md
 package-lock.json
 i18n/*.json

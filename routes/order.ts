@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+export const orderConfirmationsFolder = 'uploads/orders/'
+const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
 interface Product {
   quantity: number
   id?: number
@@ -42,7 +45,8 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          await fs.promises.mkdir(orderConfirmationsFolder, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(orderConfirmationsFolder, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -162,6 +166,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: customer?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
@@ -178,6 +183,23 @@ export function placeOrder () {
       }).catch((error: unknown) => {
         next(error)
       })
+  }
+}
+
+export function serveOrderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const orderId = req.params.id
+    const loggedInUser = security.authenticatedUsers.from(req)
+    if (!loggedInUser?.data?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const order = orderIdPattern.test(orderId) ? await db.ordersCollection.findOne({ orderId, UserId: loggedInUser.data.id }) : null
+    if (order == null) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(path.resolve(orderConfirmationsFolder, `order_${orderId}.pdf`))
   }
 }
 
