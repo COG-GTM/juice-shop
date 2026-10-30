@@ -36,8 +36,7 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
-import crypto from 'node:crypto'
-import { generateSecret } from 'otplib'
+import { seedKnownCredentialsEnabled, seededCredentials, seededSecurityAnswer } from './seedCredentials'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
 
@@ -184,41 +183,30 @@ async function createChallenges () {
   }
 }
 
-function randomCredential () {
-  return crypto.randomBytes(24).toString('base64url')
-}
-
 async function createUsers () {
   const users = await loadStaticUserData()
-  const seedKnownCredentials = config.has('application.seedKnownCredentials') && config.get<boolean>('application.seedKnownCredentials')
+  const seedKnownCredentials = seedKnownCredentialsEnabled()
+  if (!seedKnownCredentials && !process.env.JUICE_SHOP_ADMIN_PASSWORD) {
+    logger.warn('Pre-loaded users were seeded with random credentials. Set JUICE_SHOP_ADMIN_PASSWORD to choose the admin password.')
+  }
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
-        let seededPassword = password
-        let seededTotpSecret = totpSecret
-        let seededSecurityAnswer = securityQuestion?.answer
-        if (!seedKnownCredentials) {
-          seededPassword = key === 'admin' && process.env.JUICE_SHOP_ADMIN_PASSWORD ? process.env.JUICE_SHOP_ADMIN_PASSWORD : randomCredential()
-          seededTotpSecret = totpSecret ? generateSecret() : totpSecret
-          seededSecurityAnswer = randomCredential()
-          if (key === 'admin' && !process.env.JUICE_SHOP_ADMIN_PASSWORD) {
-            logger.info(`Generated one-time bootstrap password for ${completeEmail}: ${seededPassword}`)
-          }
-        }
+        const credentials = seededCredentials(key, { password, totpSecret, securityAnswer: securityQuestion?.answer }, seedKnownCredentials)
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password: seededPassword,
+          password: credentials.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret: seededTotpSecret,
+          totpSecret: credentials.totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
-        if (securityQuestion != null && seededSecurityAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, seededSecurityAnswer)
+        if (securityQuestion != null && credentials.securityAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, credentials.securityAnswer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
@@ -363,11 +351,11 @@ async function createMemories () {
         void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/uploads/' + tmpImageFileName)
       }
       if (memory.geoStalkingMetaSecurityQuestion && memory.geoStalkingMetaSecurityAnswer) {
-        await createSecurityAnswer(datacache.users.john.id, memory.geoStalkingMetaSecurityQuestion, memory.geoStalkingMetaSecurityAnswer)
+        await createSecurityAnswer(datacache.users.john.id, memory.geoStalkingMetaSecurityQuestion, seededSecurityAnswer(memory.geoStalkingMetaSecurityAnswer, seedKnownCredentialsEnabled()))
         memory.user = 'john'
       }
       if (memory.geoStalkingVisualSecurityQuestion && memory.geoStalkingVisualSecurityAnswer) {
-        await createSecurityAnswer(datacache.users.emma.id, memory.geoStalkingVisualSecurityQuestion, memory.geoStalkingVisualSecurityAnswer)
+        await createSecurityAnswer(datacache.users.emma.id, memory.geoStalkingVisualSecurityQuestion, seededSecurityAnswer(memory.geoStalkingVisualSecurityAnswer, seedKnownCredentialsEnabled()))
         memory.user = 'emma'
       }
       if (!memory.user) {
