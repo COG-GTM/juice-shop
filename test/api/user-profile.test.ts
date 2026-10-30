@@ -51,4 +51,29 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const payloads = ['x #{7*7}', 'x !{7*7}', '#{7*7}', 'x\n                  - global.sstiProbe = 1']
+    for (const username of payloads) {
+      const update = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .field('username', username)
+        .redirects(0)
+      assert.equal(update.status, 302)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(!res.text.includes('x 49'))
+      assert.ok(!res.text.includes('>49<'))
+      assert.equal((global as any).sstiProbe, undefined)
+    }
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+    assert.ok(res.text.includes('global.sstiProbe = 1'))
+  })
 })
