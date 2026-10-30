@@ -66,6 +66,12 @@ void describe('/rest/products/:id/reviews', () => {
     await db.reviewsCollection.remove({ message: 'Zero-padded id review' })
   })
 
+  void it('GET product reviews rejects product ids beyond the safe integer range', async () => {
+    const res = await request(app)
+      .get('/rest/products/9007199254740993/reviews')
+    assert.equal(res.status, 400)
+  })
+
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')

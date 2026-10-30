@@ -13,13 +13,13 @@ import * as utils from '../lib/utils'
 export function showProductReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = Number(req.params.id)
-    if (!Number.isInteger(id)) {
+    if (!Number.isSafeInteger(id)) {
       res.status(400).json({ error: 'Wrong Params' })
       return
     }
 
     db.reviewsCollection.find({}).then((allReviews: Review[]) => {
-      const reviews = allReviews.filter(review => Number(review.product) === id)
+      const reviews = allReviews.filter(review => Number.isSafeInteger(Number(review.product)) && Number(review.product) === id)
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
