@@ -9,9 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
-import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
-import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -179,18 +177,63 @@ void describe('/api/Users', () => {
     assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
   })
 
-  if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-    void it('POST new user with XSS attack in email address', async () => {
+  void it('POST new user with XSS attack in email address is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: '<iframe src="javascript:alert(`xss`)">',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new user with HTML markup around a valid-looking email address is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: '<img src=x onerror=alert(1)>@juice-sh.op',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new user with an apostrophe in the email address is rejected with a displayable error', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: "o'brien@juice-sh.op",
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.errors[0].message, 'Invalid email address')
+  })
+
+  void it('POST new user with non-string email is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: { $ne: '' },
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
+
+  for (const email of [{ $ne: '' }, 42, null]) {
+    void it(`POST new user with non-string email ${JSON.stringify(email)} and passwordRepeat is rejected`, async () => {
       const res = await request(app)
         .post('/api/Users')
         .set(jsonHeader)
         .send({
-          email: '<iframe src="javascript:alert(`xss`)">',
-          password: 'does.not.matter'
+          email,
+          password: 'does.not.matter',
+          passwordRepeat: 'does.not.matter'
         })
-      assert.equal(res.status, 201)
-      assert.ok(res.headers['content-type']?.includes('application/json'))
-      assert.equal(res.body.data.email, '<iframe src="javascript:alert(`xss`)">')
+      assert.equal(res.status, 400)
+      assert.equal(res.body.errors[0].message, 'Invalid email address')
     })
   }
 })

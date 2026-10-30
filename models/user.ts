@@ -46,29 +46,23 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         type: DataTypes.STRING,
         defaultValue: '',
         set (username: string) {
-          if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-            username = security.sanitizeLegacy(username)
-          } else {
-            username = security.sanitizeSecure(username)
-          }
-          this.setDataValue('username', username)
+          this.setDataValue('username', security.sanitizeSecure(username ?? ''))
         }
       },
       email: {
         type: DataTypes.STRING,
         unique: true,
         set (email: string) {
+          const storedEmail = utils.isValidEmail(email) ? email : security.sanitizeSecure(email)
           if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
             challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
               return utils.contains(
-                email,
+                storedEmail,
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
-          } else {
-            email = security.sanitizeSecure(email)
           }
-          this.setDataValue('email', email)
+          this.setDataValue('email', storedEmail)
         }
       }, // vuln-code-snippet hide-end
       password: {

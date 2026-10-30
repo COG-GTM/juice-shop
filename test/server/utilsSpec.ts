@@ -165,6 +165,32 @@ describe('utils', () => {
     }
   })
 
+  describe('isValidEmail', () => {
+    it('accepts plain email addresses', () => {
+      expect(utils.isValidEmail('admin@juice-sh.op')).to.equal(true)
+      expect(utils.isValidEmail('a&b@kasper.le')).to.equal(true)
+      expect(utils.isValidEmail('a`b@kasper.le')).to.equal(true)
+    })
+
+    it('rejects strings without exactly one @', () => {
+      expect(utils.isValidEmail('admin')).to.equal(false)
+      expect(utils.isValidEmail('a@b@c')).to.equal(false)
+    })
+
+    it('rejects email addresses containing HTML markup or whitespace', () => {
+      expect(utils.isValidEmail('<iframe src="javascript:alert(`xss`)">')).to.equal(false)
+      expect(utils.isValidEmail('<img src=x onerror=alert(1)>@juice-sh.op')).to.equal(false)
+      expect(utils.isValidEmail('a b@juice-sh.op')).to.equal(false)
+      expect(utils.isValidEmail("admin@juice-sh.op'")).to.equal(false)
+      expect(utils.isValidEmail("o'brien@juice-sh.op")).to.equal(false)
+    })
+
+    it('rejects non-string values', () => {
+      expect(utils.isValidEmail({ $ne: '' })).to.equal(false)
+      expect(utils.isValidEmail(undefined)).to.equal(false)
+    })
+  })
+
   describe('startsWith', () => {
     it('accepts string starting with another string', () => {
       expect(utils.startsWith('Bla Blubb', 'Bla')).to.equal(true)
