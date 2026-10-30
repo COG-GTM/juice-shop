@@ -133,3 +133,70 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:orderId/receipt', () => {
+  async function placeOrderAs (email: string, password: string) {
+    const { token, bid } = await login(app, { email, password })
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    return { token, orderId: res.body.orderConfirmation as string }
+  }
+
+  void it('order receipt is not written to the public ftp folder', async () => {
+    const { orderId } = await placeOrderAs('jim@' + config.get<string>('application.domain'), 'ncc-1701')
+
+    const listing = await request(app).get('/ftp')
+    assert.ok(!listing.text.includes(`order_${orderId}.pdf`))
+
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET own order receipt', async () => {
+    const { token, orderId } = await placeOrderAs('jim@' + config.get<string>('application.domain'), 'ncc-1701')
+
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/receipt`)
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order receipt without authentication is denied', async () => {
+    const { orderId } = await placeOrderAs('jim@' + config.get<string>('application.domain'), 'ncc-1701')
+
+    const res = await request(app).get(`/rest/order-history/${orderId}/receipt`)
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order receipt of another customer is denied', async () => {
+    const { orderId } = await placeOrderAs('jim@' + config.get<string>('application.domain'), 'ncc-1701')
+    const { token } = await login(app, {
+      email: 'bender@' + config.get<string>('application.domain'),
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/receipt`)
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order receipt with path traversal in order id is denied', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .get('/rest/order-history/..%2F..%2Fpackage.json/receipt')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 404)
+  })
+})

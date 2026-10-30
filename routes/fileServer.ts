@@ -30,7 +30,13 @@ export function servePublicFiles () {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      const filePath = path.resolve('ftp/', file)
+      if (path.dirname(filePath) !== path.resolve('ftp')) {
+        res.status(403)
+        next(new Error('File names cannot contain path separators!'))
+        return
+      }
+      res.sendFile(filePath)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))

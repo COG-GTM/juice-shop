@@ -10,12 +10,12 @@ import * as utils from '../utils'
 
 const cleanupFtpFolder = async () => {
   try {
-    const files = await glob('ftp/*.pdf', { windowsPathsNoEscape: true })
+    const files = await glob(['ftp/*.pdf', 'data/orders/**/*.pdf'], { windowsPathsNoEscape: true })
     for (const filename of files) {
       await fs.remove(filename)
     }
   } catch (err) {
-    logger.warn('Error listing PDF files in /ftp folder: ' + utils.getErrorMessage(err))
+    logger.warn('Error listing order PDF files: ' + utils.getErrorMessage(err))
   }
 }
 export default cleanupFtpFolder

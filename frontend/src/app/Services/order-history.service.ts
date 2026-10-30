@@ -25,6 +25,28 @@ export class OrderHistoryService {
     return this.http.get(this.host + '/orders').pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
 
+  getReceipt (orderId: string) {
+    return this.http.get(`${this.host}/${encodeURIComponent(orderId)}/receipt`, { responseType: 'blob' }).pipe(catchError((err) => { throw err }))
+  }
+
+  openReceipt (orderId: string) {
+    const receiptWindow = window.open('', '_blank')
+    this.getReceipt(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const url = URL.createObjectURL(pdf)
+        if (receiptWindow) {
+          receiptWindow.location.href = url
+        } else {
+          window.open(url, '_blank')
+        }
+        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
+      },
+      error: () => {
+        receiptWindow?.close()
+      }
+    })
+  }
+
   toggleDeliveryStatus (id: number, params) {
     return this.http.put(`${this.host}/${id}/delivery-status`, params).pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
