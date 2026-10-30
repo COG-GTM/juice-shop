@@ -208,4 +208,46 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password parameters of the change-password query string', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=s3cr3t&repeat=s3cr3t'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts URL-encoded, mixed-case, bracketed and duplicated parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/x?cur%72ent=a&NEW=b&repeat[]=c&password=d&password=e'))
+        .to.equal('/x?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]&password=[REDACTED]&password=[REDACTED]')
+    })
+
+    it('leaves other parameters and URLs without query string unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&newest=1')).to.equal('/rest/products/search?q=apple&newest=1')
+      expect(utils.redactSensitiveQueryParams('/support/logs')).to.equal('/support/logs')
+      expect(utils.redactSensitiveQueryParams(undefined)).to.equal(undefined)
+    })
+
+    it('redacts the whole query string when a parameter name has malformed percent-encoding', () => {
+      expect(utils.redactSensitiveQueryParams('/x?%E0%A4%A=1&new=2')).to.equal('/x?[REDACTED]&new=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/x?pass%word=secret&q=apple')).to.equal('/x?[REDACTED]&[REDACTED]')
+    })
+
+    it('does not log bracket contents of sensitive parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/x?password[hunter2]=x&PassWord%5Bs3cr3t%5D=y')).to.equal('/x?password=[REDACTED]&password=[REDACTED]')
+    })
+
+    it('redacts fragments of passwords containing unencoded ampersands', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=ab&cd&new=ef&gh=ij&repeat=ef&gh=ij'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&[REDACTED]&new=[REDACTED]&[REDACTED]&repeat=[REDACTED]&[REDACTED]')
+    })
+
+    it('handles parameter names with many opening brackets in linear time', () => {
+      const start = Date.now()
+      expect(utils.redactSensitiveQueryParams('/x?new' + '['.repeat(50000) + '%0A=1')).to.equal('/x?new=[REDACTED]')
+      expect(Date.now() - start).to.be.below(1000)
+    })
+
+    it('redacts token query parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
+    })
+  })
 })
