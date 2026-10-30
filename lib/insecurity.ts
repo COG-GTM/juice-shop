@@ -200,9 +200,9 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   next()
 }
 
-export const tokenCookieOptions = (req: Request) => ({ sameSite: 'lax' as const, secure: req.secure })
+export const tokenCookieOptions = (req: Pick<Request, 'secure'>) => ({ sameSite: 'lax' as const, secure: req.secure })
 
-export const isCrossSiteRequest = (req: Request) => {
+export const isCrossSiteRequest = (req: Pick<Request, 'get' | 'headers' | 'secure'>) => {
   const fetchSite = req.get('sec-fetch-site')
   if (fetchSite !== undefined) {
     return fetchSite !== 'same-origin' && fetchSite !== 'none'
