@@ -149,6 +149,18 @@ describe('insecurity', () => {
       expect(bind({ headers: { authorization: 'Bearer ' + token }, cookies: { token }, body: { UserId: 2 } }).UserId).to.equal(null)
     })
 
+    it('uses the id from a validly signed token when no session is cached', () => {
+      const token = security.authorize({ data: { id: 7 } })
+
+      expect(bind({ headers: { authorization: 'Bearer ' + token }, body: { UserId: 1 } }).UserId).to.equal(7)
+    })
+
+    it('sets UserId to null for an uncached token with an invalid signature', () => {
+      const [header, payload] = security.authorize({ data: { id: 7 } }).split('.')
+
+      expect(bind({ headers: { authorization: `Bearer ${header}.${payload}.c2ln` }, body: { UserId: 7 } }).UserId).to.equal(null)
+    })
+
     it('sets UserId to null for anonymous requests', () => {
       expect(bind({ headers: {}, body: { UserId: 1 } }).UserId).to.equal(null)
     })
