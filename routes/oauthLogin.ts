@@ -10,6 +10,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -17,8 +18,10 @@ const googleTokenInfoUrl = 'https://oauth2.googleapis.com/tokeninfo'
 
 interface GoogleTokenInfo {
   aud?: string
+  audience?: string
   email?: string
   email_verified?: string | boolean
+  verified_email?: string | boolean
   expires_in?: string | number
 }
 
@@ -28,10 +31,10 @@ export async function verifyGoogleAccessToken (accessToken: string): Promise<str
     return null
   }
   const tokenInfo = await response.json() as GoogleTokenInfo
-  if (tokenInfo.aud !== config.get<string>('application.googleOauth.clientId')) {
+  if ((tokenInfo.aud ?? tokenInfo.audience) !== config.get<string>('application.googleOauth.clientId')) {
     return null
   }
-  if (String(tokenInfo.email_verified) !== 'true' || !(Number(tokenInfo.expires_in) > 0)) {
+  if (String(tokenInfo.email_verified ?? tokenInfo.verified_email) !== 'true' || !(Number(tokenInfo.expires_in) > 0)) {
     return null
   }
   return typeof tokenInfo.email === 'string' && tokenInfo.email !== '' ? tokenInfo.email : null
@@ -60,6 +63,7 @@ export function oauthLogin () {
       let user = await UserModel.findOne({ where: { email } })
       if (user === null) {
         user = await UserModel.create({ email, password: crypto.randomBytes(32).toString('hex') })
+        await WalletModel.create({ UserId: user.id })
       }
 
       if (user.totpSecret !== '') {

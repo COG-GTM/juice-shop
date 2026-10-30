@@ -288,6 +288,22 @@ void describe('/rest/user/oauth-login', () => {
       .set({ 'content-type': 'application/json' })
       .send({ email, password: Buffer.from(email.split('').reverse().join('')).toString('base64'), oauth: true })
     assert.equal(passwordLoginRes.status, 401)
+
+    const walletRes = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: `Bearer ${res.body.authentication.token}` })
+    assert.equal(walletRes.status, 200)
+    assert.equal(walletRes.body.data, 0)
+  })
+
+  void it('POST with access-token tokeninfo field names (audience/verified_email) logs in', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com', {
+      aud: undefined,
+      email_verified: undefined,
+      audience: config.get<string>('application.googleOauth.clientId'),
+      verified_email: true
+    })
+    assert.equal(res.status, 200)
   })
 
   void it('POST with access token issued to another client is rejected', async () => {
