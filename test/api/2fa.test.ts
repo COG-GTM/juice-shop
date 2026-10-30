@@ -94,6 +94,23 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should fail if a tmp token with alg none is used', async () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const tmpTokenWurstbrot = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token' })}.`
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
@@ -327,5 +344,20 @@ void describe('/rest/2fa/disable', () => {
     const statusRes2 = await getStatus(token)
     assert.equal(statusRes2.status, 200)
     assert.equal(statusRes2.body.setup, true)
+  })
+})
+
+void describe('/rest/2fa/verify rate limiting', () => {
+  void it('POST should not let X-Forwarded-For bypass the rate limit', async () => {
+    let lastStatus = 0
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ tmpToken: 'invalid', totpToken: '123456' })
+      lastStatus = res.status
+    }
+
+    assert.equal(lastStatus, 429)
   })
 })

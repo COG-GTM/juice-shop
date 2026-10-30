@@ -13,6 +13,12 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
+export function verifyRateLimitKey (req: Request) {
+  const tmpToken = req.body?.tmpToken
+  const { userId } = (security.verify(tmpToken) && security.decode(tmpToken)) || {}
+  return userId ? `user:${userId}` : `ip:${req.socket.remoteAddress}`
+}
+
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
