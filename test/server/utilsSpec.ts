@@ -208,4 +208,32 @@ describe('utils', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
     })
   })
+
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts passwords from change-password URLs', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts passwords hidden behind fragments, encoded keys or array notation', () => {
+      expect(utils.redactSensitiveQueryParams('/?x=1#/change?password=secret')).to.equal('/?x=1#/change?password=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?n%65w=secret&repeat[]=secret'))
+        .to.equal('/rest/user/change-password?n%65w=[REDACTED]&repeat[]=[REDACTED]')
+    })
+
+    it('redacts the full value of passwords containing ? ; or # characters', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=a#b&new=ab?cd;ef&repeat=ab?cd;ef'))
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?new=a?password=b&q=1'))
+        .to.equal('/rest/user/change-password?new=[REDACTED]&q=1')
+    })
+
+    it('keeps non-sensitive query parameters', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple')).to.equal('/rest/products/search?q=apple')
+    })
+
+    it('returns URLs without query string unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/api/Products')).to.equal('/api/Products')
+    })
+  })
 })

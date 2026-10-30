@@ -123,6 +123,31 @@ export const downloadToFile = async (url: string, dest: string) => {
   }
 }
 
+const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'passwordRepeat', 'answer', 'token']
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  let query = url.substring(queryStart + 1)
+  const ranges: Array<[number, number]> = []
+  for (const match of query.matchAll(/(?:^|[&?#;])([^&?#;=]*)=/g)) {
+    let name = match[1]
+    try {
+      name = decodeURIComponent(name.replace(/\+/g, ' '))
+    } catch {}
+    const valueStart = (match.index ?? 0) + match[0].length
+    const lastRange = ranges[ranges.length - 1]
+    if (sensitiveQueryParams.includes(name.replace(/\[.*$/, '')) && (!lastRange || valueStart >= lastRange[1])) {
+      const valueEnd = query.indexOf('&', valueStart)
+      ranges.push([valueStart, valueEnd === -1 ? query.length : valueEnd])
+    }
+  }
+  for (const [start, end] of ranges.reverse()) {
+    query = query.substring(0, start) + '[REDACTED]' + query.substring(end)
+  }
+  return url.substring(0, queryStart + 1) + query
+}
+
 export const jwtFrom = ({ headers }: { headers: any }) => {
   if (headers?.authorization) {
     const parts = headers.authorization.split(' ')

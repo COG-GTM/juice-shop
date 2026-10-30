@@ -164,6 +164,27 @@ export const isAccounting = () => {
   }
 }
 
+const maxAdminTokenAgeSeconds = 6 * 60 * 60
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
+    let decoded: ReturnType<typeof jws.decode> | null = null
+    try {
+      decoded = token ? jws.decode(token) : null
+    } catch {}
+    const payload = token && decoded?.header?.alg === 'RS256' && verify(token) ? decoded.payload : null
+    const expiresAt = typeof payload?.iat === 'number' ? Math.min(payload.iat + maxAdminTokenAgeSeconds, typeof payload.exp === 'number' ? payload.exp : Infinity) : 0
+    if (!payload || expiresAt <= Math.floor(Date.now() / 1000)) {
+      res.status(401).json({ error: 'Unauthorized' })
+    } else if (payload.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Forbidden' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
