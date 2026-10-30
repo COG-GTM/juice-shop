@@ -26,6 +26,19 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories only exposes id and username of the posting user', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const memory of res.body.data) {
+      assert.deepEqual(Object.keys(memory.User).sort(), ['id', 'username'])
+    }
+    for (const key of ['password', 'totpSecret', 'deluxeToken', 'lastLoginIp', 'email']) {
+      assert.ok(!res.text.includes(`"${key}"`), `response must not contain ${key}`)
+    }
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),
