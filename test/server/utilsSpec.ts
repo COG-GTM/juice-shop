@@ -212,7 +212,13 @@ describe('utils', () => {
   describe('redactSensitiveQueryParams', () => {
     it('redacts passwords from change-password URLs', () => {
       expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret'))
-        .to.equal('/rest/user/change-password?current=%5BREDACTED%5D&new=%5BREDACTED%5D&repeat=%5BREDACTED%5D')
+        .to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('redacts passwords hidden behind fragments, encoded keys or array notation', () => {
+      expect(utils.redactSensitiveQueryParams('/?x=1#/change?password=secret')).to.equal('/?x=1#/change?password=[REDACTED]')
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?n%65w=secret&repeat[]=secret'))
+        .to.equal('/rest/user/change-password?n%65w=[REDACTED]&repeat[]=[REDACTED]')
     })
 
     it('keeps non-sensitive query parameters', () => {

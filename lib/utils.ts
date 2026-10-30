@@ -128,13 +128,14 @@ const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'passwordR
 export const redactSensitiveQueryParams = (url: string) => {
   const queryStart = url.indexOf('?')
   if (queryStart === -1) return url
-  const params = new URLSearchParams(url.substring(queryStart + 1))
-  for (const key of new Set(params.keys())) {
-    if (sensitiveQueryParams.includes(key)) {
-      params.set(key, '[REDACTED]')
-    }
-  }
-  return url.substring(0, queryStart + 1) + params.toString()
+  const query = url.substring(queryStart + 1).replace(/(^|[&?#;])([^&?#;=]*)=([^&?#;]*)/g, (match: string, separator: string, key: string) => {
+    let name = key
+    try {
+      name = decodeURIComponent(key.replace(/\+/g, ' '))
+    } catch {}
+    return sensitiveQueryParams.includes(name.replace(/\[.*$/, '')) ? `${separator}${key}=[REDACTED]` : match
+  })
+  return url.substring(0, queryStart + 1) + query
 }
 
 export const jwtFrom = ({ headers }: { headers: any }) => {

@@ -166,11 +166,14 @@ export const isAccounting = () => {
 
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const token = utils.jwtFrom(req)
-    const decodedToken = token && verify(token) && decode(token)
-    if (!decodedToken) {
+    let decodedToken: any
+    try {
+      decodedToken = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
+    } catch {
       res.status(401).json({ error: 'Unauthorized' })
-    } else if (decodedToken.data?.role === roles.admin) {
+      return
+    }
+    if (decodedToken?.data?.role === roles.admin) {
       next()
     } else {
       res.status(403).json({ error: 'Forbidden' })
