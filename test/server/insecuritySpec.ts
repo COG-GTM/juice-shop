@@ -152,15 +152,19 @@ describe('insecurity', () => {
       }
     })
 
-    it('keeps a revoked token without exp claim revoked indefinitely', () => {
-      const noExp = 'rev-no-exp-48'
+    it('bounds the revocation of a token without exp claim but keeps rejecting it', () => {
+      const noExp = security.authorize({ data: { id: 48 }, exp: undefined })
+      security.authenticatedUsers.tokenMap[noExp] = { data: { id: 48 } as unknown as UserModel }
       const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       try {
-        security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
         security.authenticatedUsers.revokeOtherSessions(48, 'rev-keep-48')
-
-        clock.tick(7 * 24 * 60 * 60 * 1000)
         expect(security.isRevoked(noExp)).to.equal(true)
+
+        clock.tick(6 * 60 * 60 * 1000 + 1000)
+        expect(security.isRevoked(noExp)).to.equal(false)
+        expect(security.verify(noExp)).to.equal(false)
+        security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
+        expect(security.authenticatedUsers.get(noExp)).to.equal(undefined)
       } finally {
         clock.restore()
       }
@@ -218,6 +222,15 @@ describe('insecurity', () => {
       } finally {
         clock.restore()
       }
+    })
+
+    it('treats signed tokens without exp claim as expired', () => {
+      const token = security.authorize({ data: { id: 53 }, exp: undefined })
+      expect(security.decode(token).exp).to.equal(undefined)
+      expect(security.isExpired(token)).to.equal(true)
+      expect(security.verify(token)).to.equal(false)
+      security.authenticatedUsers.put(token, { data: { id: 53 } as unknown as UserModel })
+      expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
     })
 
     it('does not register already expired tokens', () => {
