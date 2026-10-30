@@ -174,7 +174,7 @@ export const isAdmin = () => {
       decoded = token ? jws.decode(token) : null
     } catch {}
     const payload = token && decoded?.header?.alg === 'RS256' && verify(token) ? decoded.payload : null
-    const expiresAt = typeof payload?.exp === 'number' ? payload.exp : typeof payload?.iat === 'number' ? payload.iat + maxAdminTokenAgeSeconds : 0
+    const expiresAt = typeof payload?.iat === 'number' ? Math.min(payload.iat + maxAdminTokenAgeSeconds, typeof payload.exp === 'number' ? payload.exp : Infinity) : 0
     if (!payload || expiresAt <= Math.floor(Date.now() / 1000)) {
       res.status(401).json({ error: 'Unauthorized' })
     } else if (payload.data?.role === roles.admin) {
