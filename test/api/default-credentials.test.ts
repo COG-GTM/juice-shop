@@ -6,8 +6,10 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import config from 'config'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { loadStaticUserData } from '../../data/staticData'
 import { isPrivilegedRole } from '../../data/privilegedSeedPasswords'
@@ -47,5 +49,17 @@ void describe('seeded accounts without JUICE_SHOP_DEMO_CREDENTIALS', async () =>
       .set({ 'content-type': 'application/json' })
       .send({ email: `jim@${domain}`, password: 'ncc-1701' })
       .expect(200)
+  })
+
+  void it('POST 2fa verify rejects a token generated from the static TOTP secret of privileged account wurstbrot', async () => {
+    const wurstbrot = (await loadStaticUserData()).find(({ email }) => email === 'wurstbrot')
+    assert.ok(wurstbrot?.totpSecret)
+
+    const tmpToken = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+    await request(app)
+      .post('/rest/2fa/verify')
+      .set({ 'content-type': 'application/json' })
+      .send({ tmpToken, totpToken: generateSync({ secret: wurstbrot.totpSecret }) })
+      .expect(401)
   })
 })
