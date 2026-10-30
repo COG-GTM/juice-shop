@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
-import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { themes } from '../views/themes/themes'
@@ -103,7 +102,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 
       if (req.body.layout) {
         const filePath: string = path.resolve(req.body.layout).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || isOrderConfirmationPath(req.body.layout) || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
+        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('orders') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
         if (!isForbiddenFile) {
           res.render('dataErasureResult', {
             ...req.body,
@@ -133,16 +132,3 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 })
 
 export default router
-
-function isOrderConfirmationPath (layout: string) {
-  const resolvedPath = path.resolve(layout)
-  let realPath = resolvedPath
-  try {
-    realPath = fs.realpathSync(resolvedPath)
-  } catch {
-    try {
-      realPath = path.join(fs.realpathSync(path.dirname(resolvedPath)), path.basename(resolvedPath))
-    } catch {}
-  }
-  return [resolvedPath, realPath].some(candidate => candidate.toLowerCase().includes('orders'))
-}
