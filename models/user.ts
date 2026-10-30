@@ -32,6 +32,11 @@ InferCreationAttributes<User>
   declare profileImage: CreationOptional<string>
   declare totpSecret: CreationOptional<string>
   declare isActive: CreationOptional<boolean>
+
+  toJSON () {
+    const { password, totpSecret, ...safeAttributes } = this.get({ plain: true })
+    return safeAttributes
+  }
 }
 
 const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start weakPasswordChallenge
