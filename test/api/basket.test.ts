@@ -14,6 +14,7 @@ import * as utils from '../../lib/utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -200,6 +201,53 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const stockAfter = await QuantityModel.findOne({ where: { ProductId: 10 } })
     assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+  })
+
+  void it('POST a wallet-paid order whose bonus credit fails is rejected and neither debits the wallet nor deducts stock', async () => {
+    const { token, bid } = await login(app, {
+      email: 'morty@juice-sh.op',
+      password: 'focusOnScienceMorty!focusOnScience'
+    })
+    const mortyHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const userId = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).data.id
+
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(mortyHeader)
+    assert.equal(balanceBefore.status, 200)
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(mortyHeader)
+      .send({ BasketId: bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const originalIncrement = WalletModel.increment.bind(WalletModel)
+    let failNextIncrement = true
+    WalletModel.increment = (async (...args: Parameters<typeof WalletModel.increment>) => {
+      if (failNextIncrement) {
+        failNextIncrement = false
+        throw new Error('Bonus credit failed.')
+      }
+      return await originalIncrement(...args)
+    }) as typeof WalletModel.increment
+    try {
+      const res = await request(app)
+        .post(`/rest/basket/${bid}/checkout`)
+        .set(mortyHeader)
+        .send({ UserId: userId, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Bonus credit failed.'))
+    } finally {
+      WalletModel.increment = originalIncrement as typeof WalletModel.increment
+    }
+
+    const balanceAfter = await request(app).get('/rest/wallet/balance').set(mortyHeader)
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+
+    const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
+    assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+
+    await request(app).delete(`/api/BasketItems/${itemRes.body.data.id}`).set(mortyHeader)
   })
 })
 
