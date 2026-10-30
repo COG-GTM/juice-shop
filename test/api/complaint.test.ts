@@ -8,14 +8,22 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let jimAuthHeader: Record<string, string>
+let benderAuthHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  jimAuthHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+  benderAuthHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -39,11 +47,37 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET complaints with a token lacking a user id is forbidden', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET complaints only returns complaints of the logged-in user', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(jimAuthHeader)
     assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === 2))
+  })
+
+  void it('GET complaints returns own complaints for their owner', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(benderAuthHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === 3))
+  })
+
+  void it('GET complaints ignores UserId query parameter of other users', async () => {
+    const res = await request(app)
+      .get('/api/Complaints?UserId=3')
+      .set(jimAuthHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === 2))
   })
 })
 

@@ -516,6 +516,30 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
 
+    // restrict complaint listing to the requesting user's own complaints
+    if (name === 'Complaint') {
+      const complaintOwnerFrom = (req: Request) => {
+        const token = utils.jwtFrom(req)
+        const decodedToken = security.verify(token) && security.decode(token)
+        return decodedToken?.data?.id
+      }
+      resource.list.fetch.before((req: Request, res: Response, context: { criteria: Record<string, unknown>, continue: any, stop: any }) => {
+        const userId = complaintOwnerFrom(req)
+        if (userId === undefined || userId === null) {
+          res.status(403).json({ status: 'error', message: 'Forbidden' })
+          return context.stop
+        }
+        delete req.query.UserId
+        context.criteria = { ...context.criteria, UserId: userId }
+        return context.continue
+      })
+      resource.list.fetch.after((req: Request, res: Response, context: { instance: Array<{ UserId: number }>, continue: any }) => {
+        const userId = complaintOwnerFrom(req)
+        context.instance = context.instance.filter((complaint) => complaint.UserId === userId)
+        return context.continue
+      })
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
