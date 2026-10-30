@@ -16,6 +16,27 @@ import { LoginGuard } from '../../app.guard'
 import { ChatInputBoxComponent } from '../chat-input-box/chat-input-box.component'
 import { type ChatMessage, type StoredConversation } from '../chat.model'
 
+const MAX_HISTORY_MESSAGES = 50
+const MAX_HISTORY_LENGTH = 32000
+const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
+const MAX_USER_MESSAGE_LENGTH = 4000
+
+export function trimHistory<T extends { role: string, content: string }> (messages: T[]): T[] {
+  const trimmed: T[] = []
+  let totalLength = 0
+  for (let i = messages.length - 1; i >= 0 && trimmed.length < MAX_HISTORY_MESSAGES; i--) {
+    let message = messages[i]
+    const maxLength = message.role === 'assistant' ? MAX_ASSISTANT_MESSAGE_LENGTH : MAX_USER_MESSAGE_LENGTH
+    if (message.content.length > maxLength) {
+      message = { ...message, content: message.content.slice(0, maxLength) }
+    }
+    totalLength += message.content.length
+    if (totalLength > MAX_HISTORY_LENGTH) break
+    trimmed.unshift(message)
+  }
+  return trimmed
+}
+
 @Component({
   standalone: true,
   selector: 'app-chat-conversation',
@@ -113,6 +134,7 @@ export class ChatConversationComponent implements OnInit {
 
   async sendMessage (content: string) {
     if (!content || this.isLoading()) return
+    content = content.slice(0, MAX_USER_MESSAGE_LENGTH)
 
     this.messages.update(prev => [...prev, { role: 'user', content }])
     this.messageInput.set('')
@@ -123,10 +145,10 @@ export class ChatConversationComponent implements OnInit {
     const assistantIndex = this.messages().length
     this.messages.update(prev => [...prev, { role: 'assistant', content: '' }])
 
-    const apiMessages = this.messages()
+    const apiMessages = trimHistory(this.messages()
       .slice(0, -1)
       .filter(m => !m.error)
-      .map(m => ({ role: m.role, content: m.content }))
+      .map(m => ({ role: m.role, content: m.content })))
 
     const stream = this.chatService.streamMessages(apiMessages)
     for await (const chunk of stream) {
@@ -135,7 +157,7 @@ export class ChatConversationComponent implements OnInit {
           const updated = [...prev]
           updated[assistantIndex] = {
             role: 'assistant',
-            content: 'CHATBOT_ERROR_LLM_UNREACHABLE',
+            content: chunk.error === 'rate_limited' ? 'CHATBOT_ERROR_RATE_LIMITED' : 'CHATBOT_ERROR_LLM_UNREACHABLE',
             error: true
           }
           return updated
