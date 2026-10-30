@@ -5,10 +5,11 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -118,10 +119,61 @@ void describe('/rest/basket/:id', () => {
   })
 })
 
+async function stockOf (ProductId: number): Promise<number> {
+  const res = await request(app).get('/api/Quantitys').set(authHeader)
+  return res.body.data.find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+}
+
 void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a basket is not allowed via public API', async () => {
     const res = await request(app).post('/rest/basket/1/checkout')
     assert.equal(res.status, 401)
+  })
+
+  void it('POST failed wallet checkout leaves stock, basket and order confirmations untouched', async () => {
+    const email = `empty-wallet-${Date.now()}@juice-sh.op`
+    await register(app, { email, password: 'insufficient-funds' })
+    const { token, bid } = await login(app, { email, password: 'insufficient-funds' })
+    const userHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const whoAmI = await request(app).get('/rest/user/whoami').set({ Cookie: `token=${token}` })
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(userHeader)
+      .send({ BasketId: bid, ProductId: 1, quantity: 2 })
+    assert.equal(itemRes.status, 200)
+
+    const orderPdfPrefix = `order_${security.hash(email).slice(0, 4)}-`
+    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(orderPdfPrefix))
+    const stockBefore = await stockOf(1)
+
+    for (let i = 0; i < 3; i++) {
+      const res = await request(app)
+        .post(`/rest/basket/${bid}/checkout`)
+        .set(userHeader)
+        .send({ UserId: whoAmI.body.user.id, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Insufficient wallet balance.'))
+    }
+
+    assert.equal(await stockOf(1), stockBefore)
+    assert.deepEqual(orderPdfs(), [])
+    const basketRes = await request(app).get(`/rest/basket/${bid}`).set(userHeader)
+    assert.equal(basketRes.body.data.Products.length, 1)
+    const walletRes = await request(app).get('/rest/wallet/balance').set(userHeader)
+    assert.equal(walletRes.body.data, 0)
+  })
+
+  void it('POST successful checkout lowers stock, empties the basket and writes the order confirmation', async () => {
+    const stockBefore = await stockOf(1)
+    const basketBefore = await request(app).get('/rest/basket/1').set(authHeader)
+    const quantity = basketBefore.body.data.Products.find((product: { id: number }) => product.id === 1).BasketItem.quantity
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(fs.existsSync(`ftp/order_${res.body.orderConfirmation}.pdf`))
+    assert.equal(await stockOf(1), stockBefore - quantity)
+    const basketAfter = await request(app).get('/rest/basket/1').set(authHeader)
+    assert.equal(basketAfter.body.data.Products.length, 0)
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
