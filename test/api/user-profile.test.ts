@@ -56,7 +56,7 @@ void describe('/profile', () => {
     assert.equal(user?.username, 'Localhorst')
   })
 
-  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51), 'x\\#{7*7}']) {
+  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51), 'x\\#{7*7}', 'Tom & Jerry']) {
     void it(`POST rejects username ${JSON.stringify(payload).substring(0, 40)} without saving it`, async () => {
       const res = await request(app)
         .post('/profile')
