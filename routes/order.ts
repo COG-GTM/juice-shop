@@ -54,8 +54,8 @@ export function placeOrder () {
           const abortOrder = (error: unknown) => {
             fileWriter.removeAllListeners('finish')
             doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
             fileWriter.destroy()
-            fs.unlink(path.join('ftp/', pdfFile), () => {})
             next(error)
           }
 
