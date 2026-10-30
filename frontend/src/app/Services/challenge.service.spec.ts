@@ -7,13 +7,22 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing'
 
 import { ChallengeService } from './challenge.service'
+import { SocketIoService } from './socket-io.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('ChallengeService', () => {
+    let socket: { id?: string }
+
     beforeEach(() => {
+        socket = { id: 'SOCKET_ID' }
         TestBed.configureTestingModule({
             imports: [],
-            providers: [ChallengeService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [
+                ChallengeService,
+                { provide: SocketIoService, useValue: { socket: () => socket } },
+                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClientTesting()
+            ]
         })
     })
 
@@ -140,7 +149,22 @@ describe('ChallengeService', () => {
 
         expect(req.request.method).toBe('GET')
         expect(req.request.params.get('challenge')).toBe('CHALLENGE')
+        expect(req.request.params.get('socketId')).toBe('SOCKET_ID')
         expect(res).toBe('apiResponse')
+        httpMock.verify()
+    })
+
+    it('should omit the socket id when repeating a notification while disconnected', () => {
+        socket.id = undefined
+        const service = TestBed.inject(ChallengeService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.repeatNotification('CHALLENGE').subscribe()
+
+        const req = httpMock.expectOne(req => req.url === 'http://localhost:3000/rest/repeat-notification')
+        req.flush('')
+
+        expect(req.request.params.has('socketId')).toBe(false)
         httpMock.verify()
     })
 
