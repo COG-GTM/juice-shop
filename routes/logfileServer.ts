@@ -5,12 +5,18 @@
 
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+import * as security from '../lib/insecurity'
 
 export function serveLogFiles () {
-  return ({ params }: Request, res: Response, next: NextFunction) => {
-    const file = params.file
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!security.isAdmin(req)) {
+      res.status(403).json({ error: 'Malicious activity detected' })
+      return
+    }
 
-    if (!file.includes('/')) {
+    const file = req.params.file
+
+    if (!file.includes('/') && !file.includes('\\') && path.basename(file) === file) {
       res.sendFile(path.resolve('logs/', file))
     } else {
       res.status(403)
