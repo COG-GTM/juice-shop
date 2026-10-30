@@ -458,6 +458,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
 
+  /* Feedbacks: Only administrators may delete existing feedback */
+  app.delete('/api/Feedbacks/:id', security.isAdmin())
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
