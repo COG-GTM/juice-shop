@@ -23,25 +23,33 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET all orders by injecting into orderId', async () => {
+  void it('GET tracking results for unknown order id returns only a placeholder', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/5267-f9cd5882f54c75a3')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, '5267-f9cd5882f54c75a3')
+  })
+
+  void it('GET rejects $where injection into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(Array.isArray(res.body.data))
-    for (const item of res.body.data) {
-      assert.equal(typeof item.orderId, 'string')
-      assert.equal(typeof item.email, 'string')
-      assert.equal(typeof item.totalPrice, 'number')
-      assert.ok(Array.isArray(item.products))
-      for (const product of item.products) {
-        assert.equal(typeof product.quantity, 'number')
-        assert.equal(typeof product.name, 'string')
-        assert.equal(typeof product.price, 'number')
-        assert.equal(typeof product.total, 'number')
-      }
-      assert.equal(typeof item.eta, 'string')
-      assert.equal(typeof item._id, 'string')
-    }
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET rejects JavaScript payload in orderId and server stays up', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/%27%7C%7Cprocess.exit()%7C%7C%27')
+    assert.equal(res.status, 400)
+    const followUp = await request(app)
+      .get('/rest/track-order/5267-f9cd5882f54c75a3')
+    assert.equal(followUp.status, 200)
+  })
+
+  void it('GET rejects reflected markup in orderId', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/' + encodeURIComponent('<iframe src="javascript:alert(`xss`)">'))
+    assert.equal(res.status, 400)
   })
 })
