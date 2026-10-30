@@ -48,6 +48,21 @@ describe('OrderHistoryService', () => {
         httpMock.verify()
     })
 
+    it('should get order receipt as blob directly from the api', () => {
+        const service = TestBed.inject(OrderHistoryService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res
+        service.getReceipt('5267-f9cd5882f54c75a3').subscribe((data) => (res = data))
+        const req = httpMock.expectOne('http://localhost:3000/rest/order-history/5267-f9cd5882f54c75a3/receipt')
+        const pdf = new Blob(['%PDF'], { type: 'application/pdf' })
+        req.flush(pdf)
+        expect(req.request.method).toBe('GET')
+        expect(req.request.responseType).toBe('blob')
+        expect(res).toBe(pdf)
+        httpMock.verify()
+    })
+
     it('should update address directly from the api', () => {
         const service = TestBed.inject(OrderHistoryService)
         const httpMock = TestBed.inject(HttpTestingController)
