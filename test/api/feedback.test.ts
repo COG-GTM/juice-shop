@@ -15,6 +15,7 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.customer } }), 'content-type': 'application/json' }
 const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -280,10 +281,12 @@ void describe('/api/Feedbacks/:id', () => {
   })
 
   void it('DELETE existing feedback is forbidden for non-admin users', async () => {
-    const res = await request(app)
-      .delete('/api/Feedbacks/1')
-      .set(authHeader)
-    assert.equal(res.status, 403)
+    for (const header of [authHeader, customerHeader]) {
+      const res = await request(app)
+        .delete('/api/Feedbacks/1')
+        .set(header)
+      assert.equal(res.status, 403)
+    }
   })
 
   void it('DELETE existing feedback as admin', async () => {
