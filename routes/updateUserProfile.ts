@@ -11,7 +11,7 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
-const validUsername = /^[^\p{C}<>&{}\\]{0,50}$/u
+const validUsername = /^[^\p{C}<>{}\\]{0,50}$/u
 
 export function isValidUsername (username: unknown): username is string {
   return typeof username === 'string' && validUsername.test(username)
@@ -27,7 +27,7 @@ export function updateUserProfile () {
     }
 
     if (!isValidUsername(req.body.username)) {
-      res.status(400).send('Invalid username: up to 50 characters, without control characters or < > & { } \\.')
+      res.status(400).send('Invalid username: up to 50 characters, without control characters or < > { } \\.')
       return
     }
 
