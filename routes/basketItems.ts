@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -14,27 +15,21 @@ import * as security from '../lib/insecurity'
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const user = security.authenticatedUsers.from(req)
-    if (!user?.bid) {
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-      return
-    }
-    const requestedBasketId = req.body.BasketId
-    if (requestedBasketId !== undefined && requestedBasketId !== null && Number(requestedBasketId) !== Number(user.bid)) {
-      res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
+    try {
+      const basket = user?.data?.id ? await BasketModel.findOne({ where: { UserId: user.data.id } }) : null
+      const requestedBasketId = req.body.BasketId
+      if (!basket || (requestedBasketId !== undefined && requestedBasketId !== null && Number(requestedBasketId) !== basket.id)) {
+        res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+        return
+      }
+      const addedBasketItem = await BasketItemModel.build({
         ProductId: req.body.ProductId,
-        BasketId: user.bid,
+        BasketId: basket.id,
         quantity: req.body.quantity
-      }
-
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
-      }
+      }).save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
     }
   }
 }
