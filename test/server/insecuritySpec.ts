@@ -208,8 +208,8 @@ describe('insecurity', () => {
     })
 
     it('rejects an expired admin token', () => {
-      const sevenHoursAgo = Math.floor(Date.now() / 1000) - 7 * 60 * 60
-      expect(security.isAdmin(requestWith(security.authorize({ data: { role: 'admin' }, iat: sevenHoursAgo })))).to.equal(false)
+      const oneHourAgo = Math.floor(Date.now() / 1000) - 60 * 60
+      expect(security.isAdmin(requestWith(security.authorize({ data: { role: 'admin' }, exp: oneHourAgo })))).to.equal(false)
     })
 
     it('rejects requests without token', () => {
