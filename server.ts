@@ -405,6 +405,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/api/Feedbacks', verify.captchaBypassChallenge())
   /* User registration challenge verifications before finale takes over */
   app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const email = req.body?.email
+    if (email !== undefined && (typeof email !== 'string' || (email.trim().length !== 0 && !utils.isValidEmail(email.trim())))) {
+      res.status(400).json({ errors: [{ field: 'email', message: 'Invalid email address' }] })
+      return
+    }
+    next()
+  })
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
     if (req.body.email !== undefined && req.body.password !== undefined && req.body.passwordRepeat !== undefined) {
       if (req.body.email.length !== 0 && req.body.password.length !== 0) {
         req.body.email = req.body.email.trim()
@@ -413,14 +421,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       } else {
         res.status(400).send(res.__('Invalid email/password cannot be empty'))
       }
-    }
-    next()
-  })
-  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
-    const email = req.body?.email
-    if (email !== undefined && (typeof email !== 'string' || (email.trim().length !== 0 && !utils.isValidEmail(email.trim())))) {
-      res.status(400).json({ errors: [{ field: 'email', message: 'Invalid email address' }] })
-      return
     }
     next()
   })
