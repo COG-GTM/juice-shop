@@ -48,7 +48,8 @@ export class TwoFactorAuthComponent implements OnInit {
   })
 
   public twoFactorDisableForm: UntypedFormGroup = new UntypedFormGroup({
-    passwordControl: new UntypedFormControl('', [Validators.required])
+    passwordControl: new UntypedFormControl('', [Validators.required]),
+    totpTokenControl: new UntypedFormControl('', [Validators.required, Validators.pattern('^[\\d]{6}$')])
   })
 
   public setupStatus: boolean | null = null
@@ -106,7 +107,8 @@ export class TwoFactorAuthComponent implements OnInit {
 
   disable () {
     this.twoFactorAuthService.disable(
-      this.twoFactorDisableForm.get('passwordControl')?.value
+      this.twoFactorDisableForm.get('passwordControl')?.value,
+      this.twoFactorDisableForm.get('totpTokenControl')?.value
     ).subscribe({
       next: () => {
         this.updateStatus().subscribe(
@@ -118,6 +120,7 @@ export class TwoFactorAuthComponent implements OnInit {
       },
       error: () => {
         this.twoFactorDisableForm.get('passwordControl')?.markAsPristine()
+        this.twoFactorDisableForm.get('totpTokenControl')?.markAsPristine()
         this.errored = true
       }
     })

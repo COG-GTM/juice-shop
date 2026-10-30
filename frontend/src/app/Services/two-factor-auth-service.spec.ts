@@ -75,13 +75,13 @@ describe('TwoFactorAuthServiceService', () => {
         const httpMock = TestBed.inject(HttpTestingController)
 
         let res: any
-        service.disable('s3cr3t!').subscribe((data) => (res = data))
+        service.disable('s3cr3t!', '123456').subscribe((data) => (res = data))
 
         const req = httpMock.expectOne('http://localhost:3000/rest/2fa/disable')
         req.flush({})
 
         expect(req.request.method).toBe('POST')
-        expect(req.request.body).toEqual({ password: 's3cr3t!' })
+        expect(req.request.body).toEqual({ password: 's3cr3t!', totpToken: '123456' })
         expect(res).toBe(undefined)
         httpMock.verify()
     })
@@ -131,7 +131,7 @@ describe('TwoFactorAuthServiceService', () => {
         const httpMock = TestBed.inject(HttpTestingController)
 
         let capturedError: any
-        service.disable('pwd').subscribe({ next: () => { throw new Error('expected error') }, error: (e) => { capturedError = e } })
+        service.disable('pwd', '123456').subscribe({ next: () => { throw new Error('expected error') }, error: (e) => { capturedError = e } })
         const req = httpMock.expectOne('http://localhost:3000/rest/2fa/disable')
         req.error(new ErrorEvent('Forbidden'), { status: 403, statusText: 'Forbidden' })
         expect(req.request.method).toBe('POST')
