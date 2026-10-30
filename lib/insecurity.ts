@@ -187,7 +187,7 @@ export const appendUserId = () => {
 
 const isValidlySigned = (token: string) => {
   try {
-    return verify(token)
+    return jws.decode(token)?.header?.alg === 'RS256' && verify(token)
   } catch {
     return false
   }

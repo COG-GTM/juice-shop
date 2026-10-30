@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -159,6 +160,16 @@ describe('insecurity', () => {
       const [header, payload] = security.authorize({ data: { id: 7 } }).split('.')
 
       expect(bind({ headers: { authorization: `Bearer ${header}.${payload}.c2ln` }, body: { UserId: 7 } }).UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for an uncached token that is not RS256-signed', () => {
+      const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64').replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+      const unsigned = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { id: 1 } })}.`
+      const hmacInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ data: { id: 1 } })}`
+      const hmacWithPublicKey = `${hmacInput}.${crypto.createHmac('sha256', security.publicKey).update(hmacInput).digest('base64url')}`
+
+      expect(bind({ headers: { authorization: 'Bearer ' + unsigned }, body: { UserId: 1 } }).UserId).to.equal(null)
+      expect(bind({ headers: { authorization: 'Bearer ' + hmacWithPublicKey }, body: { UserId: 1 } }).UserId).to.equal(null)
     })
 
     it('sets UserId to null for anonymous requests', () => {
