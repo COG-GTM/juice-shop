@@ -65,5 +65,8 @@ config/*.yml
 !config/oss.yml
 !config/defcon33.yml
 
+# Runtime-generated JWT public key
+encryptionkeys/jwt.pub
+
 # System Files
 .DS_Store

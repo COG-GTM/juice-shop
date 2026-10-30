@@ -6,12 +6,45 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('JWT signing key', () => {
+    const formerlyCommittedPublicKey = '-----BEGIN RSA PUBLIC KEY-----\nMIGJAoGBAM3CosR73CBNcJsLv5E90NsFt6qN1uziQ484gbOoule8leXHFbyIzPQRozgEpSpiwhr6d2/c0CfZHEJ3m5tV0klxfjfM7oqjRMURnH/rmBjcETQ7qzIISZQ/iptJ3p7Gi78X5ZMhLNtDkUFU9WaGdiEb+SnC39wjErmJSfmGb7i1AgMBAAE=\n-----END RSA PUBLIC KEY-----'
+
+    it('does not use the key pair formerly committed to source', () => {
+      const current = crypto.createPublicKey(security.publicKey).export({ format: 'der', type: 'pkcs1' })
+      const former = crypto.createPublicKey(formerlyCommittedPublicKey).export({ format: 'der', type: 'pkcs1' })
+      expect(current.equals(former)).to.equal(false)
+    })
+
+    it('verifies tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: { id: 1, role: 'admin' } }))).to.equal(true)
+    })
+
+    it('rejects RS256 tokens signed with any other private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const forged = jwt.sign({ data: { id: 1, role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is deterministic per email', () => {
+      expect(security.deluxeToken('a@juice-sh.op')).to.equal(security.deluxeToken('a@juice-sh.op'))
+      expect(security.deluxeToken('a@juice-sh.op')).to.not.equal(security.deluxeToken('b@juice-sh.op'))
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
