@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -201,6 +202,29 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64url({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+
+    it('accepts tokens signed with the RS256 private key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with "alg: none"', () => {
+      expect(security.verify(`${b64url({ alg: 'none', typ: 'JWT' })}.${payload}.`)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens HMAC-signed with the public RSA key', () => {
+      const unsigned = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(`${unsigned}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
     })
   })
 })
