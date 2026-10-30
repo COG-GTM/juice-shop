@@ -55,11 +55,13 @@ describe('SidenavComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -193,6 +195,18 @@ describe('SidenavComponent', () => {
     it('should save the last login IP address', () => {
         component.logout()
         expect(userService.saveLastLoginIp).toHaveBeenCalled()
+    })
+
+    it('should end the session on the server', () => {
+        component.logout()
+        expect(userService.logout).toHaveBeenCalled()
+    })
+
+    it('should end the server session with the current token after saving the last login IP fails', () => {
+        localStorage.setItem('token', 'TOKEN')
+        userService.saveLastLoginIp.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('TOKEN')
     })
 
     it('should forward to main page', async () => {
