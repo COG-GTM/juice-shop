@@ -50,8 +50,10 @@ async function getUserId (req: Request): Promise<number | undefined> {
 function isAdmin (req: Request): boolean {
   const token = utils.jwtFrom(req)
   if (!token) return false
-  const decoded = jws.decode(token) as { header?: { alg?: string }, payload?: { data?: { role?: string } } } | null
+  const decoded = jws.decode(token) as { header?: { alg?: string }, payload?: { exp?: number, data?: { role?: string } } } | null
   if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return false
+  const exp = decoded.payload?.exp
+  if (typeof exp === 'number' && exp * 1000 <= Date.now()) return false
   return decoded.payload?.data?.role === roles.admin
 }
 
