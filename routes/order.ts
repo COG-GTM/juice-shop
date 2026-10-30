@@ -34,6 +34,10 @@ export function placeOrder () {
     const id = req.params.id
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
+        if (basket != null && basket.UserId !== req.body.UserId) {
+          res.status(403).json({ status: 'error', message: 'Not allowed to check out a basket of another user.' })
+          return
+        }
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
