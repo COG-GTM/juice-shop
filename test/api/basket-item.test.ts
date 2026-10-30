@@ -83,6 +83,16 @@ void describe('/api/BasketItems', () => {
       assert.equal(res.body.error, 'Quantity must be a positive whole number.')
     })
   }
+
+  void it('POST new basket item stores the validated quantity, not a nested quantity key', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"BasketId":2,"ProductId":14,"quantity":1,"x":{"quantity":-1000}}')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.ProductId, 14)
+    assert.equal(res.body.data.quantity, 1)
+  })
 })
 
 void describe('/api/BasketItems/:id', () => {
