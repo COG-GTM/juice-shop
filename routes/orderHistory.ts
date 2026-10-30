@@ -3,12 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { ordersCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
-import { ORDER_RECEIPTS_DIR } from './order'
+import { orderReceiptPath } from './order'
 
 const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
 
@@ -61,7 +60,7 @@ export function orderReceipt () {
       return
     }
     res.type('application/pdf')
-    res.sendFile(path.join(ORDER_RECEIPTS_DIR, `order_${orderId}.pdf`), (err?: Error) => {
+    res.sendFile(orderReceiptPath(email, orderId), (err?: Error) => {
       if (err && !res.headersSent) {
         res.status(404).json({ status: 'error', message: 'Not found' })
       }
