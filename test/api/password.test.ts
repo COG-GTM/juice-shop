@@ -172,6 +172,27 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+    assert.equal(res.body.status, 'success')
+    assert.equal(res.body.user, undefined)
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+  })
+
+  void it('POST password reset is locked for an account after too many wrong answers', async () => {
+    const email = 'lockout@' + config.get<string>('application.domain')
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.' + i })
+        .send({ email, answer: 'guess' + i, new: '12345', repeat: '12345' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.99' })
+      .send({ email: email.toUpperCase(), answer: 'guess', new: '12345', repeat: '12345' })
+    assert.equal(res.status, 429)
   })
 
   void it('POST password reset with wrong answer to security question', async () => {
