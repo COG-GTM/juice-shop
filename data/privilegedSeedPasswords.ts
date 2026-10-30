@@ -30,3 +30,10 @@ export function seedTotpSecretFor ({ role, totpSecret }: Pick<StaticUser, 'role'
   }
   return randomTotpSecret()
 }
+
+export function seedSecurityAnswerFor ({ role, answer }: { role: StaticUser['role'], answer: string }): string {
+  if (!isPrivilegedRole(role) || demoCredentialsEnabled()) {
+    return answer
+  }
+  return crypto.randomBytes(24).toString('base64url')
+}
