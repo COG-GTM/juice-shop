@@ -185,12 +185,20 @@ export const appendUserId = () => {
   }
 }
 
+const isValidlySigned = (token: string) => {
+  try {
+    return verify(token)
+  } catch {
+    return false
+  }
+}
+
 const unexpiredSessionFor = (token?: string) => {
   if (!token) return undefined
   const rawToken = utils.unquote(token)
   const payload = decode(rawToken) as ResponseWithUser | undefined
   if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
-  return authenticatedUsers.get(token) ?? (verify(rawToken) ? payload : undefined)
+  return authenticatedUsers.get(token) ?? (isValidlySigned(rawToken) ? payload : undefined)
 }
 
 export const bindUserId = () => {
