@@ -199,3 +199,14 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   }
   next()
 }
+
+const csrfSecret = crypto.randomBytes(32)
+export const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfSecret).update(utils.unquote(sessionToken)).digest('hex')
+export const isValidCsrfToken = (sessionToken: string | undefined, candidate: unknown) => {
+  if (!sessionToken || typeof candidate !== 'string') {
+    return false
+  }
+  const expected = Buffer.from(csrfTokenFor(sessionToken))
+  const actual = Buffer.from(candidate)
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
+}
