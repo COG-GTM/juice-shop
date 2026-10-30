@@ -13,6 +13,28 @@ import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
+const MAX_FAILED_ATTEMPTS = 5
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000
+const failedAttempts = new Map<string, { count: number, lockedUntil: number }>()
+
+function isLockedOut (key: string) {
+  const entry = failedAttempts.get(key)
+  if (!entry) return false
+  if (entry.lockedUntil > Date.now()) return true
+  if (entry.lockedUntil !== 0) failedAttempts.delete(key)
+  return false
+}
+
+function registerFailedAttempt (key: string) {
+  const entry = failedAttempts.get(key) ?? { count: 0, lockedUntil: 0 }
+  entry.count++
+  if (entry.count >= MAX_FAILED_ATTEMPTS) {
+    entry.count = 0
+    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS
+  }
+  failedAttempts.set(key, entry)
+}
+
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
     const email = body.email
@@ -31,6 +53,11 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
+    const lockoutKey = String(email).toLowerCase()
+    if (isLockedOut(lockoutKey)) {
+      res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
+      return
+    }
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -41,11 +68,13 @@ export function resetPassword () {
       if ((data != null) && security.hmac(answer) === data.answer) {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
+          failedAttempts.delete(lockoutKey)
           const updatedUser = await user.update({ password: newPassword })
           verifySecurityAnswerChallenges(updatedUser, answer)
-          res.json({ user: updatedUser })
+          res.json({ status: 'success' })
         }
       } else {
+        registerFailedAttempt(lockoutKey)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {

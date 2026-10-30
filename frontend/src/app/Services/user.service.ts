@@ -56,7 +56,7 @@ export class UserService {
   }
 
   resetPassword (params: any) {
-    return this.http.post(this.hostServer + '/rest/user/reset-password', params).pipe(map((response: any) => response.user), catchError((err) => { throw err }))
+    return this.http.post(this.hostServer + '/rest/user/reset-password', params).pipe(map((response: any) => response.status), catchError((err) => { throw err }))
   }
 
   whoAmI (fields?: string[]) {
