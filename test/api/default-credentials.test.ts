@@ -72,4 +72,32 @@ void describe('seeded accounts without JUICE_SHOP_DEMO_CREDENTIALS', async () =>
       .send({ tmpToken, totpToken: generateSync({ secret: wurstbrot.totpSecret }) })
       .expect(401)
   })
+
+  for (const { email, customDomain, securityQuestion } of privilegedUsers.filter(({ securityQuestion }) => securityQuestion != null)) {
+    const completeEmail = customDomain ? email : `${email}@${domain}`
+    void it(`POST reset-password rejects the static security answer of privileged account ${completeEmail}`, async () => {
+      await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: completeEmail, answer: securityQuestion?.answer, new: 'hijacked123', repeat: 'hijacked123' })
+        .expect(401)
+    })
+  }
+
+  void it('does not solve the reset password challenge of admin bjoern whose static security answer was rejected', async () => {
+    await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `bjoern@${domain}`, answer: 'West-2082', new: 'hijacked123', repeat: 'hijacked123' })
+      .expect(401)
+    assert.equal(challenges.resetPasswordBjoernChallenge.solved, false)
+  })
+
+  void it('POST reset-password still accepts the static security answer of customer accounts', async () => {
+    await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `morty@${domain}`, answer: '5N0wb41L', new: 'focusOnScienceMorty!focusOnScience', repeat: 'focusOnScienceMorty!focusOnScience' })
+      .expect(200)
+  })
 })
