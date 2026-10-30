@@ -54,6 +54,7 @@ import logger from './lib/logger'
 import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
+import * as rateLimiting from './lib/rateLimiting'
 import validateConfig from './lib/startup/validateConfig'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
@@ -346,6 +347,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
+  app.set('trust proxy', rateLimiting.trustedProxyHops()) // overrides the snippet's trust-all setting so X-Forwarded-For cannot pick the client address
+  app.use('/rest/user/reset-password', rateLimiting.accountRateLimit(rateLimiting.emailOf))
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
