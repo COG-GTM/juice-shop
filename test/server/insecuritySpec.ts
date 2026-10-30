@@ -109,6 +109,18 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('refreshes the cached user data of every session of a user', () => {
+      security.authenticatedUsers.put('22221', { data: { id: 2, password: 'old' } as unknown as UserModel, bid: 7 })
+      security.authenticatedUsers.put('22222', { data: { id: 2, password: 'old' } as unknown as UserModel })
+      security.authenticatedUsers.put('33333', { data: { id: 3, password: 'other' } as unknown as UserModel })
+
+      security.authenticatedUsers.refreshAllFor({ data: { id: 2, password: 'new' } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('22221')).to.deep.equal({ data: { id: 2, password: 'new' }, bid: 7 })
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ data: { id: 2, password: 'new' } })
+      expect(security.authenticatedUsers.get('33333')).to.deep.equal({ data: { id: 3, password: 'other' } })
+    })
   })
 
   describe('sanitizeHtml', () => {

@@ -38,6 +38,7 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
+  refreshAllFor: (user: ResponseWithUser) => void
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -89,6 +90,13 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
     this.put(token, user)
+  },
+  refreshAllFor: function (user: ResponseWithUser) {
+    for (const [token, cached] of Object.entries(this.tokenMap)) {
+      if (cached?.data?.id === user.data.id) {
+        this.tokenMap[token] = { ...cached, data: user.data }
+      }
+    }
   }
 }
 
