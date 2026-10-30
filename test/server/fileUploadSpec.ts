@@ -100,7 +100,9 @@ describe('fileUpload', () => {
       'C:\\Windows\\win.ini',
       'C:relative.txt',
       '\\\\server\\share\\x.txt',
-      'complaint.pdf\0.txt'
+      'complaint.pdf\0.txt',
+      `../../../${path.basename(path.resolve('.'))}-evil/x.txt`,
+      path.resolve('.') + '-evil/x.txt'
     ]
     maliciousEntries.forEach(entry => {
       it(`should reject entry ${JSON.stringify(entry)}`, () => {
