@@ -16,7 +16,7 @@ export function showProductReviews () {
 
     // Reviews store the product id as a number (seed data) or as the raw URL string (user-created)
     db.reviewsCollection.find({}).then((allReviews: Array<Review & { product: number | string }>) => {
-      const reviews = allReviews.filter(review => Number(review.product) === id)
+      const reviews = allReviews.filter(review => review.product === req.params.id || Number(review.product) === id)
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
