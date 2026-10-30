@@ -85,6 +85,8 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import { restrictHintUpdate } from './routes/hintUpdate'
+import { getPublicQuantities } from './routes/quantity'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -452,6 +454,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Hints: anonymous updates may only unlock a hint */
+  app.put('/api/Hints/:id', restrictHintUpdate())
+
+  /* Quantitys: exact stock levels and per-user limits only for accounting */
+  app.get('/api/Quantitys', utils.asyncHandler(getPublicQuantities()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
