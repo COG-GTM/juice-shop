@@ -119,7 +119,7 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 410)
-    assert.ok(!res.text.includes('pwned'))
+    assert.ok(!res.text.includes('JUICE_RCE_MARKER'))
     assert.ok(res.text.includes('unknown tag'))
   })
 

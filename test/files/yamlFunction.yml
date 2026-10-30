@@ -1,1 +1,1 @@
-toJSON: !!js/function 'function(){ return "pwned" }'
+toJSON: !!js/function 'function(){ return ["JUICE", "RCE", "MARKER"].join("_") }'
