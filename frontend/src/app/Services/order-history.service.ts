@@ -41,9 +41,8 @@ export class OrderHistoryService {
         }
         setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
       },
-      error: (err) => {
+      error: () => {
         receiptWindow?.close()
-        console.log(err)
       }
     })
   }
