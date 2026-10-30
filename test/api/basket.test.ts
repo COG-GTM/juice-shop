@@ -152,6 +152,12 @@ void describe('/rest/basket/:id/checkout', () => {
     const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
     const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
     const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const stockOf = async () => {
+      const res = await request(app).get('/api/Quantitys').set({ Authorization: 'Bearer ' + adminToken })
+      return Object.fromEntries(res.body.data.map((row: { ProductId: number, quantity: number }) => [row.ProductId, row.quantity]))
+    }
+    const stockBefore = await stockOf()
     const orderTotal = 5 * 8.99 + 2 * 4.99
     const bonusPoints = 5
     assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
@@ -165,6 +171,10 @@ void describe('/rest/basket/:id/checkout', () => {
 
     const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
     assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+
+    const stockAfter = await stockOf()
+    assert.equal(stockAfter[3], stockBefore[3] - 5)
+    assert.equal(stockAfter[4], stockBefore[4] - 2)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
