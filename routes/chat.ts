@@ -20,6 +20,7 @@ import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
 import { Counter } from 'prom-client'
+import jws from 'jws'
 
 function summarizeLlmError (error: unknown): string {
   if (!(error instanceof Error)) {
@@ -102,8 +103,13 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
 
 const COUPON_DISCOUNT = 10
 
+function hasVerifiedRs256Signature (token?: string): boolean {
+  if (!token) return false
+  return jws.decode(token)?.header?.alg === 'RS256' && security.verify(token)
+}
+
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
-  const userId = security.verify(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
+  const userId = hasVerifiedRs256Signature(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
   const user = userId ? await UserModel.findByPk(userId, { attributes: ['email'] }) : null
   if (!user?.email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })

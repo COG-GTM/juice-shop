@@ -549,6 +549,15 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(!result.includes('couponCode'))
   })
 
+  void it('refuses to mint coupons for tokens declaring alg none', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(token)
+    const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'none' })).toString('base64url')
+    const forged = `${header}.${token.split('.')[1]}.`
+    const result = await couponToolResult({ discount: 10, orderId }, forged, false)
+    assert.ok(!result.includes('couponCode'))
+  })
+
   void it('refuses to mint coupons for orders of other customers', { timeout: 15000 }, async () => {
     const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(admin.token)
