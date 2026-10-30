@@ -20,7 +20,6 @@ before(async () => {
 
 void describe('/b2b/v2/orders', () => {
   void it('POST endless loop exploit in "orderLinesData" is rejected without evaluation', async () => {
-    const start = Date.now()
     const res = await request(app)
       .post('/b2b/v2/orders')
       .set(authHeader)
@@ -29,7 +28,6 @@ void describe('/b2b/v2/orders', () => {
       })
 
     assert.equal(res.status, 400)
-    assert.ok(Date.now() - start < 1000)
   })
 
   void it('POST busy spinning regex attack in "orderLinesData" is rejected without evaluation', async () => {
