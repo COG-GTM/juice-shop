@@ -9,7 +9,9 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
+import { UserModel } from '../../models/user'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 
@@ -111,6 +113,9 @@ void describe('/rest/deluxe-membership', () => {
     })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
+    const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+    assert.equal(balanceBefore.status, 200)
+
     const res = await request(app)
       .post('/rest/deluxe-membership')
       .set(authHeader)
@@ -120,6 +125,12 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    const balanceAfter = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: 'Bearer ' + res.body.data.token, 'content-type': 'application/json' })
+    assert.equal(balanceAfter.status, 200)
+    assert.equal(balanceAfter.body.data, balanceBefore.body.data - 49)
   })
 
   void it('POST upgrade deluxe membership fails for customers with insufficient wallet balance', async () => {
@@ -211,5 +222,82 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Something went wrong. Please try again!')
+  })
+
+  void it('POST upgrade deluxe membership fails without payment mode', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({})
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
+
+  void it('POST upgrade deluxe membership fails for unknown payment mode', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: 'free'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
+
+  void it('POST upgrade deluxe membership fails for customers with an empty wallet', async () => {
+    const { token } = await login(app, {
+      email: `john@${config.get<string>('application.domain')}`,
+      password: 'y&x5Z#f6W532Z4445#Ae2HkwZVyDb7&oCUaDzFU'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: 'wallet'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+  })
+
+  void it('POST upgrade deluxe membership fails for customers without a wallet', async () => {
+    const email = `deluxe.nowallet@${config.get<string>('application.domain')}`
+    const password = 'n0-w4ll3t'
+    await register(app, { email, password })
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    for (let i = 0; i < 50 && await WalletModel.count({ where: { UserId: user.id } }) === 0; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    await WalletModel.destroy({ where: { UserId: user.id } })
+
+    const { token } = await login(app, { email, password })
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        paymentMode: 'wallet'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+    await user.reload()
+    assert.equal(user.role, 'customer')
   })
 })
