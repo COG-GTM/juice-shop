@@ -41,6 +41,7 @@ interface IAuthenticatedUsers {
   revokeOtherSessions: (userId: number, currentToken: string) => void
 }
 
+const tokenLifetimeSeconds = 6 * 60 * 60
 const revokedTokens = new Map<string, number>()
 const pruneExpiredRevocations = (now = Date.now()) => {
   for (const [token, expiresAt] of revokedTokens) {
@@ -50,7 +51,7 @@ const pruneExpiredRevocations = (now = Date.now()) => {
 const revokeToken = (token: string) => {
   pruneExpiredRevocations()
   const exp = jws.decode(token)?.payload?.exp
-  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Infinity)
+  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + tokenLifetimeSeconds * 1000)
 }
 export const isRevoked = (token?: string | null) => {
   if (!token) return false
@@ -63,11 +64,12 @@ export const isRevoked = (token?: string | null) => {
   return true
 }
 
-const tokenLifetimeSeconds = 6 * 60 * 60
 export const isExpired = (token?: string | null) => {
   if (!token) return false
-  const exp = jws.decode(utils.unquote(token))?.payload?.exp
-  return typeof exp === 'number' && exp * 1000 <= Date.now()
+  const decoded = jws.decode(utils.unquote(token))
+  if (!decoded) return false
+  const exp = decoded.payload?.exp
+  return typeof exp !== 'number' || exp * 1000 <= Date.now()
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
