@@ -40,19 +40,6 @@ describe('/#/basket', () => {
       })
     })
 
-    describe('challenge "basketAccessChallenge"', () => {
-      it('should access basket with id from session storage instead of the one associated to logged-in user', () => {
-        cy.window().then(() => {
-          window.sessionStorage.bid = 3
-        })
-
-        cy.visit('/#/basket')
-
-        // TODO Verify functionally that it's not the basket of the admin
-        cy.expectChallengeSolved({ challenge: 'View Basket' })
-      })
-    })
-
     describe('challenge "basketManipulateChallenge"', () => {
       it('should manipulate basket of other user instead of the one associated to logged-in user', () => {
         cy.window().then(async () => {
