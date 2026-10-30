@@ -123,6 +123,20 @@ export const downloadToFile = async (url: string, dest: string) => {
   }
 }
 
+const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'passwordRepeat', 'answer', 'token']
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const params = new URLSearchParams(url.substring(queryStart + 1))
+  for (const key of new Set(params.keys())) {
+    if (sensitiveQueryParams.includes(key)) {
+      params.set(key, '[REDACTED]')
+    }
+  }
+  return url.substring(0, queryStart + 1) + params.toString()
+}
+
 export const jwtFrom = ({ headers }: { headers: any }) => {
   if (headers?.authorization) {
     const parts = headers.authorization.split(' ')
