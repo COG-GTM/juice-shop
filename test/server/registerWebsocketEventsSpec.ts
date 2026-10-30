@@ -13,6 +13,7 @@ import * as security from '../../lib/insecurity'
 import {
   registerChallengeVerificationEvents,
   registerNotificationAcknowledgement,
+  replayPendingNotifications,
   resetVerificationRateLimits,
   verifiedUserIdFrom,
   VERIFICATION_EVENT_LIMIT
@@ -20,6 +21,14 @@ import {
 const expect = chai.expect
 
 const localXssPayload = '<iframe src="javascript:alert(`xss`)">'
+
+const replayedFlags = (token?: unknown) => {
+  const flags: string[] = []
+  const client = Object.assign(new EventEmitter(), { id: 'socket-2', handshake: { auth: { token } } })
+  client.on('challenge solved', ({ flag }: any) => flags.push(flag))
+  replayPendingNotifications(client)
+  return flags
+}
 
 describe('registerWebsocketEvents', () => {
   let socket: EventEmitter & { id: string }
@@ -104,6 +113,15 @@ describe('registerWebsocketEvents', () => {
 
       expect(notifications).to.have.lengthOf(0)
     })
+
+    it('withholds pending notifications from sockets connecting without a valid login token', () => {
+      expect(replayedFlags()).to.deep.equal([])
+      expect(replayedFlags('not-a-token')).to.deep.equal([])
+    })
+
+    it('replays pending notifications to sockets connecting with a valid login token', () => {
+      expect(replayedFlags(security.authorize({ data: { id: 42 } }))).to.deep.equal(['queued-flag'])
+    })
   })
 
   describe('outside CTF mode', () => {
@@ -128,6 +146,10 @@ describe('registerWebsocketEvents', () => {
       socket.emit('notification received', 'queued-flag')
 
       expect(notifications).to.have.lengthOf(0)
+    })
+
+    it('replays pending notifications to anonymous sockets', () => {
+      expect(replayedFlags()).to.deep.equal(['queued-flag'])
     })
 
     it('ignores non-string notification acknowledgements', () => {

@@ -83,6 +83,16 @@ export const registerNotificationAcknowledgement = (socket: any) => {
   })
 }
 
+export const replayPendingNotifications = (socket: any) => {
+  if (requiresAuthenticatedVerification() && verifiedUserIdFrom(socket.handshake?.auth?.token) === undefined) {
+    logger.info(`Withheld pending challenge notifications from unauthenticated socket ${socket.id}`)
+    return
+  }
+  notifications.forEach((notification: any) => {
+    socket.emit('challenge solved', notification)
+  })
+}
+
 export const registerChallengeVerificationEvents = (socket: any) => {
   onChallengeVerification(socket, 'verifyLocalXssChallenge', (data: any) => {
     challengeUtils.solveIf(challenges.localXssChallenge, () => { return utils.contains(data, '<iframe src="javascript:alert(`xss`)">') })
@@ -113,10 +123,7 @@ const registerWebsocketEvents = (server: any) => {
       firstConnectedSocket = socket.id
     }
 
-    notifications.forEach((notification: any) => {
-      socket.emit('challenge solved', notification)
-    })
-
+    replayPendingNotifications(socket)
     registerNotificationAcknowledgement(socket)
     registerChallengeVerificationEvents(socket)
   })
