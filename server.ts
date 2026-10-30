@@ -365,8 +365,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .put(security.denyAll())
     .delete(security.denyAll())
   /* Products: Only GET is allowed in order to view products */ // vuln-code-snippet neutral-line changeProductChallenge
-  app.post('/api/Products', security.isAuthorized()) // vuln-code-snippet neutral-line changeProductChallenge
-  // app.put('/api/Products/:id', security.isAuthorized()) // vuln-code-snippet vuln-line changeProductChallenge
+  app.post('/api/Products', security.isAuthorized(), security.isAccounting()) // vuln-code-snippet neutral-line changeProductChallenge
+  app.put('/api/Products/:id', security.isAuthorized(), security.isAccounting()) // vuln-code-snippet vuln-line changeProductChallenge
   app.delete('/api/Products/:id', security.denyAll())
   /* Challenges: GET list of challenges allowed. Everything else forbidden entirely */
   app.post('/api/Challenges', security.denyAll())
@@ -629,7 +629,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/memories', utils.asyncHandler(getMemories()))
   /* NoSQL API endpoints */
   app.get('/rest/products/:id/reviews', showProductReviews())
-  app.put('/rest/products/:id/reviews', utils.asyncHandler(createProductReviews()))
+  app.put('/rest/products/:id/reviews', security.isAuthorized(), utils.asyncHandler(createProductReviews()))
   app.patch('/rest/products/reviews', security.isAuthorized(), updateProductReviews())
   app.post('/rest/products/reviews', security.isAuthorized(), utils.asyncHandler(likeProductReviews()))
 
