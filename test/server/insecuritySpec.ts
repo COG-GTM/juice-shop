@@ -6,10 +6,20 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
+
+const base64url = (input: string | Buffer) => Buffer.from(input).toString('base64url')
+const forgeToken = (alg: string, payload: object) => {
+  const signingInput = `${base64url(JSON.stringify({ alg, typ: 'JWT' }))}.${base64url(JSON.stringify(payload))}`
+  const signature = alg === 'HS256' ? crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url') : ''
+  return `${signingInput}.${signature}`
+}
+const adminPayload = { data: { email: 'mallory@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -201,6 +211,57 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+  describe('JWT algorithm pinning', () => {
+    const unsignedToken = forgeToken('none', adminPayload)
+    const hmacToken = forgeToken('HS256', adminPayload)
+
+    it('accepts only RS256 tokens in hasExpectedAlgorithm', () => {
+      expect(security.hasExpectedAlgorithm(security.authorize(adminPayload))).to.equal(true)
+      expect(security.hasExpectedAlgorithm(unsignedToken)).to.equal(false)
+      expect(security.hasExpectedAlgorithm(hmacToken)).to.equal(false)
+      expect(security.hasExpectedAlgorithm('not-a-jwt')).to.equal(false)
+    })
+
+    it('verify accepts a regularly signed token', () => {
+      expect(security.verify(security.authorize(adminPayload))).to.equal(true)
+    })
+
+    it('verify rejects an unsigned token with "alg: none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('verify rejects a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacToken)).to.equal(false)
+    })
+
+    it('isAuthorized rejects forged tokens with an UnauthorizedError', () => {
+      for (const token of [unsignedToken, hmacToken]) {
+        const next = sinon.spy()
+        security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as unknown as Response, next)
+        expect(next.calledOnce).to.equal(true)
+        expect(next.firstCall.args[0]).to.have.property('status', 401)
+      }
+    })
+
+    it('isAuthorized accepts a regularly signed token', (done) => {
+      const req = { headers: { authorization: `Bearer ${security.authorize(adminPayload)}` } } as unknown as Request
+      security.isAuthorized()(req, {} as unknown as Response, (err?: unknown) => {
+        expect(err).to.equal(undefined)
+        done()
+      })
+    })
+
+    it('updateAuthenticatedUsers does not store forged tokens', () => {
+      for (const token of [unsignedToken, hmacToken]) {
+        const res = { cookie: sinon.spy() }
+        const next = sinon.spy()
+        security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, res as unknown as Response, next)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(res.cookie.called).to.equal(false)
+        expect(next.calledOnce).to.equal(true)
+      }
     })
   })
 })
