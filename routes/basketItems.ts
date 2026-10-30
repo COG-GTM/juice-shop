@@ -97,7 +97,8 @@ export function checkBasketItemOwnership () {
 }
 
 async function isOwnBasket (req: Request, basketId: number | string) {
-  const userId = security.authenticatedUsers.from(req)?.data?.id
+  const token = utils.jwtFrom(req)
+  const userId = security.verify(token) ? security.decode(token)?.data?.id : undefined
   const id = Number(basketId)
   if (userId == null || !Number.isInteger(id)) return false
   return await BasketModel.count({ where: { id, UserId: userId } }) > 0
