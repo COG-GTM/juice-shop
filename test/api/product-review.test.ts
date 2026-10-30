@@ -52,6 +52,16 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('GET product reviews includes reviews created under an alternate numeric id spelling', async () => {
+    await request(app)
+      .put('/rest/products/01/reviews')
+      .send({ message: 'Zero-padded id review', author: 'Anonymous' })
+    const res = await request(app)
+      .get('/rest/products/01/reviews')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Zero-padded id review'))
+  })
+
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
