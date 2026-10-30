@@ -27,6 +27,7 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
 }
 
 const complaintsDirectory = path.resolve('uploads/complaints')
+const stagingFileName = /^\.upload-.*\.part$/i
 
 function resolveComplaintEntryPath (entryPath: unknown): string | null {
   if (typeof entryPath !== 'string' || entryPath.length === 0 || entryPath.includes('\0')) {
@@ -37,6 +38,9 @@ function resolveComplaintEntryPath (entryPath: unknown): string | null {
     return null
   }
   const targetPath = path.resolve(complaintsDirectory, ...segments)
+  if (stagingFileName.test(path.basename(targetPath))) {
+    return null
+  }
   return targetPath.startsWith(complaintsDirectory + path.sep) && path.dirname(targetPath) === complaintsDirectory ? targetPath : null
 }
 
