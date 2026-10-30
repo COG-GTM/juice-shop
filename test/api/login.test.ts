@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { loginWithGoogle } from './helpers/auth'
 
 let app: Express
 
@@ -138,18 +139,17 @@ void describe('/rest/user/login', () => {
     assert.equal(res.body.status, 'totp_token_required')
   })
 
-  void it('POST login as bjoern.kimminich@gmail.com with known password', async () => {
+  void it('POST login as bjoern.kimminich@gmail.com with password derived from email fails', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=',
+        oauth: true
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
   void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
@@ -237,13 +237,7 @@ void describe('/rest/user/login', () => {
 
 void describe('/rest/saveLoginIp', () => {
   void it('GET last login IP will be saved as True-Client-IP header value', async () => {
-    const loginRes = await request(app)
-      .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-      })
+    const loginRes = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
     assert.equal(loginRes.status, 200)
 
@@ -259,13 +253,7 @@ void describe('/rest/saveLoginIp', () => {
   })
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
-    const loginRes = await request(app)
-      .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-      })
+    const loginRes = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
     assert.equal(loginRes.status, 200)
 
@@ -277,5 +265,67 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '127.0.0.1')
+  })
+})
+
+void describe('/rest/user/oauth-login', () => {
+  void it('POST with verified Google access token logs in existing user', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
+
+    assert.equal(res.status, 200)
+    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.body.authentication.umail, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('POST with verified Google access token creates account without email-derived password', async () => {
+    const email = 'new.google.user@example.com'
+    const res = await loginWithGoogle(app, email)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.authentication.umail, email)
+
+    const passwordLoginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: Buffer.from(email.split('').reverse().join('')).toString('base64'), oauth: true })
+    assert.equal(passwordLoginRes.status, 401)
+
+    const walletRes = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: `Bearer ${res.body.authentication.token}` })
+    assert.equal(walletRes.status, 200)
+    assert.equal(walletRes.body.data, 0)
+  })
+
+  void it('POST with access-token tokeninfo field names (audience/verified_email) logs in', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com', {
+      aud: undefined,
+      email_verified: undefined,
+      audience: config.get<string>('application.googleOauth.clientId'),
+      verified_email: true
+    })
+    assert.equal(res.status, 200)
+  })
+
+  void it('POST with access token issued to another client is rejected', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com', { aud: 'some-other-client.apps.googleusercontent.com' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST with unverified Google email is rejected', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com', { email_verified: 'false' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST with expired Google access token is rejected', async () => {
+    const res = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com', { expires_in: '0' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST without access token is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/oauth-login')
+      .set({ 'content-type': 'application/json' })
+      .send({})
+    assert.equal(res.status, 400)
   })
 })

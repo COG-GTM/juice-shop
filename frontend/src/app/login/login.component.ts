@@ -149,6 +149,10 @@ export class LoginComponent implements OnInit {
   }
 
   googleLogin () {
-    this.windowRefService.nativeWindow.location.replace(`${oauthProviderUrl}?client_id=${this.clientId}&response_type=token&scope=email&redirect_uri=${this.redirectUri}`)
+    const stateBytes = new Uint8Array(32)
+    crypto.getRandomValues(stateBytes)
+    const state = Array.from(stateBytes, (b) => b.toString(16).padStart(2, '0')).join('')
+    sessionStorage.setItem('oauth_state', state)
+    this.windowRefService.nativeWindow.location.replace(`${oauthProviderUrl}?client_id=${encodeURIComponent(this.clientId)}&response_type=token&scope=email&redirect_uri=${encodeURIComponent(this.redirectUri)}&state=${state}`)
   }
 }
