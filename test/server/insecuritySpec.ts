@@ -82,6 +82,27 @@ describe('insecurity', () => {
     })
   })
 
+  describe('verify', () => {
+    const unsignedToken = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
+    const hmacSignedWithPublicKeyToken = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg'
+
+    it('accepts token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects unsigned token with algorithm "none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacSignedWithPublicKeyToken)).to.equal(false)
+    })
+
+    it('rejects missing token', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
