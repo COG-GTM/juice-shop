@@ -153,7 +153,7 @@ describe('insecurity', () => {
     })
 
     it('keeps a revoked token without exp claim revoked indefinitely', () => {
-      const noExp = security.authorize({ data: { id: 48 } })
+      const noExp = 'rev-no-exp-48'
       const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
       try {
         security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
@@ -194,6 +194,36 @@ describe('insecurity', () => {
       security.isAccounting()(accountingReq, res as unknown as Response, next)
       expect(next.called).to.equal(false)
       expect(res.status.calledWith(403)).to.equal(true)
+    })
+  })
+
+  describe('token expiry', () => {
+    it('issues tokens that expire after 6 hours', () => {
+      const now = Math.floor(Date.now() / 1000)
+      const { exp } = security.decode(security.authorize({ data: { id: 50 } }))
+      expect(exp).to.be.within(now + 6 * 60 * 60 - 5, now + 6 * 60 * 60 + 5)
+    })
+
+    it('rejects expired tokens in verify and the authenticated users map', () => {
+      const token = security.authorize({ data: { id: 51 } })
+      security.authenticatedUsers.put(token, { data: { id: 51 } as unknown as UserModel })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.authenticatedUsers.get(token)).to.deep.equal({ data: { id: 51 } })
+
+      const clock = sinon.useFakeTimers({ now: Date.now() + 6 * 60 * 60 * 1000 + 1000, toFake: ['Date'] })
+      try {
+        expect(security.isExpired(token)).to.equal(true)
+        expect(security.verify(token)).to.equal(false)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('does not register already expired tokens', () => {
+      const token = security.authorize({ data: { id: 52 }, exp: Math.floor(Date.now() / 1000) - 1 })
+      security.authenticatedUsers.put(token, { data: { id: 52 } as unknown as UserModel })
+      expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
     })
   })
 

@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -158,9 +159,61 @@ void describe('/rest/user/change-password', () => {
       .post('/rest/user/change-password')
       .set({ ...jsonHeader, Authorization: 'Bearer ' + stolenToken })
       .send({ current: 'after-change', new: 'hijacked', repeat: 'hijacked' })
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 401)
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
     assert.equal(await loginStatus('revoke@be.rt', 'after-change'), 200)
+  })
+
+  void it('POST password change with an expired token is rejected and leaves password unchanged', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'expired@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'expired@be.rt', password: 'original-secret' })
+
+    mock.timers.enable({ apis: ['Date'], now: Date.now() + 6 * 60 * 60 * 1000 + 60 * 1000 })
+    try {
+      const res = await request(app)
+        .post('/rest/user/change-password')
+        .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+        .send({ current: 'original-secret', new: 'hijacked', repeat: 'hijacked' })
+      assert.equal(res.status, 401)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    } finally {
+      mock.timers.reset()
+    }
+
+    assert.equal(await loginStatus('expired@be.rt', 'original-secret'), 200)
+    assert.equal(await loginStatus('expired@be.rt', 'hijacked'), 401)
+  })
+
+  void it('POST password change with a token not signed by the server is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'forged@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'forged@be.rt', password: 'original-secret' })
+    const [header, payload] = token.split('.')
+    const forged = `${header}.${payload}.${Buffer.from('forged').toString('base64url')}`
+    security.authenticatedUsers.put(forged, security.authenticatedUsers.get(token)!)
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + forged })
+      .send({ current: 'original-secret', new: 'hijacked', repeat: 'hijacked' })
+
+    assert.equal(res.status, 401)
+    assert.equal(await loginStatus('forged@be.rt', 'original-secret'), 200)
   })
 
   void it('GET password change via query string is no longer supported', async () => {
@@ -209,7 +262,7 @@ void describe('/rest/user/change-password', () => {
       .set(jsonHeader)
       .send({ new: 'foo', repeat: 'foo' })
 
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 401)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
@@ -221,7 +274,7 @@ void describe('/rest/user/change-password', () => {
       .set({ ...jsonHeader, Authorization: 'Bearer unknown' })
       .send({ new: 'foo', repeat: 'foo' })
 
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 401)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
