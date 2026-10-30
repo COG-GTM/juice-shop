@@ -91,7 +91,6 @@ import { getLanguageList } from './routes/languages'
 import { getUserProfile } from './routes/userProfile'
 import { serveAngularClient } from './routes/angular'
 import { resetPassword } from './routes/resetPassword'
-import { serveLogFiles } from './routes/logfileServer'
 import { servePublicFiles } from './routes/fileServer'
 import { addMemory, getMemories } from './routes/memory'
 import { changePassword } from './routes/changePassword'
@@ -277,11 +276,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
-  /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-  app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
-  app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-
   /* Swagger documentation for B2B v2 endpoints */
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
 
@@ -335,7 +329,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     verbose: false,
     max_logs: '2d'
   })
-  app.use(morgan('combined', { stream: accessLogStream }))
+  morgan.token<Request, Response>('path', (req) => req.originalUrl.split('?')[0])
+  app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :path HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
@@ -593,7 +588,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Custom Restful API */
   app.post('/rest/user/login', login())
-  app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
+  app.post('/rest/user/change-password', utils.asyncHandler(changePassword()))
   app.post('/rest/user/reset-password', utils.asyncHandler(resetPassword()))
   app.get('/rest/user/security-question', utils.asyncHandler(securityQuestion()))
   app.get('/rest/user/whoami', security.updateAuthenticatedUsers(), utils.asyncHandler(retrieveLoggedInUser()))
