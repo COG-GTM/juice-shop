@@ -58,7 +58,8 @@ void describe('/profile', () => {
       const update = await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
-        .field('username', username)
+        .type('form')
+        .send({ username })
         .redirects(0)
       assert.equal(update.status, 302)
 
@@ -67,13 +68,10 @@ void describe('/profile', () => {
         .set(authHeader)
 
       assert.equal(res.status, 200)
+      assert.ok(res.text.includes(username.slice(username.lastIndexOf('\n') + 1)))
       assert.ok(!res.text.includes('x 49'))
       assert.ok(!res.text.includes('>49<'))
       assert.equal((global as any).sstiProbe, undefined)
     }
-    const res = await request(app)
-      .get('/profile')
-      .set(authHeader)
-    assert.ok(res.text.includes('global.sstiProbe = 1'))
   })
 })
