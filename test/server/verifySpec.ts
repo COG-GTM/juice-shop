@@ -339,6 +339,14 @@ describe('verify', () => {
       expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
 
+    it('"jwtUnsignedChallenge" is not solved when unsigned token has more than three segments', () => {
+      req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' } }, '')}.extra` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
     it('"jwtUnsignedChallenge" is not solved when forged unsigned token is expired', () => {
       req.headers = { authorization: `Bearer ${forgeToken('none', { data: { email: 'jwtn3d@juice-sh.op' }, iat: 1508639612, exp: 1508639613 }, '')}` }
 
