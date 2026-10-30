@@ -23,12 +23,17 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET does not return all orders when injecting into orderId', async () => {
+  void it('GET rejects injection attempts into orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
-    assert.equal(res.status, 200)
-    assert.ok(Array.isArray(res.body.data))
-    assert.equal(res.body.data.length, 1)
-    assert.deepEqual(res.body.data[0], { orderId: 'true' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET rejects malformed order ids instead of normalizing them', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/5267-f9cd5882f54c75a3!')
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, undefined)
   })
 })

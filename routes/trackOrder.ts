@@ -11,7 +11,11 @@ import { challenges } from '../data/datacache'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
-    const id = String(req.params.id).replace(/[^\w-]+/g, '')
+    const id = String(req.params.id)
+    if (!/^[\w-]+$/.test(id)) {
+      res.status(400).json({ error: 'Wrong Param' })
+      return
+    }
 
     db.ordersCollection.find({ orderId: id }).then((order: any) => {
       const result = utils.queryResultToJson(order)
