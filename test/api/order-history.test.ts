@@ -76,6 +76,20 @@ void describe('/rest/order-history/orders', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('GET all orders is forbidden for self-registered user claiming accounting role', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'mallory@order-history.test', password: 'mallory', passwordRepeat: 'mallory', role: 'accounting' })
+    const { token } = await login(app, { email: 'mallory@order-history.test', password: 'mallory' })
+
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 403)
+  })
+
   void it('GET all orders for accountant', async () => {
     const { token } = await login(app, {
       email: 'accountant@' + config.get<string>('application.domain'),
