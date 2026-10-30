@@ -15,6 +15,7 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -296,9 +297,14 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
-    const res = await request(app)
+    const forbiddenRes = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
+    assert.equal(forbiddenRes.status, 403)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(adminAuthHeader)
     assert.equal(res.status, 200)
   })
 })
