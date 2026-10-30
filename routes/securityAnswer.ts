@@ -30,6 +30,7 @@ export function validateRegistrationSecurityAnswer () {
     if (pending == null) {
       return res.status(400).json({ status: 'error', message: 'Invalid security question or answer.' })
     }
+    delete req.body.id
     res.locals.pendingSecurityAnswer = pending
     next()
   }
