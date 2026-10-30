@@ -43,10 +43,10 @@ export const solve = function (challenge: any, isRestore = false, isCheating = f
   })
 }
 
-export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean) {
-  if (!notSolved(challenge)) {
-    const flag = utils.ctfFlag(challenge.name)
+export const showFlagsInNotifications = () => config.get<boolean>('ctf.showFlagsInNotifications')
 
+export const sendNotification = function (challenge: { difficulty?: number, key: any, name: any, description?: any }, isRestore: boolean, includeFlag = !isRestore && showFlagsInNotifications()) {
+  if (!notSolved(challenge)) {
     const challengeKey = challenge.key as ChallengeKey
     const fullChallenge = challenges[challengeKey]
 
@@ -59,7 +59,7 @@ export const sendNotification = function (challenge: { difficulty?: number, key:
       key: challenge.key,
       name: challenge.name,
       challenge: challenge.name + ' (' + entities.decode(sanitizeHtml(challenge.description, { allowedTags: [], allowedAttributes: {} })) + ')',
-      flag,
+      ...(includeFlag ? { flag: utils.ctfFlag(challenge.name) } : {}),
       hidden: !config.get('challenges.showSolvedNotifications'),
       isRestore,
       codingChallenge: config.get('challenges.codingChallengesEnabled') !== 'never' && hasCodingChallenge
