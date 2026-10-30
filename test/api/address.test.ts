@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
 let addressId: string
 
 before(
@@ -25,6 +26,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherAuthHeader = {
+      Authorization: 'Bearer ' + otherToken,
       'content-type': 'application/json'
     }
   },
@@ -152,6 +162,27 @@ void describe('/api/Addresss/:id', () => {
       .send({ fullName: 'Jimy' })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address of another user is forbidden and leaves it unchanged', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+      .send({ city: 'Mallory City' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.status, 'error')
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.equal(ownerRes.body.data.city, 'NYC')
+
+    const otherRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+    assert.equal(otherRes.status, 400)
   })
 
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
