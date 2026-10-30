@@ -1,0 +1,2 @@
+complaint: "Just another unhappy B2B customer"
+toJSON: !!js/function "function () { return 'pwned-' + process.version }"
