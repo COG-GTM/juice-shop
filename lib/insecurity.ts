@@ -61,6 +61,13 @@ export const sessionCookieOptions = (req: Request): CookieOptions => ({ httpOnly
 export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, { ...sessionCookieOptions(res.req), maxAge: 6 * 60 * 60 * 1000 })
 export const clearSessionCookie = (res: Response) => res.clearCookie('token', sessionCookieOptions(res.req))
 
+export const bearerTokenFromSessionCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!utils.jwtFrom(req) && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
