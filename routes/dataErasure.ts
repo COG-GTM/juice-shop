@@ -30,7 +30,7 @@ const safeEqual = (a: unknown, b: string) => {
   return left.length === right.length && crypto.timingSafeEqual(left, right)
 }
 
-const isSameOrigin = (req: Request) => {
+const isSameOrigin = (req: Pick<Request, 'get'>) => {
   const source = req.get('origin') ?? req.get('referer')
   if (!source) return true
   try {
