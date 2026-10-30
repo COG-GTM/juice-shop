@@ -20,6 +20,7 @@ import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
 import { Counter } from 'prom-client'
+import jws from 'jws'
 
 function summarizeLlmError (error: unknown): string {
   if (!(error instanceof Error)) {
@@ -39,11 +40,58 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function userIdFromToken (req: Request): number | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return userIdFromToken(req)
+}
+
+const MAX_CHAT_MESSAGES = 50
+const MAX_CHAT_MESSAGE_LENGTH = 4000
+const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
+const MAX_CHAT_TOTAL_LENGTH = 32000
+const MAX_OUTPUT_TOKENS = 2048
+const MAX_CHAT_STEPS = 4
+const CHAT_ROLES = ['user', 'assistant']
+
+interface ChatMessage { role: 'user' | 'assistant', content: string }
+
+export function validateChatMessages (messages: unknown): { messages?: ChatMessage[], error?: string } {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return { error: 'messages must be a non-empty array' }
+  }
+  if (messages.length > MAX_CHAT_MESSAGES) {
+    return { error: `messages must not contain more than ${MAX_CHAT_MESSAGES} entries` }
+  }
+  const validated: ChatMessage[] = []
+  let totalLength = 0
+  for (const message of messages) {
+    const role = message?.role
+    const content = message?.content
+    if (!CHAT_ROLES.includes(role) || typeof content !== 'string') {
+      return { error: 'each message needs a role of user or assistant and string content' }
+    }
+    const maxLength = role === 'assistant' ? MAX_ASSISTANT_MESSAGE_LENGTH : MAX_CHAT_MESSAGE_LENGTH
+    if (content.length > maxLength) {
+      return { error: `${role as string} message content must not exceed ${maxLength} characters` }
+    }
+    totalLength += content.length
+    validated.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
+  }
+  if (totalLength > MAX_CHAT_TOTAL_LENGTH) {
+    return { error: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters` }
+  }
+  return { messages: validated }
+}
+
+export function chatRateLimitKey (req: Request): string {
+  const userId = hasVerifiedRs256Signature(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
+  return userId ? `user:${userId}` : req.ip ?? ''
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -51,6 +99,31 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   if (!userId) return undefined
   const user = await UserModel.findByPk(userId, { attributes: ['username'] })
   return user?.username ?? undefined
+}
+
+const COUPON_DISCOUNT = 10
+
+function hasVerifiedRs256Signature (token?: string): boolean {
+  if (!token) return false
+  return jws.decode(token)?.header?.alg === 'RS256' && security.verify(token)
+}
+
+async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
+  const userId = hasVerifiedRs256Signature(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
+  const user = userId ? await UserModel.findByPk(userId, { attributes: ['email'] }) : null
+  if (!user?.email) return { error: 'Customer not authenticated' }
+  const order = await db.ordersCollection.findOne({ orderId })
+  if (!order || order.email !== user.email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
+  if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
+  const couponMonth = utils.toMMMYY(new Date())
+  if (order.couponIssued === couponMonth) return {}
+  if (order.couponIssued) return { error: 'A coupon has already been issued for this order' }
+  try {
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: couponMonth } })
+    return {}
+  } catch {
+    return { error: 'The coupon could not be issued right now, please try again' }
+  }
 }
 
 const app = config.get<string>('application.customMetricsPrefix')
@@ -174,19 +247,31 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(COUPON_DISCOUNT).max(COUPON_DISCOUNT).describe(`The discount percentage for the coupon (always ${COUPON_DISCOUNT})`), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          orderId: z.string().describe('The order ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
-          challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
-          challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
+        execute: async ({ discount, orderId }) => {
+          if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
+          const eligibility = await claimCouponEligibleOrder(req, orderId)
+          if (eligibility.error) return eligibility
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
+    if (!userIdFromToken(req)) {
+      res.status(401).json({ error: 'a logged-in user is required' })
+      return
+    }
+
+    const { messages, error: validationError } = validateChatMessages(req.body?.messages)
+    if (!messages) {
+      res.status(400).json({ error: validationError })
+      return
+    }
+
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
@@ -204,7 +289,8 @@ export function chat () {
         messages,
         tools: chatTools,
         maxRetries: config.get<number>('application.chatBot.llmMaxRetries'),
-        stopWhen: stepCountIs(10),
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        stopWhen: stepCountIs(MAX_CHAT_STEPS),
         onError: ({ error }) => {
           logger.warn('Chatbot stream error: ' + summarizeLlmError(error))
         }
@@ -222,6 +308,13 @@ export function chat () {
               const role = decoded?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
+            if (event.toolName === 'generateCoupon') {
+              const requestedDiscount = (event.input as { discount?: unknown } | undefined)?.discount
+              if (typeof requestedDiscount === 'number') {
+                challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
+                challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
+              }
+            }
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
               choices: [{
