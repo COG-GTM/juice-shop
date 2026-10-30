@@ -174,6 +174,41 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST password reset success response does not expose the user record', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'morty@' + config.get<string>('application.domain'),
+        answer: '5N0wb41L',
+        new: 'iBurri3dMySe1fInTheB4ckyard!',
+        repeat: 'iBurri3dMySe1fInTheB4ckyard!'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body, { status: 'success' })
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+  })
+
+  void it('POST password reset locks the account after too many wrong answers', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ email, answer: 'wrong' + i, new: '12345', repeat: '12345' })
+      assert.equal(res.status, 401)
+    }
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, answer: 'Samuel', new: 'ncc-1701', repeat: 'ncc-1701' })
+
+    assert.equal(res.status, 429)
+    assert.ok(res.text.includes('Too many failed attempts'))
+  })
+
   void it('POST password reset with wrong answer to security question', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
@@ -258,5 +293,35 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST password reset with a non-string email address is blocked', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: ['jim@' + config.get<string>('application.domain')],
+        answer: 'Samuel',
+        new: 'abcdef',
+        repeat: 'abcdef'
+      })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+})
+
+void describe('/rest/user/reset-password rate limiting', () => {
+  void it('POST password reset rate limit cannot be bypassed by rotating X-Forwarded-For', async () => {
+    let lastStatus = 0
+    for (let i = 0; i < 101; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `192.168.${Math.floor(i / 256)}.${i % 256}` })
+        .send({ email: `ratelimit${i}@` + config.get<string>('application.domain'), answer: 'x', new: 'a', repeat: 'a' })
+      lastStatus = res.status
+    }
+
+    assert.equal(lastStatus, 429)
   })
 })
