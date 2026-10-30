@@ -330,7 +330,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     max_logs: '2d'
   })
   morgan.token<Request, Response>('path', (req) => req.originalUrl.split('?')[0])
-  app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :path HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"', { stream: accessLogStream }))
+  morgan.token<Request, Response>('referrer-path', (req) => (req.headers.referer ?? req.headers.referrer)?.toString().split('?')[0])
+  app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :path HTTP/:http-version" :status :res[content-length] ":referrer-path" ":user-agent"', { stream: accessLogStream }))
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
