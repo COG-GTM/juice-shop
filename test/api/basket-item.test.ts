@@ -56,6 +56,38 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST new basket item into another user\'s basket is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 1, ProductId: 3, quantity: 1 })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST new basket item with duplicate BasketId keys never writes to another user\'s basket', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":4,"BasketId":2,"quantity":1,"BasketId":1}')
+    assert.equal(res.status, 401)
+
+    const res2 = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":4,"BasketId":1,"quantity":1,"BasketId":2}')
+    assert.equal(res2.status, 200)
+    assert.equal(res2.body.data.BasketId, 2)
+  })
+
+  void it('POST new basket item without BasketId uses the caller\'s basket', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ ProductId: 5, quantity: 1 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, 2)
+  })
+
   void it('POST new basket item with more than available quantity is forbidden', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
