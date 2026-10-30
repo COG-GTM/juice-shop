@@ -126,7 +126,7 @@ describe('insecurity', () => {
     })
 
     it('compares Origin or Referer with the Host header', () => {
-      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }))).to.equal(false)
       expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }))).to.equal(false)
       expect(security.isCrossSiteRequest(requestWith({ origin: 'https://attacker.example' }))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example.attacker.example/' }))).to.equal(true)
@@ -137,6 +137,11 @@ describe('insecurity', () => {
       expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }, true))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }, true))).to.equal(true)
       expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }, true))).to.equal(false)
+    })
+
+    it('rejects HTTPS origins on a plain-http request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example/profile' }))).to.equal(true)
     })
 
     it('rejects opaque or malformed origins', () => {
