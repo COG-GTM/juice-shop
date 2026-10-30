@@ -96,16 +96,35 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
+    const before = await request(app).get('/api/Products/' + tamperingProductId)
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
       .send({
-        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>',
+        price: 0.01
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.status, 401)
+    const after = await request(app).get('/api/Products/' + tamperingProductId)
+    assert.equal(after.body.data.description, before.body.data.description)
+    assert.equal(after.body.data.price, before.body.data.price)
+  })
+
+  void it('PUT update existing product is forbidden via API even when authenticated', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(authHeader)
+      .send({ price: 0.01 })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PATCH update existing product is forbidden via public API', async () => {
+    const res = await request(app)
+      .patch('/api/Products/' + tamperingProductId)
+      .set(jsonHeader)
+      .send({ price: 0.01 })
+    assert.equal(res.status, 401)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
