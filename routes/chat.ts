@@ -5,6 +5,7 @@
 
 import { type Request, type Response } from 'express'
 import config from 'config'
+import jws from 'jws'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
@@ -44,6 +45,14 @@ async function getUserId (req: Request): Promise<number | undefined> {
   if (!token) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
+}
+
+function isAdmin (req: Request): boolean {
+  const token = utils.jwtFrom(req)
+  if (!token) return false
+  const decoded = jws.decode(token) as { header?: { alg?: string }, payload?: { data?: { role?: string } } } | null
+  if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return false
+  return decoded.payload?.data?.role === roles.admin
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -188,6 +197,7 @@ export function chat () {
     const model = config.get<string>('application.chatBot.model')
     const messages = req.body?.messages ?? []
     const userName = await getUserNameFromToken(req)
+    const callerIsAdmin = isAdmin(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -223,6 +233,7 @@ export function chat () {
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
+            if (!callerIsAdmin) break
             res.write(`data: ${JSON.stringify({
               choices: [{
                 delta: {
