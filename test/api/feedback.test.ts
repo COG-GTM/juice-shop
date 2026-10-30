@@ -48,6 +48,43 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.comment, 'I am a harmless comment.')
   })
 
+  for (const rating of [1000000000, 6, -1, 2.5]) {
+    void it(`POST rejects out-of-range rating ${rating}`, async () => {
+      const captchaRes = await request(app)
+        .get('/rest/captcha')
+      assert.equal(captchaRes.status, 200)
+
+      const res = await request(app)
+        .post('/api/Feedbacks')
+        .set(jsonHeader)
+        .send({
+          comment: 'Rating out of range',
+          rating,
+          captchaId: captchaRes.body.captchaId,
+          captcha: captchaRes.body.answer
+        })
+      assert.equal(res.status, 400)
+    })
+  }
+
+  void it('POST accepts zero-star rating', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Zero stars',
+        rating: 0,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.rating, 0)
+  })
+
   if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
     void it('POST fails to sanitize masked XSS-attack by not applying sanitization recursively', async () => {
       const captchaRes = await request(app)
