@@ -12,6 +12,7 @@ import * as security from '../../lib/insecurity'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -39,10 +40,17 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET all complaints is forbidden for non-admin users', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all complaints', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(adminHeader)
     assert.equal(res.status, 200)
   })
 })
