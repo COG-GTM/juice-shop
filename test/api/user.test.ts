@@ -15,11 +15,13 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
+let adminAuthHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
   authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+  adminAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -30,13 +32,18 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
+  void it('GET all users is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users as admin', async () => {
+    const res = await request(app).get('/api/Users').set(adminAuthHeader)
     assert.equal(res.status, 200)
   })
 
   void it('GET all users doesnt include passwords', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+    const res = await request(app).get('/api/Users').set(adminAuthHeader)
     assert.equal(res.status, 200)
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
@@ -214,8 +221,13 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing user by id', async () => {
+  void it('GET existing user by id is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/Users/1').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET existing user by id as admin', async () => {
+    const res = await request(app).get('/api/Users/1').set(adminAuthHeader)
     assert.equal(res.status, 200)
   })
 
