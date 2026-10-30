@@ -4,6 +4,7 @@
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import config from 'config'
 import { themes } from '../views/themes/themes'
 import * as utils from '../lib/utils'
@@ -20,6 +21,16 @@ import { UserModel } from '../models/user'
 const entities = new Entities()
 
 const router = express.Router()
+
+const csrfSecret = crypto.randomBytes(32)
+const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfSecret).update(sessionToken).digest('hex')
+
+const safeEqual = (a: unknown, b: string) => {
+  if (typeof a !== 'string') return false
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && crypto.timingSafeEqual(left, right)
+}
 
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
@@ -49,6 +60,7 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']
       res.render('dataErasureForm', {
         userEmail: email,
+        csrfToken: csrfTokenFor(req.cookies.token),
         securityQuestion: question.question,
         _title_: entities.encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
@@ -69,6 +81,7 @@ interface DataErasureRequestParams {
   layout?: string
   email: string
   securityAnswer: string
+  _csrf: string
 }
 
 router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
@@ -79,7 +92,23 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       return
     }
 
+    if (!safeEqual(req.body._csrf, csrfTokenFor(req.cookies.token))) {
+      res.status(403)
+      next(new Error('Invalid or missing anti-forgery token'))
+      return
+    }
+
     try {
+      const { email, securityAnswer } = req.body
+      const answer = await SecurityAnswerModel.findOne({ where: { UserId: loggedInUser.data.id } })
+      const emailConfirmed = typeof email === 'string' && email.trim().toLowerCase() === String(loggedInUser.data.email).toLowerCase()
+      const answerConfirmed = answer != null && typeof securityAnswer === 'string' && safeEqual(security.hmac(securityAnswer), answer.answer)
+      if (!emailConfirmed || !answerConfirmed) {
+        res.status(403)
+        next(new Error('Email address or security answer is incorrect'))
+        return
+      }
+
       await PrivacyRequestModel.create({
         UserId: loggedInUser.data.id,
         deletionRequested: true
@@ -100,12 +129,14 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         _logo_: utils.extractFilename(config.get('application.logo'))
       }
 
+      const { securityAnswer: _securityAnswer, _csrf: _csrfToken, ...viewParams } = req.body
+
       if (req.body.layout) {
         const filePath: string = path.resolve(req.body.layout).toLowerCase()
         const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
         if (!isForbiddenFile) {
           res.render('dataErasureResult', {
-            ...req.body,
+            ...viewParams,
             ...themeVars
           }, (error, html) => {
             if (!html || error) {
@@ -121,7 +152,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         }
       } else {
         res.render('dataErasureResult', {
-          ...req.body,
+          ...viewParams,
           ...themeVars
         })
       }
