@@ -91,6 +91,15 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as text instead of HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<img src=x onerror=alert(1)>' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.user-table .mat-column-email.mat-mdc-cell')
+        expect(cell.querySelector('img')).toBeNull()
+        expect(cell.textContent).toContain('<img src=x onerror=alert(1)>')
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
@@ -104,6 +113,15 @@ describe('AdministrationComponent', () => {
         expect(component.feedbackDataSource.data.length).toBe(2)
         expect(component.feedbackDataSource.data[0].comment.toString()).toContain('Feedback1')
         expect(component.feedbackDataSource.data[1].comment.toString()).toContain('Feedback2')
+    })
+
+    it('should render feedback comments as text instead of HTML', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<img src=x onerror=alert(1)>', rating: 1 }]))
+        component.findAllFeedbacks()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.customer-table .mat-column-comment.mat-mdc-cell')
+        expect(cell.querySelector('img')).toBeNull()
+        expect(cell.textContent).toContain('<img src=x onerror=alert(1)>')
     })
 
     it('should give an error if FeedbackService fails to find all feedbacks', () => {
