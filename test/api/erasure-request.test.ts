@@ -68,6 +68,38 @@ void describe('/dataerasure', () => {
     assert.equal(loginRes.status, 200)
   })
 
+  for (const [name, headers] of [
+    ['cross-site Sec-Fetch-Site', { 'Sec-Fetch-Site': 'cross-site' }],
+    ['foreign Origin', { Origin: 'https://attacker.example' }],
+    ['foreign Referer', { Referer: 'https://attacker.example/csrf.html' }],
+    ['opaque Origin', { Origin: 'null' }]
+  ] as Array<[string, Record<string, string>]>) {
+    void it(`POST erasure request with ${name} is rejected`, async () => {
+      const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+      const res = await request(app)
+        .post('/dataerasure/')
+        .set({ Cookie: 'token=' + token, Host: 'localhost:3000' })
+        .set(headers)
+        .field('email', 'bjoern.kimminich@gmail.com')
+
+      assert.equal(res.status, 403)
+      assert.ok(res.text.includes('Error: Cross-site data erasure request rejected'))
+      assert.ok(![res.headers['set-cookie'] ?? []].flat().some((c: string) => c.startsWith('token=;')))
+    })
+  }
+
+  void it('POST erasure request from same origin is accepted', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token, Host: 'localhost:3000', Origin: 'http://localhost:3000', 'Sec-Fetch-Site': 'same-origin' })
+      .field('email', 'bjoern.kimminich@gmail.com')
+
+    assert.equal(res.status, 200)
+  })
+
   void it('POST erasure form  fails on unauthenticated access', async () => {
     const res = await request(app)
       .post('/dataerasure/')
