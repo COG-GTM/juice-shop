@@ -73,6 +73,7 @@ import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
+import * as feedbackAuthorization from './routes/feedbackAuthorization'
 import * as recycles from './routes/recycles'
 import * as twoFactorAuth from './routes/2fa'
 import { applyCoupon } from './routes/coupon'
@@ -453,6 +454,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Feedbacks: Only the author or an administrator may delete existing feedback */
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedbackAuthorization.deleteOwnFeedbackOnly()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
@@ -474,6 +478,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Feedback is attributed to the authenticated caller (or nobody), never to a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -515,6 +521,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // feedback authorship is only disclosed to administrators
+    if (name === 'Feedback') {
+      resource.list.send.before(feedbackAuthorization.hideFeedbackAuthors())
+      resource.read.send.before(feedbackAuthorization.hideFeedbackAuthors())
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
