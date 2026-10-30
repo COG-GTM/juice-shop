@@ -138,6 +138,8 @@ const startTime = Date.now()
 
 const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
 
+const allowedUserRegistrationFields = ['email', 'password', 'passwordRepeat', 'securityQuestion', 'securityAnswer']
+
 const appName = config.get<string>('application.customMetricsPrefix')
 const startupGauge = new Prometheus.Gauge({
   name: `${appName}_startup_duration_seconds`,
@@ -413,6 +415,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       } else {
         res.status(400).send(res.__('Invalid email/password cannot be empty'))
       }
+    }
+    next()
+  })
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body !== null && typeof req.body === 'object') {
+      req.body = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedUserRegistrationFields.includes(key)))
+      req.body.role = security.roles.customer
     }
     next()
   })
