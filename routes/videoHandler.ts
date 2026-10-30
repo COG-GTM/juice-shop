@@ -68,13 +68,22 @@ export const promotionVideo = () => {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', () => '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + escapeJsonForHtml(subs) + '</script>')
       res.send(compiledTemplate)
     })
   }
   function favicon () {
     return utils.extractFilename(config.get('application.favicon'))
   }
+}
+
+function escapeJsonForHtml (value: string) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
 }
 
 function getSubsFromFile () {
