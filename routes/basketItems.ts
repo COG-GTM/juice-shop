@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -65,13 +66,13 @@ export function quantityCheckBeforeBasketItemAddition () {
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
+      const item = await findOwnedBasketItem(req, res)
+      if (item == null) {
+        return
+      }
       if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
         void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
       } else {
         next()
@@ -80,6 +81,37 @@ export function quantityCheckBeforeBasketItemUpdate () {
       next(error)
     }
   }
+}
+
+export function retrieveBasketItems () {
+  return async (req: Request, res: Response) => {
+    const baskets = await BasketModel.findAll({ where: { UserId: req.body.UserId }, attributes: ['id'] })
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(basket => basket.id) } })
+    res.status(200).json({ status: 'success', data: items })
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await findOwnedBasketItem(req, res)
+    if (item != null) {
+      next()
+    }
+  }
+}
+
+async function findOwnedBasketItem (req: Request, res: Response) {
+  const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+  if (item == null) {
+    res.status(404).json({ status: 'error', message: 'No such item found!' })
+    return null
+  }
+  const basket = item.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId } }) : null
+  if (basket == null || basket.UserId !== req.body.UserId) {
+    res.status(403).json({ status: 'error', message: 'Access to this basket item is forbidden.' })
+    return null
+  }
+  return item
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {

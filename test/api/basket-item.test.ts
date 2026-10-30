@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +25,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherAuthHeader = {
+      Authorization: 'Bearer ' + otherToken,
       'content-type': 'application/json'
     }
   },
@@ -43,9 +53,13 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all basket items', async () => {
+  void it('GET all basket items only returns items of own basket', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const item of res.body.data) {
+      assert.equal(item.BasketId, 2)
+    }
   })
 
   void it('POST new basket item', async () => {
@@ -137,7 +151,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT update basket ID of basket item without basket ID is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -149,8 +163,69 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 13, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(otherAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket item of another user is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 14, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    for (const body of [{ quantity: 2 }, { BasketId: 3 }, {}]) {
+      const res = await request(app)
+        .put('/api/BasketItems/' + createRes.body.data.id)
+        .set(otherAuthHeader)
+        .send(body)
+      assert.equal(res.status, 403)
+    }
+
+    const readRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+    assert.equal(readRes.status, 200)
+    assert.equal(readRes.body.data.quantity, 1)
+    assert.equal(readRes.body.data.BasketId, 2)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 15, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .delete('/api/BasketItems/' + createRes.body.data.id)
+      .set(otherAuthHeader)
+    assert.equal(res.status, 403)
+
+    const readRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+    assert.equal(readRes.status, 200)
+  })
+
+  void it('PUT update non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/999999')
+      .set(authHeader)
+      .send({ quantity: 1 })
+    assert.equal(res.status, 404)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
