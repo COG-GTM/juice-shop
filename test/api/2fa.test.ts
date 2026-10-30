@@ -94,6 +94,37 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should fail for a user without 2FA enabled regardless of the submitted code', async () => {
+    const tmpTokenAdmin = security.authorize({
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    for (const totpToken of ['000000', '', generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })]) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set(jsonHeader)
+        .send({ tmpToken: tmpTokenAdmin, totpToken })
+
+      assert.equal(res.status, 401)
+      assert.equal(res.body?.authentication, undefined)
+    }
+  })
+
+  void it('POST should fail if the totp token is not a string', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken: tmpTokenWurstbrot, totpToken: { $ne: null } })
+
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
