@@ -30,6 +30,28 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET all feedback hides the author from anonymous and non-admin callers', async () => {
+    for (const headers of [jsonHeader, authHeader]) {
+      const res = await request(app)
+        .get('/api/Feedbacks')
+        .set(headers)
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.length > 0)
+      for (const feedback of res.body.data) {
+        assert.equal('UserId' in feedback, false)
+        assert.ok('comment' in feedback)
+      }
+    }
+  })
+
+  void it('GET all feedback includes the author for administrators', async () => {
+    const res = await request(app)
+      .get('/api/Feedbacks')
+      .set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((feedback: { UserId?: number | null }) => typeof feedback.UserId === 'number'))
+  })
+
   void it('POST sanitizes unsafe HTML from comment', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
@@ -274,6 +296,15 @@ void describe('/api/Feedbacks/:id', () => {
       .get('/api/Feedbacks/1')
       .set(authHeader)
     assert.equal(res.status, 200)
+    assert.equal('UserId' in res.body.data, false)
+  })
+
+  void it('GET existing feedback by id includes the author for administrators', async () => {
+    const res = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.equal(typeof res.body.data.UserId, 'number')
   })
 
   void it('PUT update existing feedback is forbidden via public API', async () => {
@@ -308,6 +339,69 @@ void describe('/api/Feedbacks/:id', () => {
       .delete('/api/Feedbacks/1')
       .set(authHeader)
     assert.equal(res.status, 403)
+  })
+
+  void it('DELETE own feedback as its author', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const bearer = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(bearer)
+      .send({
+        comment: 'Changed my mind about this one.',
+        rating: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+    assert.equal(createRes.body.data.UserId, 4)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(bearer)
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const author = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + author.token, 'content-type': 'application/json' })
+      .send({
+        comment: 'Please do not delete me, Jim.',
+        rating: 4,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+
+    const other = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + other.token })
+    assert.equal(res.status, 403)
+
+    const readRes = await request(app)
+      .get('/api/Feedbacks/' + createRes.body.data.id)
+      .set(adminHeader)
+    assert.equal(readRes.status, 200)
   })
 
   void it('DELETE existing feedback as admin', async () => {
