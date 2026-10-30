@@ -59,7 +59,8 @@ void describe('/profile username rendering', () => {
       const update = await request(app)
         .post('/profile')
         .set('Cookie', authHeader.Cookie)
-        .field('username', payload)
+        .type('form')
+        .send({ username: payload })
         .redirects(0)
       assert.equal(update.status, 302)
 
