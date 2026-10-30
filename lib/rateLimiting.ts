@@ -29,4 +29,3 @@ export function emailOf (req: Request) {
   if (typeof email === 'string') return email.trim() !== '' ? email : undefined
   return email ? '<non-string>' : undefined
 }
-
