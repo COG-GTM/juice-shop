@@ -4,6 +4,7 @@
  */
 
 import config from 'config'
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import type { Memory as MemoryConfig } from '../lib/config.types'
@@ -38,7 +39,7 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
+      if ((data != null) && answerMatches(answer, data.answer)) {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
           const updatedUser = await user.update({ password: newPassword })
@@ -52,6 +53,12 @@ export function resetPassword () {
       next(error)
     }
   }
+}
+
+function answerMatches (answer: unknown, storedHash: string) {
+  const supplied = Buffer.from(security.hmac(String(answer)))
+  const stored = Buffer.from(String(storedHash))
+  return supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored)
 }
 
 function verifySecurityAnswerChallenges (user: UserModel, answer: string) {
