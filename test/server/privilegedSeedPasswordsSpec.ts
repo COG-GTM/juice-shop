@@ -4,7 +4,7 @@
  */
 
 import chai from 'chai'
-import { seedPasswordFor } from '../../data/privilegedSeedPasswords'
+import { seedPasswordFor, seedTotpSecretFor } from '../../data/privilegedSeedPasswords'
 const expect = chai.expect
 
 describe('privilegedSeedPasswords', () => {
@@ -52,5 +52,25 @@ describe('privilegedSeedPasswords', () => {
     process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'true'
 
     expect(seedPasswordFor({ role: 'admin', password: 'admin123' }).generated).to.equal(true)
+  })
+
+  it('replaces the static TOTP secret of privileged accounts with a random base32 secret by default', () => {
+    const first = seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+    const second = seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    expect(first).to.match(/^[A-Z2-7]{32}$/)
+    expect(first).to.not.equal('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+    expect(first).to.not.equal(second)
+  })
+
+  it('does not add a TOTP secret to privileged accounts without one', () => {
+    expect(seedTotpSecretFor({ role: 'admin', totpSecret: undefined })).to.equal(undefined)
+    expect(seedTotpSecretFor({ role: 'admin', totpSecret: '' })).to.equal('')
+  })
+
+  it('keeps the static TOTP secret of customer accounts and of privileged accounts when demo credentials are enabled', () => {
+    expect(seedTotpSecretFor({ role: 'customer', totpSecret: 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7' })).to.equal('KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7')
+    process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'enabled'
+    expect(seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })).to.equal('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
   })
 })
