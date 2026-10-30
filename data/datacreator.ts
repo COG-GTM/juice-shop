@@ -347,11 +347,11 @@ async function createMemories () {
         void utils.downloadToFile(imageUrl, 'frontend/dist/frontend/assets/public/images/uploads/' + tmpImageFileName)
       }
       if (memory.geoStalkingMetaSecurityQuestion && memory.geoStalkingMetaSecurityAnswer) {
-        await createSecurityAnswer(datacache.users.john.id, memory.geoStalkingMetaSecurityQuestion, memory.geoStalkingMetaSecurityAnswer)
+        await createSecurityAnswer(datacache.users.john.id, memory.geoStalkingMetaSecurityQuestion, seedSecurityAnswerFor(memory.geoStalkingMetaSecurityAnswer))
         memory.user = 'john'
       }
       if (memory.geoStalkingVisualSecurityQuestion && memory.geoStalkingVisualSecurityAnswer) {
-        await createSecurityAnswer(datacache.users.emma.id, memory.geoStalkingVisualSecurityQuestion, memory.geoStalkingVisualSecurityAnswer)
+        await createSecurityAnswer(datacache.users.emma.id, memory.geoStalkingVisualSecurityQuestion, seedSecurityAnswerFor(memory.geoStalkingVisualSecurityAnswer))
         memory.user = 'emma'
       }
       if (!memory.user) {
