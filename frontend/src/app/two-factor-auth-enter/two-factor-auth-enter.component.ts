@@ -18,6 +18,7 @@ import { MatFormFieldModule, MatLabel, MatSuffix, MatHint, MatError } from '@ang
 
 import { TranslateModule } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
+import { startSession } from '../Services/auth-session'
 
 library.add(faUnlockAlt)
 
@@ -48,7 +49,7 @@ export class TwoFactorAuthEnterComponent {
 
     this.twoFactorAuthService.verify(fields.token).subscribe({
       next: (authentication) => {
-        localStorage.setItem('token', authentication.token)
+        startSession(authentication.token)
         sessionStorage.setItem('bid', authentication.bid?.toString())
         /* Use userService to notifiy if user has logged in */
         /* this.userService.isLoggedIn = true; */

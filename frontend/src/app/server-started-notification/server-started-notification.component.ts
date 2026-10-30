@@ -11,6 +11,7 @@ import { SocketIoService } from '../Services/socket-io.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule, MatCardContent } from '@angular/material/card'
+import { endSession } from '../Services/auth-session'
 
 interface HackingProgress {
   autoRestoreMessage: string | null
@@ -95,10 +96,9 @@ export class ServerStartedNotificationComponent implements OnInit {
     this.cookieService.remove('continueCode')
     this.cookieService.remove('continueCodeFixIt')
     this.cookieService.remove('continueCodeFindIt')
-    this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
-    localStorage.removeItem('token')
+    endSession()
     localStorage.removeItem('displayedDifficulties')
     localStorage.removeItem('showSolvedChallenges')
     localStorage.removeItem('showDisabledChallenges')

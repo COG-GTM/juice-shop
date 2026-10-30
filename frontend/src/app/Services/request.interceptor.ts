@@ -6,14 +6,16 @@
 import { type HttpEvent, type HttpHandler, type HttpInterceptor, type HttpRequest } from '@angular/common/http'
 import { Injectable } from '@angular/core'
 import { type Observable } from 'rxjs'
+import { authToken } from './auth-session'
 
 @Injectable()
 export class RequestInterceptor implements HttpInterceptor {
   intercept (req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
-    if (localStorage.getItem('token')) {
+    const token = authToken()
+    if (token) {
       req = req.clone({
         setHeaders: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
+          Authorization: `Bearer ${token}`
         }
       })
     }

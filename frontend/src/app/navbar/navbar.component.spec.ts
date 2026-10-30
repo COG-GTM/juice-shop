@@ -37,6 +37,7 @@ import { MatRadioModule } from '@angular/material/radio'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { MatSearchBarComponent } from '../mat-search-bar/mat-search-bar.component'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { endSession, startSession } from '../Services/auth-session'
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -145,7 +146,7 @@ describe('NavbarComponent', () => {
     beforeEach(() => {
         fixture = TestBed.createComponent(NavbarComponent)
         component = fixture.componentInstance
-        localStorage.removeItem('token')
+        endSession()
         fixture.detectChanges()
     })
 
@@ -197,13 +198,13 @@ describe('NavbarComponent', () => {
 
     it('should set user email on page reload if user is authenticated', () => {
         userService.whoAmI.mockReturnValue(of({ email: 'dummy@dummy.com' }))
-        localStorage.setItem('token', 'token')
+        startSession('token')
         component.ngOnInit()
         expect(component.userEmail).toBe('dummy@dummy.com')
     })
 
     it('should set user email on getting logged in', () => {
-        localStorage.removeItem('token')
+        endSession()
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.whoAmI.mockReturnValue(of({ email: 'dummy@dummy.com' }))
         component.ngOnInit()
@@ -263,7 +264,7 @@ describe('NavbarComponent', () => {
     it('should remove authentication token from localStorage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
-        expect(removeItemSpy).toHaveBeenCalledWith('token')
+        expect(removeItemSpy).toHaveBeenCalledWith('session')
     })
 
     it('should ask the server to clear the session cookie', () => {

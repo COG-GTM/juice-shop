@@ -28,6 +28,7 @@ import { TranslateModule } from '@ngx-translate/core'
 import { MatGridListModule } from '@angular/material/grid-list'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { endSession, isLoggedIn } from '../Services/auth-session'
 
 describe('LoginComponent', () => {
     let component: LoginComponent
@@ -78,7 +79,7 @@ describe('LoginComponent', () => {
     })
 
     beforeEach(() => {
-        localStorage.removeItem('token')
+        endSession()
         localStorage.removeItem('email')
         sessionStorage.removeItem('bid')
         fixture = TestBed.createComponent(LoginComponent)
@@ -126,10 +127,11 @@ describe('LoginComponent', () => {
         expect(location.path()).toBe('/search')
     })
 
-    it('stores the returned authentication token in localStorage', () => {
+    it('starts a session without storing the returned authentication token in localStorage', () => {
         userService.login.mockReturnValue(of({ token: 'token' }))
         component.login()
-        expect(localStorage.getItem('token')).toBe('token')
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(isLoggedIn()).toBe(true)
     })
 
     it('puts the returned basket id into browser session storage', () => {
@@ -141,7 +143,7 @@ describe('LoginComponent', () => {
     it('removes authentication token and basket id on failed login attempt', () => {
         userService.login.mockReturnValue(throwError({ error: 'Error' }))
         component.login()
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 

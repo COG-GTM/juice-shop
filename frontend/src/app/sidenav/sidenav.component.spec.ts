@@ -161,7 +161,7 @@ describe('SidenavComponent', () => {
     it('should remove authentication token from localStorage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
-        expect(removeItemSpy).toHaveBeenCalledWith('token')
+        expect(removeItemSpy).toHaveBeenCalledWith('session')
     })
 
     it('should ask the server to clear the session cookie', () => {
