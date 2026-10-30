@@ -57,10 +57,12 @@ void describe('/rest/products/:id/reviews', () => {
     await request(app)
       .put('/rest/products/01/reviews')
       .send({ message: 'Zero-padded id review', author: 'Anonymous' })
-    const res = await request(app)
-      .get('/rest/products/01/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Zero-padded id review'))
+    for (const spelling of ['1', '01']) {
+      const res = await request(app)
+        .get(`/rest/products/${spelling}/reviews`)
+      assert.equal(res.status, 200)
+      assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Zero-padded id review'))
+    }
     await db.reviewsCollection.remove({ message: 'Zero-padded id review' })
   })
 

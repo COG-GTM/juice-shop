@@ -18,7 +18,8 @@ export function showProductReviews () {
       return
     }
 
-    db.reviewsCollection.find({ product: { $in: [id, String(id), req.params.id] } }).then((reviews: Review[]) => {
+    db.reviewsCollection.find({}).then((allReviews: Review[]) => {
+      const reviews = allReviews.filter(review => Number(review.product) === id)
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
