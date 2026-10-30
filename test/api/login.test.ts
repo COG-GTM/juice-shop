@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import { isIP } from 'node:net'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -236,7 +237,7 @@ void describe('/rest/user/login', () => {
 })
 
 void describe('/rest/saveLoginIp', () => {
-  void it('GET last login IP will be saved as True-Client-IP header value', async () => {
+  async function saveLoginIp (headers: Record<string, string> = {}) {
     const loginRes = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -247,35 +248,39 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(loginRes.status, 200)
 
-    const res = await request(app)
+    return await request(app)
       .get('/rest/saveLoginIp')
-      .set({
-        Authorization: 'Bearer ' + loginRes.body.authentication.token,
-        'true-client-ip': '1.2.3.4'
-      })
+      .set({ Authorization: 'Bearer ' + loginRes.body.authentication.token, ...headers })
+  }
+
+  void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', async () => {
+    const res = await saveLoginIp()
 
     assert.equal(res.status, 200)
-    assert.equal(res.body.lastLoginIp, '1.2.3.4')
+    assert.notEqual(isIP(res.body.lastLoginIp), 0)
   })
 
-  void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
-    const loginRes = await request(app)
-      .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-      })
-
-    assert.equal(loginRes.status, 200)
-
-    const res = await request(app)
-      .get('/rest/saveLoginIp')
-      .set({
-        Authorization: 'Bearer ' + loginRes.body.authentication.token
-      })
+  void it('GET last login IP ignores a spoofed True-Client-IP header', async () => {
+    const remoteIp = (await saveLoginIp()).body.lastLoginIp
+    const res = await saveLoginIp({ 'true-client-ip': '1.2.3.4' })
 
     assert.equal(res.status, 200)
-    assert.equal(res.body.lastLoginIp, '127.0.0.1')
+    assert.equal(res.body.lastLoginIp, remoteIp)
+  })
+
+  void it('GET last login IP ignores a spoofed X-Forwarded-For header', async () => {
+    const remoteIp = (await saveLoginIp()).body.lastLoginIp
+    const res = await saveLoginIp({ 'x-forwarded-for': '1.2.3.4' })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.lastLoginIp, remoteIp)
+  })
+
+  void it('GET last login IP will not store HTML from True-Client-IP header', async () => {
+    const res = await saveLoginIp({ 'true-client-ip': '<iframe src="javascript:alert(`xss`)">' })
+
+    assert.equal(res.status, 200)
+    assert.doesNotMatch(res.body.lastLoginIp, /[<>"]/)
+    assert.notEqual(isIP(res.body.lastLoginIp), 0)
   })
 })
