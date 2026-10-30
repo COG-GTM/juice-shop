@@ -44,4 +44,11 @@ void describe('/rest/track-order/:id', () => {
       assert.equal(typeof item._id, 'string')
     }
   })
+
+  void it('GET does not echo markup from an unknown order id', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/' + encodeURIComponent('<img src=x onerror=alert(1)>'))
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [{ orderId: 'imgsrcxonerroralert1' }])
+  })
 })
