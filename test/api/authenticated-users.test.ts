@@ -31,6 +31,19 @@ void describe('/rest/user/authentication-details', () => {
     assert.ok(userWithAsterisks, 'Expected at least one user with password replaced by asterisks')
   })
 
+  void it('GET all users with deluxeToken replaced by asterisks', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    const deluxeUsers = res.body.data.filter((user: any) => user.deluxeToken)
+    assert.ok(deluxeUsers.length > 0, 'Expected at least one user with a deluxeToken')
+    for (const user of deluxeUsers) {
+      assert.match(user.deluxeToken, /^\*+$/)
+    }
+  })
+
   void it('GET returns lastLoginTime for users with active sessions', async () => {
     await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
