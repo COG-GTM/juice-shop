@@ -261,6 +261,7 @@ jobs:
           record: true
           group: ${{ matrix.browser }} @ ${{ matrix.os }}
         env:
+          NODE_CONFIG: '{"application":{"seedKnownCredentials":true}}'
           SOLUTIONS_WEBHOOK: ${{ secrets.E2E_SOLUTIONS_WEBHOOK }}
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
@@ -276,6 +277,7 @@ jobs:
           record: true
           group: ${{ matrix.browser }} @ ${{ matrix.os }}
         env:
+          NODE_CONFIG: '{"application":{"seedKnownCredentials":true}}'
           CYPRESS_CACHE_FOLDER: /Users/runner/Library/Caches/Cypress
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
