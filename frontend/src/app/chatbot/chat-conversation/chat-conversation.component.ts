@@ -157,12 +157,17 @@ export class ChatConversationComponent implements OnInit {
           const updated = [...prev]
           updated[assistantIndex] = {
             role: 'assistant',
-            content: chunk.error === 'rate_limited' ? 'CHATBOT_ERROR_RATE_LIMITED' : 'CHATBOT_ERROR_LLM_UNREACHABLE',
+            content: chunk.error === 'rate_limited'
+              ? 'CHATBOT_ERROR_RATE_LIMITED'
+              : chunk.error === 'unauthorized' ? 'UNAUTHORIZED_ACCESS_ERROR' : 'CHATBOT_ERROR_LLM_UNREACHABLE',
             error: true
           }
           return updated
         })
         this.scrollToBottom()
+        if (chunk.error === 'unauthorized') {
+          this.loginGuard.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
+        }
         break
       }
       if (chunk.deltaContent) {
