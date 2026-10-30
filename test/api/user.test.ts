@@ -80,6 +80,16 @@ void describe('/api/Users', () => {
     assert.equal(security.decode(token).data.role, 'customer')
   })
 
+  void it('POST new user keeps supplied username', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({ email: 'horst7@horstma.nn', password: 'hooooorst', username: 'Horst' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.username, 'Horst')
+    assert.equal(res.body.data.role, 'customer')
+  })
+
   void it('POST new user ignores privileged attributes', async () => {
     const res = await request(app)
       .post('/api/Users')
