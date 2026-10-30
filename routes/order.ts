@@ -19,6 +19,8 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import * as models from '../models/index'
+import logger from '../lib/logger'
 
 interface Product {
   quantity: number
@@ -42,15 +44,6 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
-
-          fileWriter.on('finish', () => {
-            void (async () => {
-              void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
-              res.json({ orderConfirmation: orderId })
-            })()
-          })
 
           doc.font('Times-Roman').fontSize(40).text(config.get<string>('application.name'), { align: 'center' })
           doc.moveTo(70, 115).lineTo(540, 115).stroke()
@@ -67,19 +60,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockReductions: StockReduction[] = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockReductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,25 +124,20 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
-              return
-            }
+          const committed = await commitCheckout({
+            basket,
+            UserId: req.body.UserId,
+            payWithWallet: !!req.body.UserId && req.body.orderDetails?.paymentId === 'wallet',
+            totalPrice,
+            bonusPoints: totalPoints,
+            stockReductions
+          })
+          if (!committed) {
+            next(new Error('Insufficient wallet balance.'))
+            return
           }
 
-          db.ordersCollection.insert({
+          await db.ordersCollection.insert({
             promotionalAmount: discountAmount,
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
@@ -169,9 +149,24 @@ export function placeOrder () {
             bonus: totalPoints,
             deliveryPrice: deliveryAmount,
             eta: deliveryMethod.eta.toString()
-          }).then(() => {
-            doc.end()
           })
+
+          const pdfPath = path.join('ftp/', pdfFile)
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfPath))
+          fileWriter.on('finish', () => {
+            res.json({ orderConfirmation: orderId })
+          })
+          fileWriter.on('error', (error: Error) => {
+            doc.unpipe(fileWriter)
+            fileWriter.destroy()
+            fs.unlink(pdfPath, (unlinkError) => {
+              if (unlinkError != null && unlinkError.code !== 'ENOENT') {
+                logger.warn(`Could not remove partial order confirmation ${pdfPath}: ${unlinkError.message}`)
+              }
+              next(error)
+            })
+          })
+          doc.end()
         } else {
           next(new Error(`Basket with id=${id} does not exist.`))
         }
@@ -179,6 +174,35 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+interface StockReduction {
+  ProductId: number
+  quantity: number
+}
+
+async function commitCheckout ({ basket, UserId, payWithWallet, totalPrice, bonusPoints, stockReductions }: { basket: BasketModel, UserId: number | undefined, payWithWallet: boolean, totalPrice: number, bonusPoints: number, stockReductions: StockReduction[] }) {
+  return await models.sequelize.transaction(async (transaction) => {
+    if (payWithWallet) {
+      const wallet = await WalletModel.findOne({ where: { UserId }, transaction })
+      if (wallet == null || !(wallet.balance >= totalPrice)) {
+        return false
+      }
+      await WalletModel.decrement({ balance: totalPrice }, { where: { UserId }, transaction })
+    }
+    for (const { ProductId, quantity } of stockReductions) {
+      const quantityRow = await QuantityModel.findOne({ where: { ProductId }, transaction })
+      if (quantityRow) {
+        await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId }, transaction })
+      }
+    }
+    if (UserId) {
+      await WalletModel.increment({ balance: bonusPoints }, { where: { UserId }, transaction })
+    }
+    await basket.update({ coupon: null }, { transaction })
+    await BasketItemModel.destroy({ where: { BasketId: basket.id }, transaction })
+    return true
+  })
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
