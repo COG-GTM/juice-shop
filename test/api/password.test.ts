@@ -294,6 +294,21 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+
+  void it('POST password reset with a non-string email address is blocked', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: ['jim@' + config.get<string>('application.domain')],
+        answer: 'Samuel',
+        new: 'abcdef',
+        repeat: 'abcdef'
+      })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
 })
 
 void describe('/rest/user/reset-password rate limiting', () => {
