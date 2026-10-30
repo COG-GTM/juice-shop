@@ -291,6 +291,21 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET all feedback hides the author from expired administrator tokens', async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 7 * 60 * 60 * 1000 })
+    try {
+      const res = await request(app)
+        .get('/api/Feedbacks')
+        .set(adminHeader)
+      assert.equal(res.status, 200)
+      for (const feedback of res.body.data) {
+        assert.equal('UserId' in feedback, false)
+      }
+    } finally {
+      t.mock.timers.reset()
+    }
+  })
+
   void it('GET existing feedback by id', async () => {
     const res = await request(app)
       .get('/api/Feedbacks/1')
