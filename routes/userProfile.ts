@@ -67,7 +67,7 @@ export function getUserProfile () {
       })
 
       res.send(fn({
-        username: entities.decode(user.username),
+        username: entities.decode(user.username ?? ''),
         email: user.email,
         profileImage: user.profileImage,
         emailHash: security.hash(user.email),
