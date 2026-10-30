@@ -236,3 +236,22 @@ export const matchesEtcPasswdFile = (text: string) => {
 export const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any> | any) => (req: any, res: any, next: any) => {
   void Promise.resolve(fn(req, res, next)).catch(next)
 }
+
+const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password'])
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) {
+    return url
+  }
+  const redactedQuery = url.substring(queryStart + 1).split('&').map((param) => {
+    const separator = param.indexOf('=')
+    const key = separator === -1 ? param : param.substring(0, separator)
+    let decodedKey = key
+    try {
+      decodedKey = decodeURIComponent(key)
+    } catch {}
+    return sensitiveQueryParams.has(decodedKey.toLowerCase()) ? `${key}=[REDACTED]` : param
+  })
+  return url.substring(0, queryStart + 1) + redactedQuery.join('&')
+}

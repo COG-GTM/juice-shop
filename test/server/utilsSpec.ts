@@ -195,6 +195,20 @@ describe('utils', () => {
     })
   })
 
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password parameters of change-password requests', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret')).to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('keeps non-sensitive parameters unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&new=x')).to.equal('/rest/products/search?q=apple&new=[REDACTED]')
+    })
+
+    it('returns URLs without query string unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/whoami')).to.equal('/rest/user/whoami')
+    })
+  })
+
   describe('toISO8601', () => {
     it('converts date to ISO 8601 representation', () => {
       expect(utils.toISO8601(new Date('2025-12-15T00:00:00Z'))).to.equal('2025-12-15')
