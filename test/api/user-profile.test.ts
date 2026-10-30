@@ -56,7 +56,7 @@ void describe('/profile', () => {
     assert.equal(user?.username, 'Localhorst')
   })
 
-  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51)]) {
+  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51), 'x\\#{7*7}']) {
     void it(`POST rejects username ${JSON.stringify(payload).substring(0, 40)} without saving it`, async () => {
       const res = await request(app)
         .post('/profile')
@@ -68,6 +68,21 @@ void describe('/profile', () => {
       assert.equal(res.status, 400)
       const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
       assert.notEqual(user?.username, payload)
+    })
+  }
+
+  for (const name of ['E=ma²', "Jim O'Brien-Smith", 'j0hNny #1 (admin)!']) {
+    void it(`POST accepts legitimate username ${name}`, async () => {
+      const res = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: name })
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+      assert.equal(user?.username, name)
     })
   }
 
