@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import * as db from '../../data/mongodb'
 
 let app: Express
 
@@ -60,6 +61,7 @@ void describe('/rest/products/:id/reviews', () => {
       .get('/rest/products/01/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.body.data.some((review: { message: string }) => review.message === 'Zero-padded id review'))
+    await db.reviewsCollection.remove({ message: 'Zero-padded id review' })
   })
 
   void it('PUT single product review can be created', async () => {
