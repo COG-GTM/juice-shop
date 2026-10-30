@@ -4,7 +4,7 @@
  */
 
 import chai from 'chai'
-import { seedPasswordFor, seedTotpSecretFor } from '../../data/privilegedSeedPasswords'
+import { seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from '../../data/privilegedSeedPasswords'
 const expect = chai.expect
 
 describe('privilegedSeedPasswords', () => {
@@ -72,5 +72,21 @@ describe('privilegedSeedPasswords', () => {
     expect(seedTotpSecretFor({ role: 'customer', totpSecret: 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7' })).to.equal('KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7')
     process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'enabled'
     expect(seedTotpSecretFor({ role: 'admin', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })).to.equal('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+  })
+
+  it('replaces the static security answer of privileged accounts with a random one by default', () => {
+    const first = seedSecurityAnswerFor({ role: 'admin', answer: '@xI98PxDO+06!' })
+    const second = seedSecurityAnswerFor({ role: 'accounting', answer: '@xI98PxDO+06!' })
+
+    expect(first).to.not.equal('@xI98PxDO+06!')
+    expect(first).to.have.length.of.at.least(32)
+    expect(first).to.not.equal(second)
+  })
+
+  it('keeps the static security answer of customer accounts and of privileged accounts when demo credentials are enabled', () => {
+    expect(seedSecurityAnswerFor({ role: 'customer', answer: 'Samuel' })).to.equal('Samuel')
+    expect(seedSecurityAnswerFor({ role: 'deluxe', answer: 'Zaya' })).to.equal('Zaya')
+    process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'enabled'
+    expect(seedSecurityAnswerFor({ role: 'admin', answer: 'West-2082' })).to.equal('West-2082')
   })
 })
