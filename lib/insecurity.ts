@@ -283,6 +283,14 @@ export const isAccounting = () => {
   }
 }
 
+export const sessionUserId = (token?: string): number | undefined => {
+  if (!token) return undefined
+  const key = utils.unquote(token)
+  const cached = authenticatedUsers.get(key)?.data?.id
+  if (cached !== undefined) return cached
+  return hasValidSignature(key) && isLiveSession(key) && !isExpired(key) ? decode(key)?.data?.id : undefined
+}
+
 export const isDeluxe = (req: Request) => {
   const token = utils.jwtFrom(req)
   const decodedToken = verify(token) && isLiveSession(token) && decode(token)

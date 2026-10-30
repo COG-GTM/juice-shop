@@ -261,6 +261,19 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.isRevoked('not-a-jwt')).to.equal(false)
       })
 
+      it('resolves the user of a signed live token that is no longer cached', () => {
+        const token = security.authorize({ data: { id: 4711 } })
+        expect(security.sessionUserId(token)).to.equal(4711)
+        security.authenticatedUsers.revoke(token)
+        expect(security.authenticatedUsers.isRevoked(token)).to.equal(true)
+        expect(security.sessionUserId(token)).to.equal(undefined)
+      })
+
+      it('does not resolve a user from unsigned or expired tokens', () => {
+        expect(security.sessionUserId('not-a-jwt')).to.equal(undefined)
+        expect(security.sessionUserId(security.authorize({ data: { id: 4711 } }, Math.floor(realNow() / 1000) - 1))).to.equal(undefined)
+      })
+
       it('revokes all sessions of a user except the given one', () => {
         const kept = issueAt(20)
         const other = issueAt(10)
