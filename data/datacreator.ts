@@ -4,6 +4,8 @@
  */
 
 /* jslint node: true */
+import crypto from 'node:crypto'
+import { generateSecret } from 'otplib'
 import { AddressModel } from '../models/address'
 import { BasketModel } from '../models/basket'
 import { BasketItemModel } from '../models/basketitem'
@@ -182,21 +184,36 @@ async function createChallenges () {
   }
 }
 
+function generateCredentials (key: string, email: string, totpSecret?: string) {
+  let password = crypto.randomBytes(24).toString('base64url')
+  if (key === 'admin') {
+    const adminPassword = process.env.JUICE_SHOP_ADMIN_PASSWORD
+    if (adminPassword) {
+      password = adminPassword
+    } else {
+      logger.info(`Generated initial password for ${email}: ${password}`)
+    }
+  }
+  return { password, totpSecret: totpSecret ? generateSecret() : totpSecret }
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
+  const seedDemoCredentials = config.get<boolean>('application.seedDemoCredentials')
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const credentials = seedDemoCredentials ? { password, totpSecret } : generateCredentials(key, completeEmail, totpSecret)
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: credentials.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: credentials.totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user

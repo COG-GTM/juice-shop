@@ -11,6 +11,7 @@ application:
   showVersionNumber: true
   showGitHubLinks: true
   localBackupEnabled: true
+  seedDemoCredentials: false # seed the well-known demo passwords and TOTP secrets from data/static/users.yml
   numberOfRandomFakeUsers: 0
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop

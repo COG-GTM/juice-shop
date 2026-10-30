@@ -19,6 +19,8 @@ application:
     enum: ['deeppurple-amber', 'indigo-pink', 'pink-bluegrey', 'purple-green', 'blue-lightblue', 'bluegrey-lightgreen', 'deeporange-indigo', 'lime-green', 'neon-fire']
   showVersionNumber:
     type: boolean
+  seedDemoCredentials:
+    type: boolean
   showGitHubLinks:
     type: boolean
   localBackupEnabled:
