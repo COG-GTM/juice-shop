@@ -6,6 +6,9 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +204,31 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that verify against the published public key', () => {
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')).to.equal(security.publicKey)
+    })
+
+    it('rejects tokens signed with any other RSA private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const forged = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is not derived from the public key', () => {
+      const forged = crypto.createHmac('sha256', security.publicKey).update('admin@juice-sh.op' + security.roles.deluxe).digest('hex')
+      expect(security.deluxeToken('admin@juice-sh.op')).to.not.equal(forged)
     })
   })
 })
