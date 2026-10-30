@@ -101,26 +101,20 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
 }
 
 const COUPON_DISCOUNT = 10
-const couponClaimsInFlight = new Set<string>()
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
-  const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
-  if (!email) return { error: 'Customer not authenticated' }
+  const userId = userIdFromToken(req)
+  const user = userId ? await UserModel.findByPk(userId, { attributes: ['email'] }) : null
+  if (!user?.email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
-  if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
+  if (!order || order.email !== user.email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  const alreadyIssued = { error: 'A coupon was already issued for this order' }
-  if (order.couponIssued || couponClaimsInFlight.has(order.orderId)) return alreadyIssued
-  couponClaimsInFlight.add(order.orderId)
+  if (order.couponIssued) return {}
   try {
-    const current = await db.ordersCollection.findOne({ _id: order._id })
-    if (current?.couponIssued) return alreadyIssued
     await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
     return {}
   } catch {
     return { error: 'The coupon could not be issued right now, please try again' }
-  } finally {
-    couponClaimsInFlight.delete(order.orderId)
   }
 }
 
