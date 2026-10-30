@@ -42,6 +42,13 @@ interface IAuthenticatedUsers {
 }
 
 const tokenLifetimeSeconds = 6 * 60 * 60
+export const decode = (token: string) => {
+  try {
+    return jws.decode(token)?.payload
+  } catch {
+    return undefined
+  }
+}
 const revokedTokens = new Map<string, number>()
 const pruneExpiredRevocations = (now = Date.now()) => {
   for (const [token, expiresAt] of revokedTokens) {
@@ -50,7 +57,7 @@ const pruneExpiredRevocations = (now = Date.now()) => {
 }
 const revokeToken = (token: string) => {
   pruneExpiredRevocations()
-  const exp = jws.decode(token)?.payload?.exp
+  const exp = decode(token)?.exp
   revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + tokenLifetimeSeconds * 1000)
 }
 export const isRevoked = (token?: string | null) => {
@@ -66,9 +73,9 @@ export const isRevoked = (token?: string | null) => {
 
 export const isExpired = (token?: string | null) => {
   if (!token) return false
-  const decoded = jws.decode(utils.unquote(token))
-  if (!decoded) return false
-  const exp = decoded.payload?.exp
+  const payload = decode(utils.unquote(token))
+  if (!payload) return false
+  const exp = payload.exp
   return typeof exp !== 'number' || exp * 1000 <= Date.now()
 }
 
@@ -101,8 +108,14 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user }, privateKey, { algorithm: 'RS256' })
-export const verify = (token: string) => token && !isRevoked(token) && !isExpired(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
-export const decode = (token: string) => { return jws.decode(token)?.payload }
+export const verify = (token: string) => {
+  if (!token || isRevoked(token) || isExpired(token)) return false
+  try {
+    return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
+  } catch {
+    return false
+  }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
