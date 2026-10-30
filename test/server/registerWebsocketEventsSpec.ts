@@ -14,9 +14,12 @@ import {
   registerChallengeVerificationEvents,
   registerNotificationAcknowledgement,
   replayPendingNotifications,
+  isVerificationRateLimited,
   resetVerificationRateLimits,
+  verificationRateLimitEntryCount,
   verifiedUserIdFrom,
-  VERIFICATION_EVENT_LIMIT
+  VERIFICATION_EVENT_LIMIT,
+  VERIFICATION_WINDOW_MS
 } from '../../lib/startup/registerWebsocketEvents'
 const expect = chai.expect
 
@@ -94,11 +97,30 @@ describe('registerWebsocketEvents', () => {
     it('rate-limits verification events per user', () => {
       const token = security.authorize({ data: { id: 42 } })
       for (let i = 0; i < VERIFICATION_EVENT_LIMIT; i++) {
-        socket.emit('verifyLocalXssChallenge', 'harmless', token)
+        socket.emit('verifyLocalXssChallenge', `harmless-${i}`, token)
       }
       socket.emit('verifyLocalXssChallenge', localXssPayload, token)
 
       expect(challenges.localXssChallenge.solved).to.equal(false)
+    })
+
+    it('does not count repeated identical verification events against the limit', () => {
+      const token = security.authorize({ data: { id: 42 } })
+      for (let i = 0; i < VERIFICATION_EVENT_LIMIT * 2; i++) {
+        socket.emit('verifyLocalXssChallenge', 'apple', token)
+      }
+      socket.emit('verifyLocalXssChallenge', localXssPayload, token)
+
+      expect(challenges.localXssChallenge.solved).to.equal(true)
+    })
+
+    it('drops rate-limit entries once their window has expired', () => {
+      const start = Date.now()
+      isVerificationRateLimited('user:1', 'a', start)
+      isVerificationRateLimited('user:2', 'a', start)
+      isVerificationRateLimited('user:3', 'a', start + VERIFICATION_WINDOW_MS)
+
+      expect(verificationRateLimitEntryCount()).to.equal(1)
     })
 
     it('keeps queued notifications when an unauthenticated socket acknowledges them', () => {
@@ -135,7 +157,7 @@ describe('registerWebsocketEvents', () => {
 
     it('rate-limits anonymous verification events per socket', () => {
       for (let i = 0; i < VERIFICATION_EVENT_LIMIT; i++) {
-        socket.emit('verifyCloseNotificationsChallenge', [])
+        socket.emit('verifyCloseNotificationsChallenge', [i])
       }
       socket.emit('verifyCloseNotificationsChallenge', [{}, {}])
 

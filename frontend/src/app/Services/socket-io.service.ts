@@ -34,4 +34,8 @@ export class SocketIoService {
   socket () {
     return this._socket
   }
+
+  reconnect () {
+    this._socket.disconnect().connect()
+  }
 }

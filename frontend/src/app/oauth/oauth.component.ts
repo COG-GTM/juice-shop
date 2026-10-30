@@ -5,6 +5,7 @@
 
 import { ActivatedRoute, Router } from '@angular/router'
 import { UserService } from '../Services/user.service'
+import { SocketIoService } from '../Services/socket-io.service'
 import { CookieService } from 'ngy-cookie'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
 import { TranslateModule } from '@ngx-translate/core'
@@ -22,6 +23,7 @@ export class OAuthComponent implements OnInit {
   private readonly router = inject(Router)
   private readonly route = inject(ActivatedRoute)
   private readonly ngZone = inject(NgZone)
+  private readonly socketIoService = inject(SocketIoService)
 
 
   ngOnInit (): void {
@@ -49,6 +51,7 @@ export class OAuthComponent implements OnInit {
         expires.setHours(expires.getHours() + 8)
         this.cookieService.put('token', authentication.token, { expires })
         localStorage.setItem('token', authentication.token)
+        this.socketIoService.reconnect()
         sessionStorage.setItem('bid', authentication.bid)
         this.userService.isLoggedIn.next(true)
         this.ngZone.run(async () => await this.router.navigate(['/']))

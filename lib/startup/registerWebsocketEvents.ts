@@ -19,7 +19,7 @@ const globalWithSocketIO = global as typeof globalThis & {
 
 export const VERIFICATION_EVENT_LIMIT = 20
 export const VERIFICATION_WINDOW_MS = 60 * 1000
-const verificationAttempts = new Map<string, number[]>()
+const verificationAttempts = new Map<string, Array<{ timestamp: number, payload: string }>>()
 
 const hasValidSignature = (token: string) => {
   try {
@@ -41,12 +41,36 @@ export const verifiedUserIdFrom = (token: unknown): number | undefined => {
   return typeof id === 'number' ? id : undefined
 }
 
-export const isVerificationRateLimited = (key: string, now = Date.now()) => {
-  const recent = (verificationAttempts.get(key) ?? []).filter((timestamp) => now - timestamp < VERIFICATION_WINDOW_MS)
-  recent.push(now)
+const payloadFingerprint = (data: unknown) => {
+  try {
+    return JSON.stringify(data) ?? String(data)
+  } catch {
+    return String(data)
+  }
+}
+
+const pruneExpiredVerificationAttempts = (now: number) => {
+  for (const [key, attempts] of verificationAttempts) {
+    if (attempts.every(({ timestamp }) => now - timestamp >= VERIFICATION_WINDOW_MS)) {
+      verificationAttempts.delete(key)
+    }
+  }
+}
+
+export const isVerificationRateLimited = (key: string, data?: unknown, now = Date.now()) => {
+  pruneExpiredVerificationAttempts(now)
+  const recent = (verificationAttempts.get(key) ?? []).filter(({ timestamp }) => now - timestamp < VERIFICATION_WINDOW_MS)
+  const payload = payloadFingerprint(data)
+  if (recent.some((attempt) => attempt.payload === payload)) {
+    verificationAttempts.set(key, recent)
+    return false
+  }
+  recent.push({ timestamp: now, payload })
   verificationAttempts.set(key, recent)
   return recent.length > VERIFICATION_EVENT_LIMIT
 }
+
+export const verificationRateLimitEntryCount = () => verificationAttempts.size
 
 export const resetVerificationRateLimits = () => { verificationAttempts.clear() }
 
@@ -59,7 +83,7 @@ const onChallengeVerification = (socket: any, event: string, verify: (data: any)
       logger.info(`Ignored unauthenticated websocket event ${event} from socket ${socket.id}`)
       return
     }
-    if (isVerificationRateLimited(userId !== undefined ? `user:${userId}` : `socket:${socket.id}`)) {
+    if (isVerificationRateLimited(userId !== undefined ? `user:${userId}` : `socket:${socket.id}`, [event, data])) {
       logger.info(`Rate-limited websocket event ${event} from ${userId !== undefined ? `user ${userId}` : `socket ${socket.id}`}`)
       return
     }

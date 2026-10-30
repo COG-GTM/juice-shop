@@ -10,6 +10,7 @@ import { Component, NgZone, type OnInit, inject } from '@angular/core'
 import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { UserService } from '../Services/user.service'
+import { SocketIoService } from '../Services/socket-io.service'
 import { faEye, faEyeSlash, faKey } from '@fortawesome/free-solid-svg-icons'
 import { faGoogle } from '@fortawesome/free-brands-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
@@ -48,6 +49,7 @@ export class LoginComponent implements OnInit {
   private readonly formSubmitService = inject(FormSubmitService)
   private readonly basketService = inject(BasketService)
   private readonly ngZone = inject(NgZone)
+  private readonly socketIoService = inject(SocketIoService)
 
   public emailControl = new UntypedFormControl('', [Validators.required])
 
@@ -103,6 +105,7 @@ export class LoginComponent implements OnInit {
       next: (authentication: any) => {
         const redirectUrl = this.route.snapshot.queryParamMap.get('redirectUrl') ?? '/search'
         localStorage.setItem('token', authentication.token)
+        this.socketIoService.reconnect()
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
         this.cookieService.put('token', authentication.token, { expires })
