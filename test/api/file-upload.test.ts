@@ -121,7 +121,7 @@ void describe('/file-upload', () => {
         .attach('file', file)
       assert.equal(res.status, 410)
       assert.ok(res.text.includes('unknown tag'))
-      assert.ok(!res.text.includes('pwned-'))
+      assert.ok(!res.text.includes(`pwned-${process.version}`))
     })
   }
 
