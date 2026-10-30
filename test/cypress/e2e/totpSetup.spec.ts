@@ -35,7 +35,10 @@ describe('/#/basket', () => {
             cy.get('#setupTwoFactorAuth').click()
 
             cy.get('#currentPasswordDisable').type('K1f.....................')
-            cy.get('#disableTwoFactorAuth').click()
+            cy.task<string>('GenerateAuthenticator', $val).then((token: string) => {
+              cy.get('#totpTokenDisable').type(token)
+              cy.get('#disableTwoFactorAuth').click()
+            })
           })
         })
       cy.get('.mat-snack-bar-container').should(
