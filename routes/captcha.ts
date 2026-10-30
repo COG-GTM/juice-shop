@@ -3,12 +3,28 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { randomInt } from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { CaptchaModel } from '../models/captcha'
+
+export const CAPTCHA_TTL_MS = 10 * 60 * 1000
+
+const expiryCutoff = () => new Date(Date.now() - CAPTCHA_TTL_MS)
+
+const applyOperator = (left: number, operator: string, right: number) => {
+  if (operator === '*') return left * right
+  return operator === '+' ? left + right : left - right
+}
+
+const evaluate = (first: number, firstOperator: string, second: number, secondOperator: string, third: number) =>
+  secondOperator === '*' && firstOperator !== '*'
+    ? applyOperator(first, firstOperator, second * third)
+    : applyOperator(applyOperator(first, firstOperator, second), secondOperator, third)
 
 export function captchas () {
   return async (req: Request, res: Response) => {
-    const captchaId = req.app.locals.captchaId++
+    const captchaId = randomInt(1, 2 ** 48)
     const operators = ['*', '+', '-']
 
     const firstTerm = Math.floor((Math.random() * 10) + 1)
@@ -19,23 +35,30 @@ export function captchas () {
     const secondOperator = operators[Math.floor((Math.random() * 3))]
 
     const expression = firstTerm.toString() + firstOperator + secondTerm.toString() + secondOperator + thirdTerm.toString()
-    const answer = eval(expression).toString() // eslint-disable-line no-eval
+    const answer = evaluate(firstTerm, firstOperator, secondTerm, secondOperator, thirdTerm).toString()
 
     const captcha = {
       captchaId,
       captcha: expression,
       answer
     }
+    await CaptchaModel.destroy({ where: { createdAt: { [Op.lt]: expiryCutoff() } } })
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
-    res.json(captcha)
+    res.json({ captchaId, captcha: expression })
   }
 }
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
+    const { captchaId, captcha: answer } = req.body
+    const captcha = typeof captchaId === 'number' || typeof captchaId === 'string'
+      ? await CaptchaModel.findOne({ where: { captchaId } })
+      : null
+    /* Every attempt consumes the CAPTCHA; only the request that actually deletes it may pass */
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId: captcha.captchaId } }) > 0
+    const expired = captcha == null || captcha.createdAt < expiryCutoff()
+    if (consumed && !expired && typeof answer === 'string' && answer === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
