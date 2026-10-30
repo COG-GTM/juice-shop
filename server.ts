@@ -71,6 +71,7 @@ import * as address from './routes/address'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
+import { retrieveOrderConfirmation } from './routes/orderConfirmation'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
@@ -164,7 +165,6 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 app.set('view engine', 'hbs')
 
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
-void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
@@ -620,6 +620,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(dataExport()))
   app.get('/rest/languages', utils.asyncHandler(getLanguageList()))
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
+  app.get('/rest/order-confirmation/:orderId',
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    retrieveOrderConfirmation()
+  )
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
   app.get('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(getWalletBalance()))
@@ -729,6 +733,7 @@ export async function start (readyCallback?: () => void) {
   const datacreatorEnd = startupGauge.startTimer({ task: 'datacreator' })
   await sequelize.sync({ force: true })
   await preconditionsReady
+  await collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)() // vuln-code-snippet hide-line
   await datacreator()
   datacreatorEnd()
   const port = process.env.PORT ?? config.get('server.port')
