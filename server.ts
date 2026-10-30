@@ -274,6 +274,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/.well-known', express.static('.well-known'))
 
   /* /encryptionkeys directory browsing */
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', security.publicKey)
+  } catch (err) {
+    logger.warn(`Could not write public JWT key to encryptionkeys/jwt.pub (${utils.getErrorMessage(err)})`)
+  }
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
