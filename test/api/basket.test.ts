@@ -162,6 +162,52 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 })
 
+void describe('/rest/order-confirmation/:orderId', () => {
+  let orderId: string
+
+  before(async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('GET order confirmation PDF as the ordering customer', async () => {
+    const res = await request(app).get(`/rest/order-confirmation/${orderId}`).set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF is not allowed via public API', async () => {
+    const res = await request(app).get(`/rest/order-confirmation/${orderId}`)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order confirmation PDF of another customer is not possible', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app).get(`/rest/order-confirmation/${orderId}`).set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF with malformed order id fails', async () => {
+    const res = await request(app).get('/rest/order-confirmation/..%2F..%2Fpackage.json').set(authHeader)
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET order confirmation PDF is not served from /ftp', async () => {
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET /ftp directory listing does not contain order confirmations', async () => {
+    const res = await request(app).get('/ftp')
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes(`order_${orderId}.pdf`))
+  })
+})
+
 void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply valid coupon to existing basket', async () => {
     const res = await request(app)
