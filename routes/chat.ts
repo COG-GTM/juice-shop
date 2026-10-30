@@ -90,7 +90,7 @@ export function validateChatMessages (messages: unknown): { messages?: ChatMessa
 }
 
 export function chatRateLimitKey (req: Request): string {
-  const userId = userIdFromToken(req)
+  const userId = hasVerifiedRs256Signature(utils.jwtFrom(req)) ? userIdFromToken(req) : undefined
   return userId ? `user:${userId}` : req.ip ?? ''
 }
 
