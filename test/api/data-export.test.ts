@@ -265,4 +265,24 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
+
+  void it('Export data does not include orders of another user with a vowel-colliding email', async () => {
+    const email = 'odmen@' + config.get<string>('application.domain')
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: 'odmen123' })
+      .expect(201)
+
+    const { token } = await login(app, { email, password: 'odmen123' })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, email)
+    assert.deepEqual(parsedData.orders, [])
+  })
 })

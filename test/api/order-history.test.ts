@@ -47,6 +47,23 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
   })
+
+  void it('GET order history does not include orders of another user with a vowel-colliding email', async () => {
+    const email = 'edmun@' + config.get<string>('application.domain')
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: 'edmun123' })
+      .expect(201)
+
+    const { token } = await login(app, { email, password: 'edmun123' })
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
 })
 
 void describe('/rest/order-history/orders', () => {
