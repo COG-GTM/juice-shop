@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -140,17 +141,15 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
             } catch (error: unknown) {
               next(error)
               return
@@ -179,6 +178,17 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
