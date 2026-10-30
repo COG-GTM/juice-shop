@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
+import os from 'node:os'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -142,6 +143,42 @@ void describe('/file-upload', () => {
     const current = fs.existsSync(target) ? fs.readFileSync(target, 'utf8') : null
     assert.equal(current, original)
     assert.ok(!(current ?? '').includes('h4cked'))
+  })
+
+  void it('POST zip file with oversized entry keeps existing complaint intact', { skip: !utils.isChallengeEnabled(challenges.fileWriteChallenge) }, async () => {
+    const existing = path.resolve('uploads/complaints/oversized.txt')
+    fs.writeFileSync(existing, 'existing complaint')
+    try {
+      const file = path.resolve(__dirname, '../files/oversizedComplaint.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      assert.equal(fs.readFileSync(existing, 'utf8'), 'existing complaint')
+    } finally {
+      fs.rmSync(existing, { force: true })
+    }
+  })
+
+  void it('POST zip file does not write through symlink in complaints folder', { skip: !utils.isChallengeEnabled(challenges.fileWriteChallenge) || process.platform === 'win32' }, async () => {
+    const outside = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-')), 'outside.txt')
+    const link = path.resolve('uploads/complaints/symlinked.txt')
+    fs.writeFileSync(outside, 'original')
+    fs.rmSync(link, { force: true })
+    fs.symlinkSync(outside, link)
+    try {
+      const file = path.resolve(__dirname, '../files/symlinkComplaint.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.equal(fs.readFileSync(outside, 'utf8'), 'original')
+    } finally {
+      fs.rmSync(link, { force: true })
+      fs.rmSync(path.dirname(outside), { recursive: true, force: true })
+    }
   })
 
   void it('POST zip file with password protection', async () => {
