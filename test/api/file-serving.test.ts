@@ -170,6 +170,13 @@ void describe('/encryptionkeys', () => {
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
     assert.equal(res.status, 404)
   })
+
+  void it('GET a key file whose name contains a backslash is not served', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/..%5c..%5cpackage.json')
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
 })
 
 void describe('Hidden URL', () => {
