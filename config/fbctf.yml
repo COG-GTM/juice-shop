@@ -212,9 +212,6 @@ ctf:
     basketManipulateChallenge:
       name: Bhutan
       code: BT
-    emailLeakChallenge:
-      name: Bahamas
-      code: BH
     registerAdminChallenge:
       name: Jamaica
       code: JA
@@ -338,9 +335,6 @@ ctf:
     leakedApiKeyChallenge:
       name: San Marino
       code: SM
-    passwordHashLeakChallenge:
-      name: Italy
-      code: IT
     chatbotPromptInjectionChallenge:
       name: Finland
       code: FI

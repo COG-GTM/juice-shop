@@ -1,16 +1,5 @@
 ---
 -
-  name: 'Password Hash Leak'
-  category: 'Sensitive Data Exposure'
-  description: 'Obtain the password (hash) of the currently logged-in user directly from a REST API endpoint.'
-  difficulty: 2
-  hints:
-    - 'You need to understand what happens "behind the scenes", so make sure to use your DevTools or a proxy to inspect network traffic.'
-    - 'Look for an API endpoint that already returns some user information.'
-    - 'An overly generic solution for data retrieval can backfire if not properly safeguarded.'
-  mitigationUrl: 'https://owasp.org/API-Security/editions/2019/en/0xa3-excessive-data-exposure'
-  key: passwordHashLeakChallenge
--
   name: 'API-only XSS'
   category: 'XSS'
   tags:
@@ -323,17 +312,6 @@
     - 'Simply reuse the trick that already worked for the files above.'
   mitigationUrl: ~
   key: easterEggLevelOneChallenge
--
-  name: 'Email Leak'
-  category: 'Sensitive Data Exposure'
-  description: 'Perform an unwanted information disclosure by accessing data cross-domain.'
-  difficulty: 5
-  hints:
-    - 'Try to find and attack an endpoint that responds with user information. SQL Injection is not the solution here.'
-    - 'What ways are there to access data from a web application cross-domain?'
-    - 'This challenge uses an old way which is no longer recommended.'
-  mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/XS_Leaks_Cheat_Sheet.html'
-  key: emailLeakChallenge
 -
   name: 'Empty User Registration'
   category: 'Improper Input Validation'
