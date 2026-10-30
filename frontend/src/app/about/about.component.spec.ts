@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -20,6 +21,7 @@ describe('AboutComponent', () => {
     let component: AboutComponent
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
+    let feedbackService
     let translateService
 
     beforeEach(async () => {
@@ -27,6 +29,10 @@ describe('AboutComponent', () => {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: {} }))
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
         }
@@ -43,6 +49,7 @@ describe('AboutComponent', () => {
                 TranslateModule.forRoot()],
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
+                { provide: FeedbackService, useValue: feedbackService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -115,5 +122,17 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the slideshow as untrusted plain text', () => {
+        const maliciousComment = '<iframe src="javascript:alert(`xss`)">'
+        feedbackService.find.mockReturnValue(of([{ comment: maliciousComment, rating: 5 }]))
+        const addImage = vi.spyOn(component.galleryRef, 'addImage').mockImplementation(() => {})
+        component.populateSlideshowFromFeedbacks()
+
+        const args = addImage.mock.calls[0][0].args
+        expect(args.comment).toBe(maliciousComment)
+        expect(typeof args.comment).toBe('string')
+        expect(args.stars).toContain('fa-star')
     })
 })
