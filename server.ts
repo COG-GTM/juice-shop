@@ -264,6 +264,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', security.publicKey)
+  } catch (err) {
+    logger.warn(`Could not write public JWT key to encryptionkeys/jwt.pub (${utils.getErrorMessage(err)})`)
+  }
+
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -274,11 +280,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/.well-known', express.static('.well-known'))
 
   /* /encryptionkeys directory browsing */
-  try {
-    fs.writeFileSync('encryptionkeys/jwt.pub', security.publicKey)
-  } catch (err) {
-    logger.warn(`Could not write public JWT key to encryptionkeys/jwt.pub (${utils.getErrorMessage(err)})`)
-  }
   app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
