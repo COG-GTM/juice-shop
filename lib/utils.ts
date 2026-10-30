@@ -128,13 +128,23 @@ const sensitiveQueryParams = ['current', 'new', 'repeat', 'password', 'passwordR
 export const redactSensitiveQueryParams = (url: string) => {
   const queryStart = url.indexOf('?')
   if (queryStart === -1) return url
-  const query = url.substring(queryStart + 1).replace(/(^|[&?#;])([^&?#;=]*)=([^&?#;]*)/g, (match: string, separator: string, key: string) => {
-    let name = key
+  let query = url.substring(queryStart + 1)
+  const ranges: Array<[number, number]> = []
+  for (const match of query.matchAll(/(?:^|[&?#;])([^&?#;=]*)=/g)) {
+    let name = match[1]
     try {
-      name = decodeURIComponent(key.replace(/\+/g, ' '))
+      name = decodeURIComponent(name.replace(/\+/g, ' '))
     } catch {}
-    return sensitiveQueryParams.includes(name.replace(/\[.*$/, '')) ? `${separator}${key}=[REDACTED]` : match
-  })
+    const valueStart = (match.index ?? 0) + match[0].length
+    const lastRange = ranges[ranges.length - 1]
+    if (sensitiveQueryParams.includes(name.replace(/\[.*$/, '')) && (!lastRange || valueStart >= lastRange[1])) {
+      const valueEnd = query.indexOf('&', valueStart)
+      ranges.push([valueStart, valueEnd === -1 ? query.length : valueEnd])
+    }
+  }
+  for (const [start, end] of ranges.reverse()) {
+    query = query.substring(0, start) + '[REDACTED]' + query.substring(end)
+  }
   return url.substring(0, queryStart + 1) + query
 }
 
