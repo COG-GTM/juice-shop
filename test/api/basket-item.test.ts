@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherUserHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -24,6 +25,15 @@ before(
     })
     authHeader = {
       Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherUserHeader = {
+      Authorization: 'Bearer ' + otherToken,
       'content-type': 'application/json'
     }
   },
@@ -196,6 +206,41 @@ void describe('/api/BasketItems/:id', () => {
       .send({ quantity: 6 })
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/4')
+      .set(otherUserHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/999999')
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/4')
+      .set(otherUserHeader)
+    assert.equal(res.status, 403)
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/4')
+      .set(authHeader)
+    assert.equal(getRes.status, 200)
+    assert.equal(getRes.body.data.BasketId, 2)
+  })
+
+  void it('DELETE non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/999999')
+      .set(authHeader)
+    assert.equal(res.status, 404)
   })
 
   void it('DELETE newly created basket item', async () => {
