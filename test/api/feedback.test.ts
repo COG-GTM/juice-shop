@@ -291,18 +291,15 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all feedback hides the author from expired administrator tokens', async (t) => {
-    t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 7 * 60 * 60 * 1000 })
-    try {
-      const res = await request(app)
-        .get('/api/Feedbacks')
-        .set(adminHeader)
-      assert.equal(res.status, 200)
-      for (const feedback of res.body.data) {
-        assert.equal('UserId' in feedback, false)
-      }
-    } finally {
-      t.mock.timers.reset()
+  void it('GET all feedback hides the author from expired administrator tokens', async () => {
+    const expiredAdminToken = security.authorize({ data: { role: security.roles.admin }, exp: Math.floor(Date.now() / 1000) - 60 })
+    const res = await request(app)
+      .get('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + expiredAdminToken })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const feedback of res.body.data) {
+      assert.equal('UserId' in feedback, false)
     }
   })
 
