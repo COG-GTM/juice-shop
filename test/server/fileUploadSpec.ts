@@ -126,6 +126,15 @@ describe('fileUpload', () => {
       expect(taken.length).to.equal(100)
     })
 
+    it('should still accept entries after exactly 10 MB uncompressed', (done) => {
+      const budget = createExtractionBudget()
+      expect(budget.takeEntry()).to.equal(true)
+      Readable.from(Array.from({ length: 10 }, () => Buffer.alloc(1024 * 1024))).pipe(budget.limiter()).on('error', done).on('finish', () => {
+        expect(budget.takeEntry()).to.equal(true)
+        done()
+      }).resume()
+    })
+
     it('should stop writing and fail once the archive exceeds 10 MB uncompressed', (done) => {
       const budget = createExtractionBudget()
       let written = 0
