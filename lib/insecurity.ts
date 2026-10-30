@@ -69,9 +69,10 @@ export const isAuthorized = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.jwtFrom(req)
     if (token && !hasExpectedAlgorithm(token)) {
-      next(unauthorizedError('invalid algorithm')); return
+      next(unauthorizedError('invalid algorithm'))
+    } else {
+      jwtMiddleware(req, res, next)
     }
-    jwtMiddleware(req, res, next)
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
