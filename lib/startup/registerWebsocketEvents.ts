@@ -33,7 +33,7 @@ const onSafely = (socket: any, event: string, handler: (data: unknown) => void) 
 }
 
 const registerWebsocketEvents = (server: any) => {
-  const io = new Server(server, { cors: { origin: 'http://localhost:4200' } })
+  const io = new Server(server, { cors: { origin: 'http://localhost:4200' }, maxHttpBufferSize: 1e5 })
   // @ts-expect-error FIXME Type safety issue when setting global socket-io object
   globalWithSocketIO.io = io
 
