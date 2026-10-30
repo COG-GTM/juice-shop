@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -272,6 +273,31 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i request returns nothing on HS256 token forged with the public key', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
+    const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    const forgedToken = `${header}.${payload}.${signature}`
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${forgedToken}` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
+    assert.equal(security.authenticatedUsers.get(forgedToken), undefined)
+  })
+
+  void it('GET who-am-i request returns nothing on unsigned token with alg "none"', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
+    const unsignedToken = `${header}.${payload}.`
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${unsignedToken}` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
+    assert.equal(security.authenticatedUsers.get(unsignedToken), undefined)
   })
 
   void it('GET who-am-i request returns nothing on expired auth token', async () => {
