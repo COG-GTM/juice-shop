@@ -42,7 +42,8 @@ describe('ChatConversationComponent', () => {
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: { chatBot: { name: 'Juicy', avatar: 'JuicyBot.png' } } } as any))
         userService = {
-            whoAmI: vi.fn().mockName("UserService.whoAmI")
+            whoAmI: vi.fn().mockName("UserService.whoAmI"),
+            isLoggedIn: { next: vi.fn().mockName("UserService.isLoggedIn.next") }
         }
         loginGuard = {
             tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
@@ -50,7 +51,8 @@ describe('ChatConversationComponent', () => {
         }
         cookieService = {
             get: vi.fn().mockName("CookieService.get"),
-            put: vi.fn().mockName("CookieService.put")
+            put: vi.fn().mockName("CookieService.put"),
+            remove: vi.fn().mockName("CookieService.remove")
         }
 
         TestBed.configureTestingModule({
@@ -209,10 +211,14 @@ describe('ChatConversationComponent', () => {
             yield { error: 'unauthorized' }
         }
         chatService.streamMessages.mockReturnValue(unauthorizedStream())
+        localStorage.setItem('token', 'expired')
 
         await component.sendMessage('Hello')
 
         expect(component.messages()[1]).toEqual({ role: 'assistant', content: 'UNAUTHORIZED_ACCESS_ERROR', error: true })
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalledWith('UNAUTHORIZED_ACCESS_ERROR')
     })
 
