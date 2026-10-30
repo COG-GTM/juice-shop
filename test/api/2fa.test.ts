@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
 import jwt from 'jsonwebtoken'
-import { generateSync } from 'otplib'
+import { generateSecret, generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
@@ -293,7 +293,7 @@ void describe('/rest/2fa/disable', () => {
         Authorization: 'Bearer ' + token,
         'content-type': 'application/json'
       })
-      .send({ password })
+      .send({ password, totpToken: generateSync({ secret: totpSecret }) })
 
     assert.equal(disableRes.status, 200)
 
@@ -320,12 +320,75 @@ void describe('/rest/2fa/disable', () => {
         Authorization: 'Bearer ' + token,
         'content-type': 'application/json'
       })
-      .send({ password: password + ' this makes the password wrong' })
+      .send({ password: password + ' this makes the password wrong', totpToken: generateSync({ secret: totpSecret }) })
 
     assert.equal(disableRes.status, 401)
 
     const statusRes2 = await getStatus(token)
     assert.equal(statusRes2.status, 200)
     assert.equal(statusRes2.body.setup, true)
+  })
+
+  void it('POST should not be possible to disable 2fa without a valid totp token', async () => {
+    const email = 'fooooodisable3@bar.com'
+    const password = '123456'
+    const totpSecret = generateSecret()
+
+    await register(app, { email, password, totpSecret })
+    const { token } = await login(app, { email, password, totpSecret })
+
+    for (const body of [{ password }, { password, totpToken: '000000' }, { password, totpToken: generateSync({ secret: generateSecret() }) }]) {
+      const disableRes = await request(app)
+        .post('/rest/2fa/disable')
+        .set({
+          Authorization: 'Bearer ' + token,
+          'content-type': 'application/json'
+        })
+        .send(body)
+
+      assert.equal(disableRes.status, 401)
+    }
+
+    const statusRes = await getStatus(token)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, true)
+  })
+
+  void it('POST should not accept a password that was changed after the session was created', async () => {
+    const email = 'fooooodisable4@bar.com'
+    const oldPassword = '123456'
+    const newPassword = '654321'
+    const totpSecret = generateSecret()
+
+    await register(app, { email, password: oldPassword, totpSecret })
+    const { token: olderSession } = await login(app, { email, password: oldPassword, totpSecret })
+    const { token } = await login(app, { email, password: oldPassword, totpSecret })
+
+    const changeRes = await request(app)
+      .get(`/rest/user/change-password?current=${oldPassword}&new=${newPassword}&repeat=${newPassword}`)
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(changeRes.status, 200)
+
+    const staleRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({
+        Authorization: 'Bearer ' + olderSession,
+        'content-type': 'application/json'
+      })
+      .send({ password: oldPassword, totpToken: generateSync({ secret: totpSecret }) })
+    assert.equal(staleRes.status, 401)
+
+    const statusRes = await getStatus(olderSession)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, true)
+
+    const disableRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({
+        Authorization: 'Bearer ' + olderSession,
+        'content-type': 'application/json'
+      })
+      .send({ password: newPassword, totpToken: generateSync({ secret: totpSecret }) })
+    assert.equal(disableRes.status, 200)
   })
 })
