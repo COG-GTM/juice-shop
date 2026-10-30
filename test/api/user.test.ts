@@ -221,6 +221,21 @@ void describe('/api/Users', () => {
       })
     assert.equal(res.status, 400)
   })
+
+  for (const email of [{ $ne: '' }, 42, null]) {
+    void it(`POST new user with non-string email ${JSON.stringify(email)} and passwordRepeat is rejected`, async () => {
+      const res = await request(app)
+        .post('/api/Users')
+        .set(jsonHeader)
+        .send({
+          email,
+          password: 'does.not.matter',
+          passwordRepeat: 'does.not.matter'
+        })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.errors[0].message, 'Invalid email address')
+    })
+  }
 })
 
 void describe('/api/Users/:id', () => {
