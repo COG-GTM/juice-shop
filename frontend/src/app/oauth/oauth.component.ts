@@ -23,27 +23,16 @@ export class OAuthComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
   private readonly ngZone = inject(NgZone)
 
-
   ngOnInit (): void {
-    this.userService.oauthLogin(this.parseRedirectUrlParams().access_token).subscribe({
-      next: (profile: any) => {
-        const password = btoa(profile.email.split('').reverse().join(''))
-        this.userService.save({ email: profile.email, password, passwordRepeat: password }).subscribe({
-          next: () => {
-            this.login(profile)
-          },
-          error: () => { this.login(profile) }
-        })
-      },
-      error: (error) => {
-        this.invalidateSession(error)
-        this.ngZone.run(async () => await this.router.navigate(['/login']))
-      }
-    })
-  }
-
-  login (profile: any) {
-    this.userService.login({ email: profile.email, password: btoa(profile.email.split('').reverse().join('')), oauth: true }).subscribe({
+    const params = this.parseRedirectUrlParams()
+    const expectedState = sessionStorage.getItem('oauth_state')
+    sessionStorage.removeItem('oauth_state')
+    if (!expectedState || params.state !== expectedState || !params.access_token) {
+      this.invalidateSession(new Error('Invalid OAuth redirect'))
+      this.ngZone.run(async () => await this.router.navigate(['/login']))
+      return
+    }
+    this.userService.oauthLogin(params.access_token).subscribe({
       next: (authentication) => {
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
@@ -54,6 +43,11 @@ export class OAuthComponent implements OnInit {
         this.ngZone.run(async () => await this.router.navigate(['/']))
       },
       error: (error) => {
+        if (error?.error?.status === 'totp_token_required') {
+          localStorage.setItem('totp_tmp_token', error.error.data.tmpToken)
+          this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
+          return
+        }
         this.invalidateSession(error)
         this.ngZone.run(async () => await this.router.navigate(['/login']))
       }
@@ -73,7 +67,7 @@ export class OAuthComponent implements OnInit {
     const params: any = {}
     for (const part of splitted) {
       const [key, value] = part.split('=')
-      params[key] = value
+      params[key] = value === undefined ? value : decodeURIComponent(value)
     }
     return params
   }

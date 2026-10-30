@@ -4,6 +4,8 @@
  */
 
 import request from 'supertest'
+import sinon from 'sinon'
+import config from 'config'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../../lib/insecurity'
@@ -79,4 +81,30 @@ export async function register (app: Express, { email, password, totpSecret }: {
   }
 
   return res
+}
+
+export async function loginWithGoogle (app: Express, email: string, tokenInfo: Record<string, unknown> = {}) {
+  const fetchStub = sinon.stub(globalThis, 'fetch').resolves(new Response(JSON.stringify({
+    aud: config.get<string>('application.googleOauth.clientId'),
+    email,
+    email_verified: 'true',
+    expires_in: '3599',
+    ...tokenInfo
+  }), { status: 200, headers: { 'content-type': 'application/json' } }))
+  try {
+    return await request(app)
+      .post('/rest/user/oauth-login')
+      .set(jsonHeader)
+      .send({ accessToken: 'test-access-token' })
+  } finally {
+    fetchStub.restore()
+  }
+}
+
+export async function loginAsGoogleUser (app: Express, email: string) {
+  const res = await loginWithGoogle(app, email)
+  if (res.status !== 200) {
+    throw new Error(`Failed to login '${email}' via Google: ${res.status}`)
+  }
+  return res.body.authentication
 }
