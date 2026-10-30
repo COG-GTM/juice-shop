@@ -108,8 +108,15 @@ export const isAuthorized = () => {
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user }, privateKey, { algorithm: 'RS256' })
+const algorithmOf = (token: string) => {
+  try {
+    return jws.decode(token)?.header?.alg
+  } catch {
+    return undefined
+  }
+}
 export const verify = (token: string) => {
-  if (!token || isRevoked(token) || isExpired(token)) return false
+  if (!token || isRevoked(token) || isExpired(token) || algorithmOf(token) !== 'RS256') return false
   try {
     return (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey)
   } catch {

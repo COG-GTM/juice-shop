@@ -224,6 +224,13 @@ describe('insecurity', () => {
       }
     })
 
+    it('rejects unsigned alg none tokens even with a valid exp claim', () => {
+      const now = Math.floor(Date.now() / 1000)
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' }, iat: now, exp: now + 3600 })).toString('base64url')
+      expect(security.verify(`${header}.${payload}.`)).to.equal(false)
+    })
+
     it('rejects malformed tokens without throwing', () => {
       expect(security.verify('unknown')).to.equal(false)
       expect(security.isExpired('unknown')).to.equal(false)

@@ -254,6 +254,36 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('forged@be.rt', 'original-secret'), 200)
   })
 
+  void it('POST password change with an unsigned alg none token registered via whoami is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'unsigned@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'unsigned@be.rt', password: 'original-secret' })
+    const victim = security.decode(token)
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ ...victim, data: { ...victim.data, password: security.hash('chosen') } })).toString('base64url')
+    const unsigned = `${header}.${payload}.`
+
+    await request(app)
+      .get('/rest/user/whoami')
+      .set('Cookie', 'token=' + unsigned)
+
+    for (const body of [{ new: 'hijacked', repeat: 'hijacked' }, { current: 'chosen', new: 'hijacked', repeat: 'hijacked' }]) {
+      const res = await request(app)
+        .post('/rest/user/change-password')
+        .set({ ...jsonHeader, Authorization: 'Bearer ' + unsigned })
+        .send(body)
+      assert.equal(res.status, 401)
+    }
+    assert.equal(await loginStatus('unsigned@be.rt', 'original-secret'), 200)
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
