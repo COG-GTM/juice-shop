@@ -40,4 +40,26 @@ describe('currentUser', () => {
 
     expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } })
   })
+
+  it('should never return password or totpSecret even when requested via fields', () => {
+    const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+    req.cookies.token = token
+    req.query.fields = 'id,email,password,totpSecret'
+    authenticatedUsers.put(token, { data: { id: 1, email: 'admin@juice-sh.op', password: '0192023a7bbd73250516f069df18b500', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' } as unknown as UserModel })
+
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op' } })
+  })
+
+  it('should respond with plain JSON instead of JSONP when a callback is requested', () => {
+    res.jsonp = sinon.spy()
+    req.cookies.token = ''
+    req.query.callback = 'steal'
+
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.jsonp.called).to.equal(false)
+    expect(res.json.called).to.equal(true)
+  })
 })
