@@ -83,6 +83,8 @@ describe('fileUpload', () => {
       '../../build/routes/login.js',
       '../../data/static/users.yml',
       '../../test-zip-slip.txt',
+      '../../node_modules/ethers/lib.commonjs/index.js',
+      path.join(path.dirname(path.dirname(complaintsDirectory)), path.basename(path.resolve('.')), 'outside.txt'),
       '../../views/promotionVideo.pug',
       '../../views/userProfile.pug',
       'nested/../../../views/promotionVideo.pug',
