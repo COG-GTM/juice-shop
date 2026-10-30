@@ -68,6 +68,12 @@ void describe('Server', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET does not serve a directory listing of the well-known subfolder', async () => {
+    const res = await request(app)
+      .get('/.well-known')
+    assert.ok(!res.text.includes('listing directory /.well-known'))
+  })
+
   void it('GET serves a robots.txt file', async () => {
     const res = await request(app)
       .get('/robots.txt')
@@ -132,12 +138,18 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
+    assert.ok(!res.text.includes('listing directory /encryptionkeys'))
+    assert.ok(!res.text.includes('premium.key'))
+  })
+
+  void it('GET the public JWT verification key', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.ok(res.text.includes('-----BEGIN RSA PUBLIC KEY-----'))
   })
 
   void it('GET a non-existing file in will return a 404 error', async () => {
@@ -146,10 +158,10 @@ void describe('/encryptionkeys', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET the Premium Content AES key will return a 404 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
   })
 
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
