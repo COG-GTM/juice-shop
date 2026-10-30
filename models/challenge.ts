@@ -36,7 +36,6 @@ const CHALLENGE_KEYS = [
   'dbSchemaChallenge',
   'deprecatedInterfaceChallenge',
   'easterEggLevelOneChallenge',
-  'emailLeakChallenge',
   'emptyUserRegistration',
   'ephemeralAccountantChallenge',
   'errorHandlingChallenge',
@@ -122,7 +121,6 @@ const CHALLENGE_KEYS = [
   'csafChallenge',
   'exposedCredentialsChallenge',
   'leakedApiKeyChallenge',
-  'passwordHashLeakChallenge',
   'chatbotPromptInjectionChallenge',
   'chatbotGreedyInjectionChallenge',
   'aiDebuggingChallenge'

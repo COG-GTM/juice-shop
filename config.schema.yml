@@ -558,11 +558,6 @@ ctf:
         type: string
       code:
         type: string
-    emailLeakChallenge:
-      name:
-        type: string
-      code:
-        type: string
     registerAdminChallenge:
       name:
         type: string
@@ -739,11 +734,6 @@ ctf:
       code:
         type: string
     leakedApiKeyChallenge:
-      name:
-        type: string
-      code:
-        type: string
-    passwordHashLeakChallenge:
       name:
         type: string
       code:
