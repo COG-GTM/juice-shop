@@ -78,6 +78,11 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site data erasure request rejected'))
+      return
+    }
 
     try {
       await PrivacyRequestModel.create({
