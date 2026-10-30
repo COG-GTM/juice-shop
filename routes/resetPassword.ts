@@ -36,10 +36,6 @@ function pruneFailedAttempts () {
     if (failedAttempts.size < MAX_TRACKED_ACCOUNTS) return
     if (entry.count < MAX_FAILED_ATTEMPTS) failedAttempts.delete(key)
   }
-  for (const key of failedAttempts.keys()) {
-    if (failedAttempts.size < MAX_TRACKED_ACCOUNTS) return
-    failedAttempts.delete(key)
-  }
 }
 
 function registerAttempt (key: string) {
@@ -52,8 +48,14 @@ function registerAttempt (key: string) {
   }
   failedAttempts.delete(key)
   if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneFailedAttempts()
+  if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) return false
   failedAttempts.set(key, { count: 1, firstFailure: now })
   return true
+}
+
+function releaseAttempt (key: string) {
+  const entry = failedAttempts.get(key)
+  if (entry && entry.count > 0) entry.count--
 }
 
 function safeEqual (a: string, b: string) {
@@ -104,6 +106,7 @@ export function resetPassword () {
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
+      releaseAttempt(attemptKey)
       next(error)
     }
   }
