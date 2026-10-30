@@ -26,6 +26,7 @@ export type Product = ProductModel
 
 export interface Review {
   text: string
+  product: number | string
   author: string
   liked: boolean
   likedBy: string[]
