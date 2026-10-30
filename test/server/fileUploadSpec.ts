@@ -102,7 +102,9 @@ describe('fileUpload', () => {
       '\\\\server\\share\\x.txt',
       'complaint.pdf\0.txt',
       `../../../${path.basename(path.resolve('.'))}-evil/x.txt`,
-      path.resolve('.') + '-evil/x.txt'
+      path.resolve('.') + '-evil/x.txt',
+      '.upload-00000000-0000-4000-8000-000000000000.part',
+      './.UPLOAD-x.PART'
     ]
     maliciousEntries.forEach(entry => {
       it(`should reject entry ${JSON.stringify(entry)}`, () => {
