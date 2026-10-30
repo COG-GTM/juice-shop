@@ -50,7 +50,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWithMatch({ cid: 'JS0815DE' })
   })
 
@@ -59,7 +59,7 @@ describe('b2bOrder', () => {
 
     b2bOrder()(req, res)
 
-    expect(res.status).to.not.have.been.called
+    expect(res.status.called).to.equal(false)
     expect(res.json).to.have.been.calledWithMatch({ orderNo: sinon.match.string, paymentDue: sinon.match.string })
   })
 
