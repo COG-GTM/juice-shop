@@ -56,7 +56,7 @@ void describe('/profile', () => {
     assert.equal(user?.username, 'Localhorst')
   })
 
-  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51), 'x\\#{7*7}', 'Tom & Jerry']) {
+  for (const payload of ['x#{7*7}', 'a!{7*7}', "x#{process.mainModule.require('child_process').execSync('id')}", 'x\n- global.juiceShopSstiProbe = 1', '<script>alert(1)</script>', 'a'.repeat(51), 'x\\#{7*7}']) {
     void it(`POST rejects username ${JSON.stringify(payload).substring(0, 40)} without saving it`, async () => {
       const res = await request(app)
         .post('/profile')
@@ -85,6 +85,25 @@ void describe('/profile', () => {
       assert.equal(user?.username, name)
     })
   }
+
+  void it('POST accepts a username with & and GET shows it escaped exactly once', async () => {
+    const post = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'Tom & Jerry' })
+      .redirects(0)
+    assert.equal(post.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('text-align: center;">Tom &amp; Jerry<'))
+    assert.ok(res.text.includes('value="Tom &amp; Jerry"'))
+    assert.ok(!res.text.includes('&amp;amp;'))
+  })
 
   void it('POST rejects a non-string username', async () => {
     const res = await request(app)
