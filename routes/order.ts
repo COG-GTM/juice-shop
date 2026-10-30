@@ -154,9 +154,7 @@ export function placeOrder () {
 
           const appliedStockReductions: typeof stockReductions = []
           const failCheckout = async (error: unknown) => {
-            try {
-              await revertCheckout(req.body.UserId, walletChange, appliedStockReductions)
-            } catch (revertError: unknown) {
+            for (const revertError of await revertCheckout(req.body.UserId, walletChange, appliedStockReductions)) {
               logger.error(`Could not revert failed checkout of basket ${id}: ${utils.getErrorMessage(revertError)}`)
             }
             next(error)
@@ -208,12 +206,13 @@ async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bo
 }
 
 async function revertCheckout (UserId: number | undefined, walletChange: number, stockReductions: Array<{ ProductId: number, quantity: number }>) {
-  for (const { ProductId, quantity } of stockReductions) {
-    await QuantityModel.increment({ quantity }, { where: { ProductId } })
-  }
+  const compensations: Array<Promise<unknown>> = stockReductions.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } }))
   if (UserId && walletChange !== 0) {
-    await WalletModel.increment({ balance: -walletChange }, { where: { UserId } })
+    compensations.unshift(WalletModel.increment({ balance: -walletChange }, { where: { UserId } }))
   }
+  return (await Promise.allSettled(compensations))
+    .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+    .map(({ reason }) => reason)
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
