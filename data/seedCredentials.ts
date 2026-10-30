@@ -12,7 +12,7 @@ export const demoCredentialsEnabled = (): boolean => process.env.JUICE_SHOP_DEMO
 const randomSecret = (): string => crypto.randomBytes(24).toString('base64url')
 
 export function randomTotpSecret (): string {
-  return Array.from(crypto.randomBytes(32), (byte) => base32Alphabet[byte % 32]).join('')
+  return Array.from({ length: 32 }, () => base32Alphabet[crypto.randomInt(base32Alphabet.length)]).join('')
 }
 
 export function seedPasswordFor (password: string): string {
