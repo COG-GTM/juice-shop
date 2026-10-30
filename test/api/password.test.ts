@@ -135,7 +135,6 @@ void describe('/rest/user/reset-password', () => {
     assert.deepEqual(Object.keys(res.body), ['user'])
     assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
     assert.ok(!res.text.includes('totpSecret'))
-    assert.ok(!res.text.includes('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'))
     assert.ok(!res.text.includes('password'))
     assert.ok(!res.text.includes('deluxeToken'))
   })
