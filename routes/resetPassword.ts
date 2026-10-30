@@ -16,40 +16,44 @@ import { UserModel } from '../models/user'
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_WINDOW_MS = 15 * 60 * 1000
-const MAX_TRACKED_ACCOUNTS = 10000
+const MAX_TRACKED_ACCOUNTS = 100000
 const failedAttempts = new Map<string, { count: number, firstFailure: number }>()
 
-function isLockedOut (key: string) {
-  const entry = failedAttempts.get(key)
-  if (!entry) return false
-  if (Date.now() - entry.firstFailure > LOCKOUT_WINDOW_MS) {
-    failedAttempts.delete(key)
-    return false
-  }
-  return entry.count >= MAX_FAILED_ATTEMPTS
+function attemptKeyFor (email: string) {
+  return crypto.createHash('sha256').update(email.trim().toLowerCase()).digest('hex')
+}
+
+function isExpired (entry: { firstFailure: number }, now: number) {
+  return now - entry.firstFailure > LOCKOUT_WINDOW_MS
 }
 
 function pruneFailedAttempts () {
   const now = Date.now()
   for (const [key, entry] of failedAttempts) {
-    if (now - entry.firstFailure > LOCKOUT_WINDOW_MS) failedAttempts.delete(key)
+    if (isExpired(entry, now)) failedAttempts.delete(key)
   }
-  while (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) {
-    const oldestKey = failedAttempts.keys().next().value
-    if (oldestKey === undefined) break
-    failedAttempts.delete(oldestKey)
+  for (const [key, entry] of failedAttempts) {
+    if (failedAttempts.size < MAX_TRACKED_ACCOUNTS) return
+    if (entry.count < MAX_FAILED_ATTEMPTS) failedAttempts.delete(key)
+  }
+  for (const key of failedAttempts.keys()) {
+    if (failedAttempts.size < MAX_TRACKED_ACCOUNTS) return
+    failedAttempts.delete(key)
   }
 }
 
-function recordFailedAttempt (key: string) {
+function registerAttempt (key: string) {
+  const now = Date.now()
   const entry = failedAttempts.get(key)
-  if (!entry || Date.now() - entry.firstFailure > LOCKOUT_WINDOW_MS) {
-    failedAttempts.delete(key)
-    if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneFailedAttempts()
-    failedAttempts.set(key, { count: 1, firstFailure: Date.now() })
-  } else {
+  if (entry && !isExpired(entry, now)) {
+    if (entry.count >= MAX_FAILED_ATTEMPTS) return false
     entry.count++
+    return true
   }
+  failedAttempts.delete(key)
+  if (failedAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneFailedAttempts()
+  failedAttempts.set(key, { count: 1, firstFailure: now })
+  return true
 }
 
 function safeEqual (a: string, b: string) {
@@ -76,8 +80,8 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
-    const attemptKey = email.trim().toLowerCase()
-    if (isLockedOut(attemptKey)) {
+    const attemptKey = attemptKeyFor(email)
+    if (!registerAttempt(attemptKey)) {
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
       return
     }
@@ -97,7 +101,6 @@ export function resetPassword () {
           res.json({ status: 'success' })
         }
       } else {
-        recordFailedAttempt(attemptKey)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
