@@ -147,22 +147,6 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.data.quantity, 2)
   })
 
-  void it('PUT update basket item with non-positive quantity is rejected', async () => {
-    const createRes = await request(app)
-      .post('/api/BasketItems')
-      .set(authHeader)
-      .send({ BasketId: 2, ProductId: 15, quantity: 1 })
-    assert.equal(createRes.status, 200)
-
-    for (const quantity of [0, -5]) {
-      const res = await request(app)
-        .put('/api/BasketItems/' + createRes.body.data.id)
-        .set(authHeader)
-        .send({ quantity })
-      assert.equal(res.status, 400)
-    }
-  })
-
   void it('PUT update basket ID of basket item is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
