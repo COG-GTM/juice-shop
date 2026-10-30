@@ -12,10 +12,11 @@ import * as utils from '../lib/utils'
 
 export function showProductReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
-    const id = String(req.params.id)
+    const id = Number(req.params.id)
 
-    // Reviews may store the product id as a number (seed data) or a string (user-created)
-    db.reviewsCollection.find({ product: { $in: [id, Number(id)] } }).then((reviews: Review[]) => {
+    // Reviews store the product id as a number (seed data) or as the raw URL string (user-created)
+    db.reviewsCollection.find({}).then((allReviews: Array<Review & { product: number | string }>) => {
+      const reviews = allReviews.filter(review => Number(review.product) === id)
       const user = security.authenticatedUsers.from(req)
       for (let i = 0; i < reviews.length; i++) {
         if (user === undefined || reviews[i].likedBy.includes(user.data.email)) {
