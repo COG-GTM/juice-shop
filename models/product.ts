@@ -50,10 +50,8 @@ const ProductModelInit = (sequelize: Sequelize) => {
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
-          } else {
-            description = security.sanitizeSecure(description)
           }
-          this.setDataValue('description', description)
+          this.setDataValue('description', security.sanitizeSecure(description))
         }
       },
       price: DataTypes.DECIMAL,
