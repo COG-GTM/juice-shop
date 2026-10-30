@@ -88,7 +88,8 @@ describe('challengeUtils', () => {
     })
 
     it('does not repeat notifications for unsolved challenges', () => {
-      challengeUtils.repeatNotification({ ...solvedChallenge, solved: false }, 'requester-socket')
+      const unsolvedChallenge = { ...solvedChallenge, solved: false }
+      challengeUtils.repeatNotification(unsolvedChallenge, 'requester-socket')
 
       expect(to.callCount).to.equal(0)
       expect(broadcast.callCount).to.equal(0)
