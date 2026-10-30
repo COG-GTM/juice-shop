@@ -34,6 +34,29 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
+  void it('GET product reviews does not expose emails of users who liked a review', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    const before = await request(app)
+      .get('/rest/products/1/reviews')
+    const likeRes = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: before.body.data[0]._id })
+    assert.equal(likeRes.status, 200)
+
+    const res = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(res.status, 200)
+    for (const review of res.body.data) {
+      assert.equal(review.likedBy, undefined)
+      assert.equal(typeof review.likesCount, 'number')
+    }
+    assert.ok(!JSON.stringify(res.body).includes('jim@'))
+  })
+
   void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
