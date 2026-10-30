@@ -26,6 +26,17 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories via public API only exposes id and username of authors', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    const authors = res.body.data.map((memory: { User?: Record<string, unknown> }) => memory.User).filter(Boolean)
+    assert.ok(authors.length > 0)
+    for (const user of authors) {
+      assert.deepEqual(Object.keys(user).sort(), ['id', 'username'])
+    }
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),
