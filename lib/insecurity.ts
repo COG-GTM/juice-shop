@@ -186,10 +186,11 @@ export const appendUserId = () => {
 }
 
 const unexpiredSessionFor = (token?: string) => {
-  const user = authenticatedUsers.get(token)
-  if (!user || !token) return undefined
-  const payload = decode(utils.unquote(token)) as { exp?: number } | undefined
-  return typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now() ? undefined : user
+  if (!token) return undefined
+  const rawToken = utils.unquote(token)
+  const payload = decode(rawToken) as ResponseWithUser | undefined
+  if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+  return authenticatedUsers.get(token) ?? (verify(rawToken) ? payload : undefined)
 }
 
 export const bindUserId = () => {
