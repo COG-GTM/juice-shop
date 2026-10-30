@@ -94,11 +94,21 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
+    const pdfWindow = window.open('', '_blank')
     this.basketService.getOrderConfirmation(this.orderId).subscribe({
       next: (pdf) => {
-        window.open(URL.createObjectURL(pdf), '_blank')
+        const pdfUrl = URL.createObjectURL(pdf)
+        if (pdfWindow) {
+          pdfWindow.location.href = pdfUrl
+        } else {
+          window.open(pdfUrl, '_blank')
+        }
+        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
     })
   }
 
