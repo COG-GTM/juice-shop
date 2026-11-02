@@ -438,4 +438,24 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       .send({ messages: [] })
     assert.equal(otherUser.status, 400)
   })
+  void it('POST is rate limited per client IP even with rotating users and forged X-Forwarded-For', { timeout: 60000 }, async () => {
+    let limitedAt = -1
+    for (let i = 0; i < 121 && limitedAt < 0; i++) {
+      const token = security.authorize({ data: { id: 1000 + i, email: `ip-limit-${i}@juice-sh.op` } })
+      const res = await request(app)
+        .post('/rest/chat')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json', 'X-Forwarded-For': `203.0.113.${i % 250}` })
+        .send({ messages: [] })
+      if (res.status === 429) limitedAt = i
+      else assert.equal(res.status, 400)
+    }
+    assert.ok(limitedAt >= 0, 'expected the per-IP limit to trigger')
+
+    const freshToken = security.authorize({ data: { id: 5000, email: 'ip-limit-fresh@juice-sh.op' } })
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ Authorization: 'Bearer ' + freshToken, 'content-type': 'application/json', 'X-Forwarded-For': '198.51.100.7' })
+      .send({ messages: [{ role: 'user', content: 'Hi' }] })
+    assert.equal(res.status, 429)
+  })
 })
