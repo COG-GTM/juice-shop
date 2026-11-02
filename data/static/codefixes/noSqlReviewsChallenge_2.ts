@@ -10,7 +10,7 @@ export function updateProductReviews () {
       return
     }
     db.reviewsCollection.update(
-      { _id: req.body.id },
+      { _id: req.body.id, author: user.data.email },
       { $set: { message: req.body.message } }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
