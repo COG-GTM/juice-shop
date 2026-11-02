@@ -26,11 +26,14 @@ const loadPrivateKey = (): string => {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
-    const keyFile = fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE)
-    if (publiclyServedDirectories.some(dir => keyFile.startsWith(dir + path.sep))) {
+    const configured = process.env.JWT_PRIVATE_KEY_FILE
+    // Reject both the configured path and its symlink target: a path inside a
+    // served directory stays reachable there even if it links elsewhere.
+    const candidates = [path.resolve(configured), fs.realpathSync(configured)]
+    if (candidates.some(candidate => publiclyServedDirectories.some(dir => candidate === dir || candidate.startsWith(dir + path.sep)))) {
       throw new Error('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
     }
-    return fs.readFileSync(keyFile, 'utf8')
+    return fs.readFileSync(candidates[1], 'utf8')
   }
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,

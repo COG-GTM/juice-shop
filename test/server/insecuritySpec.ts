@@ -9,6 +9,9 @@ import chai from 'chai'
 import sinon from 'sinon'
 import crypto from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -255,6 +258,24 @@ describe('insecurity', () => {
       })
       expect(result.status).to.not.equal(0)
       expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+    }).timeout(20000)
+
+    it('refuses a symlink in a publicly served directory that points elsewhere', () => {
+      const target = path.join(os.tmpdir(), `jwt-${crypto.randomUUID()}.pem`)
+      const link = path.resolve('encryptionkeys', `jwt-link-${crypto.randomUUID()}.key`)
+      fs.writeFileSync(target, crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } }).privateKey)
+      fs.symlinkSync(target, link)
+      try {
+        const result = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', "await import('./lib/insecurity.ts')"], {
+          env: { ...process.env, JWT_PRIVATE_KEY_FILE: link },
+          encoding: 'utf8'
+        })
+        expect(result.status).to.not.equal(0)
+        expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+      } finally {
+        fs.rmSync(link, { force: true })
+        fs.rmSync(target, { force: true })
+      }
     }).timeout(20000)
   })
 })
