@@ -11,6 +11,7 @@ import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
+import { loadStaticUserData } from '../../data/staticData'
 import { createTestApp } from './helpers/setup'
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -96,6 +97,7 @@ void describe('/rest/user/login rate limiting', () => {
     .post('/rest/user/login')
     .set({ ...jsonHeader, 'X-Forwarded-For': spoofedIp(i) })
     .send({ email, password })
+  const passwordOf = async (key: string) => (await loadStaticUserData()).find(user => user.email === key)?.password ?? ''
 
   void it('POST ignores spoofed X-Forwarded-For and locks the account after 10 failed logins', async () => {
     const email = 'jim@' + config.get<string>('application.domain')
@@ -106,21 +108,22 @@ void describe('/rest/user/login rate limiting', () => {
     assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
     assert.equal(statuses[10], 429)
 
-    const correct = await login(email, 'ncc-1701', 99)
+    const correct = await login(email, await passwordOf('jim'), 99)
     assert.equal(correct.status, 429)
   })
 
   void it('POST does not count correct passwords of 2FA accounts as failed logins', async () => {
     const email = 'wurstbrot@' + config.get<string>('application.domain')
+    const password = await passwordOf('wurstbrot')
     for (let i = 0; i < 12; i++) {
-      const res = await login(email, 'EinBelegtesBrotMitSchinkenSCHINKEN!', i)
+      const res = await login(email, password, i)
       assert.equal(res.status, 401)
       assert.equal(res.body.status, 'totp_token_required')
     }
   })
 
   void it('POST for another account is not affected by the lockout', async () => {
-    const res = await login('bender@' + config.get<string>('application.domain'), 'OhG0dPlease1nsertLiquor!', 0)
+    const res = await login('bender@' + config.get<string>('application.domain'), await passwordOf('bender'), 0)
     assert.equal(res.status, 200)
   })
 })
