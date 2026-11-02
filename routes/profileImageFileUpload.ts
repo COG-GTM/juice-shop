@@ -11,6 +11,7 @@ import logger from '../lib/logger'
 import * as utils from '../lib/utils'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import { profileImageUploadPath, toProfileImageUserId } from '../lib/profileImageUpload'
 
 export function profileImageFileUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -38,7 +39,14 @@ export function profileImageFileUpload () {
       return
     }
 
-    const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
+    const userId = toProfileImageUserId(loggedInUser.data?.id)
+    const filePath = userId === undefined ? undefined : profileImageUploadPath(userId, uploadedFileType.ext)
+    if (userId === undefined || filePath === undefined) {
+      res.status(400)
+      next(new Error('Invalid user id in session'))
+      return
+    }
+
     try {
       await fs.writeFile(filePath, buffer)
     } catch (err) {
@@ -46,9 +54,9 @@ export function profileImageFileUpload () {
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
+      const user = await UserModel.findByPk(userId)
       if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}` })
+        await user.update({ profileImage: `assets/public/images/uploads/${userId}.${uploadedFileType.ext}` })
       }
     } catch (error) {
       next(error)
