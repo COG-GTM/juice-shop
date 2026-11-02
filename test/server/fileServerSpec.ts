@@ -29,14 +29,6 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]legal\.md/))
   })
 
-  it('should serve order confirmation PDFs from folder /ftp', () => {
-    req.params.file = 'order_5267-f9cd5882f54c75a3.pdf'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]order_5267-f9cd5882f54c75a3\.pdf/))
-  })
-
   it('should raise error for slashes in filename', () => {
     req.params.file = '../../../../nice.try'
 
@@ -47,7 +39,7 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  for (const file of ['acquisitions.md', 'announcement_encrypted.md', 'incident-support.kdbx', 'test.md', 'test.pdf', 'order_.pdf', 'order_5267-f9cd5882f54c75a3.pdf.bak']) {
+  for (const file of ['acquisitions.md', 'announcement_encrypted.md', 'incident-support.kdbx', 'test.md', 'test.pdf', 'order_.pdf', 'order_5267-f9cd5882f54c75a3.pdf', 'order_5267-f9cd5882f54c75a3.pdf.bak']) {
     it(`should not serve non-allowlisted file ${file}`, () => {
       req.params.file = file
 
