@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
@@ -127,6 +128,28 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file extracts entries into complaints folder', async () => {
+    const target = path.resolve('uploads/complaints/zipInsideComplaints.txt')
+    fs.rmSync(target, { force: true })
+    const file = path.resolve(__dirname, '../files/zipInsideComplaints.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.existsSync(target), true)
+  })
+
+  void it('POST zip file with directory traversal payload does not write outside of complaints folder', async () => {
+    const file = path.resolve(__dirname, '../files/zipSlipOutsideComplaints.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.existsSync(path.resolve('views/zipSlipOutsideComplaints.pug')), false)
   })
 
   void it('POST zip file with password protection', async () => {

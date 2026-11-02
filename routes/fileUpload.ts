@@ -8,6 +8,7 @@ import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
+import config from 'config'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
 import { type NextFunction, type Request, type Response } from 'express'
@@ -22,6 +23,21 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   } else {
     return res.status(400).json({ error: 'File is not passed' })
   }
+}
+
+function isAllowedZipEntryTarget (absolutePath: string) {
+  if (absolutePath.startsWith(path.resolve('uploads/complaints') + path.sep)) {
+    return true
+  }
+  const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  const videosDir = path.resolve('frontend/dist/frontend/assets/public/videos')
+  const subtitleTargets = [path.resolve(videosDir, subtitles), path.resolve(videosDir, utils.extractFilename(subtitles))]
+    .filter(target => target.startsWith(videosDir + path.sep))
+  const challengeTargets = [ // intentionally writable via Zip Slip for "fileWriteChallenge" and "videoXssChallenge"
+    path.resolve('ftp/legal.md'),
+    ...subtitleTargets
+  ]
+  return challengeTargets.includes(absolutePath)
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -41,8 +57,8 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const fileName = entry.path
                 const absolutePath = path.resolve('uploads/complaints/' + fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                if (isAllowedZipEntryTarget(absolutePath)) {
+                  entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
