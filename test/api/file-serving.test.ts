@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import { login } from './helpers/auth'
 
 let app: Express
 
@@ -132,12 +133,11 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('listing directory'))
   })
 
   void it('GET a non-existing file in will return a 404 error', async () => {
@@ -146,17 +146,30 @@ void describe('/encryptionkeys', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET the Premium Content AES key is not allowed', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('1337133713371337'))
   })
 
-  void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
+  void it('GET the JWT public key is not allowed', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('PUBLIC KEY'))
+  })
+
+  void it('POST a key file is not allowed', async () => {
+    const res = await request(app)
+      .post('/encryptionkeys/premium.key')
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET a key file whose name contains a "/" is not served', async () => {
     const res = await request(app)
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
-    assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+    assert.equal(res.status, 404)
   })
 })
 
@@ -201,10 +214,68 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file as admin for "Access Log" challenge', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set(await adminAuthHeader())
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+})
+
+async function adminAuthHeader () {
+  const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+  return { Authorization: 'Bearer ' + token }
+}
+
+void describe('/support/logs', () => {
+  const todaysLog = () => '/support/logs/access.log.' + utils.toISO8601(new Date())
+
+  void it('GET log directory listing without authentication is denied', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 401)
+    assert.ok(!res.text.includes('access.log'))
+  })
+
+  void it('GET access log file without authentication is denied', async () => {
+    const res = await request(app)
+      .get(todaysLog())
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET log directory listing and access log file as non-admin user is denied', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    for (const url of ['/support/logs', todaysLog()]) {
+      const res = await request(app)
+        .get(url)
+        .set({ Authorization: 'Bearer ' + token })
+      assert.equal(res.status, 403)
+      assert.ok(!res.text.includes('change-password'))
+    }
+  })
+
+  void it('GET log directory listing as admin', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(await adminAuthHeader())
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('access.log'))
+  })
+
+  void it('does not write change-password credentials from the query string into the access log', async () => {
+    const marker = 'LogLeak' + utils.randomHexString(8)
+    await request(app)
+      .get(`/rest/user/change-password?current=${marker}cur&new=${marker}new&repeat=${marker}new`)
+      .set({ Referer: `http://localhost/rest/user/change-password?cur%72ent=${marker}ref` })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    const res = await request(app)
+      .get(todaysLog())
+      .set(await adminAuthHeader())
+    assert.equal(res.status, 200)
+    const log = res.body instanceof Buffer ? res.body.toString() : res.text
+    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    assert.ok(!log.includes(marker))
   })
 })
