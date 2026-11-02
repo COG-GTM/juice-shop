@@ -94,32 +94,46 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
-  void it('POST new basket item with own BasketId followed by duplicate foreign BasketId is forbidden', async () => {
+  void it('POST new basket item with own BasketId followed by duplicate foreign BasketId is rejected', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send('{"ProductId":14,"quantity":1,"BasketId":2,"BasketId":1}')
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Duplicate keys are not allowed in the request body.')
 
-    const items = await request(app).get('/api/BasketItems').set(authHeader)
+    const items = await request(app).get('/api/BasketItems').set(otherUserAuthHeader)
     assert.equal(items.body.data.some((item: { BasketId: number, ProductId: number }) => item.BasketId === 1 && item.ProductId === 14), false)
   })
 
-  void it('POST new basket item with falsy first BasketId followed by foreign BasketId is forbidden', async () => {
+  void it('POST new basket item with falsy first BasketId followed by foreign BasketId is rejected', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send('{"ProductId":14,"quantity":1,"BasketId":0,"BasketId":1}')
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 400)
   })
 
-  void it('POST new basket item with foreign BasketId followed by duplicate own BasketId is added to own basket', async () => {
+  void it('POST new basket item with foreign BasketId followed by duplicate own BasketId is rejected', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send('{"ProductId":15,"quantity":1,"BasketId":1,"BasketId":2}')
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 2)
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new basket item with duplicate ProductId or quantity is rejected', async () => {
+    const productRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":15,"ProductId":1,"quantity":1}')
+    assert.equal(productRes.status, 400)
+
+    const quantityRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":15,"quantity":1,"quantity":5}')
+    assert.equal(quantityRes.status, 400)
   })
 
   void it('POST new basket item with BasketId hidden in nested object is added to own basket', async () => {
@@ -185,6 +199,21 @@ void describe('/api/BasketItems/:id', () => {
       .send({ quantity: 20 })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.quantity, 20)
+  })
+
+  void it('PUT update basket item with duplicate quantity keys is rejected', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ ProductId: 19, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+      .send('{"quantity":1,"quantity":2}')
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Duplicate keys are not allowed in the request body.')
   })
 
   void it('PUT update quantity of basket item via form-encoded body', async () => {

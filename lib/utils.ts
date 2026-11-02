@@ -190,6 +190,27 @@ export function isChallengeEnabled (challenge: Challenge): boolean {
   return enabled
 }
 
+export const hasDuplicateJsonKeys = (jsonString: string) => {
+  const parser = clarinet.parser()
+  const scopes: Array<Set<string>> = []
+  let duplicate = false
+  const addKey = (key: string | undefined) => {
+    const scope = scopes[scopes.length - 1]
+    if (key === undefined || scope === undefined) return
+    if (scope.has(key)) duplicate = true
+    scope.add(key)
+  }
+  parser.onopenobject = (key: string | undefined) => {
+    scopes.push(new Set())
+    addKey(key)
+  }
+  parser.onkey = addKey
+  parser.oncloseobject = () => { scopes.pop() }
+  parser.write(jsonString)
+  parser.close()
+  return duplicate
+}
+
 export const parseJsonCustom = (jsonString: string) => {
   const parser = clarinet.parser()
   const result: any[] = []

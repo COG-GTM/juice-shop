@@ -8,10 +8,33 @@ import { BasketItemModel } from '../models/basketitem'
 import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
+import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
 type AuthenticatedUser = ReturnType<typeof security.authenticatedUsers.from>
+
+interface RequestWithRawBody extends Request {
+  rawBody?: unknown
+}
+
+function hasDuplicateBodyKeys (req: Request) {
+  const rawBody = (req as RequestWithRawBody).rawBody
+  return typeof rawBody === 'string' && req.headers['content-type']?.includes('application/json') === true && utils.hasDuplicateJsonKeys(rawBody)
+}
+
+function rejectDuplicateBodyKeys (req: Request, res: Response) {
+  if (!hasDuplicateBodyKeys(req)) {
+    return false
+  }
+  const user = security.authenticatedUsers.from(req)
+  const basketIds = utils.parseJsonCustom((req as RequestWithRawBody).rawBody as string)
+    .filter(({ key }) => key === 'BasketId')
+    .map(({ value }) => value)
+  challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user?.bid != null && basketIds.some(id => id != null && id !== '' && id !== 'undefined' && Number(id) !== Number(user.bid)) })
+  res.status(400).json({ error: 'Duplicate keys are not allowed in the request body.' })
+  return true
+}
 
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -60,6 +83,9 @@ async function ownsBasket (user: AuthenticatedUser, basketId: number | null | un
 
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
+    if (rejectDuplicateBodyKeys(req, res)) {
+      return
+    }
     void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {
       next(error)
     })
@@ -119,6 +145,10 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await findOwnBasketItem(req, user.data.id)
       if (item == null) {
         res.status(403).json({ error: 'Not allowed' })
+        return
+      }
+      if (hasDuplicateBodyKeys(req)) {
+        res.status(400).json({ error: 'Duplicate keys are not allowed in the request body.' })
         return
       }
       const rawQuantity = req.body?.quantity
