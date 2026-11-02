@@ -13,7 +13,7 @@ export function serveAngularClient () {
     if (!utils.startsWith(url, '/api') && !utils.startsWith(url, '/rest')) {
       res.sendFile(path.resolve('frontend/dist/frontend/index.html'))
     } else {
-      next(new Error('Unexpected path: ' + url))
+      next(new Error('Unexpected path: ' + utils.stripQueryString(url)))
     }
   }
 }
