@@ -226,14 +226,27 @@ const privateNetworkSubnets: Array<[string, number, 'ipv4' | 'ipv6']> = [
   ['fe80::', 10, 'ipv6']
 ]
 
-const trustedProxyList = (extraProxies: string[]) => {
+// 'private' stands for all private networks; an explicit list without it trusts only the listed proxies
+const trustedProxyList = (entries: string[]) => {
   const list = new net.BlockList()
-  for (const [network, prefix, type] of privateNetworkSubnets) list.addSubnet(network, prefix, type)
-  for (const entry of extraProxies) {
-    const [network, prefix] = entry.trim().split('/')
+  for (const entry of entries.length > 0 ? entries : ['private']) {
+    if (entry.trim() === 'private') {
+      for (const [network, prefix, type] of privateNetworkSubnets) list.addSubnet(network, prefix, type)
+      continue
+    }
+    const [address, prefixText] = entry.trim().split('/')
+    let network = address
+    let prefix = prefixText !== undefined ? Number(prefixText) : undefined
+    if (net.isIPv6(address) && net.isIPv4(unmapIPv4(address))) {
+      network = unmapIPv4(address)
+      prefix = prefix !== undefined ? prefix - 96 : undefined
+    }
     const type = net.isIPv4(network) ? 'ipv4' : net.isIPv6(network) ? 'ipv6' : undefined
     if (type === undefined) continue
-    list.addSubnet(network, prefix !== undefined ? Number(prefix) : type === 'ipv4' ? 32 : 128, type)
+    const maxPrefix = type === 'ipv4' ? 32 : 128
+    prefix = prefix ?? maxPrefix
+    if (!Number.isInteger(prefix) || prefix < 0 || prefix > maxPrefix) continue
+    list.addSubnet(network, prefix, type)
   }
   return list
 }
@@ -268,10 +281,10 @@ const isTrustedProxy = (trustedProxies: net.BlockList, address: string) => {
 }
 
 // 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
-// the socket peer and stop at the first address that was not appended by a trusted proxy. Private networks are always
-// trusted; publicly addressed proxies must be listed (IPs or CIDRs) in RATE_LIMIT_TRUSTED_PROXIES.
-export const createClientIpForRateLimit = (extraTrustedProxies: string[] = []) => {
-  const trustedProxies = trustedProxyList(extraTrustedProxies)
+// the socket peer and stop at the first address that was not appended by a trusted proxy. Without configuration all
+// private networks are trusted; RATE_LIMIT_TRUSTED_PROXIES (IPs, CIDRs and/or 'private') replaces that default.
+export const createClientIpForRateLimit = (trustedProxyEntries: string[] = []) => {
+  const trustedProxies = trustedProxyList(trustedProxyEntries)
   return ({ headers, socket }: { headers: Record<string, string | string[] | undefined>, socket: { remoteAddress?: string } }) => {
     const forwardedFor = headers['x-forwarded-for']
     const hops = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '')
