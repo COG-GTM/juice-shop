@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
@@ -197,10 +198,41 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[a-f0-9]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).not.to.equal(security.hmac('password'))
+    })
+
+    it('does not use the formerly hardcoded secret', () => {
+      expect(security.hmac('admin123')).not.to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+    })
+  })
+
+  describe('authorize / verify', () => {
+    const forgedRs256Token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+
+    it('issues RS256 tokens that verify', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.hasExpectedAlgorithm(token)).to.equal(true)
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects tokens signed with the formerly hardcoded private key', () => {
+      expect(security.verify(forgedRs256Token)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public key', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects unsigned tokens', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op' } })).toString('base64url')
+      expect(security.verify(`${header}.${payload}.`)).to.equal(false)
     })
   })
 })
