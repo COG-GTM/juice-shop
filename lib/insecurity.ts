@@ -88,6 +88,10 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   },
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
+    const bid = this.get(token)?.bid
+    if (user.bid === undefined && bid !== undefined) {
+      user.bid = bid
+    }
     this.put(token, user)
   }
 }
