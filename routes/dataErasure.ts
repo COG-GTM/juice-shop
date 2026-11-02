@@ -135,14 +135,21 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 export default router
 
 function isOrderConfirmationPath (layout: string) {
+  const appRoot = path.resolve('.')
   const resolvedPath = path.resolve(layout)
-  let realPath = resolvedPath
-  try {
-    realPath = fs.realpathSync(resolvedPath)
-  } catch {
+  const candidates = [resolvedPath]
+  if (resolvedPath.startsWith(appRoot + path.sep)) {
     try {
-      realPath = path.join(fs.realpathSync(path.dirname(resolvedPath)), path.basename(resolvedPath))
-    } catch {}
+      candidates.push(fs.realpathSync(resolvedPath))
+    } catch {
+      try {
+        candidates.push(path.join(fs.realpathSync(path.dirname(resolvedPath)), path.basename(resolvedPath)))
+      } catch {}
+    }
   }
-  return [resolvedPath, realPath].some(candidate => candidate.toLowerCase().includes('orders'))
+  const ordersRoots = ['orders']
+  try {
+    ordersRoots.push(fs.realpathSync(path.resolve('orders')).toLowerCase())
+  } catch {}
+  return candidates.some(candidate => ordersRoots.some(root => candidate.toLowerCase().includes(root)))
 }
