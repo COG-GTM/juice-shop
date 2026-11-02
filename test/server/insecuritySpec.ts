@@ -165,6 +165,11 @@ describe('insecurity', () => {
       expect(bind({ headers: {}, body: { UserId: 1 } }).UserId).to.equal(null)
     })
 
+    it('sets UserId to null for a malformed token', () => {
+      expect(bind({ headers: { authorization: 'Bearer %%%.@@@.!!!' }, body: { UserId: 1 } }).UserId).to.equal(null)
+      expect(bind({ headers: { authorization: 'Bearer eyJhbGciOiJSUzI1NiJ9.bm90LWpzb24.c2ln' }, body: { UserId: 1 } }).UserId).to.equal(null)
+    })
+
     it('sets UserId to null for an unknown token', () => {
       expect(bind({ headers: { authorization: 'Bearer unknown' }, cookies: { token: 'unknown' }, body: { UserId: 1 } }).UserId).to.equal(null)
     })

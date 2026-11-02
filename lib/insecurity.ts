@@ -196,7 +196,12 @@ const isValidlySigned = (token: string) => {
 const unexpiredSessionFor = (token?: string) => {
   if (!token) return undefined
   const rawToken = utils.unquote(token)
-  const payload = decode(rawToken) as ResponseWithUser | undefined
+  let payload: ResponseWithUser | undefined
+  try {
+    payload = decode(rawToken)
+  } catch {
+    return undefined
+  }
   if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
   return authenticatedUsers.get(token) ?? (isValidlySigned(rawToken) ? payload : undefined)
 }
