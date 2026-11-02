@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -71,7 +72,8 @@ export function ensureBasketItemOwnership () {
         res.status(404).json({ error: 'No such item found!' })
         return
       }
-      if (user?.bid == null || item.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+      const basket = item.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId } }) : null
+      if (user?.data?.id == null || basket == null || Number(basket.UserId) !== Number(user.data.id)) {
         res.status(403).json({ error: 'You are not allowed to access this basket item.' })
         return
       }

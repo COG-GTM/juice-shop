@@ -275,3 +275,39 @@ void describe('/api/BasketItems/:id of another user', () => {
     assert.equal(res.status, 404)
   })
 })
+
+void describe('/api/BasketItems/:id after deluxe upgrade', () => {
+  void it('basket owner can still GET and PUT own item with the upgraded token', async () => {
+    const { token, bid } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const loginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(loginHeader)
+      .send({ BasketId: bid, ProductId: 6, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const cardsRes = await request(app).get('/api/Cards').set(loginHeader)
+    const upgradeRes = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(loginHeader)
+      .send({ paymentMode: 'card', paymentId: cardsRes.body.data[0].id.toString() })
+    assert.equal(upgradeRes.status, 200)
+    const deluxeHeader = { Authorization: 'Bearer ' + upgradeRes.body.data.token, 'content-type': 'application/json' }
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(deluxeHeader)
+    assert.equal(getRes.status, 200)
+
+    const putRes = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(deluxeHeader)
+      .send({ quantity: 2 })
+    assert.equal(putRes.status, 200)
+    assert.equal(putRes.body.data.quantity, 2)
+  })
+})
