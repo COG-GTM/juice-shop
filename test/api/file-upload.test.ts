@@ -11,19 +11,32 @@ import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
+let authHeader: { Authorization: string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + token }
 }, { timeout: 60000 })
 
 void describe('/file-upload', () => {
+  void it('POST file without authentication is rejected', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from('<?xml version="1.0"?><!DOCTYPE a [<!ENTITY x SYSTEM "file:///etc/passwd">]><a>&x;</a>'), 'unauthenticated.xml')
+    assert.equal(res.status, 401)
+    assert.doesNotMatch(res.text, /root:.*:0:0:/)
+  })
+
   void it('POST file valid PDF for client and API', async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -32,6 +45,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -40,6 +54,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -48,48 +63,80 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/deprecatedTypeForServer.xml')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('Apple Juice'))
   })
 
   void it('POST large XML file near upload size limit', async () => {
     const file = path.resolve(__dirname, '../files/maxSizeForServer.xml')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 410)
   })
 
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
+    void it('POST file type XML with XXE attack against Windows is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
+      assert.ok(!res.text.includes('16-bit app support'))
     })
 
-    void it('POST file type XML with XXE attack against Linux', async () => {
+    void it('POST file type XML with XXE attack against Linux is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
     })
 
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
+    void it('POST UTF-7 encoded XML with XXE attack does not disclose the file', async () => {
+      const payload = Buffer.from('<?xml version="1.0" encoding="UTF-7"?>+ADw-+ACE-DOCTYPE foo +AFs-+ADw-+ACE-ENTITY xxe SYSTEM +ACI-file:///etc/passwd+ACI-+AD4-+AF0-+AD4-+ADw-foo+AD4-+ACY-xxe+ADs-+ADw-/foo+AD4-')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', payload, 'xxeUtf7.xml')
+      assert.equal(res.status, 410)
+      assert.match(res.text, /XML documents must not contain a DTD|invalid XML document/)
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
+    })
+
+    void it('POST malformed XML does not reflect parser errors', async () => {
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', Buffer.from('<foo><bar></foo>'), 'malformed.xml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('invalid XML document'))
+      assert.ok(!res.text.includes('mismatch'))
+    })
+
+    void it('POST file type XML with Billion Laughs attack is rejected', async () => {
       const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.ok(res.text.includes('XML documents must not contain a DTD'))
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {
       const file = path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -98,6 +145,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -108,6 +156,7 @@ void describe('/file-upload', () => {
       const file = path.resolve(__dirname, '../files/yamlBomb.yml')
       const res = await request(app)
         .post('/file-upload')
+        .set(authHeader)
         .attach('file', file)
       assert.ok(res.status >= 410)
     })
@@ -117,6 +166,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 500)
   })
@@ -125,6 +175,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -133,6 +184,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .attach('file', file)
     assert.equal(res.status, 204)
   })
@@ -141,6 +193,7 @@ void describe('/file-upload', () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
+      .set(authHeader)
       .set('Content-Length', '42')
       .attach('file', file)
     assert.equal(res.status, 500)
