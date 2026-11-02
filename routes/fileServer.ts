@@ -6,6 +6,8 @@
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
+const safeFileName = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/
+
 const publicFiles = new Set(['legal.md'])
 const orderConfirmation = /^order_[0-9a-f]{4}-[0-9a-f]{16}\.pdf$/
 
@@ -17,9 +19,9 @@ export function servePublicFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (file.includes('/')) {
+    if (!safeFileName.test(file)) {
       res.status(403)
-      next(new Error('File names cannot contain forward slashes!'))
+      next(new Error('Invalid file name!'))
     } else if (isPublicFile(file)) {
       res.sendFile(path.resolve('ftp/', file))
     } else {

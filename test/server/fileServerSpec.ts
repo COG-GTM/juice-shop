@@ -66,7 +66,19 @@ describe('fileServer', () => {
       servePublicFiles()(req, res, next)
 
       expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
-      expect(res.status).to.have.been.calledWith(404)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
+
+  for (const file of ['..', 'legal.md\\..\\..\\package.json', 'C:legal.md', 'legal.md ', 'legal.md?']) {
+    it(`should reject unsafe file name ${file}`, () => {
+      req.params.file = file
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
       expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
     })
   }

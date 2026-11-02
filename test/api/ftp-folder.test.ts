@@ -56,11 +56,11 @@ void describe('/ftp', () => {
 
   for (const file of ['eastere.gg', 'suspicious_errors.yml', 'coupons_2013.md.bak', 'package.json.bak', 'encrypt.pyc']) {
     for (const suffix of ['.md', '.pdf']) {
-      void it(`GET /ftp/${file} via Poison Null Byte attack with ${suffix} suffix will return a 404 error`, async () => {
+      void it(`GET /ftp/${file} via Poison Null Byte attack with ${suffix} suffix will return a 403 error`, async () => {
         const res = await request(app)
           .get(`/ftp/${file}%2500${suffix}`)
           .buffer(true)
-        assert.equal(res.status, 404)
+        assert.equal(res.status, 403)
       })
     }
   }
@@ -98,27 +98,18 @@ void describe('/ftp', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('GET file /ftp/quarantine/juicy_malware_linux_amd_64.url', async () => {
-    const res = await request(app)
-      .get('/ftp/quarantine/juicy_malware_linux_amd_64.url')
-    assert.equal(res.status, 200)
-  })
+  for (const file of ['juicy_malware_linux_amd_64.url', 'juicy_malware_linux_arm_64.url', 'juicy_malware_macos_64.url', 'juicy_malware_windows_64.exe.url']) {
+    void it(`GET the quarantined file /ftp/quarantine/${file} will return a 404 error`, async () => {
+      const res = await request(app)
+        .get(`/ftp/quarantine/${file}`)
+      assert.equal(res.status, 404)
+    })
+  }
 
-  void it('GET file /ftp/quarantine/juicy_malware_linux_arm_64.url', async () => {
+  void it('GET /ftp/quarantine does not serve a directory listing', async () => {
     const res = await request(app)
-      .get('/ftp/quarantine/juicy_malware_linux_arm_64.url')
-    assert.equal(res.status, 200)
-  })
-
-  void it('GET existing file /ftp/quarantine/juicy_malware_macos_64.url', async () => {
-    const res = await request(app)
-      .get('/ftp/quarantine/juicy_malware_macos_64.url')
-    assert.equal(res.status, 200)
-  })
-
-  void it('GET existing file /ftp/quarantine/juicy_malware_windows_64.exe.url', async () => {
-    const res = await request(app)
-      .get('/ftp/quarantine/juicy_malware_windows_64.exe.url')
-    assert.equal(res.status, 200)
+      .get('/ftp/quarantine')
+    assert.equal(res.status, 404)
+    assert.ok(!responseText(res).includes('juicy_malware'))
   })
 })
