@@ -120,6 +120,11 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+
+    const basketRes = await request(app)
+      .get('/api/BasketItems')
+      .set({ Authorization: 'Bearer ' + res.body.data.token, 'content-type': 'application/json' })
+    assert.equal(basketRes.status, 200)
   })
 
   void it('POST upgrade deluxe membership fails for customers with insufficient wallet balance', async () => {

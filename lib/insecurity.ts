@@ -73,6 +73,12 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
+    if (user.bid === undefined) {
+      const previousBid = this.tokenMap[this.idMap[user.data.id]]?.bid
+      if (previousBid !== undefined) {
+        user.bid = previousBid
+      }
+    }
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
@@ -88,10 +94,6 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   },
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
-    const bid = this.get(token)?.bid
-    if (user.bid === undefined && bid !== undefined) {
-      user.bid = bid
-    }
     this.put(token, user)
   }
 }
