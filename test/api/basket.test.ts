@@ -148,6 +148,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
+    assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
@@ -191,5 +210,44 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 500)
+  })
+})
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number, couponData: string) {
+    const { token, bid } = await login(app, {
+      email: 'accountant@juice-sh.op',
+      password: 'i am an awesome accountant'
+    })
+    const accountantHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(accountantHeader)
+      .send({ BasketId: bid, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(accountantHeader)
+      .send({ couponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its original campaign date grants no discount', async () => {
+    const order = await checkoutWithCampaignCoupon(1, expiredCampaignCouponData)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored while the server clock is within the campaign day', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2, Buffer.from(`WMNSDY2019-${Date.now() + 7 * 24 * 60 * 60 * 1000}`).toString('base64'))
+    assert.notEqual(order.promotionalAmount, '0')
   })
 })

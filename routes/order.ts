@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -140,17 +141,15 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
             } catch (error: unknown) {
               next(error)
               return
@@ -181,23 +180,40 @@ export function placeOrder () {
   }
 }
 
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
+}
+
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
-    const campaign = campaigns[couponCode as keyof typeof campaigns]
+    const [couponCode, clientDate] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
+    const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+    if (campaign) {
+      if (isCampaignActive(campaign, Date.now())) {
+        return campaign.discount
+      }
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return Number(clientDate) === campaign.validOn })
     }
   }
   return 0
+}
+
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+function isCampaignActive (campaign: { validOn: number }, now: number) {
+  return now >= campaign.validOn && now < campaign.validOn + ONE_DAY_IN_MS
 }
 
 const campaigns = {
