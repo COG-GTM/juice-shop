@@ -130,6 +130,18 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
+  void it('POST zip file extracts entries into complaints folder', async () => {
+    const target = path.resolve('uploads/complaints/zipInsideComplaints.txt')
+    fs.rmSync(target, { force: true })
+    const file = path.resolve(__dirname, '../files/zipInsideComplaints.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.existsSync(target), true)
+  })
+
   void it('POST zip file with directory traversal payload does not write outside of complaints folder', async () => {
     const file = path.resolve(__dirname, '../files/zipSlipOutsideComplaints.zip')
     const res = await request(app)
