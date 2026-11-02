@@ -32,7 +32,7 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    BasketModel.findOne({ where: { id, UserId: req.body.UserId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
@@ -47,7 +47,7 @@ export function placeOrder () {
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              await BasketItemModel.destroy({ where: { BasketId: basket.id } })
               res.json({ orderConfirmation: orderId })
             })()
           })
@@ -173,7 +173,7 @@ export function placeOrder () {
             doc.end()
           })
         } else {
-          next(new Error(`Basket with id=${id} does not exist.`))
+          res.status(403).json({ status: 'error', message: 'Forbidden' })
         }
       }).catch((error: unknown) => {
         next(error)
