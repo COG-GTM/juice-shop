@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -62,6 +63,27 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = security.authenticatedUsers.from(req)
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item == null) {
+        res.status(404).json({ error: 'No such item found!' })
+        return
+      }
+      const basket = item.BasketId != null ? await BasketModel.findOne({ where: { id: item.BasketId } }) : null
+      if (user?.data?.id == null || basket == null || Number(basket.UserId) !== Number(user.data.id)) {
+        res.status(403).json({ error: 'You are not allowed to access this basket item.' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {

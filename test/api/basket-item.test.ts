@@ -137,7 +137,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('PUT update basket item without basket ID is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -149,8 +149,7 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 403)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
@@ -209,5 +208,106 @@ void describe('/api/BasketItems/:id', () => {
       .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/api/BasketItems/:id of another user', () => {
+  let otherAuthHeader: { Authorization: string, 'content-type': string }
+  let otherItemId: number
+
+  before(async () => {
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    otherAuthHeader = {
+      Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(otherAuthHeader)
+      .send({ BasketId: 1, ProductId: 5, quantity: 1 })
+    assert.equal(createRes.status, 200)
+    otherItemId = createRes.body.data.id
+  })
+
+  void it('GET basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/' + otherItemId)
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update quantity of basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/' + otherItemId)
+      .set(authHeader)
+      .send({ quantity: 2 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update basket ID of basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/' + otherItemId)
+      .set(authHeader)
+      .send({ BasketId: 2 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE basket item of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/BasketItems/' + otherItemId)
+      .set(authHeader)
+    assert.equal(res.status, 403)
+
+    const check = await request(app)
+      .get('/api/BasketItems/' + otherItemId)
+      .set(otherAuthHeader)
+    assert.equal(check.status, 200)
+    assert.equal(check.body.data.quantity, 1)
+  })
+
+  void it('GET non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/999999')
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+})
+
+void describe('/api/BasketItems/:id after deluxe upgrade', () => {
+  void it('basket owner can still GET and PUT own item with the upgraded token', async () => {
+    const { token, bid } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const loginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(loginHeader)
+      .send({ BasketId: bid, ProductId: 6, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const cardsRes = await request(app).get('/api/Cards').set(loginHeader)
+    const upgradeRes = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(loginHeader)
+      .send({ paymentMode: 'card', paymentId: cardsRes.body.data[0].id.toString() })
+    assert.equal(upgradeRes.status, 200)
+    const deluxeHeader = { Authorization: 'Bearer ' + upgradeRes.body.data.token, 'content-type': 'application/json' }
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(deluxeHeader)
+    assert.equal(getRes.status, 200)
+
+    const putRes = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(deluxeHeader)
+      .send({ quantity: 2 })
+    assert.equal(putRes.status, 200)
+    assert.equal(putRes.body.data.quantity, 2)
   })
 })
