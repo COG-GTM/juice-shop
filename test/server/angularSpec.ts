@@ -46,4 +46,12 @@ describe('angular', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
+
+  it('should not include query string in error for unexpected /rest URL', () => {
+    req.url = '/rest/user/change-password?current=old&new=secret&repeat=secret'
+
+    serveAngularClient()(req, res, next)
+
+    expect(next).to.have.been.calledWith(sinon.match.has('message', 'Unexpected path: /rest/user/change-password'))
+  })
 })
