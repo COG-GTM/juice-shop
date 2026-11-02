@@ -871,10 +871,20 @@
 	},
 	"noSqlReviewsChallenge_1.ts": {
 		"added": [
-			9
+			9,
+			14,
+			15,
+			16,
+			17,
+			18,
+			19,
+			20,
+			21,
+			23
 		],
 		"removed": [
-			9
+			9,
+			16
 		]
 	},
 	"noSqlReviewsChallenge_2.ts": {
@@ -882,9 +892,20 @@
 			9,
 			10,
 			11,
-			12
+			12,
+			14,
+			15,
+			16,
+			17,
+			18,
+			19,
+			20,
+			21,
+			23
 		],
-		"removed": []
+		"removed": [
+			13
+		]
 	},
 	"noSqlReviewsChallenge_3_correct.ts": {
 		"added": [],

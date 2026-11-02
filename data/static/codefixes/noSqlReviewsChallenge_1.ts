@@ -11,16 +11,8 @@ export function updateProductReviews () {
     }
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: id })
-      if (!review) {
-        return res.status(404).json({ error: 'Not found' })
-      }
-      if (review.author !== user.data.email) {
-        return res.status(403).json({ error: 'Not allowed' })
-      }
-
       const result: { modified: number, original: Array<{ author: any }> } = await db.reviewsCollection.update(
-        { _id: id, author: user.data.email },
+        { _id: id },
         { $set: { message: req.body.message } },
         { multi: false }
       )
