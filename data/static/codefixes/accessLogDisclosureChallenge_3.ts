@@ -1,6 +1,5 @@
 /* /ftp file download */
-  app.use('/ftp(?!/quarantine)/:file', servePublicFiles())
-  app.use('/ftp/quarantine/:file', serveQuarantineFiles())
+  app.use('/ftp/:file', servePublicFiles())
 
   app.use('/.well-known', express.static('.well-known'))
 

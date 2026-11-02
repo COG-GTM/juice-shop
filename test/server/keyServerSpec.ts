@@ -57,4 +57,13 @@ describe('keyServer', () => {
     expect(res.status).to.have.been.calledWith(403)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
+
+  it('should reject premium.key via Poison Null Byte attack', () => {
+    req.params.file = 'premium.key%00.pub'
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+  })
 })
