@@ -51,7 +51,7 @@ before(async () => {
 void describe('order confirmation PDFs', () => {
   void it('are not listed in the public /ftp directory', async () => {
     const res = await request(app).get('/ftp')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 404)
     assert.ok(!res.text.includes('order_'))
   })
 
