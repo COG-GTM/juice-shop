@@ -47,7 +47,8 @@ describe('/profile', () => {
   })
 
   describe('challenge "ssti"', () => {
-    it('should be possible to inject arbitrary nodeJs commands in username', () => {
+    // Username is no longer compiled as Pug source, so SSTI via the profile page is not possible anymore
+    xit('should be possible to inject arbitrary nodeJs commands in username', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')
