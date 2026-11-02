@@ -82,7 +82,7 @@ void describe('/ftp', () => {
     const res = await request(app)
       .get('/ftp/%2fetc%2fos-release%2500.md')
     assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+    assert.ok(res.text.includes('Error: Invalid file name!'))
   })
 
   void it('GET an accessible file directly from file system path on server', async () => {
