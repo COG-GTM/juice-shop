@@ -75,8 +75,9 @@ export default defineConfig({
         isWindows () {
           return utils.isWindows()
         },
-        forgeJwt (email: string) {
-          return jwt.sign({ data: { email } }, security.publicKey, { algorithm: 'HS256' })
+        async forgeJwt (email: string) {
+          const publicKey = await (await fetch('http://localhost:3000/encryptionkeys/jwt.pub')).text()
+          return jwt.sign({ data: { email } }, publicKey, { algorithm: 'HS256' })
         }
       })
     }

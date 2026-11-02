@@ -36,10 +36,12 @@ const loadPrivateKey = (): string => {
 const privateKey = loadPrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 
-try {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-} catch {
-  /* read-only file system: public key is not published */
+export const publishPublicKey = () => {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  } catch {
+    /* read-only file system: public key is not published */
+  }
 }
 
 interface ResponseWithUser {
