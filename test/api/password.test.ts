@@ -124,7 +124,7 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
-  void it('POST password change keeps revoked sessions from being restored via whoami', async () => {
+  void it('POST password change keeps revoked sessions from being restored or used on protected APIs', async () => {
     await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -156,6 +156,15 @@ void describe('/rest/user/change-password', () => {
 
     assert.notEqual(res.status, 200)
     assert.equal(await loginStatus('restoredsession@be.rt', 'second-secret'), 200)
+
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + oldToken })
+      .expect(401)
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + currentToken })
+      .expect(200)
   })
 
   void it('GET password change via query string is no longer supported', async () => {
