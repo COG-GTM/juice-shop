@@ -74,13 +74,11 @@ void describe('/rest/products/search', () => {
     assert.equal(res.body.data.length, 0)
   })
 
-  void it('GET product search ignores non-string search parameters', async () => {
-    const productsRes = await request(app)
-      .get('/api/Products')
-    const searchRes = await request(app)
+  void it('GET product search treats repeated search parameters as literal search text', async () => {
+    const res = await request(app)
       .get("/rest/products/search?q=')) union select 1--&q=x")
-    assert.equal(searchRes.status, 200)
-    assert.equal(searchRes.body.data.length, productsRes.body.data.length)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
   })
 
   void it('GET product search cannot select logically deleted christmas special by default', async () => {
