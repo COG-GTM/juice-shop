@@ -47,6 +47,15 @@ void describe('/rest/products/search', () => {
     assert.equal(res.body.data.length, 0)
   })
 
+  void it('GET product search with unbalanced quotes and parentheses returns no SQL error text', async () => {
+    const res = await request(app)
+      .get("/rest/products/search?q='))")
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.length, 0)
+    assert.doesNotMatch(res.text, /SQLITE|syntax error/i)
+  })
+
   for (const payload of [
     "' union select id,email,password from users--",
     "') union select id,email,password from users--",
