@@ -83,6 +83,7 @@ describe('fileUpload', () => {
       '../../frontend/dist/frontend/main.js',
       '../../build/routes/login.js',
       '../../node_modules/svg-captcha/index.js',
+      '../../node_modules/pug/lib/index.js',
       '../../data/static/users.yml',
       '../../test-zip-slip.txt',
       '../../views/promotionVideo.pug',
