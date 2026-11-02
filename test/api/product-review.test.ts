@@ -62,15 +62,56 @@ void describe('/rest/products/:id/reviews', () => {
 
 void describe('/rest/products/reviews', () => {
   let reviewId: string
+  let adminReviewId: string
+  let adminToken: string
 
   before(async () => {
     const res = await request(app)
       .get('/rest/products/1/reviews')
     const response = res.body
     reviewId = response.data[0]._id
+
+    adminToken = (await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })).token
+    const productCount = config.get<Product[]>('products').length
+    for (let productId = 1; productId <= productCount && !adminReviewId; productId++) {
+      const reviews = (await request(app).get(`/rest/products/${productId}/reviews`)).body.data
+      adminReviewId = reviews.find((review: { author: string }) => review.author === 'admin@' + config.get<string>('application.domain'))?._id
+    }
+    assert.ok(adminReviewId)
   })
 
-  void it('PATCH single product review can be edited', async () => {
+  void it('PATCH single product review can be edited by its author', async () => {
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${adminToken}` })
+      .send({
+        id: adminReviewId,
+        message: 'Lorem Ipsum'
+      })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.modified, 1)
+    assert.ok(Array.isArray(res.body.original))
+    assert.ok(Array.isArray(res.body.updated))
+  })
+
+  void it('PATCH product review of another user is not modified', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: adminReviewId,
+        message: 'Forged'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.modified, 0)
+  })
+
+  void it('PATCH product review without a known user session is rejected', async () => {
     const res = await request(app)
       .patch('/rest/products/reviews')
       .set(authHeader)
@@ -78,11 +119,7 @@ void describe('/rest/products/reviews', () => {
         id: reviewId,
         message: 'Lorem Ipsum'
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
-    assert.ok(Array.isArray(res.body.original))
-    assert.ok(Array.isArray(res.body.updated))
+    assert.equal(res.status, 401)
   })
 
   void it('PATCH single product review editing need an authenticated user', async () => {
@@ -123,21 +160,14 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
-
+  void it('PATCH multiple product reviews via operator injection is rejected', async () => {
     const res = await request(app)
       .patch('/rest/products/reviews')
-      .set(authHeader)
+      .set({ Authorization: `Bearer ${adminToken}` })
       .send({
         id: { $ne: -1 },
         message: 'trololololololololololololololololololololololololololol'
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
-    assert.ok(Array.isArray(res.body.original))
-    assert.ok(Array.isArray(res.body.updated))
-    assert.equal(res.body.modified, totalReviews)
+    assert.equal(res.status, 400)
   })
 })
