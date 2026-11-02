@@ -51,10 +51,30 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+const jwtAlgorithm = 'RS256'
+
+export const hasExpectedAlgorithm = (token?: string) => {
+  if (!token) return false
+  try {
+    return jws.decode(token)?.header?.alg === jwtAlgorithm
+  } catch {
+    return false
+  }
+}
+
+const rejectUnexpectedAlgorithm = (middleware: (req: Request, res: Response, next: NextFunction) => void) => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (token && !hasExpectedAlgorithm(token)) {
+    next(Object.assign(new Error('Invalid token algorithm'), { name: 'UnauthorizedError', status: 401 }))
+    return
+  }
+  middleware(req, res, next)
+}
+
+export const isAuthorized = () => rejectUnexpectedAlgorithm(expressJwt(({ secret: publicKey }) as any))
+export const denyAll = () => rejectUnexpectedAlgorithm(expressJwt({ secret: '' + Math.random() } as any))
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm })
+export const verify = (token: string) => hasExpectedAlgorithm(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -187,7 +207,7 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
+  if (hasExpectedAlgorithm(token)) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
