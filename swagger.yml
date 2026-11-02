@@ -44,8 +44,9 @@ components:
       type: array
       items: { $ref: '#/components/schemas/OrderLine' }
     OrderLinesData:
-      description: 'Order line(s) in customer specific JSON format'
+      description: 'JSON string holding one OrderLine or an array of 1-1000 OrderLines (productId and quantity are required positive integers; customerReference may be a string or an array of strings; couponCode is an optional string). Any other content is rejected with HTTP 400.'
       type: string
+      maxLength: 100000
       example: '[{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"},{"productId": 13,"quantity": 2000,"customerReference": "PO0000003.4"}]'
 security:
   -
