@@ -159,6 +159,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(deleteRes.status, 200)
   })
 
+  void it('POST placing an order with a negative quantity line offset by positive items is rejected and does not change stock', async () => {
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: ownBasketId, ProductId: 1, quantity: -1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app).post(`/rest/basket/${ownBasketId}/checkout`).set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Basket item quantities must be positive.'))
+
+    const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
+    assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+
+    const deleteRes = await request(app).delete(`/api/BasketItems/${itemRes.body.data.id}`).set(authHeader)
+    assert.equal(deleteRes.status, 200)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(forgedCoupon))
