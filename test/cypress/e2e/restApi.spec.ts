@@ -75,7 +75,7 @@ describe('/api', () => {
 })
 
 describe('/rest/saveLoginIp', () => {
-  describe('challenge "httpHeaderXss"', () => {
+  describe('True-Client-IP header', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
@@ -83,27 +83,18 @@ describe('/rest/saveLoginIp', () => {
       })
     })
 
-    it('should be possible to save log-in IP when logged in', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/rest/saveLoginIp`,
-              {
-                method: 'GET',
-                cache: 'no-cache',
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem('token')}`,
-                  'True-Client-IP': '<iframe src="javascript:alert(`xss`)">'
-                }
-              }
-            )
-            if (response.status === 200) {
-              console.log('Success')
-            }
-          })
-          cy.expectChallengeSolved({ challenge: 'HTTP-Header XSS' }) // TODO Add missing check for alert presence
-        }
+    it('should strip HTML from the saved log-in IP', () => {
+      cy.window().then((win) => {
+        cy.request({
+          url: '/rest/saveLoginIp',
+          headers: {
+            Authorization: `Bearer ${win.localStorage.getItem('token')}`,
+            'True-Client-IP': '<iframe src="javascript:alert(`xss`)">'
+          }
+        }).then((response) => {
+          expect(response.status).to.eq(200)
+          expect(response.body.lastLoginIp).not.to.contain('<iframe')
+        })
       })
     })
   })
