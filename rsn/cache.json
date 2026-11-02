@@ -728,60 +728,19 @@
 	},
 	"forgedReviewChallenge_1.ts": {
 		"added": [
-			4,
-			5,
-			6,
-			7,
-			8,
-			9,
-			10,
-			11,
-			12,
-			13,
 			16
 		],
 		"removed": [
-			6,
-			7,
-			8
+			16
 		]
 	},
 	"forgedReviewChallenge_2_correct.ts": {
-		"added": [
-			4,
-			5,
-			6,
-			7,
-			8,
-			9,
-			10,
-			11,
-			12,
-			13,
-			16
-		],
-		"removed": [
-			6,
-			7,
-			8
-		]
+		"added": [],
+		"removed": []
 	},
 	"forgedReviewChallenge_3.ts": {
-		"added": [
-			4,
-			5,
-			6,
-			7,
-			8,
-			9,
-			10,
-			11,
-			12,
-			13
-		],
-		"removed": [
-			6
-		]
+		"added": [],
+		"removed": []
 	},
 	"localXssChallenge_1.ts": {
 		"added": [],
@@ -889,46 +848,20 @@
 		"removed": []
 	},
 	"noSqlReviewsChallenge_1.ts": {
-		"added": [
-			4,
-			9,
-			10,
-			11,
-			12
-		],
-		"removed": [
-			4,
-			11
-		]
+		"added": [],
+		"removed": []
 	},
 	"noSqlReviewsChallenge_2.ts": {
 		"added": [
-			4,
 			6,
 			7,
-			8,
-			9,
-			10,
-			11,
-			12,
-			13
+			8
 		],
-		"removed": [
-			6
-		]
+		"removed": []
 	},
 	"noSqlReviewsChallenge_3_correct.ts": {
-		"added": [
-			4,
-			9,
-			10,
-			11,
-			12
-		],
-		"removed": [
-			4,
-			11
-		]
+		"added": [],
+		"removed": []
 	},
 	"redirectChallenge_1.ts": {
 		"added": [],
