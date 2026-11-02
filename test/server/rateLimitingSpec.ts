@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { randomUUID } from 'node:crypto'
 import express, { type Request, type Response } from 'express'
 import request from 'supertest'
 import chai from 'chai'
@@ -84,12 +85,14 @@ describe('rateLimiting', () => {
 })
 
 describe('loginRateLimit', () => {
+  const validPassword = randomUUID()
+  const valid2faPassword = randomUUID()
   const loginApp = (options: { maxPerClient?: number, maxPerAccount?: number }) => {
     const app = express()
     app.use(express.json())
     app.post('/login', ...rateLimiting.loginRateLimit(options), (req: Request, res: Response) => {
-      if (req.body.password === 'correct') res.json({ authentication: {} })
-      else if (req.body.password === 'correct-2fa') res.status(401).json({ status: 'totp_token_required' })
+      if (req.body.password === validPassword) res.json({ authentication: {} })
+      else if (req.body.password === valid2faPassword) res.status(401).json({ status: 'totp_token_required' })
       else res.status(401).send('Invalid email or password.')
     })
     return app
@@ -108,8 +111,8 @@ describe('loginRateLimit', () => {
     expect(await attempts(app, [
       { email: 'a@b.c', password: 'x' },
       { email: 'a@b.c', password: 'y' },
-      { email: 'a@b.c', password: 'correct' },
-      { email: 'other@b.c', password: 'correct' }
+      { email: 'a@b.c', password: validPassword },
+      { email: 'other@b.c', password: validPassword }
     ])).to.deep.equal([401, 401, 429, 200])
   })
 
@@ -119,19 +122,19 @@ describe('loginRateLimit', () => {
       { email: '1@b.c', password: 'x' },
       { email: '2@b.c', password: 'x' },
       { email: '3@b.c', password: 'x' },
-      { email: '4@b.c', password: 'correct' }
+      { email: '4@b.c', password: validPassword }
     ])).to.deep.equal([401, 401, 401, 429])
   })
 
   it('does not count successful logins or correct passwords of 2FA accounts', async () => {
     const app = loginApp({ maxPerClient: 2, maxPerAccount: 2 })
     expect(await attempts(app, [
-      { email: 'a@b.c', password: 'correct' },
-      { email: 'a@b.c', password: 'correct-2fa' },
-      { email: 'a@b.c', password: 'correct' },
-      { email: 'a@b.c', password: 'correct-2fa' },
+      { email: 'a@b.c', password: validPassword },
+      { email: 'a@b.c', password: valid2faPassword },
+      { email: 'a@b.c', password: validPassword },
+      { email: 'a@b.c', password: valid2faPassword },
       { email: 'a@b.c', password: 'x' },
-      { email: 'a@b.c', password: 'correct' }
+      { email: 'a@b.c', password: validPassword }
     ])).to.deep.equal([200, 401, 200, 401, 401, 200])
   })
 })
