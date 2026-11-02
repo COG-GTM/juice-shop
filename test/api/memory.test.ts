@@ -26,6 +26,18 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories does not expose sensitive user data', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    const users = res.body.data.map((memory: { User: Record<string, unknown> | null }) => memory.User).filter(Boolean)
+    assert.ok(users.length > 0)
+    for (const user of users) {
+      assert.deepEqual(Object.keys(user).sort(), ['id', 'username'])
+    }
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),
