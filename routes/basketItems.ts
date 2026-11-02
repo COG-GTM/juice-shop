@@ -62,6 +62,26 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = security.authenticatedUsers.from(req)
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item == null) {
+        res.status(404).json({ error: 'No such item found!' })
+        return
+      }
+      if (user?.bid == null || item.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+        res.status(403).json({ error: 'You are not allowed to access this basket item.' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
