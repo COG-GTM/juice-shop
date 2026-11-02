@@ -90,3 +90,37 @@ void describe('/rest/2fa/verify rate limiting', () => {
     assert.equal(correct.status, 429)
   })
 })
+
+void describe('/rest/user/login rate limiting', () => {
+  const login = async (email: string, password: string, i: number) => await request(app)
+    .post('/rest/user/login')
+    .set({ ...jsonHeader, 'X-Forwarded-For': spoofedIp(i) })
+    .send({ email, password })
+
+  void it('POST ignores spoofed X-Forwarded-For and locks the account after 10 failed logins', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      statuses.push((await login(email, 'guess' + i, i)).status)
+    }
+    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(401))
+    assert.equal(statuses[10], 429)
+
+    const correct = await login(email, 'ncc-1701', 99)
+    assert.equal(correct.status, 429)
+  })
+
+  void it('POST does not count correct passwords of 2FA accounts as failed logins', async () => {
+    const email = 'wurstbrot@' + config.get<string>('application.domain')
+    for (let i = 0; i < 12; i++) {
+      const res = await login(email, 'EinBelegtesBrotMitSchinkenSCHINKEN!', i)
+      assert.equal(res.status, 401)
+      assert.equal(res.body.status, 'totp_token_required')
+    }
+  })
+
+  void it('POST for another account is not affected by the lockout', async () => {
+    const res = await login('bender@' + config.get<string>('application.domain'), 'OhG0dPlease1nsertLiquor!', 0)
+    assert.equal(res.status, 200)
+  })
+})

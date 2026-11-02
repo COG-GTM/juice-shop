@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request } from 'express'
+import express, { type Request, type Response } from 'express'
+import request from 'supertest'
 import chai from 'chai'
 
 import * as security from '../../lib/insecurity'
@@ -79,6 +80,59 @@ describe('rateLimiting', () => {
       expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken: 'garbage' }))).to.equal(undefined)
       expect(rateLimiting.secondFactorUserOf(requestWithBody({}))).to.equal(undefined)
     })
+  })
+})
+
+describe('loginRateLimit', () => {
+  const loginApp = (options: { maxPerClient?: number, maxPerAccount?: number }) => {
+    const app = express()
+    app.use(express.json())
+    app.post('/login', ...rateLimiting.loginRateLimit(options), (req: Request, res: Response) => {
+      if (req.body.password === 'correct') res.json({ authentication: {} })
+      else if (req.body.password === 'correct-2fa') res.status(401).json({ status: 'totp_token_required' })
+      else res.status(401).send('Invalid email or password.')
+    })
+    return app
+  }
+
+  const attempts = async (app: express.Express, logins: Array<{ email: string, password: string }>) => {
+    const statuses: number[] = []
+    for (const [i, body] of logins.entries()) {
+      statuses.push((await request(app).post('/login').set('X-Forwarded-For', `10.0.0.${i + 1}`).send(body)).status)
+    }
+    return statuses
+  }
+
+  it('locks an account after the allowed number of failed logins, even for the correct password', async () => {
+    const app = loginApp({ maxPerAccount: 2 })
+    expect(await attempts(app, [
+      { email: 'a@b.c', password: 'x' },
+      { email: 'a@b.c', password: 'y' },
+      { email: 'a@b.c', password: 'correct' },
+      { email: 'other@b.c', password: 'correct' }
+    ])).to.deep.equal([401, 401, 429, 200])
+  })
+
+  it('caps failed logins per client address regardless of X-Forwarded-For or targeted account', async () => {
+    const app = loginApp({ maxPerClient: 3 })
+    expect(await attempts(app, [
+      { email: '1@b.c', password: 'x' },
+      { email: '2@b.c', password: 'x' },
+      { email: '3@b.c', password: 'x' },
+      { email: '4@b.c', password: 'correct' }
+    ])).to.deep.equal([401, 401, 401, 429])
+  })
+
+  it('does not count successful logins or correct passwords of 2FA accounts', async () => {
+    const app = loginApp({ maxPerClient: 2, maxPerAccount: 2 })
+    expect(await attempts(app, [
+      { email: 'a@b.c', password: 'correct' },
+      { email: 'a@b.c', password: 'correct-2fa' },
+      { email: 'a@b.c', password: 'correct' },
+      { email: 'a@b.c', password: 'correct-2fa' },
+      { email: 'a@b.c', password: 'x' },
+      { email: 'a@b.c', password: 'correct' }
+    ])).to.deep.equal([200, 401, 200, 401, 401, 200])
   })
 })
 
