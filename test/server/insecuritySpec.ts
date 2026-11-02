@@ -8,6 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import sinon from 'sinon'
 import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -244,5 +245,16 @@ describe('insecurity', () => {
         expect(res.cookie.called).to.equal(false)
       }
     })
+  })
+
+  describe('JWT_PRIVATE_KEY_FILE', () => {
+    it('refuses to load a signing key from a publicly served directory', () => {
+      const result = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', "await import('./lib/insecurity.ts')"], {
+        env: { ...process.env, JWT_PRIVATE_KEY_FILE: 'encryptionkeys/premium.key' },
+        encoding: 'utf8'
+      })
+      expect(result.status).to.not.equal(0)
+      expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+    }).timeout(20000)
   })
 })

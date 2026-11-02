@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -18,12 +19,18 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
+const publiclyServedDirectories = ['encryptionkeys', 'ftp', 'logs', '.well-known', 'frontend/dist', 'node_modules'].map(dir => path.resolve(dir))
+
 const loadPrivateKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
-    return fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+    const keyFile = fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE)
+    if (publiclyServedDirectories.some(dir => keyFile.startsWith(dir + path.sep))) {
+      throw new Error('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+    }
+    return fs.readFileSync(keyFile, 'utf8')
   }
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
