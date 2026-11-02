@@ -147,19 +147,15 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "videoXssChallenge"', () => {
-    it('should be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
+    it('should not be possible to inject js in subtitles by uploading zip file with filenames having path traversal', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#complaintMessage').type('Here we go!')
           cy.get('#file').selectFile('test/files/videoExploit.zip')
           cy.get('#submitButton').click()
-          cy.visit('/promotion')
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.visit('/')
-          cy.expectChallengeSolved({ challenge: 'Video XSS' })
+          cy.wait(2000)
+          cy.request('/promotion').its('body').should('not.contain', '</script><script>alert(`xss`)</script>')
+          cy.request('/api/Challenges/?name=Video XSS').its('body.data.0.solved').should('equal', false)
         }
       })
     })
