@@ -12,10 +12,26 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import config from 'config'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
+
+async function postFeedback (headers: Record<string, string>, comment: string) {
+  const captchaRes = await request(app).get('/rest/captcha')
+  const res = await request(app)
+    .post('/api/Feedbacks')
+    .set(headers)
+    .send({ comment, rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+  assert.equal(res.status, 201)
+  return res.body.data
+}
+
+async function bearer (email: string, password: string) {
+  const { token } = await login(app, { email: email + '@' + config.get<string>('application.domain'), password })
+  return { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -27,6 +43,34 @@ void describe('/api/Feedbacks', () => {
     const res = await request(app)
       .get('/api/Feedbacks')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all feedback hides author user IDs from anonymous users', async () => {
+    const res = await request(app)
+      .get('/api/Feedbacks')
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const feedback of res.body.data) {
+      assert.equal(feedback.UserId, undefined)
+    }
+  })
+
+  void it('GET all feedback hides author user IDs from customers', async () => {
+    const res = await request(app)
+      .get('/api/Feedbacks')
+      .set(await bearer('jim', 'ncc-1701'))
+    assert.equal(res.status, 200)
+    for (const feedback of res.body.data) {
+      assert.equal(feedback.UserId, undefined)
+    }
+  })
+
+  void it('GET all feedback shows author user IDs to admins', async () => {
+    const res = await request(app)
+      .get('/api/Feedbacks')
+      .set(await bearer('admin', 'admin123'))
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.some((feedback: { UserId?: number }) => typeof feedback.UserId === 'number'))
   })
 
   void it('POST sanitizes unsafe HTML from comment', async () => {
@@ -69,7 +113,7 @@ void describe('/api/Feedbacks', () => {
     })
   }
 
-  void it('POST feedback in another users name as anonymous user', async () => {
+  void it('POST feedback in another users name as anonymous user is stored anonymously', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -87,10 +131,10 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, null)
   })
 
-  void it('POST feedback in a non-existing users name as anonymous user fails with constraint error', async () => {
+  void it('POST feedback in a non-existing users name as anonymous user is stored anonymously', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -106,9 +150,8 @@ void describe('/api/Feedbacks', () => {
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
-    assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(res.body.errors.includes('SQLITE_CONSTRAINT: FOREIGN KEY constraint failed'))
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, null)
   })
 
   void it('POST feedback is associated with current user', async () => {
@@ -128,7 +171,7 @@ void describe('/api/Feedbacks', () => {
       .send({
         comment: 'Stupid JWT secret and being typosquatted by epilogue-js and ngy-cookie!',
         rating: 5,
-        UserId: 4,
+        UserId: 1,
         captchaId: captchaRes.body.captchaId,
         captcha: captchaRes.body.answer
       })
@@ -137,7 +180,7 @@ void describe('/api/Feedbacks', () => {
     assert.equal(res.body.data.UserId, 4)
   })
 
-  void it('POST feedback is associated with any passed user ID', async () => {
+  void it('POST feedback ignores a foreign user ID and stores it under the caller', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
@@ -160,7 +203,7 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.UserId, 3)
+    assert.equal(res.body.data.UserId, 4)
   })
 
   void it('POST feedback can be created without actually supplying comment', async () => {
@@ -278,27 +321,51 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
-    const captchaRes = await request(app)
-      .get('/rest/captcha')
-    assert.equal(captchaRes.status, 200)
-    assert.ok(captchaRes.headers['content-type']?.includes('application/json'))
-
-    const createRes = await request(app)
-      .post('/api/Feedbacks')
-      .set(jsonHeader)
-      .send({
-        comment: 'I will be gone soon!',
-        rating: 1,
-        captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
-      })
-    assert.equal(createRes.status, 201)
-    assert.equal(typeof createRes.body.data.id, 'number')
+  void it('DELETE feedback of another user is forbidden', async () => {
+    const jim = await bearer('jim', 'ncc-1701')
+    const bender = await bearer('bender', 'OhG0dPlease1nsertLiquor!')
+    const feedback = await postFeedback(bender, 'Bender was here')
 
     const res = await request(app)
-      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(jim)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE anonymous feedback is forbidden for customers', async () => {
+    const feedback = await postFeedback(jsonHeader, 'Anonymous was here')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(await bearer('jim', 'ncc-1701'))
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE feedback is forbidden for tokens without a user', async () => {
+    const feedback = await postFeedback(jsonHeader, 'Still here')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE own feedback', async () => {
+    const jim = await bearer('jim', 'ncc-1701')
+    const feedback = await postFeedback(jim, 'I will be gone soon!')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(jim)
+    assert.equal(res.status, 200)
+  })
+
+  void it('DELETE any feedback as admin', async () => {
+    const feedback = await postFeedback(await bearer('bender', 'OhG0dPlease1nsertLiquor!'), 'Admin will remove me')
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + feedback.id)
+      .set(await bearer('admin', 'admin123'))
     assert.equal(res.status, 200)
   })
 })

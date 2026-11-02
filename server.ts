@@ -68,6 +68,7 @@ import locales from './data/static/locales.json'
 import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
+import * as feedback from './routes/feedback'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
@@ -453,6 +454,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  /* Feedbacks: Author is always the caller (or anonymous) and only the author or an admin may delete */
+  app.post('/api/Feedbacks', feedback.bindFeedbackAuthor())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.canDeleteFeedback()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
@@ -515,6 +520,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // hide feedback authors from everyone but admins
+    if (name === 'Feedback') {
+      resource.list.send.before((req: Request, res: Response, context: { instance: any[], continue: any }) => {
+        for (const item of context.instance) feedback.stripFeedbackAuthor(req, item)
+        return context.continue
+      })
+      resource.read.send.before((req: Request, res: Response, context: { instance: any, continue: any }) => {
+        feedback.stripFeedbackAuthor(req, context.instance)
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
