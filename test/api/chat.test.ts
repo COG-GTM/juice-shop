@@ -18,10 +18,11 @@ const MOCK_LLM_PORT = 43210
 
 let app: Express
 let mockServer: http.Server
-let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = (_req, _body, res) => {
+const defaultLlmHandler = (_req: http.IncomingMessage, _body: string, res: http.ServerResponse): void => {
   res.writeHead(200, { 'Content-Type': 'application/json' })
   res.end('{}')
 }
+let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = defaultLlmHandler
 
 function sseData (obj: object): string {
   return `data: ${JSON.stringify(obj)}\n\n`
@@ -295,8 +296,8 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
             finishChunk('tool_calls')
           ])
         } else {
-          const parsed = JSON.parse(body)
-          toolContent = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content ?? ''
+          const parsed = body ? JSON.parse(body) : {}
+          toolContent = parsed.messages?.find((m: { role: string }) => m.role === 'tool')?.content ?? ''
           sendSSE(res, [contentChunk('Done'), finishChunk()])
         }
       }
@@ -305,9 +306,13 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
         .post('/rest/chat')
         .set({ 'content-type': 'application/json' })
       if (authorization) req.set({ Authorization: authorization })
-      const res = await req.send({ messages: [{ role: 'user', content: `Show me order ${adminOrderId}` }] })
-      assert.equal(res.status, 200)
-      return toolContent
+      try {
+        const res = await req.send({ messages: [{ role: 'user', content: `Show me order ${adminOrderId}` }] })
+        assert.equal(res.status, 200)
+        return toolContent
+      } finally {
+        onLlmRequest = defaultLlmHandler
+      }
     }
 
     function base64url (obj: object): string {
