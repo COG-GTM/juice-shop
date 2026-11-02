@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -131,5 +131,32 @@ void describe('/rest/order-history/:id/delivery-status', () => {
       .send({ delivered: false })
 
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/rest/order-history for users with vowel-variant emails', () => {
+  void it('GET only returns orders of the logged-in user', async () => {
+    const victim = { email: 'alice@vowel-variant.test', password: 'alice123!' }
+    const attacker = { email: 'elica@vowel-variant.test', password: 'elica123!' }
+    await register(app, victim)
+    await register(app, attacker)
+
+    const victimAuth = await login(app, victim)
+    const attackerAuth = await login(app, attacker)
+    const victimHeader = { Authorization: 'Bearer ' + victimAuth.token, 'content-type': 'application/json' }
+    const attackerHeader = { Authorization: 'Bearer ' + attackerAuth.token, 'content-type': 'application/json' }
+
+    await request(app).post('/api/BasketItems').set(victimHeader).send({ BasketId: victimAuth.bid, ProductId: 1, quantity: 1 })
+    const checkoutRes = await request(app).post(`/rest/basket/${victimAuth.bid}/checkout`).set(victimHeader)
+    assert.equal(checkoutRes.status, 200)
+    const victimOrderId = checkoutRes.body.orderConfirmation
+
+    const victimHistory = await request(app).get('/rest/order-history').set(victimHeader)
+    assert.equal(victimHistory.status, 200)
+    assert.ok(victimHistory.body.data.some((order: { orderId: string }) => order.orderId === victimOrderId))
+
+    const attackerHistory = await request(app).get('/rest/order-history').set(attackerHeader)
+    assert.equal(attackerHistory.status, 200)
+    assert.equal(attackerHistory.body.data.length, 0)
   })
 })
