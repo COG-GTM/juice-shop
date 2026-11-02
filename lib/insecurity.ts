@@ -19,7 +19,9 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-const publiclyServedDirectories = ['encryptionkeys', 'ftp', 'logs', '.well-known', 'frontend/dist', 'node_modules'].map(dir => path.resolve(dir))
+const publiclyServedDirectories = ['encryptionkeys', 'ftp', 'logs', '.well-known', 'frontend/dist', 'node_modules']
+  .map(dir => path.resolve(dir))
+  .flatMap(dir => fs.existsSync(dir) ? [dir, fs.realpathSync(dir)] : [dir])
 
 const loadPrivateKey = (): string => {
   if (process.env.JWT_PRIVATE_KEY) {
@@ -27,8 +29,8 @@ const loadPrivateKey = (): string => {
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
     const configured = process.env.JWT_PRIVATE_KEY_FILE
-    // Reject both the configured path and its symlink target: a path inside a
-    // served directory stays reachable there even if it links elsewhere.
+    // Compare both the configured path and its symlink target against both the
+    // lexical and resolved served directories, so no symlink alias exposes the key.
     const candidates = [path.resolve(configured), fs.realpathSync(configured)]
     if (candidates.some(candidate => publiclyServedDirectories.some(dir => candidate === dir || candidate.startsWith(dir + path.sep)))) {
       throw new Error('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')

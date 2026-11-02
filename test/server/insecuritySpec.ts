@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -275,6 +276,26 @@ describe('insecurity', () => {
       } finally {
         fs.rmSync(link, { force: true })
         fs.rmSync(target, { force: true })
+      }
+    }).timeout(20000)
+
+    it('refuses a key whose directory is the target of a symlinked served directory', () => {
+      const keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-dir-'))
+      const keyFile = path.join(keyDir, 'jwt.key')
+      fs.writeFileSync(keyFile, crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } }).privateKey)
+      const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-cwd-'))
+      fs.symlinkSync(keyDir, path.join(workDir, 'ftp'))
+      try {
+        const result = spawnSync(process.execPath, ['--import', pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e', `await import(${JSON.stringify(pathToFileURL(path.resolve('lib/insecurity.ts')).href)})`], {
+          cwd: workDir,
+          env: { ...process.env, JWT_PRIVATE_KEY_FILE: keyFile },
+          encoding: 'utf8'
+        })
+        expect(result.status).to.not.equal(0)
+        expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+      } finally {
+        fs.rmSync(workDir, { recursive: true, force: true })
+        fs.rmSync(keyDir, { recursive: true, force: true })
       }
     }).timeout(20000)
   })
