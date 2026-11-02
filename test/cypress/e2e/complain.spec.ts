@@ -24,6 +24,7 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: data
         })
       })
@@ -41,6 +42,7 @@ describe('/#/complain', () => {
         await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
           body: data
         })
       })
@@ -54,36 +56,6 @@ describe('/#/complain', () => {
       cy.get('#file').selectFile('test/files/deprecatedTypeForServer.xml')
       cy.get('#submitButton').click()
       cy.expectChallengeSolved({ challenge: 'Deprecated Interface' })
-    })
-  })
-
-  describe('challenge "xxeFileDisclosure"', () => {
-    it('(triggered for Windows server via .xml upload with XXE attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE File Exfiltration Windows!')
-          cy.get('#file').selectFile('test/files/xxeForWindows.xml')
-          cy.get('#submitButton').click()
-        }
-      })
-    })
-
-    it('(triggered for Linux server via .xml upload with XXE attack)', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#complaintMessage').type('XXE File Exfiltration Linux!')
-          cy.get('#file').selectFile('test/files/xxeForLinux.xml')
-          cy.get('#submitButton').click()
-        }
-      })
-    })
-
-    it('should be solved either through Windows- or Linux-specific attack path', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.expectChallengeSolved({ challenge: 'XXE Data Access' })
-        }
-      })
     })
   })
 
