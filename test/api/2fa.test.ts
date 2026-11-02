@@ -392,3 +392,65 @@ void describe('/rest/2fa/disable', () => {
     assert.equal(disableRes.status, 200)
   })
 })
+
+void describe('forged alg:none tokens on 2FA management', () => {
+  const unsigned = (data: Record<string, unknown>) => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data })).toString('base64url')
+    return `${header}.${payload}.`
+  }
+  const forgedFor = (token: string, password: string) => {
+    const { id, email } = security.decode(token).data
+    return unsigned({ id, email, password: security.hash(password), role: 'customer' })
+  }
+
+  void it('POST /rest/2fa/disable should reject a forged token seeded via /rest/user/whoami and keep the victim\'s 2fa', async () => {
+    const email = 'forged2fadisable@bar.com'
+    const password = 'victimPassword1'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+    const { token } = await login(app, { email, password, totpSecret })
+    const forged = forgedFor(token, 'attacker')
+
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forged)
+    assert.equal(security.authenticatedUsers.get(forged), undefined)
+
+    const disableRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({ password: 'attacker', totpToken: generateSync({ secret: totpSecret }) })
+    assert.equal(disableRes.status, 401)
+
+    const statusRes = await getStatus(token)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, true)
+  })
+
+  void it('POST /rest/2fa/setup should reject a forged token seeded via /rest/user/whoami and not bind an attacker secret', async () => {
+    const email = 'forged2fasetup@bar.com'
+    const password = 'victimPassword1'
+    const secret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+    const forged = forgedFor(token, 'attacker')
+
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forged)
+    assert.equal(security.authenticatedUsers.get(forged), undefined)
+
+    const setupRes = await request(app)
+      .post('/rest/2fa/setup')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({
+        password: 'attacker',
+        setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret })
+      })
+    assert.equal(setupRes.status, 401)
+
+    const statusRes = await getStatus(token)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, false)
+  })
+})
