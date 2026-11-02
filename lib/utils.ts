@@ -10,6 +10,7 @@ import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
+import net from 'node:net'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
 
@@ -213,6 +214,91 @@ export const toSimpleIpAddress = (ipv6: string) => {
     return ipv6
   }
 }
+
+const privateNetworkSubnets: Array<[string, number, 'ipv4' | 'ipv6']> = [
+  ['127.0.0.0', 8, 'ipv4'],
+  ['10.0.0.0', 8, 'ipv4'],
+  ['172.16.0.0', 12, 'ipv4'],
+  ['192.168.0.0', 16, 'ipv4'],
+  ['169.254.0.0', 16, 'ipv4'],
+  ['::1', 128, 'ipv6'],
+  ['fc00::', 7, 'ipv6'],
+  ['fe80::', 10, 'ipv6']
+]
+
+// 'private' stands for all private networks; an explicit list without it trusts only the listed proxies
+const trustedProxyList = (entries: string[]) => {
+  const list = new net.BlockList()
+  for (const entry of entries.length > 0 ? entries : ['private']) {
+    if (entry.trim() === 'private') {
+      for (const [network, prefix, type] of privateNetworkSubnets) list.addSubnet(network, prefix, type)
+      continue
+    }
+    const [address, prefixText] = entry.trim().split('/')
+    let network = address
+    let prefix = prefixText !== undefined ? Number(prefixText) : undefined
+    if (net.isIPv6(address) && net.isIPv4(unmapIPv4(address))) {
+      network = unmapIPv4(address)
+      prefix = prefix !== undefined ? prefix - 96 : undefined
+    }
+    const type = net.isIPv4(network) ? 'ipv4' : net.isIPv6(network) ? 'ipv6' : undefined
+    if (type === undefined) continue
+    const maxPrefix = type === 'ipv4' ? 32 : 128
+    prefix = prefix ?? maxPrefix
+    if (!Number.isInteger(prefix) || prefix < 0 || prefix > maxPrefix) continue
+    list.addSubnet(network, prefix, type)
+  }
+  return list
+}
+
+const ipv6Groups = (ip: string) => {
+  const [head, tail] = ip.replace(/%.*$/, '').split('::')
+  const toGroups = (part: string | undefined) => (part ?? '').split(':').filter(group => group !== '').flatMap(group => {
+    if (!group.includes('.')) return [parseInt(group, 16)]
+    const [a, b, c, d] = group.split('.').map(Number)
+    return [(a << 8) + b, (c << 8) + d]
+  })
+  const headGroups = toGroups(head)
+  const tailGroups = toGroups(tail)
+  return [...headGroups, ...Array(Math.max(8 - headGroups.length - tailGroups.length, 0)).fill(0), ...tailGroups]
+}
+
+const unmapIPv4 = (address: string) => {
+  if (!net.isIPv6(address)) return address
+  const groups = ipv6Groups(address)
+  if (groups.slice(0, 5).some(group => group !== 0) || groups[5] !== 0xffff) return address
+  return [groups[6] >> 8, groups[6] & 0xff, groups[7] >> 8, groups[7] & 0xff].join('.')
+}
+
+// A single IPv6 client usually controls a whole /64, so rate-limit it as one key
+const ipv6Subnet64 = (ip: string) => ipv6Groups(ip).slice(0, 4).map(group => group.toString(16)).join(':') + '::/64'
+
+const isTrustedProxy = (trustedProxies: net.BlockList, address: string) => {
+  const ip = unmapIPv4(address)
+  if (net.isIPv4(ip)) return trustedProxies.check(ip, 'ipv4')
+  if (net.isIPv6(ip)) return trustedProxies.check(ip, 'ipv6')
+  return false
+}
+
+// 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
+// the socket peer and stop at the first address that was not appended by a trusted proxy. Without configuration all
+// private networks are trusted; RATE_LIMIT_TRUSTED_PROXIES (IPs, CIDRs and/or 'private') replaces that default.
+export const createClientIpForRateLimit = (trustedProxyEntries: string[] = []) => {
+  const trustedProxies = trustedProxyList(trustedProxyEntries)
+  return ({ headers, socket }: { headers: Record<string, string | string[] | undefined>, socket: { remoteAddress?: string } }) => {
+    const forwardedFor = headers['x-forwarded-for']
+    const hops = (Array.isArray(forwardedFor) ? forwardedFor.join(',') : forwardedFor ?? '')
+      .split(',').map(hop => hop.trim()).filter(hop => hop !== '')
+    let address = socket.remoteAddress ?? ''
+    while (isTrustedProxy(trustedProxies, address) && hops.length > 0) {
+      address = hops.pop() ?? ''
+    }
+    address = unmapIPv4(address)
+    return net.isIPv6(address) ? ipv6Subnet64(address) : address
+  }
+}
+
+export const clientIpForRateLimit = createClientIpForRateLimit((process.env.RATE_LIMIT_TRUSTED_PROXIES ?? '').split(',').filter(entry => entry.trim() !== ''))
 
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
