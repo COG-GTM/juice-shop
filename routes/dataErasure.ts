@@ -25,7 +25,7 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
       return
     }
     const email = loggedInUser.data.email
@@ -75,7 +75,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
       return
     }
 
