@@ -19,6 +19,7 @@ import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
+import { orderConfirmationDirectory } from './orderConfirmation'
 
 interface Product {
   quantity: number
@@ -42,7 +43,9 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const orderDirectory = orderConfirmationDirectory(email)
+          await fs.promises.mkdir(orderDirectory, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(orderDirectory, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
