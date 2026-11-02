@@ -8,16 +8,21 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
+import crypto from 'node:crypto'
+import { authorize, publicKey } from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 const MOCK_LLM_PORT = 43210
 
 let app: Express
 let mockServer: http.Server
-let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = (_req, _body, res) => {
+const defaultLlmHandler = (_req: http.IncomingMessage, _body: string, res: http.ServerResponse): void => {
   res.writeHead(200, { 'Content-Type': 'application/json' })
   res.end('{}')
 }
+let onLlmRequest: (req: http.IncomingMessage, body: string, res: http.ServerResponse) => void = defaultLlmHandler
 
 function sseData (obj: object): string {
   return `data: ${JSON.stringify(obj)}\n\n`
@@ -265,5 +270,89 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void describe('getOrderById tool', () => {
+    let adminToken: string
+    let adminOrderId: string
+
+    before(async () => {
+      const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+      adminToken = token
+      const orders = await request(app)
+        .get('/rest/order-history')
+        .set({ Authorization: `Bearer ${adminToken}` })
+      adminOrderId = orders.body.data[0].orderId
+    })
+
+    async function getOrderToolResult (authorization?: string): Promise<string> {
+      let toolContent = ''
+      let callCount = 0
+      onLlmRequest = (_req, body, res) => {
+        callCount++
+        if (callCount === 1) {
+          sendSSE(res, [
+            toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId: adminOrderId })),
+            finishChunk('tool_calls')
+          ])
+        } else {
+          const parsed = body ? JSON.parse(body) : {}
+          toolContent = parsed.messages?.find((m: { role: string }) => m.role === 'tool')?.content ?? ''
+          sendSSE(res, [contentChunk('Done'), finishChunk()])
+        }
+      }
+
+      const req = request(app)
+        .post('/rest/chat')
+        .set({ 'content-type': 'application/json' })
+      if (authorization) req.set({ Authorization: authorization })
+      try {
+        const res = await req.send({ messages: [{ role: 'user', content: `Show me order ${adminOrderId}` }] })
+        assert.equal(res.status, 200)
+        return toolContent
+      } finally {
+        onLlmRequest = defaultLlmHandler
+      }
+    }
+
+    function base64url (obj: object): string {
+      return Buffer.from(JSON.stringify(obj)).toString('base64url')
+    }
+
+    void it('returns the order for its owner with a validly signed token', { timeout: 15000 }, async () => {
+      const toolContent = await getOrderToolResult(`Bearer ${adminToken}`)
+      assert.ok(toolContent.includes(adminOrderId))
+    })
+
+    void it('rejects an unsigned forged token', { timeout: 15000 }, async () => {
+      const forged = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url({ data: { id: 1 } })}.`
+      const toolContent = await getOrderToolResult(`Bearer ${forged}`)
+      assert.ok(toolContent.includes('Customer not authenticated'))
+      assert.ok(!toolContent.includes('totalPrice'))
+    })
+
+    void it('rejects a token signed with HS256 using the public key', { timeout: 15000 }, async () => {
+      const header = base64url({ alg: 'HS256', typ: 'JWT' })
+      const payload = base64url({ data: { id: 1 } })
+      const signature = crypto.createHmac('sha256', publicKey).update(`${header}.${payload}`).digest('base64url')
+      const toolContent = await getOrderToolResult(`Bearer ${header}.${payload}.${signature}`)
+      assert.ok(toolContent.includes('Customer not authenticated'))
+      assert.ok(!toolContent.includes('totalPrice'))
+    })
+
+    void it('rejects an expired token', { timeout: 15000 }, async () => {
+      const expired = authorize({ data: { id: 1 }, exp: Math.floor(Date.now() / 1000) - 60 })
+      const toolContent = await getOrderToolResult(`Bearer ${expired}`)
+      assert.ok(toolContent.includes('Customer not authenticated'))
+      assert.ok(!toolContent.includes('totalPrice'))
+    })
+
+    void it('rejects a token with a tampered payload', { timeout: 15000 }, async () => {
+      const [header, , signature] = adminToken.split('.')
+      const tampered = `${header}.${base64url({ data: { id: 1 } })}.${signature}`
+      const toolContent = await getOrderToolResult(`Bearer ${tampered}`)
+      assert.ok(toolContent.includes('Customer not authenticated'))
+      assert.ok(!toolContent.includes('totalPrice'))
+    })
   })
 })

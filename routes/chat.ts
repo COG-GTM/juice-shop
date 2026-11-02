@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
@@ -39,11 +40,23 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function getVerifiedTokenPayload (req: Request): { exp?: number, data?: { id?: number, role?: string } } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  const [header, payload, signature] = token ? token.split('.') : []
+  if (!header || !payload || !signature) return undefined
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))) return undefined
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (typeof decoded.exp === 'number' && decoded.exp * 1000 <= Date.now()) return undefined
+    return decoded
+  } catch {
+    return undefined
+  }
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return getVerifiedTokenPayload(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -217,9 +230,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
+              const role = getVerifiedTokenPayload(req)?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
