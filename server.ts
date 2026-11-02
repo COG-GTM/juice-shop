@@ -475,6 +475,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Reject unknown security questions before the user is created so registration cannot leave an account without its answer */
+  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const securityQuestionId = req.body.securityQuestion?.id
+    if (securityQuestionId !== undefined && (await SecurityQuestionModel.findByPk(securityQuestionId)) === null) {
+      res.status(400).send('Invalid security question')
+      return
+    }
+    next()
+  }))
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */

@@ -92,6 +92,34 @@ void describe('/api/SecurityAnswers', () => {
 
     assert.equal(resetRes.status, 200)
   })
+
+  void it('POST user registration with unknown security question is rejected without creating the user', async () => {
+    const invalidRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'unknown.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 9999, question: 'Unknown?' },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(invalidRes.status, 400)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'unknown.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1, question: 'Your eldest siblings middle name?' },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(retryRes.status, 201)
+  })
 })
 
 void describe('/api/SecurityAnswers/:id', () => {
