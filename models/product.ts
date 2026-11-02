@@ -43,15 +43,16 @@ const ProductModelInit = (sequelize: Sequelize) => {
       description: {
         type: DataTypes.STRING,
         set (description: string) {
+          const sanitizedDescription = security.sanitizeSecure(description)
           if (utils.isChallengeEnabled(challenges.restfulXssChallenge)) {
             challengeUtils.solveIf(challenges.restfulXssChallenge, () => {
               return utils.contains(
-                description,
+                sanitizedDescription,
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
           }
-          this.setDataValue('description', security.sanitizeSecure(description))
+          this.setDataValue('description', sanitizedDescription)
         }
       },
       price: DataTypes.DECIMAL,
