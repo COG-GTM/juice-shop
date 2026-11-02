@@ -30,9 +30,12 @@ function isAllowedZipEntryTarget (absolutePath: string) {
     return true
   }
   const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
+  const videosDir = path.resolve('frontend/dist/frontend/assets/public/videos')
+  const subtitleTargets = [path.resolve(videosDir, subtitles), path.resolve(videosDir, utils.extractFilename(subtitles))]
+    .filter(target => target.startsWith(videosDir + path.sep))
   const challengeTargets = [ // intentionally writable via Zip Slip for "fileWriteChallenge" and "videoXssChallenge"
     path.resolve('ftp/legal.md'),
-    path.resolve('frontend/dist/frontend/assets/public/videos/' + utils.extractFilename(subtitles))
+    ...subtitleTargets
   ]
   return challengeTargets.includes(absolutePath)
 }
