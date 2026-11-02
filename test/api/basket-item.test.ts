@@ -72,6 +72,39 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
+
+  void it('POST new basket item into basket of other user is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 1, ProductId: 5, quantity: 1 })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST new basket item with own and then foreign duplicate basket ID is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":5,"quantity":1,"BasketId":2,"BasketId":1}')
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST new basket item with foreign and then own duplicate basket ID is added to own basket', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":5,"quantity":1,"BasketId":1,"BasketId":2}')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, 2)
+  })
+
+  void it('POST new basket item with "undefined" basket ID is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 'undefined', ProductId: 7, quantity: 1 })
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/api/BasketItems/:id', () => {
@@ -137,20 +170,13 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
-    const createRes = await request(app)
+  void it('POST new basket item without basket ID is added to own basket', async () => {
+    const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
-      .send({ ProductId: 8, quantity: 8 })
-    assert.equal(createRes.status, 200)
-    assert.equal(createRes.body.data.BasketId, undefined)
-
-    const res = await request(app)
-      .put('/api/BasketItems/' + createRes.body.data.id)
-      .set(authHeader)
-      .send({ BasketId: 3 })
+      .send({ ProductId: 11, quantity: 1 })
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.body.data.BasketId, 2)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
