@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import * as http from 'http'
 import config from 'config'
 import crypto from 'node:crypto'
-import { publicKey } from '../../lib/insecurity'
+import { authorize, publicKey } from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -331,6 +331,13 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       const payload = base64url({ data: { id: 1 } })
       const signature = crypto.createHmac('sha256', publicKey).update(`${header}.${payload}`).digest('base64url')
       const toolContent = await getOrderToolResult(`Bearer ${header}.${payload}.${signature}`)
+      assert.ok(toolContent.includes('Customer not authenticated'))
+      assert.ok(!toolContent.includes('totalPrice'))
+    })
+
+    void it('rejects an expired token', { timeout: 15000 }, async () => {
+      const expired = authorize({ data: { id: 1 }, exp: Math.floor(Date.now() / 1000) - 60 })
+      const toolContent = await getOrderToolResult(`Bearer ${expired}`)
       assert.ok(toolContent.includes('Customer not authenticated'))
       assert.ok(!toolContent.includes('totalPrice'))
     })

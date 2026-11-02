@@ -40,21 +40,19 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-function hasValidRS256Signature (token: string): boolean {
-  const [header, payload, signature] = token.split('.')
-  if (!header || !payload || !signature) return false
-  try {
-    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') return false
-    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))
-  } catch {
-    return false
-  }
-}
-
-function getVerifiedTokenPayload (req: Request): { data?: { id?: number, role?: string } } | undefined {
+function getVerifiedTokenPayload (req: Request): { exp?: number, data?: { id?: number, role?: string } } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token || !hasValidRS256Signature(token)) return undefined
-  return security.decode(token)
+  const [header, payload, signature] = token ? token.split('.') : []
+  if (!header || !payload || !signature) return undefined
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString()).alg !== 'RS256') return undefined
+    if (!crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), security.publicKey, Buffer.from(signature, 'base64url'))) return undefined
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString())
+    if (typeof decoded.exp === 'number' && decoded.exp * 1000 <= Date.now()) return undefined
+    return decoded
+  } catch {
+    return undefined
+  }
 }
 
 async function getUserId (req: Request): Promise<number | undefined> {
