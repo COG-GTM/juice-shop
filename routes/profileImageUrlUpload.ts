@@ -96,7 +96,8 @@ function requestOnce (url: URL, isAllowedAddress: (address: string) => boolean):
       }
       const status = res.statusCode ?? 0
       if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
-        res.resume()
+        res.destroy()
+        req.destroy()
         resolve({ redirect: res.headers.location })
         return
       }
@@ -122,8 +123,10 @@ function requestOnce (url: URL, isAllowedAddress: (address: string) => boolean):
       })
       res.on('error', reject)
     })
+    const deadline = setTimeout(() => { req.destroy(new ProfileImageFetchError('image request timed out')) }, REQUEST_TIMEOUT_MS)
     req.on('timeout', () => { req.destroy(new ProfileImageFetchError('image request timed out')) })
     req.on('error', reject)
+    req.on('close', () => { clearTimeout(deadline) })
   })
 }
 

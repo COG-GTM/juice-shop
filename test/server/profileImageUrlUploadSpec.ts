@@ -49,6 +49,7 @@ describe('profileImageUrlUpload', () => {
     let internal: { server: http.Server, url: string }
     let external: { server: http.Server, url: string }
     let internalHits: string[]
+    let dripClosed: Promise<void>
     const onlyExternal = (address: string) => address === '127.0.0.1'
 
     before(async () => {
@@ -69,6 +70,12 @@ describe('profileImageUrlUpload', () => {
         '/huge.png': [200, { 'content-type': 'image/png' }, Buffer.concat([png, Buffer.alloc(MAX_PROFILE_IMAGE_BYTES)])]
       }
       external = await startServer('127.0.0.1', (req, res) => {
+        if (req.url === '/drip-hop.png') {
+          res.writeHead(302, { location: '/image.png' })
+          const drip = setInterval(() => res.write('x'), 20)
+          dripClosed = new Promise((resolve) => res.on('close', () => { clearInterval(drip); resolve() }))
+          return
+        }
         const [status, headers, body] = routes[req.url ?? ''] ?? [404, {}, '']
         res.writeHead(status, headers)
         res.end(body)
@@ -103,6 +110,12 @@ describe('profileImageUrlUpload', () => {
       const image = await fetchProfileImage(`${external.url}/hop.png`, onlyExternal)
       expect(image.extension).to.equal('png')
       expect(image.data.equals(png)).to.equal(true)
+    })
+
+    it('should close redirect responses instead of draining their bodies', async () => {
+      const image = await fetchProfileImage(`${external.url}/drip-hop.png`, onlyExternal)
+      expect(image.extension).to.equal('png')
+      await dripClosed
     })
 
     it('should re-check the target of every redirect', async () => {
