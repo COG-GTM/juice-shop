@@ -198,6 +198,14 @@ describe('utils', () => {
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8::7' } })).to.equal('2001:db8:0:0::/64')
     })
 
+    it('does not trust a publicly addressed proxy unless it is configured', () => {
+      const request = { headers: { 'x-forwarded-for': '1.2.3.4, 203.0.113.7' }, socket: { remoteAddress: '198.51.100.10' } }
+      expect(utils.clientIpForRateLimit(request)).to.equal('198.51.100.10')
+      expect(utils.createClientIpForRateLimit(['198.51.100.10'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['198.51.100.0/24'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['198.51.100.0/24'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '::ffff:198.51.100.10' } })).to.equal('203.0.113.7')
+    })
+
     it('unwraps IPv4-mapped IPv6 addresses', () => {
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:203.0.113.7' } })).to.equal('203.0.113.7')
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:c633:6407' } })).to.equal('198.51.100.7')
