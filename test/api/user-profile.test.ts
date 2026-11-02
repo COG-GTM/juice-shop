@@ -56,7 +56,8 @@ void describe('/profile', () => {
     const update = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'a#{7*7}')
+      .type('form')
+      .send({ username: 'a#{7*7}' })
       .redirects(0)
     assert.equal(update.status, 302)
     const updatedToken = /token=([^;]+)/.exec(String(update.headers['set-cookie']))?.[1]
@@ -74,7 +75,8 @@ void describe('/profile', () => {
     const update = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', "#{global.process.mainModule.require('os').hostname()}")
+      .type('form')
+      .send({ username: "#{global.process.mainModule.require('os').hostname()}" })
       .redirects(0)
     const updatedToken = /token=([^;]+)/.exec(String(update.headers['set-cookie']))?.[1]
 
