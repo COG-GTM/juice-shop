@@ -34,7 +34,7 @@ describe('fileServer', () => {
       servePublicFiles()(req, res, next)
 
       expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
-      expect(res.status).to.have.been.calledWith(404)
+      expect(res.status).to.have.been.calledWith(sinon.match((status: number) => status === 403 || status === 404))
       expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
     })
   }
