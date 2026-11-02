@@ -283,4 +283,14 @@ void describe('/rest/saveLoginIp', () => {
     assert.doesNotMatch(res.body.lastLoginIp, /[<>"]/)
     assert.notEqual(isIP(res.body.lastLoginIp), 0)
   })
+
+  void it('GET last login IP responds only with the stored IP and no other user fields', async () => {
+    const res = await saveLoginIp({ 'true-client-ip': '<b>x</b>' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body), ['lastLoginIp'])
+    assert.equal(res.body.password, undefined)
+    assert.equal(res.body.totpSecret, undefined)
+    assert.notEqual(isIP(res.body.lastLoginIp), 0)
+  })
 })
