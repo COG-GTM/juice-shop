@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -24,9 +25,25 @@ before(async () => {
 
 const jsonHeader = { 'content-type': 'application/json' }
 
+const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+const forgedPayload = base64url({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })
+const unsignedToken = `${base64url({ alg: 'none', typ: 'JWT' })}.${forgedPayload}.`
+const hs256Unsigned = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${forgedPayload}`
+const hs256Token = `${hs256Unsigned}.${crypto.createHmac('sha256', security.publicKey).update(hs256Unsigned).digest('base64url')}`
+
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
     const res = await request(app).get('/api/Users')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all users is forbidden with unsigned alg "none" token', async () => {
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${unsignedToken}` })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all users is forbidden with token HMAC-signed with the public RSA key', async () => {
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${hs256Token}` })
     assert.equal(res.status, 401)
   })
 
@@ -263,6 +280,16 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i request returns nothing on forged auth tokens', async () => {
+    for (const token of [unsignedToken, hs256Token]) {
+      const res = await request(app)
+        .get('/rest/user/whoami')
+        .set({ Cookie: `token=${token}`, Authorization: `Bearer ${token}` })
+      assert.equal(res.status, 200)
+      assert.deepEqual(res.body.user, {})
+    }
   })
 
   void it('GET who-am-i request returns nothing on broken auth token', async () => {
