@@ -78,6 +78,7 @@ describe('fileUpload', () => {
       '../../ftp/legal.md',
       'nested/complaint.pdf',
       '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
+      '../../views/promotionVideo.pug',
       '../complaints/../../server.ts',
       'nested/../../complaints-evil/x.txt',
       '..\\..\\ftp\\legal.md',
