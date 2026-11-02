@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import config from 'config'
-import { type Request, type Response } from 'express'
+import { type NextFunction, type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -47,34 +47,40 @@ export const getVideo = () => {
   }
 }
 
+const promotionVideoTemplate = fs.readFileSync('views/promotionVideo.pug', 'utf8')
+let promotionVideoPage: string | undefined
+
 export const promotionVideo = () => {
-  return (req: Request, res: Response) => {
-    fs.readFile('views/promotionVideo.pug', async function (err, buf) {
-      if (err != null) throw err
-      let template = buf.toString()
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
       const subs = getSubsFromFile()
 
       challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
 
-      const themeKey = config.get<string>('application.theme') as keyof typeof themes
-      const theme = themes[themeKey] || themes['bluegrey-lightgreen']
-      template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
-      template = template.replace(/_favicon_/g, favicon())
-      template = template.replace(/_bgColor_/g, theme.bgColor)
-      template = template.replace(/_textColor_/g, theme.textColor)
-      template = template.replace(/_navColor_/g, theme.navColor)
-      template = template.replace(/_primLight_/g, theme.primLight)
-      template = template.replace(/_primDark_/g, theme.primDark)
-      const pug = (await import('pug')).default
-      const fn = pug.compile(template)
-      let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
-      res.send(compiledTemplate)
-    })
+      const page = await renderPromotionVideoPage()
+      res.send(page.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>'))
+    } catch (err) {
+      next(err)
+    }
   }
-  function favicon () {
-    return utils.extractFilename(config.get('application.favicon'))
+}
+
+async function renderPromotionVideoPage () {
+  if (promotionVideoPage === undefined) {
+    const themeKey = config.get<string>('application.theme') as keyof typeof themes
+    const theme = themes[themeKey] || themes['bluegrey-lightgreen']
+    let template = promotionVideoTemplate
+    template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
+    template = template.replace(/_favicon_/g, utils.extractFilename(config.get('application.favicon')))
+    template = template.replace(/_bgColor_/g, theme.bgColor)
+    template = template.replace(/_textColor_/g, theme.textColor)
+    template = template.replace(/_navColor_/g, theme.navColor)
+    template = template.replace(/_primLight_/g, theme.primLight)
+    template = template.replace(/_primDark_/g, theme.primDark)
+    const pug = (await import('pug')).default
+    promotionVideoPage = pug.compile(template)()
   }
+  return promotionVideoPage
 }
 
 function getSubsFromFile () {
