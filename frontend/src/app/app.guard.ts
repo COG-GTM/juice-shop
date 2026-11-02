@@ -8,6 +8,8 @@ import { jwtDecode } from 'jwt-decode'
 import { roles } from './roles'
 import { Injectable, NgZone, inject } from '@angular/core'
 
+const sessionLifetimeInSeconds = 6 * 60 * 60
+
 @Injectable()
 export class LoginGuard implements CanActivate {
   private readonly router = inject(Router)
@@ -16,7 +18,8 @@ export class LoginGuard implements CanActivate {
 
   canActivate () {
     const payload = this.tokenDecode()
-    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
+    const exp = typeof payload?.exp === 'number' ? payload.exp : typeof payload?.iat === 'number' ? payload.iat + sessionLifetimeInSeconds : undefined
+    if (exp !== undefined && exp * 1000 <= Date.now()) {
       if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
       }

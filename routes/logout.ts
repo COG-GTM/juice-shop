@@ -11,7 +11,7 @@ export function logout () {
   return (req: Request, res: Response) => {
     const bearer = utils.jwtFrom(req)
     const userId = security.authenticatedUsers.get(bearer)?.data?.id
-    if (!bearer || userId === undefined) {
+    if (!bearer || userId === undefined || !security.verify(bearer)) {
       res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
       return
     }
