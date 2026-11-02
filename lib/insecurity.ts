@@ -72,7 +72,7 @@ const rejectUnexpectedAlgorithm = (middleware: (req: Request, res: Response, nex
 }
 
 export const isAuthorized = () => rejectUnexpectedAlgorithm(expressJwt(({ secret: publicKey }) as any))
-export const denyAll = () => rejectUnexpectedAlgorithm(expressJwt({ secret: '' + Math.random() } as any))
+export const denyAll = () => rejectUnexpectedAlgorithm(expressJwt({ secret: crypto.randomBytes(32).toString('hex') } as any))
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: jwtAlgorithm })
 export const verify = (token: string) => hasExpectedAlgorithm(token) ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
