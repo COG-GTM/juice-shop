@@ -269,9 +269,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
+  app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
   app.use('/.well-known', express.static('.well-known'))
 
-  /* /encryptionkeys public key download */
+  /* /encryptionkeys directory browsing */
+  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
   app.use('/encryptionkeys/:file', serveKeyFiles())
 
   /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
@@ -286,8 +288,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(cookieParser('kekse'))
   // vuln-code-snippet end directoryListingChallenge accessLogDisclosureChallenge
 
-  /* Former directory listing roots must not fall through to the Angular client */
-  app.get(/^\/(ftp|encryptionkeys)\/?$/, (req: Request, res: Response) => { res.sendStatus(404) })
+  /* The former /ftp directory listing root must not fall through to the Angular client */
+  app.get(/^\/ftp\/?$/, (req: Request, res: Response) => { res.sendStatus(404) })
 
   /* Serve vendor dependencies locally instead of from CDN */
   app.use('/vendor/beercss', express.static(path.resolve('node_modules/beercss/dist/cdn')))
