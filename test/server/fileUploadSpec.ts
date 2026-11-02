@@ -80,6 +80,7 @@ describe('fileUpload', () => {
       '../../ftp/legal.md',
       '../../ftp/zipslip-test.md',
       '../../frontend/dist/frontend/index.html',
+      '../../frontend/dist/frontend/main.js',
       '../../build/routes/login.js',
       '../../node_modules/svg-captcha/index.js',
       '../../data/static/users.yml',
