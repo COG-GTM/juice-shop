@@ -53,9 +53,9 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
 
-    it('should be possible to inject a selector into the update route', () => {
+    it('should reject a selector injected into the update route', () => {
       cy.window().then(async () => {
-        await fetch(`${Cypress.config('baseUrl')}/rest/products/reviews`, {
+        const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/reviews`, {
           method: 'PATCH',
           headers: {
             'Content-type': 'application/json',
@@ -66,8 +66,8 @@ describe('/rest/products/reviews', () => {
             message: 'NoSQL Injection!'
           })
         })
+        expect(response.status).to.equal(400)
       })
-      cy.expectChallengeSolved({ challenge: 'NoSQL Manipulation' })
     })
   })
 
@@ -76,42 +76,25 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'mc.safesearch', password: 'Mr. N00dles' })
     })
 
-    it('should be possible to edit any existing review', () => {
+    it('should not be possible to edit a review of another user', () => {
       cy.visit('/')
       cy.window().then(async () => {
+        const reviewsResponse = await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`)
+        const reviewId = (await reviewsResponse.json()).data[0]._id
         const response = await fetch(
-          `${Cypress.config('baseUrl')}/rest/products/1/reviews`,
+          `${Cypress.config('baseUrl')}/rest/products/reviews`,
           {
-            method: 'GET',
+            method: 'PATCH',
             headers: {
-              'Content-type': 'text/plain'
-            }
+              'Content-type': 'application/json',
+              Authorization: `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({ id: reviewId, message: 'injected' })
           }
         )
-        if (response.status === 200) {
-          const responseJson = await response.json()
-          const reviewId = responseJson.data[0]._id
-          await editReview(reviewId)
-        }
-
-        async function editReview (reviewId: string) {
-          const response = await fetch(
-            `${Cypress.config('baseUrl')}/rest/products/reviews`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Content-type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({ id: reviewId, message: 'injected' })
-            }
-          )
-          if (response.status === 200) {
-            console.log('Success')
-          }
-        }
+        expect(response.status).to.equal(200)
+        expect((await response.json()).modified).to.equal(0)
       })
-      cy.expectChallengeSolved({ challenge: 'Forged Review' })
     })
   })
 
