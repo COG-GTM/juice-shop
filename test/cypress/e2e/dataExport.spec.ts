@@ -20,13 +20,22 @@ describe('/#/privacy-security/data-export', () => {
       cy.get('#registerButton').click()
     })
 
-    it('should be possible to steal admin user data by causing email clash during export', () => {
+    it('should not be possible to steal admin user data by causing email clash during export', () => {
       cy.login({ email: 'admun', password: 'admun123' })
 
-      cy.visit('/#/privacy-security/data-export')
-      cy.get('#formatControl').contains('JSON').click()
-      cy.get('#submitButton').click()
-      cy.expectChallengeSolved({ challenge: 'GDPR Data Theft' })
+      cy.window().then(async () => {
+        const response = await fetch(`${Cypress.config('baseUrl')}/rest/user/data-export`, {
+          method: 'POST',
+          headers: {
+            'Content-type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({ format: '1' })
+        })
+        const body = await response.json()
+        expect(response.status).to.equal(200)
+        expect(JSON.parse(body.userData).orders).to.deep.equal([])
+      })
     })
   })
 })
