@@ -51,7 +51,16 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const isAuthorized = () => {
+  const verifyJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isRevoked(utils.jwtFrom(req))) {
+      res.status(401).json({ status: 'error', message: 'Token has been revoked' })
+      return
+    }
+    verifyJwt(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
@@ -69,7 +78,28 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
-export const revokedTokens = new Set<string>()
+const revokedTokens = new Map<string, number>()
+
+export const revokeToken = (token: string) => {
+  const now = Date.now()
+  for (const [revoked, expiresAt] of revokedTokens) {
+    if (expiresAt <= now) revokedTokens.delete(revoked)
+  }
+  const exp = (jwt.decode(token) as { exp?: number } | null)?.exp
+  revokedTokens.set(token, exp ? exp * 1000 : now + 6 * 60 * 60 * 1000)
+}
+
+export const isRevoked = (token?: string) => {
+  if (!token) return false
+  token = utils.unquote(token)
+  const expiresAt = revokedTokens.get(token)
+  if (expiresAt === undefined) return false
+  if (expiresAt <= Date.now()) {
+    revokedTokens.delete(token)
+    return false
+  }
+  return true
+}
 
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
@@ -192,7 +222,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
       if (err === null) {
-        if (authenticatedUsers.get(token) === undefined && !revokedTokens.has(utils.unquote(token))) {
+        if (authenticatedUsers.get(token) === undefined && !isRevoked(token)) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
         }
