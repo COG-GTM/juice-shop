@@ -21,6 +21,7 @@ export function login () {
             data: {
               tmpToken: security.authorize({
                 userId: user.data.id,
+                expiresAt: security.secondFactorTokenExpiry(),
                 type: 'password_valid_needs_second_factor_token'
               })
             }
