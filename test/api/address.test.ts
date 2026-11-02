@@ -186,3 +186,59 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data, 'Malicious activity detected.')
   })
 })
+
+void describe('/api/Addresss/:id of another user', () => {
+  let otherAddressId: number
+  let adminAuthHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    adminAuthHeader = {
+      Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+    const res = await request(app).post('/api/Addresss').set(adminAuthHeader).send({
+      fullName: 'Admin',
+      mobileNum: '9800000000',
+      zipCode: 'NX 101',
+      streetAddress: 'Admin Street',
+      city: 'NYC',
+      state: 'NY',
+      country: 'USA'
+    })
+    assert.equal(res.status, 201)
+    otherAddressId = res.body.data.id
+  })
+
+  void it('GET address of another user is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/Addresss/' + otherAddressId)
+      .set(authHeader)
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT update address of another user is forbidden', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + otherAddressId)
+      .set(authHeader)
+      .send({ streetAddress: 'Mallory Street' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + otherAddressId)
+      .set(adminAuthHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.equal(ownerRes.body.data.streetAddress, 'Admin Street')
+  })
+
+  void it('DELETE address of another user is forbidden', async () => {
+    const res = await request(app)
+      .delete('/api/Addresss/' + otherAddressId)
+      .set(authHeader)
+    assert.equal(res.status, 400)
+  })
+})
