@@ -67,6 +67,10 @@ export function quantityCheckBeforeBasketItemUpdate () {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
+      if (!isOwnBasketItem(item, user?.bid)) {
+        res.status(404).json({ status: 'error', data: 'No such item found!' })
+        return
+      }
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
         if (item == null) {
@@ -80,6 +84,34 @@ export function quantityCheckBeforeBasketItemUpdate () {
       next(error)
     }
   }
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const user = security.authenticatedUsers.from(req)
+    if (user?.bid == null) {
+      res.status(401).json({ status: 'error', data: 'No basket found for user.' })
+      return
+    }
+    const items = await BasketItemModel.findAll({ where: { BasketId: user.bid } })
+    res.json({ status: 'success', data: items })
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    const user = security.authenticatedUsers.from(req)
+    if (!isOwnBasketItem(item, user?.bid)) {
+      res.status(404).json({ status: 'error', data: 'No such item found!' })
+      return
+    }
+    next()
+  }
+}
+
+function isOwnBasketItem (item: BasketItemModel | null, basketId: number | undefined) {
+  return item != null && basketId != null && item.BasketId != null && Number(item.BasketId) === Number(basketId)
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
