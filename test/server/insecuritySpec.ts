@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +201,32 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues distinct tokens for identical payloads signed in the same second', () => {
+      const payload = { data: { id: 1, email: 'admin@juice-sh.op' } }
+      expect(security.authorize(payload)).to.not.equal(security.authorize(payload))
+    })
+  })
+
+  describe('isAccounting', () => {
+    const allowed = (token: string) => {
+      let passed = false
+      const res = { status: () => ({ json: () => {} }) } as unknown as Response
+      security.isAccounting()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, res, () => { passed = true })
+      return passed
+    }
+
+    it('accepts a valid accounting token', () => {
+      expect(allowed(security.authorize({ data: { id: 4, role: security.roles.accounting } }))).to.equal(true)
+    })
+
+    it('rejects a revoked accounting token', () => {
+      const token = security.authorize({ data: { id: 4, role: security.roles.accounting } })
+      security.revokeToken(token)
+      expect(allowed(token)).to.equal(false)
     })
   })
 })
