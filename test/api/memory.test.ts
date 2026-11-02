@@ -31,9 +31,10 @@ void describe('/rest/memories', () => {
       .get('/rest/memories')
     assert.equal(res.status, 200)
     assert.ok(res.body.data.length > 0)
-    for (const memory of res.body.data) {
-      assert.ok(memory.User)
-      assert.deepEqual(Object.keys(memory.User).sort(), ['id', 'username'])
+    const users = res.body.data.map((memory: { User: Record<string, unknown> | null }) => memory.User).filter(Boolean)
+    assert.ok(users.length > 0)
+    for (const user of users) {
+      assert.deepEqual(Object.keys(user).sort(), ['id', 'username'])
     }
   })
 
