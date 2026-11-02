@@ -37,6 +37,10 @@ export const isUrl = (url: string) => {
   return startsWith(url, 'http')
 }
 
+export const isValidEmail = (email: unknown) => {
+  return typeof email === 'string' && /^[^\s@<>"']+@[^\s@<>"']+$/.test(email)
+}
+
 export const startsWith = (str: string, prefix: string) => str ? str.indexOf(prefix) === 0 : false
 
 export const endsWith = (str?: string, suffix?: string) => (str && suffix) ? str.includes(suffix, str.length - suffix.length) : false
