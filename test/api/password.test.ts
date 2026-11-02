@@ -124,6 +124,40 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST password change keeps revoked sessions from being restored via whoami', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'restoredsession@be.rt',
+        password: 'first-secret'
+      })
+      .expect(201)
+
+    const { token: oldToken } = await login(app, { email: 'restoredsession@be.rt', password: 'first-secret' })
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    const { token: currentToken } = await login(app, { email: 'restoredsession@be.rt', password: 'first-secret' })
+    assert.notEqual(oldToken, currentToken)
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + currentToken })
+      .send({ current: 'first-secret', new: 'second-secret', repeat: 'second-secret' })
+      .expect(200)
+
+    await request(app)
+      .get('/rest/user/whoami')
+      .set({ Authorization: 'Bearer ' + oldToken })
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + oldToken })
+      .send({ current: 'second-secret', new: 'hijacked', repeat: 'hijacked' })
+
+    assert.notEqual(res.status, 200)
+    assert.equal(await loginStatus('restoredsession@be.rt', 'second-secret'), 200)
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
