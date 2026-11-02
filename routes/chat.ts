@@ -39,11 +39,14 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function getVerifiedTokenPayload (req: Request): { data?: { id?: number, role?: string } } | undefined {
   const token = utils.jwtFrom(req)
-  if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  if (!token || !security.verify(token)) return undefined
+  return security.decode(token)
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return getVerifiedTokenPayload(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -217,9 +220,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
+              const role = getVerifiedTokenPayload(req)?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
