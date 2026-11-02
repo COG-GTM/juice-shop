@@ -20,7 +20,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { of, throwError } from 'rxjs'
 import { DomSanitizer } from '@angular/platform-browser'
 import { BasketService } from '../Services/basket.service'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, SecurityContext } from '@angular/core'
 import { SocketIoService } from '../Services/socket-io.service'
 import { QuantityService } from '../Services/quantity.service'
 import { DeluxeGuard } from '../app.guard'
@@ -162,11 +162,14 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render product descriptions as trusted HTML', () => {
-        productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
+    it('should sanitize product descriptions instead of trusting them as HTML', () => {
+        sanitizer.sanitize.mockReturnValue('sanitized')
+        productService.search.mockReturnValue(of([{ description: '<iframe src="javascript:alert(`xss`)">' }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(sanitizer.sanitize).toHaveBeenCalledWith(SecurityContext.HTML, '<iframe src="javascript:alert(`xss`)">')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<iframe src="javascript:alert(`xss`)">')
+        expect(component.tableData[0].description).toBe('sanitized')
     })
 
     it('should hold no products when product search API call fails', () => {
@@ -215,9 +218,19 @@ describe('SearchResultComponent', () => {
         expect(component.dataSource.filter).toEqual('product search')
     })
 
-    it('should pass the search query as trusted HTML', () => {
+    it('should pass the search query as plain text', () => {
         activatedRoute.setQueryParameter('<script>scripttag</script>')
         component.filterTable()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
+        expect(component.searchValue).toEqual('<script>scripttag</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<script>scripttag</script>')
+    })
+
+    it('should render the search query escaped in the DOM', () => {
+        activatedRoute.setQueryParameter('<img src=x onerror=alert(1)>')
+        component.filterTable()
+        fixture.detectChanges()
+        const element: HTMLElement = fixture.nativeElement.querySelector('#searchValue')
+        expect(element.childElementCount).toBe(0)
+        expect(element.textContent).toEqual('<img src=x onerror=alert(1)>')
     })
 })
