@@ -56,42 +56,45 @@ const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
 const MAX_CHAT_TOTAL_LENGTH = 32000
 const MAX_OUTPUT_TOKENS = 2048
 const MAX_CHAT_STEPS = 4
-const CHAT_ROLES = ['user', 'assistant']
+const MAX_CHAT_REQUESTS_PER_USER = 30
+const MAX_CHAT_REQUESTS_PER_IP = 120
+const CHAT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000
 
-interface ChatMessage { role: 'user' | 'assistant', content: string }
+const chatMessagesSchema = z.array(z.discriminatedUnion('role', [
+  z.object({ role: z.literal('user'), content: z.string().max(MAX_CHAT_MESSAGE_LENGTH) }),
+  z.object({ role: z.literal('assistant'), content: z.string().max(MAX_ASSISTANT_MESSAGE_LENGTH) })
+]))
+  .min(1)
+  .max(MAX_CHAT_MESSAGES)
+  .refine(messages => messages.reduce((total, { content }) => total + content.length, 0) <= MAX_CHAT_TOTAL_LENGTH, {
+    message: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters`
+  })
+
+type ChatMessage = z.infer<typeof chatMessagesSchema>[number]
 
 export function validateChatMessages (messages: unknown): { messages?: ChatMessage[], error?: string } {
-  if (!Array.isArray(messages) || messages.length === 0) {
-    return { error: 'messages must be a non-empty array' }
+  const result = chatMessagesSchema.safeParse(messages)
+  if (!result.success) {
+    const issue = result.error.issues[0]
+    return { error: `invalid messages${issue.path.length > 0 ? ' at ' + issue.path.join('.') : ''}: ${issue.message}` }
   }
-  if (messages.length > MAX_CHAT_MESSAGES) {
-    return { error: `messages must not contain more than ${MAX_CHAT_MESSAGES} entries` }
-  }
-  const validated: ChatMessage[] = []
-  let totalLength = 0
-  for (const message of messages) {
-    const role = message?.role
-    const content = message?.content
-    if (!CHAT_ROLES.includes(role) || typeof content !== 'string') {
-      return { error: 'each message needs a role of user or assistant and string content' }
-    }
-    const maxLength = role === 'assistant' ? MAX_ASSISTANT_MESSAGE_LENGTH : MAX_CHAT_MESSAGE_LENGTH
-    if (content.length > maxLength) {
-      return { error: `${role as string} message content must not exceed ${maxLength} characters` }
-    }
-    totalLength += content.length
-    validated.push({ role: role === 'assistant' ? 'assistant' : 'user', content })
-  }
-  if (totalLength > MAX_CHAT_TOTAL_LENGTH) {
-    return { error: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters` }
-  }
-  return { messages: validated }
+  return { messages: result.data }
 }
 
 export function chatRateLimitKey (req: Request): string {
   const userId = userIdFromToken(req)
-  return userId ? `user:${userId}` : req.ip ?? ''
+  return userId ? `user:${userId}` : `ip:${chatClientIp(req)}`
 }
+
+// The app enables 'trust proxy' globally, so req.ip comes from the spoofable X-Forwarded-For header
+export function chatClientIp (req: Request): string {
+  return req.socket.remoteAddress ?? ''
+}
+
+export const chatRateLimits = [
+  { windowMs: CHAT_RATE_LIMIT_WINDOW_MS, max: MAX_CHAT_REQUESTS_PER_IP, keyGenerator: chatClientIp },
+  { windowMs: CHAT_RATE_LIMIT_WINDOW_MS, max: MAX_CHAT_REQUESTS_PER_USER, keyGenerator: chatRateLimitKey }
+]
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
   const userId = await getUserId(req)
