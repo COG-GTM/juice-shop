@@ -124,16 +124,25 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+  void it('POST placing an order for own basket returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing an order for a non-existing basket fails', async () => {
+  void it('POST placing an order for another user\'s basket is forbidden and leaves it unchanged', async () => {
+    const before = await request(app).get('/rest/basket/1').set(authHeader)
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.orderConfirmation, undefined)
+    const after = await request(app).get('/rest/basket/1').set(authHeader)
+    assert.ok(before.body.data.Products.length > 0)
+    assert.equal(after.body.data.Products.length, before.body.data.Products.length)
+  })
+
+  void it('POST placing an order for a non-existing basket is forbidden', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
+    assert.equal(res.status, 403)
   })
 
   void it('POST placing an order for a basket with a negative total cost is possible', async () => {
@@ -143,7 +152,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
