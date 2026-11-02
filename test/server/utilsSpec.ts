@@ -185,6 +185,20 @@ describe('utils', () => {
     })
   })
 
+  describe('stripQueryString', () => {
+    it('removes the query string from a URL', () => {
+      expect(utils.stripQueryString('/rest/user/change-password?current=a&new=b&repeat=b')).to.equal('/rest/user/change-password')
+    })
+
+    it('returns URL without query string unchanged', () => {
+      expect(utils.stripQueryString('/rest/products/search')).to.equal('/rest/products/search')
+    })
+
+    it('returns undefined for undefined input', () => {
+      expect(utils.stripQueryString(undefined)).to.equal(undefined)
+    })
+  })
+
   describe('contains', () => {
     it('accepts string containing another string', () => {
       expect(utils.contains('Bla Blubb', 'la Bl')).to.equal(true)
