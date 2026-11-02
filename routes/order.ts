@@ -75,9 +75,13 @@ export function placeOrder () {
           const basketProducts: Product[] = []
           let totalPoints = 0
           const stockDeductions: Array<{ ProductId: number, quantity: number }> = []
+          let hasNonPositiveQuantity = false
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
+              if (!(BasketItem.quantity > 0)) {
+                hasNonPositiveQuantity = true
+              }
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
                 if (quantityRow) {
@@ -147,6 +151,10 @@ export function placeOrder () {
           if (totalPrice < 0) {
             challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return true })
             abortOrder(new Error('Order total must not be negative.'))
+            return
+          }
+          if (hasNonPositiveQuantity) {
+            abortOrder(new Error('Basket item quantities must be positive.'))
             return
           }
 
