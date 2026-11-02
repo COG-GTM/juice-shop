@@ -6,6 +6,13 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -197,10 +204,99 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a stable SHA-256 HMAC that does not use the previously hardcoded salt', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
     })
+  })
+
+  describe('jwt', () => {
+    const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+    const unsignedToken = `${b64({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hsHeader = b64({ alg: 'HS256', typ: 'JWT' })
+    const confusedToken = `${hsHeader}.${payload}.${crypto.createHmac('sha256', security.publicKey).update(`${hsHeader}.${payload}`).digest('base64url')}`
+
+    it('accepts tokens issued by authorize', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('admin@juice-sh.op')
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the RSA public key', () => {
+      expect(security.verify(confusedToken)).to.equal(false)
+    })
+
+    it('rejects forged tokens in isAuthorized with 401', async () => {
+      for (const token of [unsignedToken, confusedToken]) {
+        const next = sinon.spy()
+        await security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as any, next)
+        await new Promise(resolve => setImmediate(resolve))
+        expect(next.firstCall.args[0]?.status).to.equal(401)
+      }
+    })
+
+    it('does not register forged tokens as authenticated users', () => {
+      for (const token of [unsignedToken, confusedToken]) {
+        const res = { cookie: sinon.spy() }
+        security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, res as any, sinon.spy())
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(res.cookie.called).to.equal(false)
+      }
+    })
+  })
+
+  describe('JWT_PRIVATE_KEY_FILE', () => {
+    it('refuses to load a signing key from a publicly served directory', () => {
+      const result = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', "await import('./lib/insecurity.ts')"], {
+        env: { ...process.env, JWT_PRIVATE_KEY_FILE: 'encryptionkeys/premium.key' },
+        encoding: 'utf8'
+      })
+      expect(result.status).to.not.equal(0)
+      expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+    }).timeout(20000)
+
+    it('refuses a symlink in a publicly served directory that points elsewhere', () => {
+      const target = path.join(os.tmpdir(), `jwt-${crypto.randomUUID()}.pem`)
+      const link = path.resolve('encryptionkeys', `jwt-link-${crypto.randomUUID()}.key`)
+      fs.writeFileSync(target, crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } }).privateKey)
+      fs.symlinkSync(target, link)
+      try {
+        const result = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', "await import('./lib/insecurity.ts')"], {
+          env: { ...process.env, JWT_PRIVATE_KEY_FILE: link },
+          encoding: 'utf8'
+        })
+        expect(result.status).to.not.equal(0)
+        expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+      } finally {
+        fs.rmSync(link, { force: true })
+        fs.rmSync(target, { force: true })
+      }
+    }).timeout(20000)
+
+    it('refuses a key whose directory is the target of a symlinked served directory', () => {
+      const keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-dir-'))
+      const keyFile = path.join(keyDir, 'jwt.key')
+      fs.writeFileSync(keyFile, crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'spki', format: 'pem' } }).privateKey)
+      const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-cwd-'))
+      fs.symlinkSync(keyDir, path.join(workDir, 'ftp'))
+      try {
+        const result = spawnSync(process.execPath, ['--import', pathToFileURL(path.resolve('node_modules/tsx/dist/loader.mjs')).href, '--input-type=module', '-e', `await import(${JSON.stringify(pathToFileURL(path.resolve('lib/insecurity.ts')).href)})`], {
+          cwd: workDir,
+          env: { ...process.env, JWT_PRIVATE_KEY_FILE: keyFile },
+          encoding: 'utf8'
+        })
+        expect(result.status).to.not.equal(0)
+        expect(result.stderr).to.contain('JWT_PRIVATE_KEY_FILE must not be located in a publicly served directory')
+      } finally {
+        fs.rmSync(workDir, { recursive: true, force: true })
+        fs.rmSync(keyDir, { recursive: true, force: true })
+      }
+    }).timeout(20000)
   })
 })
