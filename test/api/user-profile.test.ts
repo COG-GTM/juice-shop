@@ -51,4 +51,41 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const update = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'a#{7*7}' })
+      .redirects(0)
+    assert.equal(update.status, 302)
+    const updatedToken = /token=([^;]+)/.exec(String(update.headers['set-cookie']))?.[1]
+
+    const res = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${updatedToken}`)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('a#{7*7}'))
+    assert.ok(!res.text.includes('a49'))
+  })
+
+  void it('GET user profile does not evaluate injected code in username', async () => {
+    const update = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: "#{global.process.mainModule.require('os').hostname()}" })
+      .redirects(0)
+    const updatedToken = /token=([^;]+)/.exec(String(update.headers['set-cookie']))?.[1]
+
+    const res = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${updatedToken}`)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{global.process.mainModule.require('))
+    assert.ok(!res.text.includes(`>${(await import('node:os')).hostname()}<`))
+  })
 })
