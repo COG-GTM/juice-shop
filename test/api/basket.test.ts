@@ -243,14 +243,14 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
 
   void it('PUT apply unsigned z85-encoded coupon for the current month is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(unsignedCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
 
   void it('PUT apply unsigned coupon with a discount above 100% is not accepted', async () => {
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(overLimitCoupon))
+      .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(overLimitCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
