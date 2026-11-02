@@ -93,6 +93,14 @@ describe('WalletComponent', () => {
         expect(component.balanceControl.valid).toBe(true)
     })
 
+    it('amount should be a whole number', () => {
+        component.balanceControl.setValue(10.5)
+        expect(component.balanceControl.valid).toBeFalsy()
+        expect(component.balanceControl.errors.pattern).toBeTruthy()
+        component.balanceControl.setValue(25)
+        expect(component.balanceControl.valid).toBe(true)
+    })
+
     it('should hold balance returned by backend API', () => {
         walletService.get.mockReturnValue(of(100))
         component.ngOnInit()
