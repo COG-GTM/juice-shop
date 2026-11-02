@@ -206,6 +206,20 @@ describe('utils', () => {
       expect(utils.createClientIpForRateLimit(['198.51.100.0/24'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '::ffff:198.51.100.10' } })).to.equal('203.0.113.7')
     })
 
+    it('accepts IPv4-mapped proxy addresses and CIDRs in the trusted proxy list', () => {
+      const request = { headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '::ffff:198.51.100.10' } }
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.10'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.0/120'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.10'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '198.51.100.10' } })).to.equal('203.0.113.7')
+    })
+
+    it('trusts only the configured proxies once a trusted proxy list is given', () => {
+      const spoofed = { headers: { 'x-forwarded-for': '203.0.113.99' }, socket: { remoteAddress: '10.0.0.5' } }
+      expect(utils.createClientIpForRateLimit(['10.0.0.1'])(spoofed)).to.equal('10.0.0.5')
+      expect(utils.createClientIpForRateLimit(['10.0.0.1'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '10.0.0.1' } })).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['private', '198.51.100.10'])({ headers: { 'x-forwarded-for': '203.0.113.7, 198.51.100.10' }, socket: { remoteAddress: '10.0.0.1' } })).to.equal('203.0.113.7')
+    })
+
     it('unwraps IPv4-mapped IPv6 addresses', () => {
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:203.0.113.7' } })).to.equal('203.0.113.7')
       expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:c633:6407' } })).to.equal('198.51.100.7')
