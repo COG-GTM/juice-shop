@@ -65,6 +65,7 @@ function revokeOtherSessions (userId: number, currentToken: string) {
   const { tokenMap, idMap } = security.authenticatedUsers
   for (const [token, session] of Object.entries(tokenMap)) {
     if (token !== currentToken && session?.data?.id === userId) {
+      security.revokedTokens.add(token)
       delete tokenMap[token]
     }
   }

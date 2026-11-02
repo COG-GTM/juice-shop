@@ -69,6 +69,8 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+export const revokedTokens = new Set<string>()
+
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
@@ -190,7 +192,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
       if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
+        if (authenticatedUsers.get(token) === undefined && !revokedTokens.has(utils.unquote(token))) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
         }
