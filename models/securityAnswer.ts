@@ -10,7 +10,9 @@ import {
   type InferCreationAttributes,
   DataTypes,
   type CreationOptional,
-  type Sequelize
+  type Sequelize,
+  type BulkCreateOptions,
+  type UpdateOptions
 } from 'sequelize'
 import * as security from '../lib/insecurity'
 
@@ -41,10 +43,7 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
         autoIncrement: true
       },
       answer: {
-        type: DataTypes.STRING,
-        set (answer: string) {
-          this.setDataValue('answer', security.hmac(answer))
-        }
+        type: DataTypes.STRING
       }
     },
     {
@@ -52,6 +51,24 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
       sequelize
     }
   )
+
+  const hashAnswer = async (securityAnswer: SecurityAnswer) => {
+    if (securityAnswer.changed('answer') && securityAnswer.answer != null) {
+      securityAnswer.answer = await security.hashSecurityAnswer(String(securityAnswer.answer))
+    }
+  }
+
+  SecurityAnswer.addHook('beforeSave', hashAnswer)
+  SecurityAnswer.addHook('beforeBulkCreate', async (securityAnswers: SecurityAnswer[], options: BulkCreateOptions<InferAttributes<SecurityAnswer>>) => {
+    if (options.individualHooks === true) return
+    await Promise.all(securityAnswers.map(hashAnswer))
+  })
+  SecurityAnswer.addHook('beforeBulkUpdate', async (options: UpdateOptions<InferAttributes<SecurityAnswer>>) => {
+    const { attributes } = options as unknown as { attributes?: { answer?: unknown } }
+    if (options.individualHooks !== true && attributes?.answer != null) {
+      attributes.answer = await security.hashSecurityAnswer(String(attributes.answer))
+    }
+  })
 }
 
 export { SecurityAnswer as SecurityAnswerModel, SecurityAnswerModelInit }
