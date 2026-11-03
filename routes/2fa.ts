@@ -17,15 +17,19 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    const payload = security.verifiedPayload(tmpToken)
 
-    if (type !== 'password_valid_needs_second_factor_token') {
+    if (!payload || payload.type !== 'password_valid_needs_second_factor_token') {
       throw new Error('Invalid token type')
     }
 
+    const userId = payload.userId
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
+    }
+    if (!user.totpSecret) {
+      throw new Error('User does not have 2fa enabled')
     }
 
     const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
@@ -96,34 +100,32 @@ export async function status (req: Request, res: Response) {
  */
 export async function setup (req: Request, res: Response) {
   try {
-    const data = security.authenticatedUsers.from(req)
-    if (!data) {
+    const payload = security.verifiedPayload(utils.jwtFrom(req))
+    if (!payload?.data?.id) {
       throw new Error('Need to login before setting up 2FA')
     }
-    const { data: user } = data
+    const userModel = await UserModel.findByPk(payload.data.id)
+    if (userModel == null) {
+      throw new Error('No such user found!')
+    }
 
     const { password, setupToken, initialToken } = req.body
 
-    if (user.password !== security.hash(password)) {
+    if (userModel.password !== security.hash(password)) {
       throw new Error('Password doesnt match stored password')
     }
 
-    if (user.totpSecret !== '') {
+    if (userModel.totpSecret !== '') {
       throw new Error('User has 2fa already setup')
     }
 
-    const { secret, type } = security.verify(setupToken) && security.decode(setupToken)
-    if (type !== 'totp_setup_secret') {
+    const setupPayload = security.verifiedPayload(setupToken)
+    if (!setupPayload || setupPayload.type !== 'totp_setup_secret') {
       throw new Error('SetupToken is of wrong type')
     }
+    const { secret } = setupPayload
     if (!verifySync({ secret, token: initialToken, epochTolerance: 30 }).valid) {
       throw new Error('Initial token doesnt match the secret from the setupToken')
-    }
-
-    // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
-    if (userModel == null) {
-      throw new Error('No such user found!')
     }
 
     userModel.totpSecret = secret
@@ -141,22 +143,19 @@ export async function setup (req: Request, res: Response) {
  */
 export async function disable (req: Request, res: Response) {
   try {
-    const data = security.authenticatedUsers.from(req)
-    if (!data) {
+    const payload = security.verifiedPayload(utils.jwtFrom(req))
+    if (!payload?.data?.id) {
       throw new Error('Need to login before setting up 2FA')
     }
-    const { data: user } = data
+    const userModel = await UserModel.findByPk(payload.data.id)
+    if (userModel == null) {
+      throw new Error('No such user found!')
+    }
 
     const { password } = req.body
 
-    if (user.password !== security.hash(password)) {
+    if (userModel.password !== security.hash(password)) {
       throw new Error('Password doesnt match stored password')
-    }
-
-    // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
-    if (userModel == null) {
-      throw new Error('No such user found!')
     }
 
     userModel.totpSecret = ''

@@ -6,12 +6,46 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('JWT verification', () => {
+    it('accepts tokens created by authorize and returns their verified payload', () => {
+      const token = security.authorize({ data: { id: 1 } })
+
+      expect(security.verify(token)).to.equal(true)
+      expect(security.verifiedPayload(token)).to.have.nested.property('data.id', 1)
+    })
+
+    it('rejects a token with alg none and an empty signature', () => {
+      const token = forgeToken('none', { data: { id: 1 } }, '')
+
+      expect(security.verify(token)).to.equal(false)
+      expect(security.verifiedPayload(token)).to.equal(undefined)
+    })
+
+    it('rejects an HS256 token signed with the public key', () => {
+      const header = encodeBase64Url({ alg: 'HS256', typ: 'JWT' })
+      const payload = encodeBase64Url({ data: { id: 1 } })
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      const token = `${header}.${payload}.${signature}`
+
+      expect(security.verify(token)).to.equal(false)
+      expect(security.verifiedPayload(token)).to.equal(undefined)
+    })
+
+    it('rejects an expired RS256 token', () => {
+      const token = security.authorize({ iat: Math.floor(Date.now() / 1000) - 7 * 60 * 60 })
+
+      expect(security.verify(token)).to.equal(false)
+      expect(security.verifiedPayload(token)).to.equal(undefined)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
@@ -204,3 +238,11 @@ describe('insecurity', () => {
     })
   })
 })
+
+function encodeBase64Url (value: object) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
+
+function forgeToken (alg: string, payload: object, signature: string) {
+  return `${encodeBase64Url({ alg, typ: 'JWT' })}.${encodeBase64Url(payload)}.${signature}`
+}
