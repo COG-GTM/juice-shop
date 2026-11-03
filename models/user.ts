@@ -122,6 +122,11 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     {
       tableName: 'Users',
       paranoid: true,
+      defaultScope: {
+        attributes: {
+          exclude: ['password', 'totpSecret']
+        }
+      },
       sequelize
     }
   )

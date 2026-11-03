@@ -20,10 +20,18 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/memories', () => {
-  void it('GET memories via public API', async () => {
+  void it('GET memories via public API without exposing user secrets', async () => {
     const res = await request(app)
       .get('/rest/memories')
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const memory of res.body.data) {
+      assert.ok(memory.User)
+      assert.equal('username' in memory.User, true)
+      assert.equal('password' in memory.User, false)
+      assert.equal('totpSecret' in memory.User, false)
+      assert.equal('email' in memory.User, false)
+    }
   })
 
   void it('GET memories via a valid authorization token', async () => {
