@@ -49,7 +49,7 @@ export function serveOrderConfirmation () {
       res.status(403).json({ status: 'error', message: 'Forbidden' })
       return
     }
-    res.sendFile(path.resolve(ORDER_CONFIRMATIONS_DIR, `order_${orderId}.pdf`), (err) => {
+    res.sendFile(`order_${order.orderId}.pdf`, { root: path.resolve(ORDER_CONFIRMATIONS_DIR) }, (err) => {
       if (err) next(err)
     })
   }
