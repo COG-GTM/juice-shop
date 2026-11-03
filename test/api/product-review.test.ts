@@ -62,6 +62,20 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('GET product reviews includes a newly created review', async () => {
+    const message = `Review ${Date.now()}`
+    const putRes = await request(app)
+      .put('/rest/products/2/reviews')
+      .send({ message, author: 'Anonymous' })
+    assert.equal(putRes.status, 201)
+    const res = await request(app)
+      .get('/rest/products/2/reviews')
+    assert.equal(res.status, 200)
+    const review = res.body.data.find((r: any) => r.message === message)
+    assert.ok(review)
+    assert.equal(review.product, 2)
+  })
 })
 
 void describe('/rest/products/reviews', () => {
