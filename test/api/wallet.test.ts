@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { CardModel } from '../../models/card'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -58,6 +59,43 @@ void describe('/api/Wallets', () => {
     assert.equal(balanceRes.body.data, 210)
   })
 
+  void it('PUT charge wallet with negative amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: -500, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet with amount above maximum is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 999999, paymentId: 2 })
+    assert.equal(res.status, 400)
+
+    const balanceRes = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    assert.equal(balanceRes.body.data, 210)
+  })
+
+  void it('PUT charge wallet with non-numeric amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 'lots', paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet with non-integer amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 10.5, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
   void it('PUT charge wallet from foreign credit card is forbidden', async () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
@@ -72,5 +110,50 @@ void describe('/api/Wallets', () => {
       .set(authHeader)
       .send({ balance: 10 })
     assert.equal(res.status, 402)
+  })
+
+  void it('PUT charge wallet from expired credit card is rejected', async () => {
+    const card = await CardModel.findByPk(2)
+    assert.ok(card)
+    const { expMonth, expYear } = card
+    const now = new Date()
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    try {
+      await CardModel.update({ expMonth: lastMonth.getMonth() + 1, expYear: lastMonth.getFullYear() }, { where: { id: 2 }, validate: false })
+      const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId: 2 })
+      assert.equal(res.status, 402)
+
+      const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
+      assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+    } finally {
+      await CardModel.update({ expMonth, expYear }, { where: { id: 2 } })
+    }
+  })
+
+  void it('PUT charge wallet from credit card expiring this month is accepted', async () => {
+    const card = await CardModel.findByPk(2)
+    assert.ok(card)
+    const { expMonth, expYear } = card
+    const now = new Date()
+    try {
+      await CardModel.update({ expMonth: now.getMonth() + 1, expYear: now.getFullYear() }, { where: { id: 2 }, validate: false })
+      const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
+
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId: 2 })
+      assert.equal(res.status, 200)
+
+      const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
+      assert.equal(balanceAfter.body.data, balanceBefore.body.data + 10)
+    } finally {
+      await CardModel.update({ expMonth, expYear }, { where: { id: 2 } })
+    }
   })
 })
