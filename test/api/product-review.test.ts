@@ -34,15 +34,23 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects a mongoDB sleep command quickly', async () => {
+    const start = Date.now()
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    const elapsed = Date.now() - start
+    assert.equal(res.status, 400)
+    assert.ok(elapsed < 1000, `Request took ${elapsed}ms`)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews rejects an executable product id', async () => {
+    const res = await request(app)
+      .get('/rest/products/(global.x=1)/reviews')
+    assert.equal(res.status, 400)
+    assert.equal((global as any).x, undefined)
+  })
+
+  void it('GET product reviews rejects an alphanumeric product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
     assert.equal(res.status, 400)
