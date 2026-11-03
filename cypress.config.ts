@@ -1,4 +1,6 @@
 import { defineConfig } from 'cypress'
+import fs from 'node:fs'
+import jws from 'jws'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
@@ -60,6 +62,10 @@ export default defineConfig({
               return i + 1
             }
           }
+        },
+        ForgeJwtWithPublicKey (payload: object) {
+          const publicKey = fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')
+          return jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret: publicKey })
         },
         GenerateAuthenticator (inputString: string) {
           return generateSync({ secret: inputString })

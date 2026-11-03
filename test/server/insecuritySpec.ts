@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -79,6 +81,29 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that verify against the public key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects tokens signed with a different private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'pkcs1', format: 'pem' } })
+      const forgedToken = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+
+      expect(security.verify(forgedToken)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is deterministic for the same email', () => {
+      expect(security.deluxeToken('test@juice-sh.op')).to.equal(security.deluxeToken('test@juice-sh.op'))
+    })
+
+    it('differs between emails', () => {
+      expect(security.deluxeToken('a@juice-sh.op')).to.not.equal(security.deluxeToken('b@juice-sh.op'))
     })
   })
 
