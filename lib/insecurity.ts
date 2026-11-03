@@ -81,11 +81,10 @@ const formatPasswordHash = (N: number, r: number, p: number, salt: Buffer, key: 
 /**
  * Salted scrypt password hash in the format `scrypt$N$r$p$salt$key` using a fresh random salt.
  */
-export const hashPassword = (password: string) => {
+export const hashPassword = async (password: string) => {
   const { N, r, p } = SCRYPT_DEFAULTS
   const salt = crypto.randomBytes(PASSWORD_SALT_BYTES)
-  const key = crypto.scryptSync(String(password), salt, PASSWORD_KEY_BYTES, scryptOptions(N, r, p))
-  return formatPasswordHash(N, r, p, salt, key)
+  return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
 }
 
 /**
