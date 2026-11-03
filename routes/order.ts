@@ -227,7 +227,7 @@ export function orderConfirmationPdf () {
     }
 
     res.set('Cache-Control', 'private, no-store')
-    res.sendFile(path.join(orderConfirmationDirectory, `order_${orderId}.pdf`), (err) => {
+    res.sendFile(path.join(orderConfirmationDirectory, `order_${order.orderId}.pdf`), (err) => {
       if (err && !res.headersSent) {
         res.status(404).json({ status: 'error', error: 'Not Found' })
       }
