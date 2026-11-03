@@ -161,7 +161,7 @@ export function placeOrder () {
             for (const { ProductId, quantity } of stockUpdates) {
               const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
               if (quantityRow) {
-                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+                await QuantityModel.decrement({ quantity }, { where: { ProductId } })
                 appliedStockUpdates.push({ ProductId, quantity })
               }
             }
