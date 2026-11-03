@@ -144,7 +144,8 @@ export function placeOrder () {
             return
           }
 
-          if (req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+          const payWithWallet = req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet'
+          if (payWithWallet) {
             const [debitedWallets] = await WalletModel.update(
               { balance: literal(`balance - ${sequelize.escape(totalPrice)}`) },
               { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
@@ -163,6 +164,9 @@ export function placeOrder () {
               }
             }
           } catch (error: unknown) {
+            if (payWithWallet) {
+              await WalletModel.increment({ balance: totalPrice }, { where: { UserId: req.body.UserId } }).catch(() => {})
+            }
             next(error)
             return
           }
