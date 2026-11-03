@@ -20,6 +20,11 @@ export function updateUserProfile () {
       return
     }
 
+    if (typeof req.body.username !== 'string' || /\p{Cc}/u.test(req.body.username)) {
+      res.status(400).json({ error: 'Invalid username' })
+      return
+    }
+
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
