@@ -26,7 +26,16 @@ const loadPrivateKey = (): string => {
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
     const keyFile = fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE)
-    const publiclyServedDirs = ['encryptionkeys', 'ftp', 'logs', '.well-known', 'frontend', 'node_modules'].map(dir => path.resolve(dir))
+    const publiclyServedDirs = [
+      'encryptionkeys',
+      'ftp',
+      'logs',
+      '.well-known',
+      'frontend/dist/frontend',
+      'node_modules/beercss/dist/cdn',
+      'node_modules/material-icons/iconfont',
+      'node_modules/@fontsource/roboto'
+    ].map(dir => path.resolve(dir))
     if (publiclyServedDirs.some(dir => keyFile === dir || keyFile.startsWith(dir + path.sep))) {
       throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside a publicly served directory')
     }
