@@ -3,10 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
-import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
+import fs from 'node:fs/promises'
 import { type Request, type Response, type NextFunction } from 'express'
+import fileType from 'file-type'
 
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
@@ -25,11 +24,17 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          const buffer = Buffer.from(await response.arrayBuffer())
+          const detected = await fileType.fromBuffer(buffer)
+          const allowedExtensions = ['jpg', 'png', 'gif', 'webp']
+          if (detected === undefined || !allowedExtensions.includes(detected.ext)) {
+            res.status(415)
+            next(new Error(`Profile image URL upload does not accept this file type${detected ? ': ' + detected.mime : '.'}`))
+            return
+          }
+          await fs.writeFile(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${detected.ext}`, buffer)
           const user = await UserModel.findByPk(loggedInUser.data.id)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
+          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${detected.ext}` })
         } catch (error) {
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
