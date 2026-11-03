@@ -4,21 +4,20 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
-import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
+import { findOwnBasket } from '../lib/basketOwnership'
 
 export function applyCoupon () {
-  return async ({ params }: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = params.id
-      let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
+      const id = req.params.id
+      let coupon: string | undefined | null = req.params.coupon ? decodeURIComponent(req.params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
 
-      const basket = await BasketModel.findByPk(id)
+      const basket = await findOwnBasket(req, id)
       if (!basket) {
-        next(new Error(`Basket with id=${id} does not exist.`))
-        return
+        return res.status(403).json({ status: 'error', message: 'Access to this basket is forbidden.' })
       }
 
       await basket.update({ coupon: coupon?.toString() })
