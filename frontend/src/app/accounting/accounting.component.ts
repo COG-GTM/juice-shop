@@ -133,8 +133,7 @@ export class AccountingComponent implements AfterViewInit, OnDestroy {
   }
 
   modifyPrice (id, value) {
-    const price = Number(value)
-    this.productService.put(id, { price: price < 0 ? 0 : price }).subscribe({
+    this.productService.put(id, { price: value < 0 ? 0 : value }).subscribe({
       next: (product) => {
 
         this.snackBarHelperService.open(`Price for ${product.name} has been updated.`, 'confirmBar')
