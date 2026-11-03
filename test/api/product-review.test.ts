@@ -54,27 +54,21 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT single product review can be created', async () => {
+  void it('PUT single product review can be created and is returned by GET', async () => {
+    const message = `Lorem Ipsum ${Date.now()}`
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
-        message: 'Lorem Ipsum',
+        message,
         author: 'Anonymous'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-  })
 
-  void it('GET product reviews includes reviews created via PUT', async () => {
-    const message = `Created review ${Date.now()}`
-    const putRes = await request(app)
-      .put('/rest/products/2/reviews')
-      .send({ message, author: 'Anonymous' })
-    assert.equal(putRes.status, 201)
-    const res = await request(app)
-      .get('/rest/products/2/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.body.data.some((review: { message: string }) => review.message === message))
+    const getRes = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(getRes.status, 200)
+    assert.ok(getRes.body.data.some((review: { message: string }) => review.message === message))
   })
 })
 
