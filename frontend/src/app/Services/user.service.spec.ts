@@ -140,11 +140,11 @@ describe('UserService', () => {
         service.resetPassword(mockObject).subscribe((data) => (res = data))
 
         const req = httpMock.expectOne('http://localhost:3000/rest/user/reset-password')
-        req.flush({ user: 'apiResponse' })
+        req.flush({ status: 'success' })
 
         expect(req.request.method).toBe('POST')
         expect(req.request.body).toEqual(mockObject)
-        expect(res).toBe('apiResponse')
+        expect(res).toBe('success')
         httpMock.verify()
     })
 
