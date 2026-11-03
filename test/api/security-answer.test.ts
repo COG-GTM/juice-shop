@@ -132,6 +132,43 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(resetRes.status, 200)
   })
 
+  void it('POST /api/Users with unknown security question is rejected without creating the user', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'unknown.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 999999 },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(userRes.status, 400)
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email: 'unknown.question@te.st', password: '12345' })
+
+    assert.equal(loginRes.status, 401)
+  })
+
+  void it('POST /api/Users with security question but empty answer is rejected', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'empty.answer@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: ''
+      })
+
+    assert.equal(userRes.status, 400)
+  })
+
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .put('/api/SecurityAnswers/1')

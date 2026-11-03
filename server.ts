@@ -417,6 +417,19 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Security question and answer chosen during registration must be valid */
+  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { securityQuestion, securityAnswer } = req.body
+    if (securityQuestion == null && securityAnswer == null) {
+      next()
+      return
+    }
+    if (typeof securityAnswer !== 'string' || securityAnswer.trim().length === 0 || await SecurityQuestionModel.findByPk(securityQuestion?.id) == null) {
+      res.status(400).json({ status: 'error', message: 'Invalid security question or answer' })
+      return
+    }
+    next()
+  }))
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
@@ -522,9 +535,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       resource.create.send.before(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
         const { securityQuestion, securityAnswer } = req.body
         if (securityQuestion?.id && securityAnswer) {
-          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer }).catch((err: unknown) => {
-            console.log(err)
-          })
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
+          } catch (err: unknown) {
+            await WalletModel.destroy({ where: { UserId: context.instance.id } })
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+            throw err
+          }
         }
         return context.continue
       })
