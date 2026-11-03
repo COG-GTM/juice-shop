@@ -46,6 +46,28 @@ describe('/#/register', () => {
     })
   })
 
+  describe('challenge "registerAdmin"', () => {
+    it('should not be possible to register admin user using REST API', () => {
+      cy.request({
+        method: 'POST',
+        url: '/api/Users/',
+        body: {
+          email: 'testing@test.com',
+          password: 'pwned',
+          passwordRepeat: 'pwned',
+          role: 'admin'
+        }
+      }).then((response) => {
+        expect(response.status).to.eq(201)
+        expect(response.body.data.role).to.eq('customer')
+      })
+      cy.request('/api/Challenges/?name=Admin Registration').then((response) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+        expect(response.body.data[0].solved).to.be.false
+      })
+    })
+  })
+
   describe('challenge "passwordRepeat"', () => {
     it('should be possible to register user without repeating the password', () => {
       cy.window().then(async () => {
