@@ -22,14 +22,19 @@ const readPersistedSecret = () => {
   return undefined
 }
 
+// Write to a private temp file and hard-link it into place so concurrent starters never observe a partially written key
 const generatePersistedSecret = () => {
   const generated = crypto.randomBytes(32).toString('hex')
+  const tempFile = `${SECRET_FILE}.${process.pid}.${crypto.randomBytes(8).toString('hex')}.tmp`
   try {
-    fs.writeFileSync(SECRET_FILE, generated, { mode: 0o600, flag: 'wx' })
+    fs.writeFileSync(tempFile, generated, { mode: 0o600, flag: 'wx' })
+    fs.linkSync(tempFile, SECRET_FILE)
   } catch (error: unknown) {
     const persisted = (error as NodeJS.ErrnoException).code === 'EEXIST' ? readPersistedSecret() : undefined
     if (persisted !== undefined) return persisted
     logger.warn('Could not persist continue code secret; continue codes will not survive a server restart')
+  } finally {
+    try { fs.unlinkSync(tempFile) } catch {}
   }
   return generated
 }
