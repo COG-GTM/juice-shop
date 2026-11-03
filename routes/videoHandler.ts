@@ -5,6 +5,7 @@
 
 import fs from 'node:fs'
 import config from 'config'
+import pug from 'pug'
 import { type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
 
@@ -48,33 +49,37 @@ export const getVideo = () => {
 }
 
 export const promotionVideo = () => {
+  const compiledTemplate = compilePromotionTemplate()
   return (req: Request, res: Response) => {
-    fs.readFile('views/promotionVideo.pug', async function (err, buf) {
-      if (err != null) throw err
-      let template = buf.toString()
-      const subs = getSubsFromFile()
+    const subs = getSubsFromFile()
 
-      challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
+    challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
 
-      const themeKey = config.get<string>('application.theme') as keyof typeof themes
-      const theme = themes[themeKey] || themes['bluegrey-lightgreen']
-      template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
-      template = template.replace(/_favicon_/g, favicon())
-      template = template.replace(/_bgColor_/g, theme.bgColor)
-      template = template.replace(/_textColor_/g, theme.textColor)
-      template = template.replace(/_navColor_/g, theme.navColor)
-      template = template.replace(/_primLight_/g, theme.primLight)
-      template = template.replace(/_primDark_/g, theme.primDark)
-      const pug = (await import('pug')).default
-      const fn = pug.compile(template)
-      let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
-      res.send(compiledTemplate)
-    })
+    res.send(compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="application/json" data-label="English" data-lang="en">' + serializeForScript(subs) + '</script>'))
   }
-  function favicon () {
-    return utils.extractFilename(config.get('application.favicon'))
-  }
+}
+
+function compilePromotionTemplate () {
+  let template = fs.readFileSync('views/promotionVideo.pug', 'utf8')
+  const themeKey = config.get<string>('application.theme') as keyof typeof themes
+  const theme = themes[themeKey] || themes['bluegrey-lightgreen']
+  template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
+  template = template.replace(/_favicon_/g, utils.extractFilename(config.get('application.favicon')))
+  template = template.replace(/_bgColor_/g, theme.bgColor)
+  template = template.replace(/_textColor_/g, theme.textColor)
+  template = template.replace(/_navColor_/g, theme.navColor)
+  template = template.replace(/_primLight_/g, theme.primLight)
+  template = template.replace(/_primDark_/g, theme.primDark)
+  return pug.compile(template)()
+}
+
+function serializeForScript (value: string) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
 }
 
 function getSubsFromFile () {
