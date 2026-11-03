@@ -134,20 +134,22 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             respond(204)
             return
           }
-          const renames = entries.map(async entry => { await new Promise<void>(resolve => {
-            if (aborted) {
-              fs.rm(entry.tempPath, { force: true }, () => {})
-              resolve()
-              return
-            }
-            fs.rename(entry.tempPath, entry.targetPath, (err) => {
-              if (err != null) {
-                logger.warn(`Could not store complaint zip entry: ${err.message}`)
+          const renames = entries.map(async entry => {
+            await new Promise<void>(resolve => {
+              if (aborted) {
                 fs.rm(entry.tempPath, { force: true }, () => {})
+                resolve()
+                return
               }
-              resolve()
+              fs.rename(entry.tempPath, entry.targetPath, (err) => {
+                if (err != null) {
+                  logger.warn(`Could not store complaint zip entry: ${err.message}`)
+                  fs.rm(entry.tempPath, { force: true }, () => {})
+                }
+                resolve()
+              })
             })
-          }) })
+          })
           void Promise.all(renames).then(() => { respond(204) })
         })
       }
