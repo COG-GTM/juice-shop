@@ -12,6 +12,7 @@ import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
+import * as totpSecretStorage from '../lib/totpSecretStorage'
 
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
@@ -28,7 +29,7 @@ export async function verify (req: Request, res: Response) {
       throw new Error('No such user found!')
     }
 
-    const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
+    const isValid = verifySync({ secret: totpSecretStorage.open(user.totpSecret), token: totpToken, epochTolerance: 30 }).valid
 
     const plainUser = utils.queryResultToJson(user)
 
@@ -126,7 +127,7 @@ export async function setup (req: Request, res: Response) {
       throw new Error('No such user found!')
     }
 
-    userModel.totpSecret = secret
+    userModel.totpSecret = totpSecretStorage.seal(secret)
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
 

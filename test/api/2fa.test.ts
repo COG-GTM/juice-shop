@@ -11,6 +11,7 @@ import jwt from 'jsonwebtoken'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
 
@@ -168,6 +169,22 @@ void describe('/rest/2fa/setup', () => {
     assert.equal(statusRes.status, 200)
     assert.equal(typeof statusRes.body.setup, 'boolean')
     assert.equal(statusRes.body.setup, true)
+  })
+
+  void it('POST should store the TOTP secret encrypted and still accept codes from it', async () => {
+    const email = 'totpatrest@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    assert.match(user.totpSecret, /^enc:v1:/)
+    assert.ok(!user.totpSecret.includes(totpSecret))
+
+    const { token } = await login(app, { email, password, totpSecret })
+    assert.equal(typeof token, 'string')
   })
 
   void it('POST should fail if the password doesnt match', async () => {
