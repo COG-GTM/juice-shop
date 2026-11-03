@@ -99,7 +99,7 @@ void describe('/rest/order-confirmation/:orderId', () => {
 
   void it('GET with a token forged with the committed signing key and registered via whoami is denied', async () => {
     const privateKey = (/const privateKey = '(.+?)'/.exec(fs.readFileSync('lib/insecurity.ts', 'utf8'))?.[1] ?? '').replace(/\\r\\n/g, '\r\n')
-    const forgedToken = jwt.sign({ data: (security.decode(jimToken) as any).data }, privateKey, { algorithm: 'RS256', expiresIn: '6h' })
+    const forgedToken = jwt.sign({ data: (security.decode(jimToken) as any).data, status: 'forged' }, privateKey, { algorithm: 'RS256', expiresIn: '6h' })
     await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forgedToken)
     assert.ok(security.authenticatedUsers.get(forgedToken))
     const res = await request(app)
