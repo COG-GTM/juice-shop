@@ -126,10 +126,15 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     }
   )
 
+  const hashedPasswords = new WeakMap<User, string>()
   const hashClearTextPassword = async (user: User) => {
     if (user.isNewRecord || user.changed('password')) {
       const clearTextPassword = user.getDataValue('password')
-      if (clearTextPassword != null) user.setDataValue('password', await security.hashPassword(clearTextPassword))
+      if (clearTextPassword != null && clearTextPassword !== hashedPasswords.get(user)) {
+        const passwordHash = await security.hashPassword(clearTextPassword)
+        hashedPasswords.set(user, passwordHash)
+        user.setDataValue('password', passwordHash)
+      }
     }
   }
   User.addHook('beforeValidate', hashClearTextPassword)
