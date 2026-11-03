@@ -236,10 +236,28 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET and DELETE own basket item work with only an Authorization header', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 21, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set('Authorization', authHeader.Authorization)
+    assert.equal(getRes.status, 200)
+
+    const deleteRes = await request(app)
+      .delete('/api/BasketItems/' + createRes.body.data.id)
+      .set('Authorization', authHeader.Authorization)
+    assert.equal(deleteRes.status, 200)
+  })
+
   void it('GET basket item in another user\'s basket is forbidden', async () => {
     const res = await request(app)
       .get('/api/BasketItems/1')
-      .set(otherUserAuthHeader)
+      .set('Authorization', otherUserAuthHeader.Authorization)
     assert.equal(res.status, 403)
   })
 
