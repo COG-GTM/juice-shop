@@ -133,8 +133,9 @@ export class AccountingComponent implements AfterViewInit, OnDestroy {
   }
 
   modifyPrice (id, value) {
+    const isBlank = value === null || value === undefined || String(value).trim() === ''
     const price = Number(value)
-    if (!Number.isFinite(price)) {
+    if (isBlank || !Number.isFinite(price)) {
       this.snackBarHelperService.open('Price must be a valid number.', 'errorBar')
       return
     }
