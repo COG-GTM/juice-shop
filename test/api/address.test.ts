@@ -154,6 +154,35 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data.fullName, 'Jimy')
   })
 
+  void it('PUT update address of another user is forbidden and leaves it unchanged', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const otherAuthHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+      .send({ fullName: 'Mallory', streetAddress: 'Evil Street 1' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.status, 'error')
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.equal(ownerRes.body.data.fullName, 'Jimy')
+  })
+
+  void it('PUT update address with empty body cannot take over another user\'s address', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({})
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+  })
+
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)
