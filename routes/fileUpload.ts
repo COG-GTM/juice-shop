@@ -95,6 +95,14 @@ const complaintStoreError = 'Could not store the attached ZIP archive'
 
 interface StagedComplaintEntry { tempPath: string, targetPath: string }
 
+function targetIsNotRegularFile (targetPath: string): boolean {
+  try {
+    return !fs.lstatSync(targetPath).isFile()
+  } catch (err: any) {
+    return err?.code !== 'ENOENT'
+  }
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -138,6 +146,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             return
           }
           if (storeFailed || !complaintsDirectoryIsSafe()) {
+            removeStaged(entries)
+            respond(500, complaintStoreError)
+            return
+          }
+          if (entries.some(entry => targetIsNotRegularFile(entry.targetPath))) {
             removeStaged(entries)
             respond(500, complaintStoreError)
             return
