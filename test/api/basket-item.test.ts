@@ -106,6 +106,29 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET own basket item with token re-issued by profile update', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 7, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const profileRes = await request(app)
+      .post('/profile')
+      .set('Cookie', 'token=' + authHeader.Authorization.replace('Bearer ', ''))
+      .field('username', 'Jim')
+      .redirects(0)
+    assert.equal(profileRes.status, 302)
+    const cookies = ([] as string[]).concat(profileRes.headers['set-cookie'] ?? [])
+    const updatedToken = cookies.find(c => c.startsWith('token='))?.split(';')[0].slice('token='.length)
+    assert.ok(updatedToken)
+
+    const res = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + updatedToken, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+  })
+
   void it('PUT update newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
