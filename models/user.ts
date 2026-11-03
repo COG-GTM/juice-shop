@@ -126,11 +126,15 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     }
   )
 
-  User.addHook('beforeSave', async (user: User) => {
+  const hashClearTextPassword = async (user: User) => {
     if (user.isNewRecord || user.changed('password')) {
       const clearTextPassword = user.getDataValue('password')
       if (clearTextPassword != null) user.setDataValue('password', await security.hashPassword(clearTextPassword))
     }
+  }
+  User.addHook('beforeValidate', hashClearTextPassword)
+  User.addHook('beforeSave', async (user: User, options: { validate?: boolean }) => {
+    if (options.validate === false) await hashClearTextPassword(user)
   })
 
   User.addHook('afterValidate', async (user: User) => {
