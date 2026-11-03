@@ -5,7 +5,7 @@
 
 import {
   waitForInputToHaveValue,
-  waitForElementsInnerHtmlToBe,
+  waitForElementsTextContentToBe,
   waitInMs
 } from '../helpers/helpers'
 import { type ChallengeInstruction } from '../'
@@ -30,11 +30,11 @@ export const BonusPayloadInstruction: ChallengeInstruction = {
       text: 'Make sure your speaker volume is cranked up. Then hit enter.',
       fixture: '#product-search-fixture',
       unskippable: true,
-      resolved: waitForElementsInnerHtmlToBe('#searchValue', '<iframe width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/771984076&color=%23ff5500&auto_play=true&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true"></iframe>')
+      resolved: waitForElementsTextContentToBe('#searchValue', '<iframe width="100%" height="166" scrolling="no" frameborder="no" allow="autoplay" src="https://w.soundcloud.com/player/?url=https%3A//api.soundcloud.com/tracks/771984076&color=%23ff5500&auto_play=true&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true"></iframe>')
     },
     {
       text:
-        '🎉 Congratulations and enjoy the music!',
+        '🎉 Well done! The payload is shown as plain text, so the application no longer embeds it as HTML.',
       fixture: '.noResult',
       resolved: waitInMs(5000)
     }

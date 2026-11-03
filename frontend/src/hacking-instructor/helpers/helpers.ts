@@ -128,14 +128,14 @@ export function waitForElementToGetClicked (elementSelector: string) {
   }
 }
 
-export function waitForElementsInnerHtmlToBe (elementSelector: string, value: string) {
+export function waitForElementsTextContentToBe (elementSelector: string, value: string) {
   return async () => {
     while (true) {
       const element = document.querySelector(
         elementSelector
       )
 
-      if (element && element.innerHTML === value) {
+      if (element && element.textContent === value) {
         break
       }
       await sleep(100)

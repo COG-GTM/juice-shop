@@ -5,7 +5,7 @@
 
 import {
   waitForInputToHaveValue,
-  waitForElementsInnerHtmlToBe,
+  waitForElementsTextContentToBe,
   waitInMs
 } from '../helpers/helpers'
 import { type ChallengeInstruction } from '../'
@@ -30,7 +30,7 @@ export const DomXssInstruction: ChallengeInstruction = {
       text: 'Now hit enter.',
       fixture: '#product-search-fixture',
       unskippable: true,
-      resolved: waitForElementsInnerHtmlToBe('#searchValue', 'owasp')
+      resolved: waitForElementsTextContentToBe('#searchValue', 'owasp')
     },
     {
       text: 'Nice! You should now see many cool OWASP-related products.',
@@ -57,20 +57,20 @@ export const DomXssInstruction: ChallengeInstruction = {
       text: 'Hit enter again.',
       fixture: '#product-search-fixture',
       unskippable: true,
-      resolved: waitForElementsInnerHtmlToBe('#searchValue', '<h1>owasp</h1>') // Browsers will autocorrect the unclosed tag.
+      resolved: waitForElementsTextContentToBe('#searchValue', '<h1>owasp')
     },
     {
-      text: "Hmm, this doesn't look normal, does it?",
+      text: 'Notice that your search term is shown exactly as you typed it, including the `<h1>` tag.',
       fixture: '.noResult',
       resolved: waitInMs(8000)
     },
     {
-      text: 'If you right-click on the search term and inspect that part of the page with your browser, you will see that our `h1`-tag was _actually_ embedded into the page and is not just shown as plain text!',
+      text: 'If you right-click on the search term and inspect that part of the page with your browser, you will see that the `h1`-tag was _not_ embedded into the page but is shown as plain text.',
       fixture: '.noResult',
       resolved: waitInMs(16000)
     },
     {
-      text: "Let's now try to inject JavaScript. Type `<script>alert(xss)</script>` into the search box now.",
+      text: "Let's see if JavaScript fares any better. Type `<script>alert(xss)</script>` into the search box now.",
       fixture: '#product-search-fixture',
       unskippable: true,
       resolved: waitForInputToHaveValue('#searchQuery input', '<script>alert(xss)</script>')
@@ -79,34 +79,34 @@ export const DomXssInstruction: ChallengeInstruction = {
       text: 'Hit enter again.',
       fixture: '#product-search-fixture',
       unskippable: true,
-      resolved: waitForElementsInnerHtmlToBe('#searchValue', '<script>alert(xss)</script>')
+      resolved: waitForElementsTextContentToBe('#searchValue', '<script>alert(xss)</script>')
     },
     {
-      text: "😔 This didn't work as we hoped. If you inspect the page, you should see the `script`-tag but it is not executed for some reason.",
+      text: 'Again, the `script`-tag is only shown as text and is not executed.',
       fixture: '.noResult',
       resolved: waitInMs(10000)
     },
     {
-      text: "Luckily there are _many_ different XSS payloads we can try. Let's try this one next: <code>&lt;iframe src=\"javascript:alert(&#96;xss&#96;)\"&gt;</code>.",
+      text: "There are _many_ different XSS payloads. Let's try this one next: <code>&lt;iframe src=\"javascript:alert(&#96;xss&#96;)\"&gt;</code>.",
       fixture: '#product-search-fixture',
       unskippable: true,
       resolved: waitForInputToHaveValue('#searchQuery input', '<iframe src="javascript:alert(`xss`)">')
     },
     {
-      text: 'Hit enter one more time. If an alert box appears, you must confirm it in order to close it.',
+      text: 'Hit enter one more time.',
       fixture: '#product-search-fixture',
       unskippable: true,
-      resolved: waitForElementsInnerHtmlToBe('#searchValue', '<iframe src="javascript:alert(`xss`)"></iframe>')
+      resolved: waitForElementsTextContentToBe('#searchValue', '<iframe src="javascript:alert(`xss`)">')
     },
     {
       text:
-        '🎉 Congratulations! You just successfully performed an XSS attack!',
+        '🎉 Congratulations! You just tried a classic **Cross-Site Scripting (XSS)** payload.',
       fixture: '.noResult',
       resolved: waitInMs(8000)
     },
     {
       text:
-        'More precisely, this was a **DOM XSS** attack, because your payload was handled and improperly embedded into the page by the application frontend code without even sending it to the server.',
+        'This kind of attack is called **DOM XSS**, because the payload is handled by the application frontend code without even sending it to the server. Here, the search term is rendered as plain text, which keeps the payload from being embedded into the page.',
       fixture: '.noResult',
       resolved: waitInMs(16000)
     }
