@@ -236,6 +236,13 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET basket item in another user\'s basket is forbidden', async () => {
+    const res = await request(app)
+      .get('/api/BasketItems/1')
+      .set(otherUserAuthHeader)
+    assert.equal(res.status, 403)
+  })
+
   void it('PUT update basket item in another user\'s basket is forbidden', async () => {
     const res = await request(app)
       .put('/api/BasketItems/1')
@@ -245,12 +252,18 @@ void describe('/api/BasketItems/:id', () => {
   })
 
   void it('DELETE basket item in another user\'s basket is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 20, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
     const res = await request(app)
-      .delete('/api/BasketItems/1')
+      .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(otherUserAuthHeader)
     assert.equal(res.status, 403)
 
-    const getRes = await request(app).get('/api/BasketItems/1').set(authHeader)
+    const getRes = await request(app).get('/api/BasketItems/' + createRes.body.data.id).set(authHeader)
     assert.equal(getRes.status, 200)
   })
 })
