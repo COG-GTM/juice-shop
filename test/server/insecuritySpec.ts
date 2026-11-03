@@ -197,18 +197,18 @@ describe('insecurity', () => {
   })
 
   describe('hashPassword', () => {
-    it('returns a salted scrypt hash', () => {
-      expect(security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
+    it('returns a salted scrypt hash', async () => {
+      expect(await security.hashPassword('admin123')).to.match(/^scrypt\$16384\$8\$5\$[\w-]{22}\$[\w-]{86}$/)
     })
 
-    it('uses a random salt for each hash', () => {
-      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    it('uses a random salt for each hash', async () => {
+      expect(await security.hashPassword('admin123')).to.not.equal(await security.hashPassword('admin123'))
     })
   })
 
   describe('rehashPassword', () => {
     it('reproduces a stored hash when given the same password and stored hash', async () => {
-      const storedHash = security.hashPassword('admin123')
+      const storedHash = await security.hashPassword('admin123')
       expect(await security.rehashPassword('admin123', storedHash)).to.equal(storedHash)
       expect(await security.rehashPassword('admin124', storedHash)).to.not.equal(storedHash)
     })
@@ -219,7 +219,7 @@ describe('insecurity', () => {
     })
 
     it('ignores stored hashes with excessive cost parameters', async () => {
-      const [, , , , salt, key] = security.hashPassword('admin123').split('$')
+      const [, , , , salt, key] = (await security.hashPassword('admin123')).split('$')
       expect(await security.rehashPassword('admin123', `scrypt$1048576$8$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$/)
       expect(await security.rehashPassword('admin123', `scrypt$16384$32$5$${salt}$${key}`)).to.match(/^scrypt\$16384\$8\$/)
     })
@@ -227,11 +227,11 @@ describe('insecurity', () => {
 
   describe('verifyPassword', () => {
     it('accepts the correct password', async () => {
-      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+      expect(await security.verifyPassword('admin123', await security.hashPassword('admin123'))).to.equal(true)
     })
 
     it('rejects an incorrect password', async () => {
-      expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
+      expect(await security.verifyPassword('admin124', await security.hashPassword('admin123'))).to.equal(false)
     })
 
     it('rejects unsalted MD5 and missing hashes', async () => {
