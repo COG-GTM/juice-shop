@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -19,6 +20,29 @@ describe('insecurity', () => {
 
     it('returns string up to null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe%00.pdf')).to.equal('file.exe')
+    })
+  })
+
+  describe('verify', () => {
+    const unsignedToken = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.'
+
+    it('accepts a token signed with the RS256 private key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg": "none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects an HS256 token HMAC-signed with the public RSA key', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'test@juice-sh.op', role: 'accounting' } })).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(security.verify(`${header}.${payload}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects a missing token', () => {
+      expect(security.verify('')).to.equal(false)
     })
   })
 
