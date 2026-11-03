@@ -27,95 +27,88 @@ describe('fileServer', () => {
     })
   })
 
-  it('should serve PDF files from folder /ftp', () => {
-    req.params.file = 'test.pdf'
+  it('should serve Markdown files from folder /ftp', async () => {
+    req.params.file = 'announcement_encrypted.md'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.pdf/))
+    expect(res.sendFile).to.have.been.calledWith('announcement_encrypted.md', sinon.match({ root: sinon.match(/ftp$/) }))
   })
 
-  it('should serve Markdown files from folder /ftp', () => {
-    req.params.file = 'test.md'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]test\.md/))
-  })
-
-  it('should serve incident-support.kdbx files from folder /ftp', () => {
+  it('should serve incident-support.kdbx files from folder /ftp', async () => {
     req.params.file = 'incident-support.kdbx'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]incident-support\.kdbx/))
+    expect(res.sendFile).to.have.been.calledWith('incident-support.kdbx', sinon.match({ root: sinon.match(/ftp$/) }))
   })
 
-  it('should raise error for slashes in filename', () => {
+  it('should respond 404 for allowlisted file types that do not exist in /ftp', async () => {
+    req.params.file = 'test.pdf'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(404)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should raise error for slashes in filename', async () => {
     req.params.file = '../../../../nice.try'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should raise error for disallowed file type', () => {
+  it('should raise error for backslashes in filename', async () => {
+    req.params.file = '..\\package.json.md'
+
+    await servePublicFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+  })
+
+  it('should raise error for disallowed file type', async () => {
     req.params.file = 'nice.try'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should solve "directoryListingChallenge" when requesting acquisitions.md', () => {
+  it('should solve "directoryListingChallenge" when requesting acquisitions.md', async () => {
     challenges.directoryListingChallenge = { solved: false, save } as unknown as Challenge
     req.params.file = 'acquisitions.md'
 
-    servePublicFiles()(req, res, next)
+    await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]acquisitions\.md/))
+    expect(res.sendFile).to.have.been.calledWith('acquisitions.md', sinon.match({ root: sinon.match(/ftp$/) }))
     expect(challenges.directoryListingChallenge.solved).to.equal(true)
   })
 
-  it('should solve "easterEggLevelOneChallenge" when requesting eastere.gg with Poison Null Byte attack', () => {
-    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'eastere.gg%00.md'
+  for (const file of ['eastere.gg%00.md', 'package.json.bak%00.md', 'coupons_2013.md.bak%00.pdf', 'suspicious_errors.yml%00.md', 'encrypt.pyc%00.md', 'incident-support.kdbx%00.md', 'package.json.bak\0.md']) {
+    it(`should reject Poison Null Byte attack ${JSON.stringify(file)} without serving the truncated file`, async () => {
+      challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
+      challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
+      challenges.forgottenBackupChallenge = { solved: false, save } as unknown as Challenge
+      challenges.misplacedSignatureFileChallenge = { solved: false, save } as unknown as Challenge
+      challenges.nullByteChallenge = { solved: false, save } as unknown as Challenge
+      req.params.file = file
 
-    servePublicFiles()(req, res, next)
+      await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]eastere\.gg/))
-    expect(challenges.easterEggLevelOneChallenge.solved).to.equal(true)
-  })
-
-  it('should solve "forgottenDevBackupChallenge" when requesting package.json.bak with Poison Null Byte attack', () => {
-    challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'package.json.bak%00.md'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]package\.json\.bak/))
-    expect(challenges.forgottenDevBackupChallenge.solved).to.equal(true)
-  })
-
-  it('should solve "forgottenBackupChallenge" when requesting coupons_2013.md.bak with Poison Null Byte attack', () => {
-    challenges.forgottenBackupChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'coupons_2013.md.bak%00.md'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]coupons_2013\.md\.bak/))
-    expect(challenges.forgottenBackupChallenge.solved).to.equal(true)
-  })
-
-  it('should solve "misplacedSignatureFileChallenge" when requesting suspicious_errors.yml with Poison Null Byte attack', () => {
-    challenges.misplacedSignatureFileChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'suspicious_errors.yml%00.md'
-
-    servePublicFiles()(req, res, next)
-
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]suspicious_errors\.yml/))
-    expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
-  })
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+      expect(challenges.easterEggLevelOneChallenge.solved).to.equal(false)
+      expect(challenges.forgottenDevBackupChallenge.solved).to.equal(false)
+      expect(challenges.forgottenBackupChallenge.solved).to.equal(false)
+      expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(false)
+      expect(challenges.nullByteChallenge.solved).to.equal(false)
+    })
+  }
 })
