@@ -94,7 +94,7 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    const redirectUrl = `${this.basketService.hostServer}/ftp/order_${this.orderId}.pdf`
+    const redirectUrl = `${this.basketService.hostServer}/rest/order-history/${this.orderId}/confirmation`
     window.open(redirectUrl, '_blank')
   }
 
