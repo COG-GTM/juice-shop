@@ -51,4 +51,36 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('POST update username rejects a newline Pug code-line payload', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'a\n                  - global.pwned = true' })
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+    assert.equal((global as any).pwned, undefined)
+  })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const payload = '#{global.pwned = true}'
+    const update = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: payload })
+      .redirects(0)
+    assert.equal(update.status, 302)
+    const cookie = String(update.headers['set-cookie']).match(/token=[^;]+/)?.[0] ?? authHeader.Cookie
+
+    const res = await request(app)
+      .get('/profile')
+      .set('Cookie', cookie)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes(payload))
+    assert.equal((global as any).pwned, undefined)
+  })
 })
