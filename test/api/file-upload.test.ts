@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
@@ -13,6 +14,13 @@ import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+
+async function waitForCondition (condition: () => boolean) {
+  const deadline = Date.now() + 2000
+  while (!condition() && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -120,6 +128,55 @@ void describe('/file-upload', () => {
       .attach('file', file)
     assert.equal(res.status, 500)
   })
+
+  void it('does not write zip entries outside uploads/complaints', async () => {
+    const probePath = path.resolve('zipSlipProbe.txt')
+    const legalPath = path.resolve('ftp/legal.md')
+    const probeZip = path.resolve(__dirname, '../files/zipSlipOutsideUploads.zip')
+    const arbitraryFileWriteZip = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const legalContent = fs.readFileSync(legalPath)
+    fs.rmSync(probePath, { force: true })
+
+    try {
+      const probeResponse = await request(app)
+        .post('/file-upload')
+        .attach('file', probeZip)
+      assert.equal(probeResponse.status, 204)
+      await waitForCondition(() => fs.existsSync(probePath))
+      assert.equal(fs.existsSync(probePath), false)
+
+      const arbitraryFileWriteResponse = await request(app)
+        .post('/file-upload')
+        .attach('file', arbitraryFileWriteZip)
+      assert.equal(arbitraryFileWriteResponse.status, 204)
+      await waitForCondition(() => !fs.readFileSync(legalPath).equals(legalContent))
+      assert.deepEqual(fs.readFileSync(legalPath), legalContent)
+    } finally {
+      fs.rmSync(probePath, { force: true })
+      if (!fs.readFileSync(legalPath).equals(legalContent)) {
+        fs.writeFileSync(legalPath, legalContent)
+      }
+    }
+  })
+
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('writes zip entries within uploads/complaints', async () => {
+      const safePath = path.resolve('uploads/complaints/zipSafeEntry.txt')
+      const safeZip = path.resolve(__dirname, '../files/zipSafeEntry.zip')
+      fs.rmSync(safePath, { force: true })
+
+      try {
+        const res = await request(app)
+          .post('/file-upload')
+          .attach('file', safeZip)
+        assert.equal(res.status, 204)
+        await waitForCondition(() => fs.existsSync(safePath))
+        assert.equal(fs.existsSync(safePath), true)
+      } finally {
+        fs.rmSync(safePath, { force: true })
+      }
+    })
+  }
 
   void it('POST zip file with directory traversal payload', async () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
