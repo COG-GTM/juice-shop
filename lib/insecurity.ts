@@ -164,6 +164,50 @@ export const isAccounting = () => {
   }
 }
 
+export const isAdmin = () => async (req: Request, res: Response, next: NextFunction) => {
+  let authorized = false
+  try {
+    const token = utils.jwtFrom(req)
+    if (!token) {
+      throw new Error('Missing token')
+    }
+
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      throw new Error('Invalid token')
+    }
+    const [headerPart, payloadPart, signaturePart] = parts
+    const header = JSON.parse(Buffer.from(headerPart, 'base64url').toString())
+    if (header.alg !== 'RS256') {
+      throw new Error('Invalid token algorithm')
+    }
+
+    const verified = crypto.createVerify('RSA-SHA256')
+      .update(`${headerPart}.${payloadPart}`)
+      .verify(publicKey, Buffer.from(signaturePart, 'base64url'))
+    if (!verified) {
+      throw new Error('Invalid token signature')
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString())
+    if (payload.exp !== undefined && payload.exp * 1000 <= Date.now()) {
+      throw new Error('Expired token')
+    }
+
+    const { UserModel } = await import('../models/user')
+    const user = await UserModel.findByPk(payload.data?.id)
+    authorized = user?.role === roles.admin
+  } catch {
+    authorized = false
+  }
+
+  if (authorized) {
+    next()
+  } else {
+    res.status(403).json({ error: 'Malicious activity detected' })
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
