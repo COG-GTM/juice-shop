@@ -55,13 +55,11 @@ export function oauthLogin () {
       return
     }
 
-    const [userModel, created] = await UserModel.findOrCreate({
+    const [userModel] = await UserModel.findOrCreate({
       where: { email },
       defaults: { email, password: crypto.randomBytes(32).toString('hex') }
     })
-    if (created) {
-      await WalletModel.create({ UserId: userModel.id })
-    }
+    await WalletModel.findOrCreate({ where: { UserId: userModel.id } })
     const user = utils.queryResultToJson(userModel)
 
     if (user.data.totpSecret) {
