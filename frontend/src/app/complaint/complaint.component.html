@@ -22,6 +22,11 @@
           {{ "INVALID_FILE_SIZE" | translate: { size: "100 KB" } }}
         </p>
       }
+      @if (fileUploadError && fileUploadError.name === "upload") {
+        <p class="error fileUploadError" role="alert">
+          {{ "FILE_UPLOAD_REJECTED" | translate }}
+        </p>
+      }
     </section>
 
     <form class="form-container" id="complaint-form">
