@@ -150,6 +150,14 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.data.quantity, 20)
   })
 
+  void it('PUT update non-existing basket item returns 404', async () => {
+    const res = await request(app)
+      .put('/api/BasketItems/4711')
+      .set(authHeader)
+      .send({ quantity: 1 })
+    assert.equal(res.status, 404)
+  })
+
   void it('PUT update basket ID of basket item is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')

@@ -65,7 +65,8 @@ export function quantityCheckBeforeBasketItemUpdate () {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       if (item == null) {
-        throw new Error('No such item found!')
+        next()
+        return
       }
       if (await findOwnBasket(req, item.BasketId) == null || (req.body.BasketId !== undefined && Number(req.body.BasketId) !== item.BasketId)) {
         res.status(403).json({ status: 'error', message: 'Access to this basket is forbidden.' })
