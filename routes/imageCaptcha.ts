@@ -57,8 +57,9 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
       return
     }
-    const consumed = await ImageCaptchaModel.destroy({ where: { UserId } })
-    if (consumed >= 1 && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
+    const consumed = await ImageCaptchaModel.destroy({ where: { id: captcha.id } })
+    await ImageCaptchaModel.destroy({ where: { UserId, id: { [Op.lt]: captcha.id } } })
+    if (consumed === 1 && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
