@@ -112,6 +112,7 @@ export class ComplaintComponent implements OnInit {
         this.initComplaint()
         this.resetForm()
         this.fileUploadError = undefined
+        this.uploadRejected = false
       },
       error: (error) => error
     })
