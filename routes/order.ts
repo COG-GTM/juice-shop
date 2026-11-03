@@ -135,23 +135,11 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
-          if (!(totalPrice >= 0)) {
+          if (!(totalPrice > 0)) {
             fileWriter.removeAllListeners('finish')
             fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
             doc.end()
-            res.status(400).json({ error: res.__('Order total must not be negative.') })
-            return
-          }
-
-          try {
-            for (const { ProductId, quantity } of stockUpdates) {
-              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
-              if (quantityRow) {
-                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
-              }
-            }
-          } catch (error: unknown) {
-            next(error)
+            res.status(400).json({ error: res.__('Order total must be greater than zero.') })
             return
           }
 
@@ -169,6 +157,18 @@ export function placeOrder () {
               next(error)
               return
             }
+          }
+
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
