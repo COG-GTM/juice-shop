@@ -96,16 +96,76 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update existing product is forbidden for customer users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } }), 'content-type': 'application/json' })
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product is possible for admin users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } }), 'content-type': 'application/json' })
+      .send({
+        price: 1.99
+      })
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.body.data.price, 1.99)
+  })
+
+  void it('PUT update of product price is possible for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/json' })
+      .send({
+        price: 2.99
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.price, 2.99)
+  })
+
+  void it('PUT update of product price as numeric string is possible for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/json' })
+      .send({
+        price: '3.49'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(Number(res.body.data.price), 3.49)
+  })
+
+  void it('PUT update of fields other than price is forbidden for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/json' })
+      .send({
+        price: 2.99,
+        description: '<img src=x onerror=alert(1)>'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update with non-numeric price is forbidden for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/x-www-form-urlencoded' })
+      .send('price[description]=<img src=x onerror=alert(1)>')
+    assert.equal(res.status, 403)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {

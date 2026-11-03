@@ -164,6 +164,21 @@ export const isAccounting = () => {
   }
 }
 
+export const canUpdateProduct = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const role = decodedToken?.data?.role
+    const price = req.body?.price
+    const isValidPrice = (typeof price === 'number' && Number.isFinite(price)) || (typeof price === 'string' && /^\d+(\.\d+)?$/.test(price))
+    const isPriceOnlyUpdate = req.body === Object(req.body) && Object.keys(req.body).length === 1 && isValidPrice
+    if (role === roles.admin || (role === roles.accounting && isPriceOnlyUpdate)) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
