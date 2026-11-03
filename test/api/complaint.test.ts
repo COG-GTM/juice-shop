@@ -12,6 +12,9 @@ import * as security from '../../lib/insecurity'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: 'admin' } }), 'content-type': 'application/json' }
+const jimHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, role: 'customer' } }), 'content-type': 'application/json' }
+const benderHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 3, role: 'customer' } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -42,8 +45,29 @@ void describe('/api/Complaints', () => {
   void it('GET all complaints', async () => {
     const res = await request(app)
       .get('/api/Complaints')
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET complaints only returns complaints of the current user', async () => {
+    const createRes = await request(app)
+      .post('/api/Complaints')
+      .set(jimHeader)
+      .send({ UserId: 2, message: 'Private complaint of Jim' })
+    assert.equal(createRes.status, 201)
+
+    const jimRes = await request(app)
+      .get('/api/Complaints')
+      .set(jimHeader)
+    assert.equal(jimRes.status, 200)
+    assert.ok(jimRes.body.data.some((complaint: any) => complaint.id === createRes.body.data.id))
+    assert.ok(jimRes.body.data.every((complaint: any) => complaint.UserId === 2))
+
+    const benderRes = await request(app)
+      .get('/api/Complaints')
+      .set(benderHeader)
+    assert.equal(benderRes.status, 200)
+    assert.ok(benderRes.body.data.every((complaint: any) => complaint.UserId === 3))
   })
 })
 

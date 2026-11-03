@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -66,6 +67,10 @@ export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item != null && !(await isOwnBasket(item.BasketId, security.userFromToken(req)?.id))) {
+        res.status(403).json({ error: 'Malicious activity detected' })
+        return
+      }
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
@@ -80,6 +85,33 @@ export function quantityCheckBeforeBasketItemUpdate () {
       next(error)
     }
   }
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const userId = security.userFromToken(req)?.id
+    const baskets = userId !== undefined ? await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] }) : []
+    const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map((basket) => basket.id) } })
+    res.json({ status: 'success', data: items })
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (item == null || await isOwnBasket(item.BasketId, security.userFromToken(req)?.id)) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+async function isOwnBasket (basketId?: number | null, userId?: number) {
+  if (basketId == null || userId === undefined) {
+    return false
+  }
+  return await BasketModel.findOne({ where: { id: basketId, UserId: userId } }) != null
 }
 
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {

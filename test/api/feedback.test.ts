@@ -16,6 +16,8 @@ import * as utils from '../../lib/utils'
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: 'admin' } }), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 5, role: 'customer' } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -296,9 +298,21 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
+    const forbiddenRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(customerHeader)
+    assert.equal(forbiddenRes.status, 403)
+
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
   })
 })
