@@ -141,4 +141,20 @@ describe('ComplaintComponent', () => {
         component.save()
         expect(component.uploader.queue[0].upload).toHaveBeenCalled()
     })
+
+    it('should not save complaint and keep submit enabled when the upload is rejected', () => {
+        component.uploader.onErrorItem(null as unknown as FileItem, '', 413, {})
+        expect(complaintService.save).not.toHaveBeenCalled()
+        expect(component.uploadRejected).toBe(true)
+        expect(component.fileUploadError).toBeUndefined()
+    })
+
+    it('should clear the upload rejection after a text-only complaint is saved', () => {
+        complaintService.save.mockReturnValue(of({ id: 42 }))
+        translateService.get.mockReturnValue(of('CUSTOMER_SUPPORT_COMPLAINT_REPLY'))
+        component.uploader.onErrorItem(null as unknown as FileItem, '', 413, {})
+        component.save()
+        expect(complaintService.save).toHaveBeenCalled()
+        expect(component.uploadRejected).toBe(false)
+    })
 })
