@@ -390,7 +390,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Only POST of own answer allowed when logged in. */
+  app.post('/api/SecurityAnswers', security.isAuthorized(), security.appendUserId())
   app.get('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
@@ -416,6 +417,19 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  /* Security question and answer chosen during registration must be valid */
+  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { securityQuestion, securityAnswer } = req.body
+    if (securityQuestion == null && securityAnswer == null) {
+      next()
+      return
+    }
+    if (typeof securityAnswer !== 'string' || securityAnswer.length === 0 || await SecurityQuestionModel.findByPk(securityQuestion?.id) == null) {
+      res.status(400).json({ status: 'error', message: 'Invalid security question or answer' })
+      return
+    }
+    next()
+  }))
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
@@ -515,6 +529,23 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer chosen during registration for the new user
+    if (name === 'User') {
+      resource.create.send.before(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const { securityQuestion, securityAnswer } = req.body
+        if (securityQuestion?.id && securityAnswer) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
+          } catch (err: unknown) {
+            await WalletModel.destroy({ where: { UserId: context.instance.id } })
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+            throw err
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
