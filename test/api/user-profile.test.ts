@@ -51,4 +51,24 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    const { token } = await login(app, { email: 'bjoern@owasp.org', password: 'kitten lesser pooch karate buffoon indoors' })
+    const cookie = `token=${token}`
+
+    await request(app)
+      .post('/profile')
+      .set('Cookie', cookie)
+      .type('form')
+      .send({ username: 'x#{7*7}' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set('Cookie', cookie)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x#{7*7}'))
+    assert.ok(!res.text.includes('x49'))
+  })
 })
