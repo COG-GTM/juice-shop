@@ -143,6 +143,18 @@ export function placeOrder () {
             return
           }
 
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
+          }
+
           if (req.body.UserId) {
             try {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -157,18 +169,6 @@ export function placeOrder () {
               next(error)
               return
             }
-          }
-
-          try {
-            for (const { ProductId, quantity } of stockUpdates) {
-              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
-              if (quantityRow) {
-                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
-              }
-            }
-          } catch (error: unknown) {
-            next(error)
-            return
           }
 
           db.ordersCollection.insert({
