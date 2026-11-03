@@ -25,15 +25,18 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { MatExpansionModule } from '@angular/material/expansion'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { BasketService } from '../Services/basket.service'
 
 describe('AccountingComponent', () => {
     let component: OrderHistoryComponent
     let fixture: ComponentFixture<OrderHistoryComponent>
     let productService
     let orderHistoryService
+    let basketService
     let dialog: any
 
     beforeEach(async () => {
+        basketService = { hostServer: 'http://localhost:3000' }
         dialog = {
             open: vi.fn().mockName("MatDialog.open")
         }
@@ -64,6 +67,7 @@ describe('AccountingComponent', () => {
             providers: [
                 { provide: ProductService, useValue: productService },
                 { provide: OrderHistoryService, useValue: orderHistoryService },
+                { provide: BasketService, useValue: basketService },
                 { provide: MatDialog, useValue: dialog },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -81,6 +85,13 @@ describe('AccountingComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy()
+    })
+
+    it('should open the private order confirmation endpoint', () => {
+        const open = vi.spyOn(window, 'open').mockReturnValue(null)
+        component.openConfirmationPDF('ad9b-96017e7cb1ae7bf9')
+        expect(open).toHaveBeenCalledWith('http://localhost:3000/rest/order-history/ad9b-96017e7cb1ae7bf9/confirmation', '_blank')
+        open.mockRestore()
     })
 
     it('should make emptyState true and hold no orders when get Order History gives empty response', () => {

@@ -29,6 +29,8 @@ interface Product {
   bonus: number
 }
 
+export const orderConfirmationDirectory = path.resolve('uploads/orders')
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
@@ -39,10 +41,11 @@ export function placeOrder () {
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
+          fs.mkdirSync(orderConfirmationDirectory, { recursive: true })
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(orderConfirmationDirectory, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -164,6 +167,7 @@ export function placeOrder () {
             orderId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+            userId: customer?.data?.id,
             totalPrice,
             products: basketProducts,
             bonus: totalPoints,
@@ -178,6 +182,36 @@ export function placeOrder () {
       }).catch((error: unknown) => {
         next(error)
       })
+  }
+}
+
+export function orderConfirmationPdf () {
+  return async (req: Request, res: Response) => {
+    const token = utils.jwtFrom(req) ?? req.cookies?.token
+    const user = security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    if (!user?.data?.id) {
+      res.status(401).json({ status: 'error', error: 'Unauthorized' })
+      return
+    }
+
+    const orderId = req.params.id
+    if (!/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
+      res.status(400).json({ status: 'error', error: 'Bad Request' })
+      return
+    }
+
+    const order = await db.ordersCollection.findOne({ orderId })
+    if (!order || order.userId !== user.data.id) {
+      res.status(404).json({ status: 'error', error: 'Not Found' })
+      return
+    }
+
+    res.set('Cache-Control', 'private, no-store')
+    res.sendFile(path.join(orderConfirmationDirectory, `order_${orderId}.pdf`), (err) => {
+      if (err && !res.headersSent) {
+        res.status(404).json({ status: 'error', error: 'Not Found' })
+      }
+    })
   }
 }
 
