@@ -116,6 +116,27 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+    assert.equal(res.body.user.email, 'jim@' + config.get<string>('application.domain'))
+  })
+
+  void it('POST password reset does not disclose password hash, 2FA secret or deluxe token', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'wurstbrot@' + config.get<string>('application.domain'),
+        answer: 'NZMJLjEinU7TFElDIYW8',
+        new: 'EinBelegtesBrotMitSchinkenSCHINKEN!',
+        repeat: 'EinBelegtesBrotMitSchinkenSCHINKEN!'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body), ['user'])
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+    assert.ok(!res.text.includes('deluxeToken'))
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {
