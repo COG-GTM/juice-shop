@@ -162,11 +162,13 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render product descriptions as trusted HTML', () => {
-        productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
+    it('should keep product descriptions as raw strings', () => {
+        const description = '<script>alert("XSS")</script>'
+        productService.search.mockReturnValue(of([{ description }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith(description)
+        expect(component.tableData[0].description).toBe(description)
     })
 
     it('should hold no products when product search API call fails', () => {

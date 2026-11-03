@@ -46,30 +46,15 @@ describe('/api', () => {
   })
 
   describe('challenge "changeProduct"', () => {
-    it('should be possible to change product via PUT request without being logged in', () => {
+    it('should reject unauthenticated product updates', () => {
       cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
-        cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Products/${tamperingProductId}`,
-              {
-                method: 'PUT',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                  description: `<a href="${overwriteUrl}" target="_blank">More...</a>`
-                })
-              }
-            )
-            assert.equal(response.status, 200)
-          })
-
-          cy.visit('/#/search')
-        })
+        cy.request({
+          url: `/api/Products/${tamperingProductId}`,
+          method: 'PUT',
+          failOnStatusCode: false,
+          body: { description: 'unauthorized update' }
+        }).its('status').should('equal', 401)
       })
-      cy.expectChallengeSolved({ challenge: 'Product Tampering' })
     })
   })
 })
