@@ -7,6 +7,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { MatDividerModule } from '@angular/material/divider'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
+import { SecurityContext } from '@angular/core'
 import { SearchResultComponent } from './search-result.component'
 import { ProductService } from '../Services/product.service'
 import { ActivatedRoute, provideRouter } from '@angular/router'
@@ -162,11 +163,12 @@ describe('SearchResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should render product descriptions as trusted HTML', () => {
+    it('should sanitize product descriptions instead of trusting them as HTML', () => {
         productService.search.mockReturnValue(of([{ description: '<script>alert("XSS")</script>' }]))
         component.ngAfterViewInit()
         fixture.detectChanges()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>alert("XSS")</script>')
+        expect(sanitizer.sanitize).toHaveBeenCalledWith(SecurityContext.HTML, '<script>alert("XSS")</script>')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalledWith('<script>alert("XSS")</script>')
     })
 
     it('should hold no products when product search API call fails', () => {
