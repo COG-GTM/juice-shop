@@ -293,6 +293,11 @@ void describe('/rest/user/oauth-login', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.authentication.umail, email)
 
+    const walletRes = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: `Bearer ${res.body.authentication.token}` })
+    assert.equal(walletRes.status, 200)
+
     const passwordLoginRes = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })

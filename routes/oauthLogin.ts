@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 
 import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -21,7 +22,7 @@ interface GoogleTokenInfo {
 }
 
 async function verifyGoogleAccessToken (accessToken: string): Promise<string | null> {
-  const response = await fetch(`${googleTokenInfoUrl}?access_token=${encodeURIComponent(accessToken)}`)
+  const response = await fetch(`${googleTokenInfoUrl}?access_token=${encodeURIComponent(accessToken)}`, { signal: AbortSignal.timeout(5000) })
   if (!response.ok) {
     return null
   }
@@ -54,10 +55,13 @@ export function oauthLogin () {
       return
     }
 
-    const [userModel] = await UserModel.findOrCreate({
+    const [userModel, created] = await UserModel.findOrCreate({
       where: { email },
       defaults: { email, password: crypto.randomBytes(32).toString('hex') }
     })
+    if (created) {
+      await WalletModel.create({ UserId: userModel.id })
+    }
     const user = utils.queryResultToJson(userModel)
 
     if (user.data.totpSecret) {
