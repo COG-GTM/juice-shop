@@ -99,7 +99,7 @@ describe('DataExportComponent', () => {
 
     it('should show the confirmation and fetch user data and reset data export form on requesting data export', () => {
         dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
-        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        vi.spyOn(window, 'open').mockReturnValue({ document: document.implementation.createHTMLDocument('') } as any)
         vi.spyOn(component, 'resetForm')
         vi.spyOn(component, 'ngOnInit')
         component.save()
@@ -108,6 +108,22 @@ describe('DataExportComponent', () => {
         expect(component.error).toBeNull()
         expect(component.ngOnInit).toHaveBeenCalled()
         expect(component.resetForm).toHaveBeenCalled()
+    })
+
+    it('should render exported user data as text and not as HTML', () => {
+        const payload = '{ "message": "<img src=x onerror=alert(1)>" }'
+        const doc = document.implementation.createHTMLDocument('')
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'x', userData: payload }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: doc } as any)
+        component.save()
+        expect(doc.querySelector('img')).toBeNull()
+        expect(doc.querySelector('pre')?.textContent).toBe(payload)
+    })
+
+    it('should not throw when the export window cannot be opened', () => {
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'x', userData: '{ user data }' }))
+        vi.spyOn(window, 'open').mockReturnValue(null)
+        expect(() => component.save()).not.toThrow()
     })
 
     it('should clear the form and display error if exporting data fails', () => {
