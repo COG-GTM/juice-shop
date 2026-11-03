@@ -32,7 +32,12 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const UserId = req.body?.UserId
+    if (UserId == null) {
+      res.status(403).json({ status: 'error', message: 'Not allowed' })
+      return
+    }
+    BasketModel.findOne({ where: { id, UserId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
@@ -47,7 +52,7 @@ export function placeOrder () {
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              await BasketItemModel.destroy({ where: { BasketId: basket.id } })
               res.json({ orderConfirmation: orderId })
             })()
           })
@@ -67,19 +72,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -138,6 +135,25 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!(totalPrice > 0)) {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+            res.status(400).json({ status: 'error', error: 'Order total must be greater than zero.' })
+            return
+          }
+
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            next(error)
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -173,7 +189,7 @@ export function placeOrder () {
             doc.end()
           })
         } else {
-          next(new Error(`Basket with id=${id} does not exist.`))
+          res.status(403).json({ status: 'error', message: 'Not allowed' })
         }
       }).catch((error: unknown) => {
         next(error)
