@@ -30,7 +30,7 @@ import config from 'config'
 import * as utils from '../lib/utils'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
-import type { CreationAttributes } from 'sequelize'
+import type { CreateOptions, CreationAttributes } from 'sequelize'
 import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
@@ -184,23 +184,27 @@ async function createChallenges () {
 
 async function createUsers () {
   const users = await loadStaticUserData()
+  const [passwordHashes, answerHashes] = await Promise.all([
+    Promise.all(users.map(async ({ password }) => await security.hashPassword(password))),
+    Promise.all(users.map(async ({ securityQuestion }) => securityQuestion != null ? await security.hashSecurityAnswer(securityQuestion.answer) : undefined))
+  ])
 
   await Promise.all(
-    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
+    users.map(async ({ username, email, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }, index) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: passwordHashes[index],
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
           totpSecret,
           lastLoginIp
-        })
+        }, { prehashed: true } as unknown as CreateOptions)
         datacache.users[key] = user
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
+        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, answerHashes[index] ?? securityQuestion.answer, answerHashes[index] != null)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
@@ -686,8 +690,8 @@ async function createSecurityQuestions () {
   )
 }
 
-async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string) {
-  return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }).catch((err: unknown) => {
+async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string, prehashed = false) {
+  return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }, { prehashed } as unknown as CreateOptions).catch((err: unknown) => {
     logger.error(`Could not insert SecurityAnswer ${answer} mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
   })
 }
