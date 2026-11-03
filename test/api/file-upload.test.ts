@@ -113,6 +113,15 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST file type YAML with JS function tag is rejected by safe parser', async () => {
+    const payload = 'toJSON: !!js/function \'function () { return "yamlFunction" + "Executed" }\'\n'
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from(payload), 'complaint.yml')
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('yamlFunctionExecuted'))
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
