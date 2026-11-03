@@ -9,13 +9,22 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { randomUUID } from 'node:crypto'
+import { login, register } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
 
 let app: Express
 
 const authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+
+async function registerAndLogin () {
+  const email = `review-liker-${randomUUID()}@juice-sh.op`
+  const password = randomUUID()
+  await register(app, { email, password })
+  const { token } = await login(app, { email, password })
+  return { email, token }
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -121,6 +130,32 @@ void describe('/rest/products/reviews', () => {
         id: reviewId
       })
     assert.equal(res.status, 200)
+  })
+
+  void it('POST product review like with operator object as id is rejected', async () => {
+    const { token } = await registerAndLogin()
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: { $ne: -1 }
+      })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST concurrent likes of the same review by one user are counted once', async () => {
+    const { email, token } = await registerAndLogin()
+    const before = (await request(app).get('/rest/products/1/reviews')).body.data.find((review: any) => review._id === reviewId)
+
+    const responses = await Promise.all(Array.from({ length: 10 }, async () => await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: reviewId })))
+
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, ...Array(9).fill(403)])
+    const after = (await request(app).get('/rest/products/1/reviews')).body.data.find((review: any) => review._id === reviewId)
+    assert.equal(after.likesCount, before.likesCount + 1)
+    assert.equal(after.likedBy.filter((likedBy: string) => likedBy === email).length, 1)
   })
 
   void it('PATCH multiple product review via injection', async () => {
