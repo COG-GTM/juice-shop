@@ -259,4 +259,39 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+
+  void it('POST password reset response does not expose the user record', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        answer: 'Samuel',
+        new: 'ncc-1701-A',
+        repeat: 'ncc-1701-A'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body, { status: 'success' })
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+  })
+
+  void it('POST password reset locks the account after repeated wrong answers despite rotating X-Forwarded-For', async () => {
+    const email = 'lockout-test@' + config.get<string>('application.domain')
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i + 1}` })
+        .send({ email, answer: 'guess' + i, new: 'abcdef', repeat: 'abcdef' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.99' })
+      .send({ email: email.toUpperCase(), answer: 'guess', new: 'abcdef', repeat: 'abcdef' })
+
+    assert.equal(res.status, 429)
+  })
 })
