@@ -82,6 +82,39 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    function runIsAdmin (authorization?: string) {
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const result: { nextCalled: boolean, status?: number } = { nextCalled: false }
+      const res: any = {
+        status (code: number) { result.status = code; return res },
+        json () { return res }
+      }
+      security.isAdmin()(req, res, () => { result.nextCalled = true })
+      return result
+    }
+
+    it('calls next for a valid token with admin role', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })
+      const result = runIsAdmin(`Bearer ${token}`)
+      expect(result.nextCalled).to.equal(true)
+      expect(result.status).to.equal(undefined)
+    })
+
+    it('responds 403 for a valid token with customer role', () => {
+      const token = security.authorize({ data: { email: 'bender@juice-sh.op', role: security.roles.customer } })
+      const result = runIsAdmin(`Bearer ${token}`)
+      expect(result.nextCalled).to.equal(false)
+      expect(result.status).to.equal(403)
+    })
+
+    it('responds 403 without a token', () => {
+      const result = runIsAdmin()
+      expect(result.nextCalled).to.equal(false)
+      expect(result.status).to.equal(403)
+    })
+  })
+
   describe('authenticatedUsers', () => {
     it('returns user by associated token', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
