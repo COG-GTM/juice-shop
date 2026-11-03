@@ -107,6 +107,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       let finalized = false
       let responded = false
       let storeFailed = false
+      let entrySeen = false
       const respond = (status: number, error?: string) => {
         if (responded) return
         responded = true
@@ -167,6 +168,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       parser.on('finish', () => { setImmediate(publish) })
       parser.on('close', () => { setImmediate(publish) })
       parser.on('entry', function (entry: any) {
+        entrySeen = true
         if (aborted || finalized) {
           entry.autodrain()
           return
@@ -215,7 +217,8 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
-        abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
+        if (entrySeen) abort(`undecodable entry: ${utils.getErrorMessage(err)}`, 204)
+        else abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
       })
     } else {
       res.status(204).end()
