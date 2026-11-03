@@ -128,9 +128,10 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
     }
   )
 
-  const hashPassword = async (user: User) => {
+  const hashPassword = async (user: User, options?: object) => {
     const password = user.getDataValue('password')
-    if (user.changed('password') && password != null) {
+    const prehashed = (options as { prehashed?: boolean } | undefined)?.prehashed === true
+    if (!prehashed && user.changed('password') && password != null) {
       user.setDataValue('password', await security.hashPassword(String(password)))
     }
   }
@@ -139,7 +140,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
   User.addHook('beforeUpdate', hashPassword)
   User.addHook('beforeBulkCreate', async (users: User[], options: BulkCreateOptions<InferAttributes<User>>) => {
     if (options.individualHooks === true) return
-    await Promise.all(users.map(hashPassword))
+    await Promise.all(users.map(async (user) => { await hashPassword(user, options) }))
   })
   User.addHook('beforeBulkUpdate', async (options: UpdateOptions<InferAttributes<User>>) => {
     const { attributes } = options as unknown as { attributes?: { password?: unknown } }
