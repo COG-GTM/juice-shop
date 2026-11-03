@@ -55,6 +55,18 @@ export function addBasketItem () {
   }
 }
 
+export function verifyBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = security.authenticatedUsers.from(req)
+    const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+    if (user && item?.BasketId != null && Number(item.BasketId) === Number(user.bid)) {
+      next()
+    } else {
+      res.status(403).json({ status: 'error', data: 'Malicious activity detected.' })
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemAddition () {
   return (req: Request, res: Response, next: NextFunction) => {
     void quantityCheck(req, res, next, req.body.ProductId, req.body.quantity).catch((error: Error) => {

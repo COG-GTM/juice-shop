@@ -298,7 +298,20 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' })
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE existing feedback is forbidden for non-admin users', async () => {
+    const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.customer } }), 'content-type': 'application/json' }
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
+
+    const feedbackRes = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(customerHeader)
+    assert.equal(feedbackRes.status, 200)
   })
 })
