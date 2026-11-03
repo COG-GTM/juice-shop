@@ -137,6 +137,32 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.data.description, description)
   })
 
+  void it('PUT update product price is allowed for accounting users', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: `Bearer ${token}`, ...jsonHeader })
+      .send({ price: 1.99 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.price, 1.99)
+  })
+
+  void it('PUT update product description is forbidden for accounting users', async () => {
+    const { token } = await login(app, {
+      email: `accountant@${config.get<string>('application.domain')}`,
+      password: 'i am an awesome accountant'
+    })
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: `Bearer ${token}`, ...jsonHeader })
+      .send({ price: 1.99, description: '<img src=x onerror=alert(1)>' })
+    assert.equal(res.status, 403)
+    assert.equal(res.body.error, 'Malicious activity detected')
+  })
+
   void it('DELETE existing product is forbidden via public API', async () => {
     const res = await request(app)
       .delete('/api/Products/1')

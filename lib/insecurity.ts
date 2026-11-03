@@ -164,10 +164,17 @@ export const isAccounting = () => {
   }
 }
 
-export const isAdmin = () => {
+export const canUpdateProduct = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.admin) {
+    const body = req.body
+    const isPriceOnlyUpdate = body !== null &&
+      typeof body === 'object' &&
+      !Array.isArray(body) &&
+      Object.getPrototypeOf(body) === Object.prototype &&
+      Object.keys(body).length === 1 &&
+      Object.keys(body)[0] === 'price'
+    if (decodedToken?.data?.role === roles.admin || (decodedToken?.data?.role === roles.accounting && isPriceOnlyUpdate)) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
