@@ -7,7 +7,7 @@ import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import config from 'config'
-import { retrieveAppConfiguration } from '../../routes/appConfiguration'
+import { publicConfigKeys, retrieveAppConfiguration } from '../../routes/appConfiguration'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -71,5 +71,40 @@ describe('appConfiguration', () => {
     expect(returnedConfig.application.chatBot.name).to.equal(config.get('application.chatBot.name'))
     expect(returnedConfig.hackingInstructor.isEnabled).to.equal(config.get('hackingInstructor.isEnabled'))
     expect(returnedConfig.challenges.codingChallengesEnabled).to.equal(config.get('challenges.codingChallengesEnabled'))
+  })
+
+  it('should only include allow-listed leaf paths', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+    const allowedKeys = new Set(publicConfigKeys)
+    const authorizedRedirectsKey = 'application.googleOauth.authorizedRedirects'
+
+    const inspectConfig = (value: unknown, path: string) => {
+      if (path === authorizedRedirectsKey) {
+        expect(allowedKeys.has(path)).to.equal(true)
+        expect(Array.isArray(value)).to.equal(true)
+        for (const redirect of value as Array<Record<string, unknown>>) {
+          expect(Object.keys(redirect).every(key => ['uri', 'proxy'].includes(key))).to.equal(true)
+        }
+        return
+      }
+
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        if (path !== '') {
+          expect(publicConfigKeys.some(key => key.startsWith(`${path}.`))).to.equal(true)
+        }
+        for (const [childKey, childValue] of Object.entries(value)) {
+          inspectConfig(childValue, path === '' ? childKey : `${path}.${childKey}`)
+        }
+        return
+      }
+
+      expect(allowedKeys.has(path)).to.equal(true)
+    }
+
+    inspectConfig(returnedConfig, '')
   })
 })
