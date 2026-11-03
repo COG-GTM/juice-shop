@@ -64,6 +64,10 @@ export class ComplaintComponent implements OnInit {
       this.saveComplaint()
       this.uploader.clearQueue()
     }
+    this.uploader.onErrorItem = () => {
+      this.fileUploadError = { name: 'upload' }
+      this.uploader.clearQueue()
+    }
     this.formSubmitService.attachEnterKeyHandler('complaint-form', 'submitButton', () => { this.save() })
   }
 
