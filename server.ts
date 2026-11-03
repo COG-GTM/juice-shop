@@ -339,7 +339,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   morgan.token('url', (req: Request) => {
     const url = req.originalUrl || req.url
     const [pathname] = url.split('?')
-    const normalizedPath = pathname.toLowerCase().replace(/\/+$/, '')
+    const normalizedPath = pathname.toLowerCase().replace(/\/+/g, '/').replace(/\/$/, '')
     return pathsWithSensitiveQuery.includes(normalizedPath) && url.includes('?') ? `${pathname}?[REDACTED]` : url
   })
   app.use(morgan('combined', { stream: accessLogStream }))

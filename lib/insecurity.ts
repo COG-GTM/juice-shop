@@ -166,7 +166,12 @@ export const isAccounting = () => {
 
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    let decodedToken: any
+    try {
+      decodedToken = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
+    } catch {
+      decodedToken = undefined
+    }
     if (decodedToken?.data?.role === roles.admin) {
       next()
     } else {

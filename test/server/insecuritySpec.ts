@@ -111,6 +111,34 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const run = (authorization?: string) => {
+      let nextCalled = false
+      let status: number | undefined
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as any
+      security.isAdmin()(req, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+
+    it('allows a valid admin token', () => {
+      expect(run('Bearer ' + security.authorize({ data: { role: 'admin' } }))).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('rejects requests without a token', () => {
+      expect(run()).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('rejects a non-admin token', () => {
+      expect(run('Bearer ' + security.authorize({ data: { role: 'customer' } }))).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('rejects an expired admin token', () => {
+      const iat = Math.floor(Date.now() / 1000) - 7 * 60 * 60
+      expect(run('Bearer ' + security.authorize({ data: { role: 'admin' }, iat }))).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
