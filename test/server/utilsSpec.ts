@@ -47,6 +47,17 @@ describe('utils', () => {
     })
   })
 
+  describe('redactQueryString', () => {
+    it('returns a URL without a query string unchanged', () => {
+      expect(utils.redactQueryString('/rest/user/change-password')).to.equal('/rest/user/change-password')
+    })
+
+    it('redacts the query string', () => {
+      expect(utils.redactQueryString('/rest/user/change-password?current=a&new=b&repeat=b'))
+        .to.equal('/rest/user/change-password?[REDACTED]')
+    })
+  })
+
   describe('matchesSystemIniFile', () => {
     it('fails on plain input string', () => {
       expect(utils.matchesSystemIniFile('Bla Blubb')).to.equal(false)

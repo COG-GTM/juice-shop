@@ -43,6 +43,11 @@ export const endsWith = (str?: string, suffix?: string) => (str && suffix) ? str
 
 export const contains = (str: string, element: string) => str ? str.includes(element) : false // TODO Inline all usages as this function is not adding any functionality to String.includes
 
+export const redactQueryString = (url: string): string => {
+  const queryIndex = url.indexOf('?')
+  return queryIndex === -1 ? url : url.substring(0, queryIndex) + '?[REDACTED]'
+}
+
 export const containsEscaped = function (str: string, element: string) {
   return contains(str, element.replace(/"/g, '\\"'))
 }

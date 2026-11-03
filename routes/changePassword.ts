@@ -10,11 +10,10 @@ import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
-    const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const currentPassword = typeof body?.current === 'string' ? body.current : undefined
+    const newPassword = typeof body?.new === 'string' ? body.new : undefined
+    const repeatPassword = typeof body?.repeat === 'string' ? body.repeat : undefined
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -48,7 +47,7 @@ export function changePassword () {
         return
       }
 
-      await user.update({ password: newPasswordInString })
+      await user.update({ password: newPassword })
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')

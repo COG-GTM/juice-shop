@@ -1,21 +1,32 @@
 {
 	"accessLogDisclosureChallenge_1_correct.ts": {
-		"added": [
-			16
-		],
+		"added": [],
 		"removed": []
 	},
 	"accessLogDisclosureChallenge_2.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			13,
+			14,
+			15,
+			16
+		]
 	},
 	"accessLogDisclosureChallenge_3.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			13,
+			14,
+			15
+		]
 	},
 	"accessLogDisclosureChallenge_4.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			13,
+			14,
+			15
+		]
 	},
 	"adminSectionChallenge_1_correct.ts": {
 		"added": [
