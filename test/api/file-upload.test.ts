@@ -200,6 +200,25 @@ void describe('/file-upload', () => {
     assert.deepEqual(entries.filter(entry => fs.existsSync(entry)), [])
   })
 
+  void it('POST zip file with an entry targeting an existing directory persists none of its entries', async () => {
+    const directory = path.resolve('uploads/complaints/rename-conflict-dir')
+    const sibling = path.resolve('uploads/complaints/rename-conflict-ok.txt')
+    fs.rmSync(sibling, { force: true })
+    fs.mkdirSync(directory, { recursive: true })
+    try {
+      const file = path.resolve(__dirname, '../files/complaintTargetIsDirectory.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', file)
+      assert.equal(res.status, 500)
+      assert.equal(fs.existsSync(sibling), false)
+      assert.equal(fs.statSync(directory).isDirectory(), true)
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   void it('POST corrupt zip file is rejected', async () => {
     const file = path.resolve(__dirname, '../files/corruptComplaint.zip')
     const res = await request(app)
