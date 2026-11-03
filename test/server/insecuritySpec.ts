@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -129,13 +130,25 @@ describe('insecurity', () => {
       expect(run()).to.deep.equal({ nextCalled: false, status: 401 })
     })
 
+    it('rejects an HMAC-signed admin token', () => {
+      const forged = jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload: { data: { role: 'admin' }, iat: Math.floor(Date.now() / 1000) }, secret: security.publicKey })
+      expect(run('Bearer ' + forged)).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
     it('rejects a non-admin token', () => {
       expect(run('Bearer ' + security.authorize({ data: { role: 'customer' } }))).to.deep.equal({ nextCalled: false, status: 401 })
     })
 
     it('rejects an expired admin token', () => {
-      const iat = Math.floor(Date.now() / 1000) - 7 * 60 * 60
-      expect(run('Bearer ' + security.authorize({ data: { role: 'admin' }, iat }))).to.deep.equal({ nextCalled: false, status: 401 })
+      const realNow = Date.now
+      Date.now = () => realNow() - 7 * 60 * 60 * 1000
+      let token: string
+      try {
+        token = security.authorize({ data: { role: 'admin' } })
+      } finally {
+        Date.now = realNow
+      }
+      expect(run('Bearer ' + token)).to.deep.equal({ nextCalled: false, status: 401 })
     })
   })
 

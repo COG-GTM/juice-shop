@@ -164,13 +164,20 @@ export const isAccounting = () => {
   }
 }
 
+const adminTokenMaxAgeSeconds = 6 * 60 * 60
+
 export const isAdmin = () => {
   return (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req)
     let decodedToken: any
-    try {
-      decodedToken = jwt.verify(utils.jwtFrom(req) ?? '', publicKey, { algorithms: ['RS256'] })
-    } catch {
-      decodedToken = undefined
+    if (token && jws.decode(token)?.header?.alg === 'RS256') {
+      jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+        const now = Math.floor(Date.now() / 1000)
+        const notExpired = decoded?.exp ? decoded.exp > now : now - (decoded?.iat ?? 0) < adminTokenMaxAgeSeconds
+        if (err === null && notExpired) {
+          decodedToken = decoded
+        }
+      })
     }
     if (decodedToken?.data?.role === roles.admin) {
       next()
