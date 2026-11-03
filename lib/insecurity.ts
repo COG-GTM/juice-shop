@@ -53,7 +53,23 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+const tokenLifetimeMs = 6 * 60 * 60 * 1000
+const issuedTokens = new Map<string, number>()
+export const authorize = (user = {}) => {
+  const token = jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+  const now = Date.now()
+  for (const [issuedToken, expiresAt] of issuedTokens) {
+    if (expiresAt > now) break
+    issuedTokens.delete(issuedToken)
+  }
+  issuedTokens.delete(token)
+  issuedTokens.set(token, now + tokenLifetimeMs)
+  return token
+}
+export const isIssuedToken = (token?: string) => {
+  const expiresAt = token ? issuedTokens.get(utils.unquote(token)) : undefined
+  return expiresAt !== undefined && expiresAt > Date.now()
+}
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
