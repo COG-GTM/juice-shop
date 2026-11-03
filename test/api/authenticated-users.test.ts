@@ -27,8 +27,20 @@ void describe('/rest/user/authentication-details', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    const userWithAsterisks = res.body.data.find((user: any) => user.password === '********************************')
-    assert.ok(userWithAsterisks, 'Expected at least one user with password replaced by asterisks')
+    const admin = res.body.data.find((user: any) => user.email === `admin@${config.get<string>('application.domain')}`)
+    assert.ok(admin, 'Expected to find admin in the user list')
+    assert.match(admin.password, /^\*+$/)
+
+    const twoFactorUser = res.body.data.find((user: any) => user.email === `wurstbrot@${config.get<string>('application.domain')}`)
+    assert.ok(twoFactorUser, 'Expected to find a 2FA user in the user list')
+    assert.match(twoFactorUser.totpSecret, /^\*+$/)
+
+    for (const user of res.body.data) {
+      assert.match(user.password, /^\*+$/)
+      if (user.totpSecret !== '') {
+        assert.match(user.totpSecret, /^\*+$/)
+      }
+    }
   })
 
   void it('GET returns lastLoginTime for users with active sessions', async () => {
