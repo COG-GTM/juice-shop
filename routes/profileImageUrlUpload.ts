@@ -3,15 +3,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-import fs from 'node:fs'
-import { Readable } from 'node:stream'
-import { finished } from 'node:stream/promises'
+import fs from 'node:fs/promises'
 import { type Request, type Response, type NextFunction } from 'express'
+import fileType from 'file-type'
 
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
+
+const MAX_PROFILE_IMAGE_BYTES = 200000
 
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -25,11 +26,34 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
+          if (Number(response.headers.get('content-length')) > MAX_PROFILE_IMAGE_BYTES) {
+            await response.body.cancel()
+            throw new Error('url returned an image exceeding the size limit')
+          }
+          const reader = response.body.getReader()
+          const chunks: Uint8Array[] = []
+          let totalBytes = 0
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            totalBytes += value.byteLength
+            if (totalBytes > MAX_PROFILE_IMAGE_BYTES) {
+              await reader.cancel()
+              throw new Error('url returned an image exceeding the size limit')
+            }
+            chunks.push(value)
+          }
+          const buffer = Buffer.concat(chunks)
+          const detected = await fileType.fromBuffer(buffer)
+          const allowedExtensions = ['jpg', 'png', 'gif', 'webp']
+          if (detected === undefined || !allowedExtensions.includes(detected.ext)) {
+            res.status(415)
+            next(new Error(`Profile image URL upload does not accept this file type${detected ? ': ' + detected.mime : '.'}`))
+            return
+          }
+          await fs.writeFile(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${detected.ext}`, buffer)
           const user = await UserModel.findByPk(loggedInUser.data.id)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
+          await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${detected.ext}` })
         } catch (error) {
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
