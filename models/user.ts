@@ -11,7 +11,9 @@ import {
   Model,
   DataTypes,
   type CreationOptional,
-  type Sequelize
+  type Sequelize,
+  type BulkCreateOptions,
+  type UpdateOptions
 } from 'sequelize'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
@@ -74,7 +76,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       password: {
         type: DataTypes.STRING,
         set (clearTextPassword: string) {
-          this.setDataValue('password', security.hashPassword(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge
+          this.setDataValue('password', clearTextPassword) // vuln-code-snippet vuln-line weakPasswordChallenge
         }
       }, // vuln-code-snippet end weakPasswordChallenge
       role: {
@@ -125,6 +127,26 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       sequelize
     }
   )
+
+  const hashPassword = async (user: User) => {
+    const password = user.getDataValue('password')
+    if (user.changed('password') && password != null) {
+      user.setDataValue('password', await security.hashPassword(String(password)))
+    }
+  }
+
+  User.addHook('beforeCreate', hashPassword)
+  User.addHook('beforeUpdate', hashPassword)
+  User.addHook('beforeBulkCreate', async (users: User[], options: BulkCreateOptions<InferAttributes<User>>) => {
+    if (options.individualHooks === true) return
+    await Promise.all(users.map(hashPassword))
+  })
+  User.addHook('beforeBulkUpdate', async (options: UpdateOptions<InferAttributes<User>>) => {
+    const { attributes } = options as unknown as { attributes?: { password?: unknown } }
+    if (options.individualHooks !== true && attributes?.password != null) {
+      attributes.password = await security.hashPassword(String(attributes.password))
+    }
+  })
 
   User.addHook('afterValidate', async (user: User) => {
     if (
