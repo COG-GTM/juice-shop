@@ -119,6 +119,18 @@ describe('LoginComponent', () => {
         expect(component.oauthUnavailable).toBe(true)
     })
 
+    it('sends a random state to the OAuth provider and stores it for the callback check', () => {
+        const replace = vi.fn()
+        const nativeWindow = vi.spyOn(WindowRefService.prototype, 'nativeWindow', 'get').mockReturnValue({ location: { replace } })
+        component.googleLogin()
+        const state = sessionStorage.getItem('oauthState')
+        expect(state).toMatch(/^[0-9a-f]{32}$/)
+        expect(replace).toHaveBeenCalledWith(expect.stringContaining(`&state=${state}`))
+        component.googleLogin()
+        expect(sessionStorage.getItem('oauthState')).not.toBe(state)
+        nativeWindow.mockRestore()
+    })
+
     it('forwards to main page after successful login', async () => {
         userService.login.mockReturnValue(of({}))
         component.login()
