@@ -27,6 +27,14 @@ describe('/rest/products/reviews', () => {
     })
   })
 
+  describe('challenge "NoSQL Exfiltration"', () => {
+    it('should not be possible to inject and get all the orders', () => {
+      cy.request('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27').then((response) => {
+        expect(response.body.data).to.deep.equal([{ orderId: 'true' }])
+      })
+    })
+  })
+
   describe('challenge "NoSQL Manipulation"', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
