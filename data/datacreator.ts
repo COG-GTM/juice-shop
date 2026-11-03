@@ -31,7 +31,7 @@ import * as utils from '../lib/utils'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
 import { seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from './privilegedSeedPasswords'
-import type { CreationAttributes } from 'sequelize'
+import type { CreateOptions, CreationAttributes } from 'sequelize'
 import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
@@ -185,25 +185,31 @@ async function createChallenges () {
 
 async function createUsers () {
   const users = await loadStaticUserData()
+  const seedPasswords = users.map(({ role, password }) => seedPasswordFor({ role, password }))
+  const seedAnswers = users.map(({ role, securityQuestion }) => securityQuestion != null ? seedSecurityAnswerFor({ role, answer: securityQuestion.answer }) : undefined)
+  const [passwordHashes, answerHashes] = await Promise.all([
+    Promise.all(seedPasswords.map(async ({ password }) => await security.hashPassword(password))),
+    Promise.all(seedAnswers.map(async (answer) => answer != null ? await security.hashSecurityAnswer(answer) : undefined))
+  ])
 
   await Promise.all(
-    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
+    users.map(async ({ username, email, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }, index) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
-        const seedPassword = seedPasswordFor({ role, password })
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password: seedPassword.password,
+          password: passwordHashes[index],
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
           totpSecret: seedTotpSecretFor({ role, totpSecret }),
           lastLoginIp
-        })
+        }, { prehashed: true } as unknown as CreateOptions)
         datacache.users[key] = user
-        if (seedPassword.generated) logger.info(`Seeded ${role} account ${completeEmail} with random credentials (set JUICE_SHOP_DEMO_CREDENTIALS=enabled to use the documented demo credentials)`)
-        if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, seedSecurityAnswerFor({ role, answer: securityQuestion.answer }))
+        if (seedPasswords[index].generated) logger.info(`Seeded ${role} account ${completeEmail} with random credentials (set JUICE_SHOP_DEMO_CREDENTIALS=enabled to use the documented demo credentials)`)
+        const seedAnswer = seedAnswers[index]
+        if (securityQuestion != null && seedAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, answerHashes[index] ?? seedAnswer, answerHashes[index] != null)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
@@ -689,8 +695,8 @@ async function createSecurityQuestions () {
   )
 }
 
-async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string) {
-  return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }).catch((err: unknown) => {
+async function createSecurityAnswer (UserId: number, SecurityQuestionId: number, answer: string, prehashed = false) {
+  return await SecurityAnswerModel.create({ SecurityQuestionId, UserId, answer }, { prehashed } as unknown as CreateOptions).catch((err: unknown) => {
     logger.error(`Could not insert SecurityAnswer ${answer} mapped to UserId ${UserId}: ${utils.getErrorMessage(err)}`)
   })
 }
