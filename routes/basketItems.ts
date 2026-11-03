@@ -6,10 +6,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
 import { QuantityModel } from '../models/quantity'
-import * as challengeUtils from '../lib/challengeUtils'
-
 import * as utils from '../lib/utils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
@@ -18,39 +15,51 @@ interface RequestWithRawBody extends Request {
 
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)
-    const productIds = []
-    const basketIds = []
-    const quantities = []
-
-    for (let i = 0; i < result.length; i++) {
-      if (result[i].key === 'ProductId') {
-        productIds.push(result[i].value)
-      } else if (result[i].key === 'BasketId') {
-        basketIds.push(result[i].value)
-      } else if (result[i].key === 'quantity') {
-        quantities.push(result[i].value)
-      }
+    const rawBody = (req as RequestWithRawBody).rawBody
+    const keys = typeof rawBody === 'string' ? utils.parseJsonCustom(rawBody).map((entry: { key: string }) => entry.key) : []
+    if (['ProductId', 'BasketId', 'quantity'].some(key => keys.filter((k: string) => k === key).length > 1)) {
+      res.status(400).json({ error: 'Duplicate keys in request body' })
+      return
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    const requestedBasketId = req.body.BasketId
+    if (!user?.bid || (requestedBasketId !== undefined && requestedBasketId !== 'undefined' && Number(requestedBasketId) !== Number(user.bid))) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
-    } else {
-      const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
-      }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
+      return
+    }
 
-      const basketItemInstance = BasketItemModel.build(basketItem)
-      try {
-        const addedBasketItem = await basketItemInstance.save()
-        res.json({ status: 'success', data: addedBasketItem })
-      } catch (error) {
-        next(error)
+    const basketItem = {
+      ProductId: req.body.ProductId,
+      BasketId: user.bid,
+      quantity: req.body.quantity
+    }
+    const basketItemInstance = BasketItemModel.build(basketItem)
+    try {
+      const addedBasketItem = await basketItemInstance.save()
+      res.json({ status: 'success', data: addedBasketItem })
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item == null) {
+        next()
+        return
       }
+      const user = security.authenticatedUsers.from(req)
+      if (!user?.bid || item.BasketId == null || Number(item.BasketId) !== Number(user.bid)) {
+        res.status(403).json({ error: 'Basket item does not belong to your basket' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
     }
   }
 }
@@ -66,8 +75,6 @@ export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      const user = security.authenticatedUsers.from(req)
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
       if (req.body.quantity) {
         if (item == null) {
           throw new Error('No such item found!')
