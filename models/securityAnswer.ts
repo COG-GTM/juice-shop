@@ -52,8 +52,9 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
     }
   )
 
-  const hashAnswer = async (securityAnswer: SecurityAnswer) => {
-    if (securityAnswer.changed('answer') && securityAnswer.answer != null) {
+  const hashAnswer = async (securityAnswer: SecurityAnswer, options?: object) => {
+    const prehashed = (options as { prehashed?: boolean } | undefined)?.prehashed === true
+    if (!prehashed && securityAnswer.changed('answer') && securityAnswer.answer != null) {
       securityAnswer.answer = await security.hashSecurityAnswer(String(securityAnswer.answer))
     }
   }
@@ -61,7 +62,7 @@ const SecurityAnswerModelInit = (sequelize: Sequelize) => {
   SecurityAnswer.addHook('beforeSave', hashAnswer)
   SecurityAnswer.addHook('beforeBulkCreate', async (securityAnswers: SecurityAnswer[], options: BulkCreateOptions<InferAttributes<SecurityAnswer>>) => {
     if (options.individualHooks === true) return
-    await Promise.all(securityAnswers.map(hashAnswer))
+    await Promise.all(securityAnswers.map(async (securityAnswer) => { await hashAnswer(securityAnswer, options) }))
   })
   SecurityAnswer.addHook('beforeBulkUpdate', async (options: UpdateOptions<InferAttributes<SecurityAnswer>>) => {
     const { attributes } = options as unknown as { attributes?: { answer?: unknown } }
