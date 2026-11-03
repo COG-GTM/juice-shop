@@ -107,7 +107,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       let finalized = false
       let responded = false
       let storeFailed = false
-      let entrySeen = false
+      let encryptedEntrySeen = false
       const respond = (status: number, error?: string) => {
         if (responded) return
         responded = true
@@ -168,7 +168,6 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       parser.on('finish', () => { setImmediate(publish) })
       parser.on('close', () => { setImmediate(publish) })
       parser.on('entry', function (entry: any) {
-        entrySeen = true
         if (aborted || finalized) {
           entry.autodrain()
           return
@@ -182,7 +181,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         }
         const limiter = budget.limiter()
         limiter.on('error', (err: Error) => { abort(err.message, 413, complaintZipLimitError) })
-        const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
+        const encrypted = ((entry.vars?.flags ?? 0) & 0x01) !== 0
+        if (encrypted) encryptedEntrySeen = true
+        const targetPath = entry.type === 'File' && !encrypted ? resolveComplaintEntryPath(fileName) : null
         const temp = targetPath !== null ? openComplaintTempFile() : null
         if (targetPath === null || temp === null) {
           if (targetPath !== null) storeFailed = true
@@ -217,7 +218,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
-        if (entrySeen) abort(`undecodable entry: ${utils.getErrorMessage(err)}`, 204)
+        if (encryptedEntrySeen) abort(`encrypted entry: ${utils.getErrorMessage(err)}`, 204)
         else abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
       })
     } else {
