@@ -152,19 +152,40 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order for an empty basket is rejected', async () => {
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 2 } }), 0)
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Order total must be greater than zero.')
+    assert.equal(res.body.orderConfirmation, undefined)
+  })
+
+  void it('POST placing an order for a basket with a negative total cost is rejected and leaves the basket intact', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    try {
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must be greater than zero.')
+      assert.equal(res.body.orderConfirmation, undefined)
+      assert.equal(await BasketItemModel.count({ where: { BasketId: 2 } }), 1)
+    } finally {
+      await BasketItemModel.destroy({ where: { id: itemRes.body.data.id } })
+    }
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: ownBasketId, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
     const couponRes = await request(app)
       .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(forgedCoupon))
       .set(authHeader)
