@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -24,7 +25,12 @@ const loadPrivateKey = (): string => {
     return process.env.JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   }
   if (process.env.JWT_PRIVATE_KEY_FILE) {
-    return fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8')
+    const keyFile = fs.realpathSync(process.env.JWT_PRIVATE_KEY_FILE)
+    const publiclyServedDirs = ['encryptionkeys', 'ftp', 'logs', '.well-known', 'frontend', 'node_modules'].map(dir => path.resolve(dir))
+    if (publiclyServedDirs.some(dir => keyFile === dir || keyFile.startsWith(dir + path.sep))) {
+      throw new Error('JWT_PRIVATE_KEY_FILE must not be located inside a publicly served directory')
+    }
+    return fs.readFileSync(keyFile, 'utf8')
   }
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
