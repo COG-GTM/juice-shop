@@ -143,32 +143,25 @@ export function placeOrder () {
             return
           }
 
+          const decrementedStock: typeof stockUpdates = []
           try {
-            for (const { ProductId, quantity } of stockUpdates) {
-              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
-              if (quantityRow) {
-                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
-              }
+            for (const stockUpdate of stockUpdates) {
+              await QuantityModel.decrement({ quantity: stockUpdate.quantity }, { where: { ProductId: stockUpdate.ProductId } })
+              decrementedStock.push(stockUpdate)
             }
-          } catch (error: unknown) {
-            next(error)
-            return
-          }
-
-          if (req.body.UserId) {
-            try {
+            if (req.body.UserId) {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
                 if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
-                  next(new Error('Insufficient wallet balance.'))
-                  return
+                  throw new Error('Insufficient wallet balance.')
                 }
               } else {
                 await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
               }
-            } catch (error: unknown) {
-              next(error)
-              return
             }
+          } catch (error: unknown) {
+            await restoreStock(decrementedStock)
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -193,6 +186,10 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function restoreStock (stockUpdates: Array<{ ProductId: number, quantity: number }>) {
+  await Promise.allSettled(stockUpdates.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } })))
 }
 
 async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
