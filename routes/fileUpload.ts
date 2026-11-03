@@ -76,29 +76,41 @@ function containsDtd (data: string) {
   return /<!(DOCTYPE|ENTITY)/i.test(data)
 }
 
-const externalFileEntity = (target: string) => new RegExp(`(<!--[\\s\\S]*?(?:-->|$)|<!\\[CDATA\\[[\\s\\S]*?(?:\\]\\]>|$))|<!ENTITY\\s+(%\\s+)?([^\\s%>"']+)\\s+(?:SYSTEM|PUBLIC\\s+(?:"[^"]*"|'[^']*'))\\s+["']file:///?(?:${target})["']|<![a-z][^>"'[]*(?:(?:"[^"]*(?:"|$)|'[^']*(?:'|$))[^>"'[]*)*`, 'gi')
-const fileDisclosureEntity = externalFileEntity('etc/passwd|[a-z]:/windows/system\\.ini')
-const devRandomEntity = externalFileEntity('dev/u?random')
+const xmlToken = /<\?[\s\S]*?(?:\?>|$)|<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<!ENTITY\s+(%\s+)?([^\s%>"']+)\s+(SYSTEM\s+|PUBLIC\s+(?:"[^"]*"|'[^']*')\s+)?("[^"]*"|'[^']*')[^>]*>?|<![a-z][^>"'[]*(?:(?:"[^"]*"?|'[^']*'?)[^>"'[]*)*(\[?)|(\])|([&%])([^\s;&%#<>"'[\]]+);/gi
+const entityReference = /([&%])([^\s;&%#<>"'[\]]+);/g
+const fileDisclosureTarget = /^file:\/\/\/?(?:etc\/passwd|[a-z]:\/windows\/system\.ini)$/i
+const devRandomTarget = /^file:\/\/\/?dev\/u?random$/i
 
-function usesExternalEntity (data: string, entity: RegExp) {
-  const references: string[] = []
-  let text = ''
-  let pos = 0
-  let lastDeclarationEnd = 0
-  for (const match of data.matchAll(entity)) {
-    const index = match.index ?? 0
-    if (match[1] != null) {
-      text += data.slice(pos, index) + ' '.repeat(match[0].length)
-      pos = index + match[0].length
-    } else {
-      lastDeclarationEnd = index + match[0].length
-      if (match[3] != null) references.push((match[2] != null ? '%' : '&') + match[3] + ';')
+function reachableExternalEntities (data: string) {
+  const declarations = new Map<string, { external: boolean, value: string }>()
+  const pending: string[] = []
+  let inInternalSubset = false
+  for (const [, parameter, name, externalId, literal, subsetStart, subsetEnd, referenceType, referenceName] of data.matchAll(xmlToken)) {
+    if (name !== undefined) {
+      const key = (parameter !== undefined ? '%' : '&') + name
+      if (!declarations.has(key)) declarations.set(key, { external: externalId !== undefined, value: literal.slice(1, -1) })
+    } else if (subsetStart === '[') {
+      inInternalSubset = true
+    } else if (subsetEnd !== undefined) {
+      inInternalSubset = false
+    } else if (referenceName !== undefined && (referenceType === '%') === inInternalSubset) {
+      pending.push(referenceType + referenceName)
     }
   }
-  text += data.slice(pos)
-  const subsetEnd = text.indexOf(']', lastDeclarationEnd)
-  const dtd = subsetEnd === -1 ? text : text.slice(0, subsetEnd)
-  return references.some(reference => (reference.startsWith('%') ? dtd : text).includes(reference))
+  const visited = new Set<string>()
+  const externalTargets: string[] = []
+  while (pending.length > 0) {
+    const key = pending.pop() as string
+    const declaration = declarations.get(key)
+    if (visited.has(key) || declaration === undefined) continue
+    visited.add(key)
+    if (declaration.external) {
+      externalTargets.push(declaration.value)
+    } else {
+      for (const [, type, name] of declaration.value.matchAll(entityReference)) pending.push(type + name)
+    }
+  }
+  return externalTargets
 }
 
 function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -107,8 +119,9 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge)) { // XXE attacks in Docker/Heroku containers regularly cause "segfault" crashes
       const data = file.buffer.toString()
       if (containsDtd(data)) {
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return usesExternalEntity(data, fileDisclosureEntity) })
-        if (usesExternalEntity(data, devRandomEntity)) {
+        const externalTargets = reachableExternalEntities(data)
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return externalTargets.some(target => fileDisclosureTarget.test(target)) })
+        if (externalTargets.some(target => devRandomTarget.test(target))) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
