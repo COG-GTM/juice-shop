@@ -34,15 +34,23 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews rejects a mongoDB sleep command quickly', async () => {
+    const start = Date.now()
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    const elapsed = Date.now() - start
+    assert.equal(res.status, 400)
+    assert.ok(elapsed < 1000, `Request took ${elapsed}ms`)
   })
 
-  // FIXME Turn on when #1960 is resolved
-  void it.skip('GET product reviews by alphanumeric non-mongoDB-command product id', async () => {
+  void it('GET product reviews rejects an executable product id', async () => {
+    const res = await request(app)
+      .get('/rest/products/(global.x=1)/reviews')
+    assert.equal(res.status, 400)
+    assert.equal((global as any).x, undefined)
+  })
+
+  void it('GET product reviews rejects an alphanumeric product id', async () => {
     const res = await request(app)
       .get('/rest/products/kaboom/reviews')
     assert.equal(res.status, 400)
@@ -140,4 +148,20 @@ void describe('/rest/products/reviews', () => {
     assert.ok(Array.isArray(res.body.updated))
     assert.equal(res.body.modified, totalReviews)
   })
+})
+
+void it('GET product reviews includes a newly created review', async () => {
+  const message = `Unique review ${Date.now()}-${Math.random()}`
+  const putRes = await request(app)
+    .put('/rest/products/1/reviews')
+    .send({
+      message,
+      author: 'Anonymous'
+    })
+  assert.equal(putRes.status, 201)
+
+  const getRes = await request(app)
+    .get('/rest/products/1/reviews')
+  assert.equal(getRes.status, 200)
+  assert.ok(getRes.body.data.some(({ message: reviewMessage }: { message: string }) => reviewMessage === message))
 })
