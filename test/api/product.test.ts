@@ -138,6 +138,17 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.data.price, 2.99)
   })
 
+  void it('PUT update of product price as numeric string is possible for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/json' })
+      .send({
+        price: '3.49'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(Number(res.body.data.price), 3.49)
+  })
+
   void it('PUT update of fields other than price is forbidden for accounting users', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)

@@ -213,4 +213,11 @@ describe('AccountingComponent', () => {
         expect(productService.put).toHaveBeenCalled()
         expect(productService.search).toHaveBeenCalled()
     })
+
+    it('should send the price as a number when modifying price of a product', () => {
+        productService.search.mockReturnValue(of([]))
+        productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
+        component.modifyPrice(1, '2.99')
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 2.99 })
+    })
 })
