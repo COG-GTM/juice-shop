@@ -59,6 +59,7 @@ module.exports = function (grunt) {
               'node_modules/**',
               'routes/*.ts',
               'uploads/complaints/.gitkeep',
+              'uploads/orders/.gitkeep',
               'views/**'
             ],
             dest: 'juice-shop_<%= pkg.version %>/'

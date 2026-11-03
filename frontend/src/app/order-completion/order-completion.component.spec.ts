@@ -41,6 +41,7 @@ describe('OrderCompletionComponent', () => {
     let configurationService: any
 
     beforeEach(async () => {
+        basketService = { hostServer: 'http://localhost:3000' }
         configurationService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
@@ -89,6 +90,14 @@ describe('OrderCompletionComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy()
+    })
+
+    it('should open the private order confirmation endpoint', () => {
+        const open = vi.spyOn(window, 'open').mockReturnValue(null)
+        component.orderId = 'ad9b-96017e7cb1ae7bf9'
+        component.openConfirmationPDF()
+        expect(open).toHaveBeenCalledWith('http://localhost:3000/rest/order-history/ad9b-96017e7cb1ae7bf9/confirmation', '_blank')
+        open.mockRestore()
     })
 
     it('should hold order details returned by backend API', () => {
