@@ -229,4 +229,29 @@ describe('insecurity', () => {
       expect(allowed(token)).to.equal(false)
     })
   })
+
+  describe('isDeluxe', () => {
+    const deluxeRequest = (token: string) => ({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)
+    const deluxeUser = () => security.authorize({ data: { id: 5, email: 'ciso@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('ciso@juice-sh.op') } })
+
+    it('accepts a valid deluxe token', () => {
+      expect(security.isDeluxe(deluxeRequest(deluxeUser()))).to.equal(true)
+    })
+
+    it('rejects a revoked deluxe token', () => {
+      const token = deluxeUser()
+      security.revokeToken(token)
+      expect(security.isDeluxe(deluxeRequest(token))).to.equal(false)
+    })
+  })
+
+  describe('isCustomer', () => {
+    it('rejects a revoked customer token', () => {
+      const token = security.authorize({ data: { id: 6, role: security.roles.customer } })
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      expect(security.isCustomer(req)).to.equal(true)
+      security.revokeToken(token)
+      expect(security.isCustomer(req)).to.equal(false)
+    })
+  })
 })
