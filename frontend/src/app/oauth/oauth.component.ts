@@ -23,9 +23,21 @@ export class OAuthComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
   private readonly ngZone = inject(NgZone)
 
-
   ngOnInit (): void {
-    this.userService.oauthLogin(this.parseRedirectUrlParams().access_token).subscribe({
+    const expectedState = sessionStorage.getItem('oauthState')
+    sessionStorage.removeItem('oauthState')
+    let params: any
+    try {
+      params = this.parseRedirectUrlParams()
+    } catch {
+      params = {}
+    }
+    if (!expectedState || params.state !== expectedState || !params.access_token) {
+      console.log('OAuth callback rejected: missing or mismatching state')
+      this.ngZone.run(async () => await this.router.navigate(['/login']))
+      return
+    }
+    this.userService.oauthLogin(params.access_token).subscribe({
       next: (profile: any) => {
         const password = btoa(profile.email.split('').reverse().join(''))
         this.userService.save({ email: profile.email, password, passwordRepeat: password }).subscribe({
@@ -73,7 +85,7 @@ export class OAuthComponent implements OnInit {
     const params: any = {}
     for (const part of splitted) {
       const [key, value] = part.split('=')
-      params[key] = value
+      params[key] = value === undefined ? value : decodeURIComponent(value)
     }
     return params
   }
