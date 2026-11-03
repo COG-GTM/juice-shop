@@ -156,14 +156,19 @@ export function placeOrder () {
             }
           }
 
+          const appliedStockUpdates: typeof stockUpdates = []
           try {
             for (const { ProductId, quantity } of stockUpdates) {
               const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
               if (quantityRow) {
                 await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+                appliedStockUpdates.push({ ProductId, quantity })
               }
             }
           } catch (error: unknown) {
+            for (const { ProductId, quantity } of appliedStockUpdates) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } }).catch(() => {})
+            }
             if (payWithWallet) {
               await WalletModel.increment({ balance: totalPrice }, { where: { UserId: req.body.UserId } }).catch(() => {})
             }
