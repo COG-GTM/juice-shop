@@ -6,7 +6,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import config from 'config'
 
 import * as challengeUtils from '../lib/challengeUtils'
-import { challenges, users } from '../data/datacache'
+import { challenges, seedCredentials, users } from '../data/datacache'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
@@ -26,9 +26,9 @@ const preLoginCredentialChallenges: Array<[ChallengeKey, string]> = [
   ['exposedCredentialsChallenge', 'LetUsTest']
 ]
 
-function matchesSeededCredentials (req: Request, seededUser?: UserModel) {
-  return staticSeedCredentialsEnabled() && seededUser != null && typeof req.body.email === 'string' && typeof req.body.password === 'string' &&
-    req.body.email === seededUser.email && security.hash(req.body.password) === seededUser.password
+function matchesSeededCredentials (req: Request, seeded?: { email: string, passwordHash: string }) {
+  return staticSeedCredentialsEnabled() && seeded != null && typeof req.body.email === 'string' && typeof req.body.password === 'string' &&
+    req.body.email === seeded.email && security.hash(req.body.password) === seeded.passwordHash
 }
 
 // vuln-code-snippet start loginAdminChallenge loginBenderChallenge loginJimChallenge
@@ -75,7 +75,7 @@ export function login () {
 
   function verifyPreLoginChallenges (req: Request) {
     for (const [challengeKey, userKey] of preLoginCredentialChallenges) {
-      challengeUtils.solveIf(challenges[challengeKey], () => { return matchesSeededCredentials(req, users[userKey]) })
+      challengeUtils.solveIf(challenges[challengeKey], () => { return matchesSeededCredentials(req, seedCredentials[userKey]) })
     }
   }
 

@@ -202,6 +202,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
+        if (!generatedCredentials && password) datacache.seedCredentials[key] = { email: completeEmail, passwordHash: security.hash(password) }
         if (generatedCredentials && hasPublishedCredentials({ key, role }) && !deletedFlag) {
           logger.info(`Seeded user ${completeEmail} with ${key === 'admin' && password === process.env.JUICE_SHOP_ADMIN_PASSWORD ? 'the password from JUICE_SHOP_ADMIN_PASSWORD' : 'a random password'} instead of the published one`)
         }
