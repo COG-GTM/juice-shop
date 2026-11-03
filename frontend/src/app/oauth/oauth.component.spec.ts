@@ -106,6 +106,28 @@ describe('OAuthComponent', () => {
         expect(userService.oauthLogin).not.toHaveBeenCalled()
     })
 
+    it('rejects a callback with a malformed fragment', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        routeData.params = '#access_token=abc%ZZ&state=STATE'
+        sessionStorage.setItem('oauthState', 'STATE')
+        expect(() => { component.ngOnInit() }).not.toThrow()
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem('oauthState')).toBeNull()
+    })
+
+    it('keeps an existing session when an unsolicited callback is rejected', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        localStorage.setItem('token', 'EXISTING')
+        sessionStorage.setItem('bid', '1')
+        routeData.params = '#access_token=ATTACKER'
+        component.ngOnInit()
+        expect(localStorage.getItem('token')).toBe('EXISTING')
+        expect(sessionStorage.getItem('bid')).toBe('1')
+        localStorage.removeItem('token')
+        sessionStorage.removeItem('bid')
+    })
+
     it('consumes the stored state so a callback URL cannot be replayed', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
