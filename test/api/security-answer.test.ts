@@ -27,7 +27,7 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST new security answer for existing user fails from unique constraint', async () => {
+  void it('POST new security answer for existing user is forbidden', async () => {
     const res = await request(app)
       .post('/api/SecurityAnswers')
       .set(authHeader)
@@ -37,9 +37,7 @@ void describe('/api/SecurityAnswers', () => {
         answer: 'Horst'
       })
 
-    assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error')
+    assert.equal(res.status, 401)
   })
 })
 
@@ -52,12 +50,13 @@ void describe('/api/SecurityAnswers/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST security answer for a newly registered user', async () => {
+  void it('POST security answer for a newly registered user is forbidden and cannot reset its password', async () => {
+    const email = 'new.user@te.st'
     const userRes = await request(app)
       .post('/api/Users')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: 'new.user@te.st',
+        email,
         password: '12345'
       })
 
@@ -65,18 +64,30 @@ void describe('/api/SecurityAnswers/:id', () => {
 
     const res = await request(app)
       .post('/api/SecurityAnswers')
-      .set(authHeader)
       .send({
-        UserId: userRes.body.id,
+        UserId: userRes.body.data.id,
         SecurityQuestionId: 1,
         answer: 'Horst'
       })
 
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.data.id, 'number')
-    assert.equal(typeof res.body.data.createdAt, 'string')
-    assert.equal(typeof res.body.data.updatedAt, 'string')
+    assert.equal(res.status, 401)
+
+    const resetRes = await request(app)
+      .post('/rest/user/reset-password')
+      .send({ email, answer: 'Horst', new: 'new-password', repeat: 'new-password' })
+    assert.equal(resetRes.status, 401)
+  })
+
+  void it('POST security answer for seeded admin is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/SecurityAnswers')
+      .send({
+        UserId: 4,
+        SecurityQuestionId: 1,
+        answer: 'Horst'
+      })
+
+    assert.equal(res.status, 401)
   })
 
   void it('PUT update existing security answer is forbidden via public API even when authenticated', async () => {
