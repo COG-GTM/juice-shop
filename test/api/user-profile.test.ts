@@ -51,4 +51,62 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('renders Pug-like username text literally', async () => {
+    const updateRes = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'x #{7*7}' })
+      .redirects(0)
+
+    assert.equal(updateRes.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x #{7*7}'))
+    assert.ok(!res.text.includes('x 49'))
+  })
+
+  void it('renders username expressions starting with interpolation literally', async () => {
+    const updateRes = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{7*7}' })
+      .redirects(0)
+
+    assert.equal(updateRes.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+    assert.ok(!res.text.includes('>49<'))
+  })
+
+  void it('does not execute commands embedded in the username', async () => {
+    const username = "#{global.process.mainModule.require('child_process').execSync('echo pwned_marker').toString()}"
+    const updateRes = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username })
+      .redirects(0)
+
+    assert.equal(updateRes.status, 302)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes(username))
+    assert.ok(!res.text.includes('>pwned_marker'))
+  })
 })
