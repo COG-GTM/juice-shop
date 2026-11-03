@@ -118,8 +118,8 @@ describe('/#/login', () => {
     it('should be able to log into a existing 2fa protected account given the right token', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`wurstbrot@${appDomain}'--`)
-          cy.get('#password').type('Never mind...')
+          cy.get('#email').type(`wurstbrot@${appDomain}`)
+          cy.get('#password').type('EinBelegtesBrotMitSchinkenSCHINKEN!')
           cy.get('#loginButton').click()
         }
       )
