@@ -24,6 +24,16 @@ function pruneExpiredAttempts (now: number) {
   }
 }
 
+function evictOldestUnlockedAttempt () {
+  for (const [key, entry] of resetAttempts) {
+    if (entry.count < MAX_FAILED_ATTEMPTS) {
+      resetAttempts.delete(key)
+      return true
+    }
+  }
+  return false
+}
+
 // Counts the attempt before the async answer check so concurrent guesses cannot exceed the limit
 function reserveResetAttempt (key: string) {
   const now = Date.now()
@@ -35,8 +45,7 @@ function reserveResetAttempt (key: string) {
   if (!entry) {
     if (resetAttempts.size >= MAX_TRACKED_EMAILS) {
       pruneExpiredAttempts(now)
-      const oldest = resetAttempts.keys().next().value
-      if (resetAttempts.size >= MAX_TRACKED_EMAILS && oldest !== undefined) resetAttempts.delete(oldest)
+      if (resetAttempts.size >= MAX_TRACKED_EMAILS && !evictOldestUnlockedAttempt()) return false
     }
     entry = { count: 0, expiresAt: now + LOCKOUT_DURATION_MS }
     resetAttempts.set(key, entry)
@@ -45,6 +54,11 @@ function reserveResetAttempt (key: string) {
   entry.count++
   if (entry.count >= MAX_FAILED_ATTEMPTS) entry.expiresAt = now + LOCKOUT_DURATION_MS
   return true
+}
+
+function releaseResetAttempt (key: string) {
+  const entry = resetAttempts.get(key)
+  if (entry && entry.count > 0) entry.count--
 }
 
 export function resetPassword () {
@@ -70,6 +84,7 @@ export function resetPassword () {
       res.status(429).send('Too many failed attempts. Please try again later.')
       return
     }
+    let wrongAnswer = false
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -86,9 +101,11 @@ export function resetPassword () {
           res.json({ status: 'success' })
         }
       } else {
+        wrongAnswer = true
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
+      if (!wrongAnswer) releaseResetAttempt(lockoutKey)
       next(error)
     }
   }
