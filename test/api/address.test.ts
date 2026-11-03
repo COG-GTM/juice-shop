@@ -12,7 +12,10 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
+let otherUserId: number
 let addressId: string
+let addressOwnerId: number
 
 before(
   async () => {
@@ -27,6 +30,18 @@ before(
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
     }
+
+    const { token: otherToken } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    otherAuthHeader = {
+      Authorization: 'Bearer ' + otherToken,
+      'content-type': 'application/json'
+    }
+    const otherAddresses = await request(app).get('/api/Addresss').set(otherAuthHeader)
+    assert.equal(otherAddresses.status, 200)
+    otherUserId = otherAddresses.body.data[0].UserId
   },
   { timeout: 60000 }
 )
@@ -108,6 +123,7 @@ void describe('/api/Addresss/:id', () => {
     })
     assert.equal(res.status, 201)
     addressId = res.body.data.id
+    addressOwnerId = res.body.data.UserId
   })
 
   void it('GET address by id is forbidden via public API', async () => {
@@ -143,6 +159,38 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.status, 'error')
     assert.equal(res.body.data, 'Malicious activity detected.')
+  })
+
+  void it('PUT address by another user is rejected without changing ownership or data', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+      .send({ fullName: 'Mallory' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownerRead = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRead.status, 200)
+    assert.equal(ownerRead.body.data.fullName, 'Jim')
+    assert.equal(ownerRead.body.data.UserId, addressOwnerId)
+  })
+
+  void it('PUT address ignores attempted id and owner changes', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ UserId: otherUserId, id: 99999, fullName: 'X' })
+    assert.equal(res.status, 200)
+
+    const ownerRead = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRead.status, 200)
+    assert.equal(ownerRead.body.data.id, Number(addressId))
+    assert.equal(ownerRead.body.data.UserId, addressOwnerId)
+    assert.equal(ownerRead.body.data.fullName, 'X')
   })
 
   void it('PUT update address by id', async () => {
