@@ -7,10 +7,8 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
-import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -71,23 +69,49 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH single product review can be edited', async () => {
+    const email = 'bjoern.kimminich@gmail.com'
+    const { token } = await login(app, {
+      email,
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const originalMessage = 'Review before owner-only edit'
+    const updatedMessage = 'Review after owner-only edit'
+    const createRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({
+        message: originalMessage,
+        author: email
+      })
+    assert.equal(createRes.status, 201)
+
+    const reviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const ownReview = reviewsRes.body.data.find((review: { author: string, message: string, _id: string }) => review.author === email && review.message === originalMessage)
+    assert.ok(ownReview)
+
     const res = await request(app)
       .patch('/rest/products/reviews')
-      .set(authHeader)
+      .set({ Authorization: `Bearer ${token}` })
       .send({
-        id: reviewId,
-        message: 'Lorem Ipsum'
+        id: ownReview._id,
+        message: updatedMessage
       })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
+    assert.equal(res.body.modified, 1)
     assert.ok(Array.isArray(res.body.original))
     assert.ok(Array.isArray(res.body.updated))
+
+    const updatedReviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const updatedReview = updatedReviewsRes.body.data.find((review: { _id: string, message: string }) => review._id === ownReview._id)
+    assert.equal(updatedReview.message, updatedMessage)
   })
 
   void it('PATCH single product review editing need an authenticated user', async () => {
     const res = await request(app)
       .patch('/rest/products/reviews')
+      .set(authHeader)
       .send({
         id: reviewId,
         message: 'Lorem Ipsum'
@@ -123,21 +147,54 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+  void it('PATCH another user product review cannot be edited', async () => {
+    const email = 'bjoern.kimminich@gmail.com'
+    const { token } = await login(app, {
+      email,
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const reviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const seededReview = reviewsRes.body.data.find((review: { _id: string }) => review._id === reviewId)
+    const originalMessage = seededReview.message
 
     const res = await request(app)
       .patch('/rest/products/reviews')
-      .set(authHeader)
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: reviewId,
+        message: 'Unauthorized review edit'
+      })
+    assert.equal(res.status, 403)
+
+    const updatedReviewsRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const unchangedReview = updatedReviewsRes.body.data.find((review: { _id: string }) => review._id === reviewId)
+    assert.equal(unchangedReview.message, originalMessage)
+  })
+
+  void it('PATCH rejects an injected review selector', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const reviewsBeforeRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const messagesBefore = reviewsBeforeRes.body.data.map((review: { _id: string, message: string }) => [review._id, review.message])
+
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
       .send({
         id: { $ne: -1 },
-        message: 'trololololololololololololololololololololololololololol'
+        message: 'NoSQL Injection!'
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
-    assert.ok(Array.isArray(res.body.original))
-    assert.ok(Array.isArray(res.body.updated))
-    assert.equal(res.body.modified, totalReviews)
+    assert.equal(res.status, 400)
+
+    const reviewsAfterRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const messagesAfter = reviewsAfterRes.body.data.map((review: { _id: string, message: string }) => [review._id, review.message])
+    assert.deepEqual(messagesAfter, messagesBefore)
+    assert.ok(!reviewsAfterRes.body.data.some((review: { message: string }) => review.message === 'NoSQL Injection!'))
   })
 })
