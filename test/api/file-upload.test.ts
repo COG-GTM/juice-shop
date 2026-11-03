@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
@@ -127,6 +128,22 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file does not write entries outside of upload folder', async () => {
+    const file = path.resolve(__dirname, '../files/zipSlipViews.zip')
+    const outsidePath = path.resolve('views/zipSlipTest.txt')
+    const insidePath = path.resolve('uploads/complaints/zipSlipLegit.txt')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    assert.equal(fs.existsSync(outsidePath), false)
+    if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+      assert.equal(fs.existsSync(insidePath), true)
+      fs.rmSync(insidePath, { force: true })
+    }
   })
 
   void it('POST zip file with password protection', async () => {

@@ -38,11 +38,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                const targetDir = path.resolve('uploads/complaints')
+                const absolutePath = path.resolve(targetDir, entry.path)
+                const relativePath = path.relative(targetDir, absolutePath)
+                if (entry.type === 'File' && relativePath !== '' && relativePath !== '..' && !relativePath.startsWith('..' + path.sep) && !path.isAbsolute(relativePath)) {
+                  entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
