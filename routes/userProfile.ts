@@ -12,6 +12,7 @@ import { themes } from '../views/themes/themes'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
+import { challenges } from '../data/datacache'
 
 const entities = new Entities()
 
@@ -69,7 +70,8 @@ export function getUserProfile () {
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn({ username: entities.decode(user.username ?? ''), email: user.email, profileImage: user.profileImage }))
+      const username = utils.isChallengeEnabled(challenges.persistedXssUserChallenge) ? user.username : entities.decode(user.username ?? '')
+      res.send(fn({ username, email: user.email, profileImage: user.profileImage }))
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
