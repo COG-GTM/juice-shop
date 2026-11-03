@@ -72,11 +72,19 @@ void describe('/profile/image/file', () => {
 })
 
 void describe('/profile/image/url', () => {
-  async function withImageServer (imagePath: string, body: Buffer | string, contentType: string, test: (imageUrl: string) => Promise<void>) {
+  async function withImageServer (imagePath: string, body: Buffer | string, contentType: string, test: (imageUrl: string) => Promise<void>, chunked = false) {
     const imageServer = http.createServer((req, res) => {
       if (req.url === imagePath) {
         res.writeHead(200, { 'Content-Type': contentType })
-        res.end(body)
+        if (chunked) {
+          const bytes = Buffer.from(body)
+          for (let offset = 0; offset < bytes.length; offset += 1024) {
+            res.write(bytes.subarray(offset, offset + 1024))
+          }
+          res.end()
+        } else {
+          res.end(body)
+        }
       } else {
         res.writeHead(404)
         res.end()
@@ -160,6 +168,26 @@ void describe('/profile/image/url', () => {
       .get(`/assets/public/images/uploads/${userId}.jpg`)
 
     assert.equal(res.headers['content-security-policy'], "sandbox; default-src 'none'")
+  })
+
+  void it('POST profile image URL falls back for oversized chunked image', async () => {
+    const { token, userId } = await loginAsJim()
+    const jpgBytes = await fs.readFile(path.resolve(__dirname, '../files/validProfileImage.jpg'))
+    const hugeBytes = Buffer.alloc(300000)
+    jpgBytes.copy(hugeBytes)
+    const jpgFile = path.resolve(`frontend/dist/frontend/assets/public/images/uploads/${userId}.jpg`)
+    await fs.rm(jpgFile, { force: true })
+
+    await withImageServer('/huge.jpg', hugeBytes, 'image/jpeg', async (imageUrl) => {
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', imageUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      await assert.rejects(fs.access(jpgFile))
+    }, true)
   })
 
   void it('POST profile image URL valid for image available online', async () => {

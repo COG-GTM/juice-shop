@@ -12,6 +12,8 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 
+const MAX_PROFILE_IMAGE_BYTES = 200000
+
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
@@ -24,7 +26,23 @@ export function profileImageUrlUpload () {
           if (!response.ok || !response.body) {
             throw new Error('url returned a non-OK status code or an empty body')
           }
-          const buffer = Buffer.from(await response.arrayBuffer())
+          if (Number(response.headers.get('content-length')) > MAX_PROFILE_IMAGE_BYTES) {
+            throw new Error('url returned an image exceeding the size limit')
+          }
+          const reader = response.body.getReader()
+          const chunks: Uint8Array[] = []
+          let totalBytes = 0
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            totalBytes += value.byteLength
+            if (totalBytes > MAX_PROFILE_IMAGE_BYTES) {
+              await reader.cancel()
+              throw new Error('url returned an image exceeding the size limit')
+            }
+            chunks.push(value)
+          }
+          const buffer = Buffer.concat(chunks)
           const detected = await fileType.fromBuffer(buffer)
           const allowedExtensions = ['jpg', 'png', 'gif', 'webp']
           if (detected === undefined || !allowedExtensions.includes(detected.ext)) {
