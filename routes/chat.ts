@@ -62,26 +62,23 @@ function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'ass
 }
 
 const COUPON_DISCOUNT = 10
-const couponClaimsInFlight = new Set<string>()
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
   const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
   if (!email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
-  if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
+  const isOwnOrder = order?.email === email.replace(/[aeiou]/gi, '*') && String(order?.orderId).startsWith(security.hash(email).slice(0, 4) + '-')
+  if (!order || !isOwnOrder) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
-  const alreadyIssued = { error: 'A coupon was already issued for this order' }
-  if (order.couponIssued || couponClaimsInFlight.has(order.orderId)) return alreadyIssued
-  couponClaimsInFlight.add(order.orderId)
+  // Coupons are deterministic per month, so re-issuing within the same month re-delivers the identical code
+  const couponMonth = utils.toMMMYY(new Date())
+  if (order.couponIssued && order.couponMonth !== couponMonth) return { error: 'A coupon was already issued for this order' }
+  if (order.couponIssued) return {}
   try {
-    const current = await db.ordersCollection.findOne({ _id: order._id })
-    if (current?.couponIssued) return alreadyIssued
-    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true } })
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponMonth } })
     return {}
   } catch {
     return { error: 'The coupon could not be issued right now, please try again' }
-  } finally {
-    couponClaimsInFlight.delete(order.orderId)
   }
 }
 
