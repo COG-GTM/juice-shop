@@ -94,35 +94,22 @@ void describe('/rest/products/search', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
 
-    const adminMatch = res.body.data.find((item: any) =>
-      item.id === 1 && item.price === `admin@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('admin123')
-    )
-    assert.ok(adminMatch, 'Expected admin user in UNION SELECT results')
-
-    const jimMatch = res.body.data.find((item: any) =>
-      item.id === 2 && item.price === `jim@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('ncc-1701')
-    )
-    assert.ok(jimMatch, 'Expected jim user in UNION SELECT results')
-
-    const benderMatch = res.body.data.find((item: any) =>
-      item.id === 3 && item.price === `bender@${config.get<string>('application.domain')}`
-    )
-    assert.ok(benderMatch, 'Expected bender user in UNION SELECT results')
-
-    const bjoernMatch = res.body.data.find((item: any) =>
-      item.id === 4 && item.price === 'bjoern.kimminich@gmail.com' && item.deluxePrice === security.hash('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=')
-    )
-    assert.ok(bjoernMatch, 'Expected bjoern user in UNION SELECT results')
-
-    const cisoMatch = res.body.data.find((item: any) =>
-      item.id === 5 && item.price === `ciso@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb')
-    )
-    assert.ok(cisoMatch, 'Expected ciso user in UNION SELECT results')
-
-    const supportMatch = res.body.data.find((item: any) =>
-      item.id === 6 && item.price === `support@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P')
-    )
-    assert.ok(supportMatch, 'Expected support user in UNION SELECT results')
+    const domain = config.get<string>('application.domain')
+    const expectedUsers = [
+      { id: 1, email: `admin@${domain}`, password: 'admin123' },
+      { id: 2, email: `jim@${domain}`, password: 'ncc-1701' },
+      { id: 3, email: `bender@${domain}` },
+      { id: 4, email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' },
+      { id: 5, email: `ciso@${domain}`, password: 'mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb' },
+      { id: 6, email: `support@${domain}`, password: 'J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P' }
+    ]
+    for (const expected of expectedUsers) {
+      const match = res.body.data.find((item: any) => item.id === expected.id && item.price === expected.email)
+      assert.ok(match, `Expected ${expected.email} in UNION SELECT results`)
+      if (expected.password) {
+        assert.ok(await security.verifyCredential(expected.password, match.deluxePrice), `Expected password hash of ${expected.email} in UNION SELECT results`)
+      }
+    }
   })
 
   void it('GET product search can create UNION SELECT with sqlite_master table and required column', async () => {
