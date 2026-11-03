@@ -89,6 +89,7 @@ describe('fileUpload', () => {
       '../../views/promotionVideo.pug',
       '../../views/userProfile.pug',
       '../../views/test.txt',
+      '../x',
       'nested/../../../views/promotionVideo.pug',
       'nested/complaint.pdf',
       '../../frontend/dist/frontend/assets/public/videos/owasp_promo.vtt',
