@@ -168,7 +168,7 @@ function solveYamlBombChallenge (res: Response, next: NextFunction) {
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
+    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
       if (file.buffer.length > MAX_YAML_UPLOAD_BYTES) {
         res.status(413)
         next(new Error('File is too large to be processed (' + file.originalname + ')'))

@@ -173,6 +173,22 @@ describe('fileUpload', () => {
       Object.assign(challenges, originalChallenges)
     })
 
+    it('should not parse YAML at all while "yamlBombChallenge" is disabled', () => {
+      challenges.yamlBombChallenge = { solved: false, save, disabledEnv: ['Docker', 'Heroku', 'Gitpod'] } as unknown as Challenge
+      const hadHerokuEnv = 'HEROKU' in process.env
+      process.env.HEROKU = 'true'
+      try {
+        const { statusCode, error } = upload(fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml')))
+
+        expect(statusCode).to.equal(410)
+        expect(error.message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (complaint.yml)')
+        expect(challenges.deprecatedInterfaceChallenge.solved).to.equal(true)
+        expect(challenges.yamlBombChallenge.solved).to.equal(false)
+      } finally {
+        if (!hadHerokuEnv) delete process.env.HEROKU
+      }
+    })
+
     it('should reject YAML files above the size limit without parsing them', () => {
       const { statusCode, error } = upload(Buffer.from('a: '.padEnd(100001, 'b')))
 
