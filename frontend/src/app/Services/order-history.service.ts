@@ -34,6 +34,7 @@ export class OrderHistoryService {
     this.getOrderConfirmation(orderId).subscribe({
       next: (pdf: Blob) => {
         const url = URL.createObjectURL(pdf)
+        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
         if (pdfWindow) {
           pdfWindow.location.href = url
         } else {
