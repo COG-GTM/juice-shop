@@ -92,6 +92,15 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   }
 }
 
+export const userIdFromToken = (req: Request): number | undefined => {
+  const token = utils.jwtFrom(req)
+  if (!verify(token)) {
+    return undefined
+  }
+  const id = decode(token)?.data?.id
+  return typeof id === 'number' ? id : undefined
+}
+
 export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }

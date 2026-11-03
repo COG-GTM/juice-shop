@@ -8,14 +8,22 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let authHeader: { Authorization: string, 'content-type': string }
+const jimUserId = 2
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const { token } = await login(app, {
+    email: 'jim@juice-sh.op',
+    password: 'ncc-1701'
+  })
+  authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -44,6 +52,67 @@ void describe('/api/Complaints', () => {
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('POST new complaint is always filed under the logged-in user', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(authHeader)
+      .send({
+        UserId: 3,
+        message: 'Filed in someone else\'s name?'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, jimUserId)
+  })
+
+  void it('GET all complaints only returns complaints of the logged-in user', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
+  })
+
+  void it('GET all complaints with a valid token not issued via login in this process', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { id: jimUserId, email: 'jim@juice-sh.op' } }) })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
+  })
+
+  void it('GET all complaints with a token without user id is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize() })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all complaints ignores nested UserId filter of other users', async () => {
+    const res = await request(app)
+      .get('/api/Complaints?UserId[ne]=2&UserId[eq]=3')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
+  })
+
+  void it('GET all complaints ignores UserId query parameter of other users', async () => {
+    const res = await request(app)
+      .get('/api/Complaints?UserId=3')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
   })
 })
 

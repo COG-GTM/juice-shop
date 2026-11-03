@@ -474,6 +474,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  app.post('/api/Complaints', (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.userIdFromToken(req)
+    if (userId === undefined) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    req.body.UserId = userId
+    next()
+  })
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -515,6 +524,24 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'Complaint') {
+      resource.list.fetch.before((req: Request, res: Response, context: { criteria?: Record<string, unknown>, stop: any, continue: any }) => {
+        const userId = security.userIdFromToken(req)
+        if (userId === undefined) {
+          res.status(401).json({ status: 'error', message: 'Unauthorized' })
+          return context.stop
+        }
+        delete req.query.UserId
+        context.criteria = { ...context.criteria, UserId: userId }
+        return context.continue
+      })
+      resource.list.fetch.after((req: Request, res: Response, context: { instance: Array<{ UserId: number }>, continue: any }) => {
+        const userId = security.userIdFromToken(req)
+        context.instance = context.instance.filter((complaint) => userId !== undefined && complaint.UserId === userId)
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
