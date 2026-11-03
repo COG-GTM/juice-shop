@@ -46,7 +46,9 @@ export async function register (app: Express, { email, password, totpSecret }: {
     .send({
       email,
       password,
-      passwordRepeat: password
+      passwordRepeat: password,
+      securityQuestion: null,
+      securityAnswer: null
     })
 
   if (res.status !== 201 && res.status !== 200) {

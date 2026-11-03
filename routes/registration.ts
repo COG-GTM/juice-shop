@@ -15,7 +15,7 @@ export const restrictRegistrationAttributes = () => async (req: Request, res: Re
     const { email, password, passwordRepeat, securityQuestion, securityAnswer } = req.body ?? {}
     const securityQuestionId = securityQuestion?.id
 
-    if (securityQuestionId !== undefined || securityAnswer !== undefined) {
+    if (securityQuestionId != null || securityAnswer != null) {
       const questionId = Number(securityQuestionId)
       if (!Number.isInteger(questionId) || typeof securityAnswer !== 'string' || securityAnswer.length === 0 || !await SecurityQuestionModel.findByPk(questionId)) {
         res.status(400).json({ status: 'error', message: 'Invalid security question or answer' })

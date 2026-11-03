@@ -77,6 +77,19 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.role, 'customer')
   })
 
+  void it('POST new user with null security question and answer', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'null-security-answer@horstma.nn',
+        password: 'hooooorst',
+        securityQuestion: null,
+        securityAnswer: null
+      })
+    assert.equal(res.status, 201)
+  })
+
   void it('POST new blank user', async () => {
     const res = await request(app)
       .post('/api/Users')
