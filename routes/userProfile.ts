@@ -69,7 +69,7 @@ export function getUserProfile () {
         'Content-Security-Policy': CSP
       })
 
-      res.send(fn({ username: user.username, email: user.email, profileImage: user.profileImage }))
+      res.send(fn({ username: entities.decode(user.username ?? ''), email: user.email, profileImage: user.profileImage }))
     } catch (err) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }

@@ -83,4 +83,23 @@ void describe('/profile', () => {
     assert.ok(res.text.includes(payload))
     assert.equal((global as any).pwned, undefined)
   })
+
+  void it('GET user profile does not double-escape HTML entities in username', async () => {
+    const update = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'Tom & Jerry' })
+      .redirects(0)
+    assert.equal(update.status, 302)
+    const cookie = String(update.headers['set-cookie']).match(/token=[^;]+/)?.[0] ?? authHeader.Cookie
+
+    const res = await request(app)
+      .get('/profile')
+      .set('Cookie', cookie)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Tom &amp; Jerry'))
+    assert.ok(!res.text.includes('&amp;amp;'))
+  })
 })
