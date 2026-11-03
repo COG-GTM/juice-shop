@@ -34,14 +34,16 @@ async function findOrderConfirmation (userId: number, orderId: string) {
   return match ? path.join(userDirectory, match) : undefined
 }
 
-function isValidToken (token: string) {
+function verifiedUserId (token: string): number | undefined {
   try {
     const decoded = jws.decode(token)
-    const payload = typeof decoded?.payload === 'string' ? JSON.parse(decoded.payload) : decoded?.payload
-    const exp = payload?.exp
-    return decoded?.header?.alg === 'RS256' && security.verify(token) && (typeof exp !== 'number' || exp * 1000 > Date.now())
+    if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+    const payload = typeof decoded.payload === 'string' ? JSON.parse(decoded.payload) : decoded.payload
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+    const id = payload?.data?.id
+    return Number.isInteger(id) && id > 0 ? id : undefined
   } catch {
-    return false
+    return undefined
   }
 }
 
@@ -52,7 +54,8 @@ function notFound (res: Response) {
 export function retrieveOrderConfirmation () {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
-    const userId = isValidToken(token) ? security.authenticatedUsers.get(token)?.data?.id : undefined
+    const userId = verifiedUserId(token)
+    res.set('Cache-Control', 'private, no-store')
     if (!userId) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
       return
@@ -69,11 +72,9 @@ export function retrieveOrderConfirmation () {
         notFound(res)
         return
       }
-      res.set('Cache-Control', 'private, no-store')
       res.sendFile(filePath, (err: any) => {
         if (!err) return
         if (err.status === 404 || err.code === 'ENOENT') {
-          res.removeHeader('Cache-Control')
           notFound(res)
         } else {
           next(err)
