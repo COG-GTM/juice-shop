@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -71,6 +72,34 @@ void describe('/api/Complaints', () => {
       .set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
+  })
+
+  void it('GET all complaints with a valid token not issued via login in this process', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { id: jimUserId, email: 'jim@juice-sh.op' } }) })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimUserId)
+    }
+  })
+
+  void it('GET all complaints with a token without user id is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize() })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all complaints ignores nested UserId filter of other users', async () => {
+    const res = await request(app)
+      .get('/api/Complaints?UserId[ne]=2&UserId[eq]=3')
+      .set(authHeader)
+    assert.equal(res.status, 200)
     for (const complaint of res.body.data) {
       assert.equal(complaint.UserId, jimUserId)
     }

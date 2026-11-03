@@ -378,7 +378,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
   app.get('/api/Complaints', security.isAuthorized())
-  app.post('/api/Complaints', security.isAuthorized(), security.appendUserId())
+  app.post('/api/Complaints', security.isAuthorized())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
@@ -474,6 +474,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  app.post('/api/Complaints', (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.userIdFromToken(req)
+    if (userId === undefined) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    req.body.UserId = userId
+    next()
+  })
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -518,13 +527,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     if (name === 'Complaint') {
       resource.list.fetch.before((req: Request, res: Response, context: { criteria?: Record<string, unknown>, stop: any, continue: any }) => {
-        const userId = security.authenticatedUsers.from(req)?.data?.id
+        const userId = security.userIdFromToken(req)
         if (userId === undefined) {
           res.status(401).json({ status: 'error', message: 'Unauthorized' })
           return context.stop
         }
         delete req.query.UserId
         context.criteria = { ...context.criteria, UserId: userId }
+        return context.continue
+      })
+      resource.list.fetch.after((req: Request, res: Response, context: { instance: Array<{ UserId: number }>, continue: any }) => {
+        const userId = security.userIdFromToken(req)
+        context.instance = context.instance.filter((complaint) => userId !== undefined && complaint.UserId === userId)
         return context.continue
       })
     }
