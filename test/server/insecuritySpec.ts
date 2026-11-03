@@ -5,11 +5,18 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
+
+const base64url = (input: string | Buffer) => Buffer.from(input).toString('base64url')
+const forgedPayload = base64url(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op' }, iat: 1508639612, exp: 9999999999 }))
+const unsignedToken = `${base64url(JSON.stringify({ alg: 'none', typ: 'JWT' }))}.${forgedPayload}.`
+const hs256Input = `${base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${forgedPayload}`
+const hs256Token = `${hs256Input}.${crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')}`
 
 describe('insecurity', () => {
   describe('cutOffPoisonNullByte', () => {
@@ -201,6 +208,67 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT verification', () => {
+    it('verify accepts a token signed with the RS256 private key', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 } }))).to.equal(true)
+    })
+
+    it('verify rejects an unsigned "alg: none" token', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('verify rejects an HS256 token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('verify rejects malformed tokens', () => {
+      expect(security.verify('not.a.jwt')).to.equal(false)
+      expect(security.verify('')).to.equal(false)
+    })
+
+    const runIsAuthorized = async (token: string) => await new Promise<unknown>((resolve) => {
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      void security.isAuthorized()(req, {} as any, (err?: unknown) => { resolve(err) })
+    })
+
+    it('isAuthorized accepts a token signed with the RS256 private key', async () => {
+      expect(await runIsAuthorized(security.authorize({ data: { id: 1 } }))).to.equal(undefined)
+    })
+
+    it('isAuthorized rejects an unsigned "alg: none" token', async () => {
+      expect(await runIsAuthorized(unsignedToken)).to.have.property('status', 401)
+    })
+
+    it('isAuthorized rejects an HS256 token HMAC-signed with the public RSA key', async () => {
+      expect(await runIsAuthorized(hs256Token)).to.have.property('status', 401)
+    })
+
+    const runUpdateAuthenticatedUsers = (token: string) => {
+      const req = { cookies: { token }, headers: {} } as unknown as Request
+      const res = { cookie: () => {} } as any
+      security.updateAuthenticatedUsers()(req, res, () => {})
+    }
+
+    it('updateAuthenticatedUsers does not register an unsigned "alg: none" token', () => {
+      runUpdateAuthenticatedUsers(unsignedToken)
+      expect(security.authenticatedUsers.get(unsignedToken)).to.equal(undefined)
+    })
+
+    it('updateAuthenticatedUsers does not register an HS256 token HMAC-signed with the public RSA key', () => {
+      runUpdateAuthenticatedUsers(hs256Token)
+      expect(security.authenticatedUsers.get(hs256Token)).to.equal(undefined)
+    })
+
+    it('updateAuthenticatedUsers registers a token signed with the RS256 private key', (done) => {
+      const token = security.authorize({ data: { id: 4711 } })
+      runUpdateAuthenticatedUsers(token)
+      setImmediate(() => {
+        expect(security.authenticatedUsers.get(token)?.data.id).to.equal(4711)
+        done()
+      })
     })
   })
 })
