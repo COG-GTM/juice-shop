@@ -10,6 +10,9 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
+import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -136,16 +139,74 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a negative quantity to reach a negative order total is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
+    assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+  })
+
+  void it('POST placing a wallet order for a basket containing a stored negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: -1000 }, { validate: false })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+    }
+  })
+
+  void it('POST placing an underfunded wallet order leaves stock unchanged', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 100000 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Insufficient wallet balance.'))
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
+    } finally {
+      await item.destroy()
+    }
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
@@ -191,5 +252,44 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 500)
+  })
+})
+
+void describe('/rest/basket/:id/checkout with campaign couponData', () => {
+  const expiredCampaignValidOn = new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()
+  const expiredCampaignCouponData = Buffer.from(`WMNSDY2019-${expiredCampaignValidOn}`).toString('base64')
+
+  async function checkoutWithCampaignCoupon (productId: number, couponData: string) {
+    const { token, bid } = await login(app, {
+      email: 'accountant@juice-sh.op',
+      password: 'i am an awesome accountant'
+    })
+    const accountantHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(accountantHeader)
+      .send({ BasketId: bid, ProductId: productId, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set(accountantHeader)
+      .send({ couponData })
+    assert.equal(res.status, 200)
+
+    const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
+    return historyRes.body.data.find((order: { orderId: string }) => order.orderId === res.body.orderConfirmation)
+  }
+
+  void it('POST expired campaign coupon with its original campaign date grants no discount', async () => {
+    const order = await checkoutWithCampaignCoupon(1, expiredCampaignCouponData)
+    assert.equal(order.promotionalAmount, '0')
+  })
+
+  void it('POST campaign coupon is honored while the server clock is within the campaign day', async (t) => {
+    t.mock.method(Date, 'now', () => expiredCampaignValidOn + 60 * 60 * 1000)
+    const order = await checkoutWithCampaignCoupon(2, Buffer.from(`WMNSDY2019-${Date.now() + 7 * 24 * 60 * 60 * 1000}`).toString('base64'))
+    assert.notEqual(order.promotionalAmount, '0')
   })
 })
