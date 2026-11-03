@@ -26,10 +26,12 @@ export class OAuthComponent implements OnInit {
   ngOnInit (): void {
     const expectedState = sessionStorage.getItem('oauthState')
     sessionStorage.removeItem('oauthState')
-    let params: any = {}
+    let params: any
     try {
       params = this.parseRedirectUrlParams()
-    } catch {}
+    } catch {
+      params = {}
+    }
     if (!expectedState || params.state !== expectedState || !params.access_token) {
       console.log('OAuth callback rejected: missing or mismatching state')
       this.ngZone.run(async () => await this.router.navigate(['/login']))
