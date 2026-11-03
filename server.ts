@@ -414,6 +414,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         res.status(400).send(res.__('Invalid email/password cannot be empty'))
       }
     }
+    if (req.body) {
+      delete req.body.role
+      delete req.body.deluxeToken
+      delete req.body.isActive
+      delete req.body.totpSecret
+    }
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
