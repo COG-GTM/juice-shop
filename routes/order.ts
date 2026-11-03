@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+export const ORDER_CONFIRMATIONS_DIR = 'orders/'
+const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
 interface Product {
   quantity: number
   id?: number
@@ -27,6 +30,29 @@ interface Product {
   price: number
   total: number
   bonus: number
+}
+
+export function serveOrderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const orderId = req.params.id
+    const user = security.authenticatedUsers.from(req)
+    if (!user?.data?.id) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    if (!ORDER_ID_PATTERN.test(orderId)) {
+      res.status(400).json({ status: 'error', message: 'Invalid order id' })
+      return
+    }
+    const order = await db.ordersCollection.findOne({ orderId })
+    if (!order || order.UserId !== user.data.id) {
+      res.status(403).json({ status: 'error', message: 'Forbidden' })
+      return
+    }
+    res.sendFile(`order_${order.orderId}.pdf`, { root: path.resolve(ORDER_CONFIRMATIONS_DIR) }, (err) => {
+      if (err) next(err)
+    })
+  }
 }
 
 export function placeOrder () {
@@ -42,7 +68,8 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          await fs.promises.mkdir(ORDER_CONFIRMATIONS_DIR, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(ORDER_CONFIRMATIONS_DIR, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -162,6 +189,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: basket.UserId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
