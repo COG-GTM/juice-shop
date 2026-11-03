@@ -19,6 +19,7 @@ import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import * as db from '../data/mongodb'
 
 interface Product {
@@ -159,7 +160,12 @@ export function placeOrder () {
               }
             }
           } catch (error: unknown) {
-            await restoreStock(decrementedStock)
+            const unrestoredProductIds = await restoreStock(decrementedStock)
+            if (unrestoredProductIds.length > 0) {
+              logger.error(`Checkout failed (${utils.getErrorMessage(error)}) and stock could not be restored for product(s) ${unrestoredProductIds.join(', ')}`)
+              next(new Error('Checkout failed and stock could not be restored.'))
+              return
+            }
             next(error)
             return
           }
@@ -189,7 +195,8 @@ export function placeOrder () {
 }
 
 async function restoreStock (stockUpdates: Array<{ ProductId: number, quantity: number }>) {
-  await Promise.allSettled(stockUpdates.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } })))
+  const results = await Promise.allSettled(stockUpdates.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } })))
+  return stockUpdates.filter((_, i) => results[i].status === 'rejected').map(({ ProductId }) => ProductId)
 }
 
 async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
