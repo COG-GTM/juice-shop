@@ -36,11 +36,14 @@ const loadPrivateKey = (): string => {
 const privateKey = loadPrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
 const hmacSecret = process.env.HMAC_SECRET ?? crypto.randomBytes(32).toString('hex')
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
-try {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-} catch {
-  // read-only file system: the served jwt.pub may be stale, but signing and verification are unaffected
+export const publishPublicKey = () => {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  } catch {
+    // read-only file system: /encryptionkeys/jwt.pub is still served from memory
+  }
 }
 
 interface ResponseWithUser {
@@ -170,7 +173,7 @@ export const roles = {
 }
 
 export const deluxeToken = (email: string) => {
-  const hmac = crypto.createHmac('sha256', privateKey)
+  const hmac = crypto.createHmac('sha256', deluxeTokenSecret)
   return hmac.update(email + roles.deluxe).digest('hex')
 }
 
