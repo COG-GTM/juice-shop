@@ -454,7 +454,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
   /* Complaints: list only the caller's own complaints (admins see all) */
-  app.get('/api/Complaints', utils.asyncHandler(complaints.listComplaints()))
+  app.get('/api/Complaints', verify.databaseRelatedChallenges(), utils.asyncHandler(complaints.listComplaints()))
   app.post('/api/Complaints', complaints.setComplaintOwner())
 
   /* Verify the 2FA Token */
