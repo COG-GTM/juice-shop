@@ -453,6 +453,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.listOwnBasketItems()))
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
+
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
