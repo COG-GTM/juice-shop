@@ -173,7 +173,10 @@ export const canUpdateProduct = () => {
       !Array.isArray(body) &&
       Object.getPrototypeOf(body) === Object.prototype &&
       Object.keys(body).length === 1 &&
-      Object.keys(body)[0] === 'price'
+      Object.keys(body)[0] === 'price' &&
+      typeof body.price === 'number' &&
+      Number.isFinite(body.price) &&
+      body.price >= 0
     if (decodedToken?.data?.role === roles.admin || (decodedToken?.data?.role === roles.accounting && isPriceOnlyUpdate)) {
       next()
     } else {
