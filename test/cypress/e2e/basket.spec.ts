@@ -131,23 +131,19 @@ describe('/#/basket', () => {
         })
       })
 
-      it('should be possible to enter a coupon that gives an 80% discount', () => {
-        cy.window().then(() => {
-          window.localStorage.couponPanelExpanded = false
+      it('should not be possible to apply a self-encoded coupon that gives an 80% discount', () => {
+        cy.task<string>('ForgeUnsignedCoupon', 80).then((coupon: string) => {
+          cy.window().then(async () => {
+            const response = await fetch(
+              `${Cypress.config('baseUrl')}/rest/basket/${sessionStorage.getItem('bid')}/coupon/${encodeURIComponent(coupon)}`,
+              {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+              }
+            )
+            expect(response.status).to.equal(404)
+          })
         })
-
-        cy.visit('/#/payment/shop')
-        cy.get('#collapseCouponElement').click()
-        cy.task<string>('GenerateCoupon', 90).then((coupon: string) => {
-          cy.get('#coupon').type(coupon)
-          cy.get('#applyCouponButton').click()
-        })
-      })
-
-      it('should be possible to place an order with a forged coupon', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Forged Coupon' })
       })
     })
   })

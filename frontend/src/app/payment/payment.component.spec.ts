@@ -199,6 +199,15 @@ describe('PaymentComponent', () => {
         expect(component.couponControl.untouched).toBe(true)
     })
 
+    it('should accept campaign and signed coupon code lengths only', () => {
+        component.couponControl.setValue('WMNSDY2019')
+        expect(component.couponControl.valid).toBe(true)
+        component.couponControl.setValue('a'.repeat(25))
+        expect(component.couponControl.valid).toBe(true)
+        component.couponControl.setValue('a'.repeat(12))
+        expect(component.couponControl.errors).toEqual({ couponLength: true })
+    })
+
     it('should reject an invalid coupon code', () => {
         basketService.applyCoupon.mockReturnValue(throwError('Error'))
 

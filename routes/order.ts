@@ -20,6 +20,8 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+const MAX_ORDER_DISCOUNT = 99
+
 interface Product {
   quantity: number
   id?: number
@@ -43,6 +45,14 @@ export function placeOrder () {
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+
+          const rejectOrder = (error: unknown) => {
+            fileWriter.removeAllListeners('finish')
+            doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            fileWriter.destroy()
+            next(error)
+          }
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -70,16 +80,6 @@ export function placeOrder () {
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -104,7 +104,7 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), MAX_ORDER_DISCOUNT)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
@@ -138,6 +138,26 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            rejectOrder(new Error('Order total must not be negative.'))
+            return
+          }
+          if (basketProducts.some(({ quantity }) => !Number.isInteger(quantity) || quantity < 1)) {
+            rejectOrder(new Error('Order item quantities must be positive.'))
+            return
+          }
+
+          try {
+            for (const { id: ProductId, quantity } of basketProducts) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            rejectOrder(error)
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -145,14 +165,14 @@ export function placeOrder () {
               if ((wallet != null) && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
               } else {
-                next(new Error('Insufficient wallet balance.'))
+                rejectOrder(new Error('Insufficient wallet balance.'))
                 return
               }
             }
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
-              next(error)
+              rejectOrder(error)
               return
             }
           }

@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
@@ -34,10 +35,15 @@ describe('insecurity', () => {
   })
 
   describe('generateCoupon', () => {
-    it('returns base85-encoded month, year and discount as coupon code', () => {
+    it('returns base85-encoded month, year and discount followed by a signature as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(coupon).to.have.lengthOf(25)
+      expect(z85.decode(coupon).subarray(0, 8).toString()).to.equal('JAN80-20')
+    })
+
+    it('zero-pads single-digit discounts', () => {
+      const coupon = security.generateCoupon(5, new Date('1980-01-02'))
+      expect(z85.decode(coupon).subarray(0, 8).toString()).to.equal('JAN80-05')
     })
 
     it('uses current month and year if not specified', () => {
@@ -51,9 +57,19 @@ describe('insecurity', () => {
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 02, 1999')))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 31, 1999 23:59:59')))
     })
+
+    it('refuses discounts outside the allowed range', () => {
+      expect(() => security.generateCoupon(0)).to.throw(RangeError)
+      expect(() => security.generateCoupon(-10)).to.throw(RangeError)
+      expect(() => security.generateCoupon(12.5)).to.throw(RangeError)
+      expect(() => security.generateCoupon(security.MAX_COUPON_DISCOUNT + 1)).to.throw(RangeError)
+      expect(() => security.generateCoupon(999999)).to.throw(RangeError)
+    })
   })
 
   describe('discountFromCoupon', () => {
+    const currentMonth = utils.toMMMYY(new Date())
+
     it('returns undefined when not passing in a coupon code', () => {
       expect(security.discountFromCoupon(undefined)).to.equal(undefined)
     })
@@ -64,21 +80,30 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon('___')).to.equal(undefined)
     })
 
-    it('returns undefined for coupon code not according to expected pattern', () => {
+    it('returns undefined for unsigned coupon codes', () => {
       expect(security.discountFromCoupon(z85.encode('Test'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('XXX00-10'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-999'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-1'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC2018-10'))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(`${currentMonth}-10`))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(`${currentMonth}-99`))).to.equal(undefined)
+      expect(security.discountFromCoupon(z85.encode(`${currentMonth}-999999`))).to.equal(undefined)
+    })
+
+    it('returns undefined for coupon code with tampered payload or signature', () => {
+      const decoded = Buffer.from(z85.decode(security.generateCoupon(10)))
+      const tamperedPayload = Buffer.from(decoded)
+      tamperedPayload.write('99', 6)
+      expect(security.discountFromCoupon(z85.encode(tamperedPayload))).to.equal(undefined)
+      const tamperedSignature = Buffer.from(decoded)
+      tamperedSignature[19] ^= 0xff
+      expect(security.discountFromCoupon(z85.encode(tamperedSignature))).to.equal(undefined)
     })
 
     it('returns undefined for expired coupon code', () => {
-      expect(security.discountFromCoupon(z85.encode('SEP14-50'))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(20, new Date('September 01, 2014')))).to.equal(undefined)
     })
 
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
-      expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+      expect(security.discountFromCoupon(security.generateCoupon(security.MAX_COUPON_DISCOUNT))).to.equal(security.MAX_COUPON_DISCOUNT)
     })
   })
 

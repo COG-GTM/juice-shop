@@ -4,6 +4,8 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -21,6 +23,9 @@ export default defineConfig({
       on('task', {
         GenerateCoupon (discount: number) {
           return security.generateCoupon(discount)
+        },
+        ForgeUnsignedCoupon (discount: number) {
+          return z85.encode(utils.toMMMYY(new Date()) + '-' + discount)
         },
         GetBlueprint () {
           for (const product of config.get<ProductConfig[]>('products')) {

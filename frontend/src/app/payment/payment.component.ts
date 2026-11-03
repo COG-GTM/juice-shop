@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
+import { type AbstractControl, type ValidationErrors, UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
 import { ConfigurationService } from '../Services/configuration.service'
 import { BasketService } from '../Services/basket.service'
@@ -43,6 +43,14 @@ import { MatCardModule } from '@angular/material/card'
 
 library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, faStickyNote, faHandHoldingUsd, faCoffee, faTimes, faStripe, faPalette)
 
+const CAMPAIGN_COUPON_LENGTH = 10
+const SIGNED_COUPON_LENGTH = 25
+
+function couponLengthValidator (control: AbstractControl): ValidationErrors | null {
+  const length = control.value?.length ?? 0
+  return length === 0 || length === CAMPAIGN_COUPON_LENGTH || length === SIGNED_COUPON_LENGTH ? null : { couponLength: true }
+}
+
 @Component({
   selector: 'app-payment',
   templateUrl: './payment.component.html',
@@ -71,7 +79,7 @@ export class PaymentComponent implements OnInit {
   public redditUrl = null
   public applicationName = 'OWASP Juice Shop'
   private campaignCoupon: string
-  public couponControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(10), Validators.maxLength(10)])
+  public couponControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, couponLengthValidator])
   public clientDate: any
   public paymentId: any = undefined
   public couponPanelExpanded = false

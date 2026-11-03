@@ -96,28 +96,43 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+export const MAX_COUPON_DISCOUNT = 40
+const COUPON_PAYLOAD_LENGTH = 8
+const COUPON_SIGNATURE_LENGTH = 12
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
+
+const signCouponPayload = (payload: string) => crypto.createHmac('sha256', couponSigningKey).update(payload).digest().subarray(0, COUPON_SIGNATURE_LENGTH)
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  if (!Number.isInteger(discount) || discount < 1 || discount > MAX_COUPON_DISCOUNT) {
+    throw new RangeError(`Coupon discount must be an integer between 1 and ${MAX_COUPON_DISCOUNT}.`)
+  }
+  const payload = utils.toMMMYY(date) + '-' + String(discount).padStart(2, '0')
+  return z85.encode(Buffer.concat([Buffer.from(payload), signCouponPayload(payload)]))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (!decoded || decoded.length !== COUPON_PAYLOAD_LENGTH + COUPON_SIGNATURE_LENGTH) {
+    return undefined
+  }
+  const payload = decoded.subarray(0, COUPON_PAYLOAD_LENGTH).toString()
+  const signature = decoded.subarray(COUPON_PAYLOAD_LENGTH)
+  if (!hasValidFormat(payload) || !crypto.timingSafeEqual(signature, signCouponPayload(payload))) {
+    return undefined
+  }
+  const [validity, discountPart] = payload.split('-')
+  const discount = parseInt(discountPart, 10)
+  if (utils.toMMMYY(new Date()) === validity && discount >= 1 && discount <= MAX_COUPON_DISCOUNT) {
+    return discount
   }
 }
 
 function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  return /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}$/.test(coupon)
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

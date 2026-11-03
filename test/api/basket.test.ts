@@ -9,14 +9,17 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
 
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
-const forgedCoupon = security.generateCoupon(99)
+const forgedCoupon = z85.encode(utils.toMMMYY(new Date()) + '-99')
 
 before(
   async () => {
@@ -136,29 +139,36 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order with a negative item quantity is rejected even when the total is positive', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 9, quantity: -1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Order item quantities must be positive.'))
+  })
+
+  void it('POST placing an order for a basket with a negative total cost is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Order total must not be negative.'))
   })
 
-  void it('POST placing an order for a basket with 99% discount is possible', async () => {
+  void it('PUT applying a self-encoded unsigned 99% coupon is rejected', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
       .set(authHeader)
-    assert.equal(couponRes.status, 200)
-    assert.ok(couponRes.headers['content-type']?.includes('application/json'))
-    assert.equal(couponRes.body.discount, 99)
-
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(couponRes.status, 404)
+    assert.ok(couponRes.text.includes('Invalid coupon.'))
   })
 })
 
