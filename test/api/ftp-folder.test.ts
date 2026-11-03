@@ -21,12 +21,16 @@ function responseText (res: request.Response): string {
 }
 
 void describe('/ftp', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/ftp')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /ftp</title>'))
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET with trailing slash does not serve a directory listing', async () => {
+    const res = await request(app)
+      .get('/ftp/')
+    assert.equal(res.status, 404)
   })
 
   void it('GET a non-existing Markdown file in /ftp will return a 404 error', async () => {

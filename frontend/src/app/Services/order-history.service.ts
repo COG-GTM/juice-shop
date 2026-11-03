@@ -25,6 +25,28 @@ export class OrderHistoryService {
     return this.http.get(this.host + '/orders').pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
 
+  getOrderConfirmation (orderId: string) {
+    return this.http.get(`${this.hostServer}/rest/order-confirmation/${encodeURIComponent(orderId)}`, { responseType: 'blob' }).pipe(catchError((err) => { throw err }))
+  }
+
+  openOrderConfirmation (orderId: string) {
+    const pdfWindow = window.open('', '_blank')
+    this.getOrderConfirmation(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const url = URL.createObjectURL(pdf)
+        if (pdfWindow) {
+          pdfWindow.location.href = url
+        } else {
+          window.open(url, '_blank')
+        }
+      },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
+    })
+  }
+
   toggleDeliveryStatus (id: number, params) {
     return this.http.put(`${this.host}/${id}/delivery-status`, params).pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }
