@@ -169,6 +169,28 @@ void describe('/rest/basket/:id/checkout', () => {
     }
   })
 
+  void it('POST placing a wallet order with insufficient balance neither debits the wallet nor reduces stock', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 1 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    await WalletModel.update({ balance: 0 }, { where: { UserId: 2 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(walletAfter?.balance, 0)
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await WalletModel.update({ balance: walletBefore?.balance ?? 0 }, { where: { UserId: 2 } })
+      await item.destroy()
+    }
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
