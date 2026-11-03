@@ -177,6 +177,13 @@ describe('utils', () => {
       expect(utils.isValidEmail('a@b@c')).to.equal(false)
     })
 
+    it('rejects email addresses with empty domain labels', () => {
+      expect(utils.isValidEmail('alice@example..com')).to.equal(false)
+      expect(utils.isValidEmail('alice@.')).to.equal(false)
+      expect(utils.isValidEmail('alice@.example.com')).to.equal(false)
+      expect(utils.isValidEmail('alice@example.com.')).to.equal(false)
+    })
+
     it('rejects email addresses containing HTML markup or whitespace', () => {
       expect(utils.isValidEmail('<iframe src="javascript:alert(`xss`)">')).to.equal(false)
       expect(utils.isValidEmail('<img src=x onerror=alert(1)>@juice-sh.op')).to.equal(false)

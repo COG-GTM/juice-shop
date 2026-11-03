@@ -211,6 +211,18 @@ void describe('/api/Users', () => {
     assert.equal(res.body.errors[0].message, 'Invalid email address')
   })
 
+  void it('POST new user with an empty domain label in the email address is rejected', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'alice@example..com',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.errors[0].message, 'Invalid email address')
+  })
+
   void it('POST new user with non-string email is rejected', async () => {
     const res = await request(app)
       .post('/api/Users')
