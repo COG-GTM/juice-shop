@@ -3,7 +3,7 @@ describe('/#/register', () => {
     cy.visit('/#/register')
   })
 
-  describe('challenge "persistedXssUser"', () => {
+  describe('persisted XSS via user email', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
@@ -11,38 +11,29 @@ describe('/#/register', () => {
       })
     })
 
-    it('should be possible to bypass validation by directly using Rest API', async () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Users/`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                  email: '<iframe src="javascript:alert(`xss`)">',
-                  password: 'XSSed',
-                  passwordRepeat: 'XSSed',
-                  role: 'admin'
-                })
-              }
-            )
-            if (response.status === 201) {
-              console.log('Success')
-            }
+    it('should not execute script from email registered directly via Rest API', () => {
+      const payload = '<iframe src="javascript:alert(`xss`)">'
+      cy.window().then(async () => {
+        await fetch(`${Cypress.config('baseUrl')}/api/Users/`, {
+          method: 'POST',
+          cache: 'no-cache',
+          headers: {
+            'Content-type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: payload + 'xss@juice-sh.op',
+            password: 'XSSed',
+            passwordRepeat: 'XSSed'
           })
-
-          cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
-        }
+        })
       })
+
+      const alertStub = cy.stub()
+      cy.on('window:alert', alertStub)
+      cy.visit('/#/administration')
+      cy.get('mat-cell').contains('xss@juice-sh.op')
+      cy.get('mat-cell iframe').should('not.exist')
+      cy.wrap(alertStub).should('not.have.been.called')
     })
   })
 
