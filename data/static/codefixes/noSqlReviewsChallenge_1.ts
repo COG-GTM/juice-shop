@@ -1,6 +1,10 @@
 export function updateProductReviews () {
   return (req: Request, res: Response, next: NextFunction) => {
     const user = security.authenticatedUsers.from(req)
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' })
+      return
+    }
 
     if (req.body.id['$ne'] !== undefined) {
       res.status(400).send()
@@ -8,7 +12,7 @@ export function updateProductReviews () {
     }
 
     db.reviewsCollection.update(
-      { _id: req.body.id },
+      { _id: req.body.id, author: user.data.email },
       { $set: { message: req.body.message } }
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
