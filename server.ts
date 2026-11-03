@@ -472,6 +472,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.disable)
   )
+  /* BasketItems: Only items in the caller's own basket can be updated or deleted */
+  app.put('/api/BasketItems/:id', security.appendUserId(), utils.asyncHandler(basketItems.checkBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', security.appendUserId(), utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
 
