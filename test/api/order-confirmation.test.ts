@@ -88,12 +88,12 @@ void describe('/rest/order-confirmation/:orderId', () => {
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
   })
 
-  void it('GET own order confirmation with a valid token unknown to this server instance returns the PDF', async () => {
-    const restartedSessionToken = security.authorize({ data: (security.decode(jimToken) as any).data })
-    assert.equal(security.authenticatedUsers.get(restartedSessionToken), undefined)
-    const res = await downloadFreshOrderConfirmation(req => req.set('Authorization', 'Bearer ' + restartedSessionToken).buffer(true))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  void it('GET with a validly signed token that was never issued by a login is denied', async () => {
+    const sessionlessToken = security.authorize({ data: (security.decode(jimToken) as any).data })
+    const res = await request(app)
+      .get(`/rest/order-confirmation/${orderId}`)
+      .set('Authorization', 'Bearer ' + sessionlessToken)
+    assert.equal(res.status, 401)
   })
 
   void it('GET with a registered but unverifiable token is denied', async () => {
