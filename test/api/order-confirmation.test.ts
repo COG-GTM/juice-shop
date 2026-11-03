@@ -8,10 +8,12 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import request from 'supertest'
+import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { privateKey } from '../../lib/insecurity'
 import * as security from '../../lib/insecurity'
 import * as db from '../../data/mongodb'
 import { orderConfirmationDirectory } from '../../routes/order'
@@ -109,5 +111,22 @@ void describe('/rest/order-history/:id/confirmation', () => {
       .get('/rest/order-history/..%2f..%2fpackage.json/confirmation')
       .set({ Authorization: 'Bearer ' + ownerToken })
     assert.equal(traversal.status, 400)
+  })
+
+  void it('rejects expired tokens for the order owner', async () => {
+    const owner = security.authenticatedUsers.get(ownerToken)
+    assert.ok(owner?.data.id)
+    const expiredToken = jwt.sign({
+      ...owner.data,
+      exp: Math.floor(Date.now() / 1000) - 1
+    }, privateKey, { algorithm: 'RS256' })
+    security.authenticatedUsers.put(expiredToken, owner)
+    assert.equal(security.verify(expiredToken), true)
+
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + expiredToken })
+
+    assert.equal(res.status, 401)
   })
 })

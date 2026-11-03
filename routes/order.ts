@@ -6,6 +6,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
+import jwt from 'jsonwebtoken'
+import jws from 'jws'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { challenges, products } from '../data/datacache'
@@ -188,7 +190,25 @@ export function placeOrder () {
 export function orderConfirmationPdf () {
   return async (req: Request, res: Response) => {
     const token = utils.jwtFrom(req) ?? req.cookies?.token
-    const user = security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    let user: ReturnType<typeof security.authenticatedUsers.get>
+    if (token) {
+      try {
+        if (jws.decode(token)?.header.alg === 'RS256') {
+          await new Promise<void>((resolve, reject) => {
+            jwt.verify(token, security.publicKey, { algorithms: ['RS256'] }, (err: Error | null) => {
+              if (err) {
+                reject(err)
+              } else {
+                resolve()
+              }
+            })
+          })
+          user = security.authenticatedUsers.get(token)
+        }
+      } catch {
+        user = undefined
+      }
+    }
     if (!user?.data?.id) {
       res.status(401).json({ status: 'error', error: 'Unauthorized' })
       return
