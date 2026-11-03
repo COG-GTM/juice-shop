@@ -31,11 +31,9 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
-    const email = typeof req.body.email === 'string' ? req.body.email : ''
-    models.sequelize.query('SELECT * FROM Users WHERE email = $1 AND deletedAt IS NULL', { bind: [email], model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
+    models.sequelize.query('SELECT * FROM Users WHERE email = $1 AND deletedAt IS NULL', { bind: [typeof req.body.email === 'string' ? req.body.email : ''], model: UserModel, plain: true }) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then(async (candidateUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
-        const passwordValid = await security.verifyCredential(req.body.password, candidateUser?.password)
-        const user = utils.queryResultToJson(passwordValid ? candidateUser : null)
+        const user = utils.queryResultToJson(await security.verifyCredential(req.body.password, candidateUser?.password) ? candidateUser : null)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
             status: 'totp_token_required',
