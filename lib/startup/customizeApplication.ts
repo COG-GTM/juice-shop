@@ -6,10 +6,12 @@
 import fs from 'node:fs'
 import config from 'config'
 import * as utils from '../utils'
+import { publishPublicKey } from '../insecurity'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
 
 const customizeApplication = async () => {
+  publishPublicKey()
   if (config.get<string>('application.name')) {
     customizeTitle()
   }

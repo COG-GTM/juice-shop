@@ -5,6 +5,8 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -197,10 +199,26 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).not.to.equal(security.hmac('password'))
+    })
+
+    it('is not keyed with the previously hardcoded secret', () => {
+      expect(security.hmac('admin123')).not.to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that pass verification', () => {
+      expect(security.verify(security.authorize({ data: { email: 'test@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects tokens signed with a different RSA private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 1024 })
+      const forged = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, privateKey.export({ type: 'pkcs1', format: 'pem' }), { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
     })
   })
 })

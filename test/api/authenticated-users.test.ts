@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import config from 'config'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -46,5 +48,18 @@ void describe('/rest/user/authentication-details', () => {
     const jim = res.body.data.find((user: any) => user.email.startsWith('jim@'))
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
+  })
+})
+
+void describe('JWT signature verification', () => {
+  void it('GET with a token signed by a foreign RSA key is rejected with 401', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const forged = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, privateKey.export({ type: 'pkcs1', format: 'pem' }), { algorithm: 'RS256' })
+
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set({ Authorization: `Bearer ${forged}` })
+
+    assert.equal(res.status, 401)
   })
 })

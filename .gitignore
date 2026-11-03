@@ -67,3 +67,6 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# Generated at startup from the active JWT signing key
+encryptionkeys/jwt.pub
