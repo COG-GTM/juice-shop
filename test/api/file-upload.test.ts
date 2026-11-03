@@ -200,6 +200,16 @@ void describe('/file-upload', () => {
     assert.deepEqual(entries.filter(entry => fs.existsSync(entry)), [])
   })
 
+  void it('POST corrupt zip file is rejected', async () => {
+    const file = path.resolve(__dirname, '../files/corruptComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid ZIP archive')
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
