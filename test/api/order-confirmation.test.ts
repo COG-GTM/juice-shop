@@ -65,6 +65,7 @@ void describe('/rest/order-confirmation/:orderId', () => {
   void it('GET without authentication is denied', async () => {
     const res = await request(app).get(`/rest/order-confirmation/${orderId}`)
     assert.equal(res.status, 401)
+    assert.equal(res.headers['cache-control'], 'private, no-store')
   })
 
   void it('GET another customer\'s order confirmation is not found', async () => {
@@ -83,6 +84,14 @@ void describe('/rest/order-confirmation/:orderId', () => {
 
   void it('GET own order confirmation with token cookie returns the PDF', async () => {
     const res = await downloadFreshOrderConfirmation(req => req.set('Cookie', 'token=' + jimToken))
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET own order confirmation with a valid token unknown to this server instance returns the PDF', async () => {
+    const restartedSessionToken = security.authorize({ data: (security.decode(jimToken) as any).data })
+    assert.equal(security.authenticatedUsers.get(restartedSessionToken), undefined)
+    const res = await downloadFreshOrderConfirmation(req => req.set('Authorization', 'Bearer ' + restartedSessionToken).buffer(true))
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
   })
