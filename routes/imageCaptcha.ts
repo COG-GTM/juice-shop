@@ -26,9 +26,10 @@ export function imageCaptchas () {
         answer: captcha.text,
         UserId: user.data.id
       }
+      await ImageCaptchaModel.destroy({ where: { UserId: user.data.id } })
       const imageCaptchaInstance = ImageCaptchaModel.build(imageCaptcha)
       await imageCaptchaInstance.save()
-      res.json(imageCaptcha)
+      res.json({ image: imageCaptcha.image, UserId: imageCaptcha.UserId })
     } catch (error) {
       res.status(400).send(res.__('Unable to create CAPTCHA. Please try again.'))
     }
@@ -38,9 +39,12 @@ export function imageCaptchas () {
 export const verifyImageCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = security.authenticatedUsers.from(req)
-    const UserId = user ? user.data ? user.data.id : undefined : undefined
-    const captchas = await ImageCaptchaModel.findAll({
-      limit: 1,
+    const UserId = user?.data?.id
+    if (UserId === undefined || UserId === null) {
+      res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
+      return
+    }
+    const captcha = await ImageCaptchaModel.findOne({
       where: {
         UserId,
         createdAt: {
@@ -49,7 +53,12 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       },
       order: [['createdAt', 'DESC']]
     })
-    if (!captchas[0] || req.body.answer === captchas[0].answer) {
+    if (!captcha) {
+      res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
+      return
+    }
+    const consumed = await ImageCaptchaModel.destroy({ where: { id: captcha.id } })
+    if (consumed === 1 && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
