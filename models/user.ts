@@ -74,7 +74,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       password: {
         type: DataTypes.STRING,
         set (clearTextPassword: string) {
-          this.setDataValue('password', security.hash(clearTextPassword)) // vuln-code-snippet vuln-line weakPasswordChallenge
+          this.setDataValue('password', clearTextPassword) // vuln-code-snippet vuln-line weakPasswordChallenge
         }
       }, // vuln-code-snippet end weakPasswordChallenge
       role: {
@@ -125,6 +125,22 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       sequelize
     }
   )
+
+  const hashedPasswords = new WeakMap<User, string>()
+  const hashClearTextPassword = async (user: User) => {
+    if (user.isNewRecord || user.changed('password')) {
+      const clearTextPassword = user.getDataValue('password')
+      if (clearTextPassword != null && clearTextPassword !== hashedPasswords.get(user)) {
+        const passwordHash = await security.hashPassword(clearTextPassword)
+        hashedPasswords.set(user, passwordHash)
+        user.setDataValue('password', passwordHash)
+      }
+    }
+  }
+  User.addHook('beforeValidate', hashClearTextPassword)
+  User.addHook('beforeSave', async (user: User, options: { validate?: boolean }) => {
+    if (options.validate === false) await hashClearTextPassword(user)
+  })
 
   User.addHook('afterValidate', async (user: User) => {
     if (
