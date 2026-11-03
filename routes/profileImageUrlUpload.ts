@@ -27,6 +27,7 @@ export function profileImageUrlUpload () {
             throw new Error('url returned a non-OK status code or an empty body')
           }
           if (Number(response.headers.get('content-length')) > MAX_PROFILE_IMAGE_BYTES) {
+            await response.body.cancel()
             throw new Error('url returned an image exceeding the size limit')
           }
           const reader = response.body.getReader()
