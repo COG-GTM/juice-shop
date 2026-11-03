@@ -38,4 +38,14 @@ void describe('/rest/admin/application-configuration', () => {
     assert.equal(typeof res.body.config, 'object')
     assert.ok(res.body.config !== null)
   })
+
+  void it('GET application configuration anonymously without security answers', async () => {
+    const res = await request(app)
+      .get('/rest/admin/application-configuration')
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('SecurityAnswer'))
+    assert.equal(res.body.config.memories, undefined)
+    assert.equal(typeof res.body.config.application.name, 'string')
+  })
 })

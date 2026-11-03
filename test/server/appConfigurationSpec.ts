@@ -6,6 +6,7 @@
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
+import config from 'config'
 import { retrieveAppConfiguration } from '../../routes/appConfiguration'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -35,5 +36,40 @@ describe('appConfiguration', () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     expect(returnedConfig.application.chatBot).to.exist
     expect(returnedConfig.application.chatBot).to.not.have.property('llmApiUrl')
+  })
+
+  it('should only return allow-listed configuration values', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+
+    expect(returnedConfig).to.not.have.property('memories')
+    expect(returnedConfig).to.not.have.property('products')
+    expect(returnedConfig).to.not.have.property('server')
+    expect(returnedConfig.application.chatBot).to.not.have.property('model')
+    expect(returnedConfig.application.chatBot).to.not.have.property('llmApiUrl')
+    expect(returnedConfig.application.chatBot).to.not.have.property('llmMaxRetries')
+    expect(returnedConfig.challenges).to.not.have.property('xssBonusPayload')
+    expect(returnedConfig.challenges).to.not.have.property('csafHashValue')
+    expect(returnedConfig.challenges).to.not.have.property('overwriteUrlForProductTamperingChallenge')
+    expect(returnedConfig.challenges).to.not.have.property('metricsIgnoredUserAgents')
+    expect(returnedConfig.ctf).to.not.have.property('countryMapping')
+    expect(JSON.stringify(returnedConfig)).to.not.include('SecurityAnswer')
+  })
+
+  it('should include public configuration values used by the frontend', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+
+    expect(returnedConfig.application.name).to.equal(config.get('application.name'))
+    expect(returnedConfig.application.social.twitterUrl).to.equal(config.get('application.social.twitterUrl'))
+    expect(returnedConfig.application.chatBot.name).to.equal(config.get('application.chatBot.name'))
+    expect(returnedConfig.hackingInstructor.isEnabled).to.equal(config.get('hackingInstructor.isEnabled'))
+    expect(returnedConfig.challenges.codingChallengesEnabled).to.equal(config.get('challenges.codingChallengesEnabled'))
   })
 })
