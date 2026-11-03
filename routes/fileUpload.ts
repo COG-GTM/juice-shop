@@ -132,8 +132,9 @@ function yamlAliasLimiter (limit = MAX_YAML_ALIAS_EXPANSION) {
 // Estimates the length of JSON.stringify(value) without building the string. Aliased nodes are
 // shared references in the parsed document, so each object's (and string's) size is computed once and
 // reused at every reference; the walk stays linear in the parsed graph while still accounting for the
-// exponential expansion that serialization would materialize. Cyclic aliases throw like JSON.stringify.
-function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes = new Map<unknown, number>()): number {
+// exponential expansion that serialization would materialize. Every node is visited (no early exit), so
+// cyclic aliases always throw like JSON.stringify, even in documents that are also oversized.
+function estimateJsonLength (value: unknown, sizes = new Map<unknown, number>()): number {
   if (value === null || (typeof value !== 'object' && typeof value !== 'string')) { return String(value).length }
   const known = sizes.get(value)
   if (known === -1) { throw new TypeError('Converting circular structure to JSON') }
@@ -146,11 +147,10 @@ function estimateJsonLength (value: unknown, limit = MAX_YAML_JSON_LENGTH, sizes
   sizes.set(value, -1)
   let length = 2
   if (typeof (value as { toJSON?: unknown }).toJSON === 'function') {
-    length = estimateJsonLength((value as { toJSON: () => unknown }).toJSON(), limit, sizes)
+    length = estimateJsonLength((value as { toJSON: () => unknown }).toJSON(), sizes)
   } else {
     for (const [key, child] of Object.entries(value)) {
-      length += (Array.isArray(value) ? 1 : JSON.stringify(key).length + 2) + estimateJsonLength(child, limit, sizes)
-      if (length > limit) { break }
+      length += (Array.isArray(value) ? 1 : JSON.stringify(key).length + 2) + estimateJsonLength(child, sizes)
     }
   }
   sizes.set(value, length)

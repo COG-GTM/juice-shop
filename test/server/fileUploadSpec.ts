@@ -113,6 +113,12 @@ describe('fileUpload', () => {
 
       expect(() => estimateJsonLength(cyclic)).to.throw(TypeError, 'Converting circular structure to JSON')
     })
+
+    it('should reject cyclic aliases that come after an oversized sibling', () => {
+      const document = yaml.load('s: &s "' + 'x'.repeat(40000) + '"\na: &a {x: [' + Array(30).fill('*s').join(', ') + '], self: *a}\n')
+
+      expect(() => estimateJsonLength(document)).to.throw(TypeError, 'Converting circular structure to JSON')
+    })
   })
 
   describe('yamlAliasLimiter', () => {
@@ -214,6 +220,14 @@ describe('fileUpload', () => {
 
     it('should not solve "yamlBombChallenge" for a tiny self-referencing document', () => {
       const { statusCode, error } = upload(Buffer.from('a: &a {self: *a}\n'))
+
+      expect(statusCode).to.equal(410)
+      expect(error.message).to.contain('Converting circular structure to JSON')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
+
+    it('should not solve "yamlBombChallenge" for an oversized self-referencing document', () => {
+      const { statusCode, error } = upload(Buffer.from('s: &s "' + 'x'.repeat(40000) + '"\na: &a {x: [' + Array(30).fill('*s').join(', ') + '], self: *a}\n'))
 
       expect(statusCode).to.equal(410)
       expect(error.message).to.contain('Converting circular structure to JSON')
