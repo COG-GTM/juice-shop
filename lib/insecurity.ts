@@ -41,7 +41,54 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+
+const CREDENTIAL_HASH_ALGORITHM = 'scrypt'
+const SCRYPT_PARAMS = { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
+const SCRYPT_KEY_LENGTH = 64
+const SCRYPT_SALT_LENGTH = 16
+
+const scryptAsync = (password: string, salt: Buffer, keyLength: number, options: crypto.ScryptOptions) =>
+  new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, salt, keyLength, options, (err, derivedKey) => { err ? reject(err) : resolve(derivedKey) })
+  })
+
+// Format: scrypt$N$r$p$<salt hex>$<derived key hex>
+export const hashCredential = (credential: string) => {
+  const salt = crypto.randomBytes(SCRYPT_SALT_LENGTH)
+  const derivedKey = crypto.scryptSync(String(credential), salt, SCRYPT_KEY_LENGTH, SCRYPT_PARAMS)
+  const { N, r, p } = SCRYPT_PARAMS
+  return [CREDENTIAL_HASH_ALGORITHM, N, r, p, salt.toString('hex'), derivedKey.toString('hex')].join('$')
+}
+
+let dummyCredentialHash: string | undefined
+
+export const verifyCredential = async (credential: unknown, storedHash?: string | null) => {
+  if (typeof credential !== 'string' || typeof storedHash !== 'string') {
+    // Burn comparable CPU time so missing users are not distinguishable by response timing
+    dummyCredentialHash ??= hashCredential(crypto.randomBytes(16).toString('hex'))
+    await verifyCredential('', dummyCredentialHash)
+    return false
+  }
+  const [algorithm, N, r, p, saltHex, keyHex, ...rest] = storedHash.split('$')
+  if (algorithm !== CREDENTIAL_HASH_ALGORITHM || rest.length > 0 || !saltHex || !keyHex) {
+    return false
+  }
+  try {
+    const expectedKey = Buffer.from(keyHex, 'hex')
+    if (expectedKey.length !== SCRYPT_KEY_LENGTH) {
+      return false
+    }
+    const derivedKey = await scryptAsync(credential, Buffer.from(saltHex, 'hex'), expectedKey.length, {
+      N: Number(N),
+      r: Number(r),
+      p: Number(p),
+      maxmem: SCRYPT_PARAMS.maxmem
+    })
+    return crypto.timingSafeEqual(derivedKey, expectedKey)
+  } catch {
+    return false
+  }
+}
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'

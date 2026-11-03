@@ -196,11 +196,35 @@ describe('insecurity', () => {
     })
   })
 
-  describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+  describe('hashCredential', () => {
+    it('returns a salted scrypt hash instead of an MD5 digest', () => {
+      const hashed = security.hashCredential('admin123')
+      expect(hashed).to.match(/^scrypt\$\d+\$\d+\$\d+\$[0-9a-f]{32}\$[0-9a-f]{128}$/)
+      expect(hashed).to.not.equal(security.hash('admin123'))
+    })
+
+    it('returns different hashes for the same input', () => {
+      expect(security.hashCredential('admin123')).to.not.equal(security.hashCredential('admin123'))
+    })
+  })
+
+  describe('verifyCredential', () => {
+    it('accepts the correct credential', async () => {
+      expect(await security.verifyCredential('admin123', security.hashCredential('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong credential', async () => {
+      expect(await security.verifyCredential('admin1234', security.hashCredential('admin123'))).to.equal(false)
+    })
+
+    it('rejects legacy unsalted MD5 hashes', async () => {
+      expect(await security.verifyCredential('admin123', security.hash('admin123'))).to.equal(false)
+    })
+
+    it('rejects non-string credentials and missing hashes', async () => {
+      expect(await security.verifyCredential(['admin123'], security.hashCredential('admin123'))).to.equal(false)
+      expect(await security.verifyCredential('admin123', undefined)).to.equal(false)
+      expect(await security.verifyCredential('admin123', 'scrypt$1$1$1$00$00')).to.equal(false)
     })
   })
 })
