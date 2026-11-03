@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -16,6 +17,7 @@ import { QuantityModel } from '../models/quantity'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
+import { sequelize } from '../models/index'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
@@ -35,6 +37,10 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isSafeInteger(BasketItem.quantity) && BasketItem.quantity > 0))) {
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -67,19 +73,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -138,17 +136,47 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!(totalPrice >= 0)) {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+            res.status(400).json({ error: res.__('Order total must not be negative.') })
+            return
+          }
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
+          const payWithWallet = req.body.UserId && req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet'
+          if (payWithWallet) {
+            const [debitedWallets] = await WalletModel.update(
+              { balance: literal(`balance - ${sequelize.escape(totalPrice)}`) },
+              { where: { UserId: req.body.UserId, balance: { [Op.gte]: totalPrice } } }
+            )
+            if (debitedWallets === 0) {
+              next(new Error('Insufficient wallet balance.'))
+              return
+            }
+          }
+
+          const appliedStockUpdates: typeof stockUpdates = []
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.decrement({ quantity }, { where: { ProductId } })
+                appliedStockUpdates.push({ ProductId, quantity })
               }
             }
+          } catch (error: unknown) {
+            for (const { ProductId, quantity } of appliedStockUpdates) {
+              await QuantityModel.increment({ quantity }, { where: { ProductId } }).catch(() => {})
+            }
+            if (payWithWallet) {
+              await WalletModel.increment({ balance: totalPrice }, { where: { UserId: req.body.UserId } }).catch(() => {})
+            }
+            next(error)
+            return
+          }
+
+          if (req.body.UserId) {
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
