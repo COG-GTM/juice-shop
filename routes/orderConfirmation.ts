@@ -37,7 +37,7 @@ async function findOrderConfirmation (userId: number, orderId: string) {
 function isValidToken (token: string) {
   try {
     const decoded = jws.decode(token)
-    if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return false
+    if (decoded?.header?.alg !== 'RS256' || !security.verify(token) || !security.isIssuedToken(token)) return false
     const payload = typeof decoded.payload === 'string' ? JSON.parse(decoded.payload) : decoded.payload
     return typeof payload?.exp !== 'number' || payload.exp * 1000 > Date.now()
   } catch {

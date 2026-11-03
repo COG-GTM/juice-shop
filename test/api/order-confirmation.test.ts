@@ -4,6 +4,7 @@
  */
 
 import crypto from 'node:crypto'
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -93,6 +94,17 @@ void describe('/rest/order-confirmation/:orderId', () => {
     const res = await request(app)
       .get(`/rest/order-confirmation/${orderId}`)
       .set('Authorization', 'Bearer ' + sessionlessToken)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET with a token forged with the committed signing key and registered via whoami is denied', async () => {
+    const privateKey = (/const privateKey = '(.+?)'/.exec(fs.readFileSync('lib/insecurity.ts', 'utf8'))?.[1] ?? '').replace(/\\r\\n/g, '\r\n')
+    const forgedToken = jwt.sign({ data: (security.decode(jimToken) as any).data }, privateKey, { algorithm: 'RS256', expiresIn: '6h' })
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forgedToken)
+    assert.ok(security.authenticatedUsers.get(forgedToken))
+    const res = await request(app)
+      .get(`/rest/order-confirmation/${orderId}`)
+      .set('Authorization', 'Bearer ' + forgedToken)
     assert.equal(res.status, 401)
   })
 
