@@ -311,6 +311,25 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
   })
 
+  void it('POST rejects getOrderById for an RS256 JWT with a tampered payload and bad signature', { timeout: 30000 }, async () => {
+    const { token } = await login(app, { email: adminEmail, password: 'admin123' })
+    const [header, , signature] = token.split('.')
+    const tamperedPayload = Buffer.from(JSON.stringify({ data: { id: 2, email: 'jim@juice-sh.op' } })).toString('base64url')
+
+    const toolResult = await requestOrder(`${header}.${tamperedPayload}.${signature}`, '5267-f9cd5c0e7e7a1ee5')
+
+    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
+  void it('POST rejects getOrderById for a validly signed but expired JWT', { timeout: 30000 }, async () => {
+    const expiredToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdGF0dXMiOiJzdWNjZXNzIiwiZGF0YSI6eyJpZCI6MSwidXNlcm5hbWUiOiIiLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwicGFzc3dvcmQiOiIwMTkyMDIzYTdiYmQ3MzI1MDUxNmYwNjlkZjE4YjUwMCIsInJvbGUiOiJhZG1pbiIsImxhc3RMb2dpbklwIjoiMC4wLjAuMCIsInByb2ZpbGVJbWFnZSI6ImRlZmF1bHQuc3ZnIiwidG90cFNlY3JldCI6IiIsImlzQWN0aXZlIjp0cnVlLCJjcmVhdGVkQXQiOiIyMDE5LTA4LTE5IDE1OjU2OjE1LjYyOSArMDA6MDAiLCJ1cGRhdGVkQXQiOiIyMDE5LTA4LTE5IDE1OjU2OjE1LjYyOSArMDA6MDAiLCJkZWxldGVkQXQiOm51bGx9LCJpYXQiOjE1NjYyMzAyMjQsImV4cCI6MTU2NjI0ODIyNH0.FL0kkcInY5sDMGKeLHfEOYDTQd3BjR6_mK7Tcm_RH6iCLotTSRRoRxHpLkbtIQKqBFIt14J4BpLapkzG7ppRWcEley5nego-4iFOmXQvCBz5ISS3HdtM0saJnOe0agyVUen3huFp4F2UCth_y2ScjMn_4AgW66cz8NSFPRVpC8g'
+    assert.ok(security.verify(expiredToken))
+
+    const toolResult = await requestOrder(expiredToken, '5267-f9cd5c0e7e7a1ee5')
+
+    assert.ok(toolResult?.includes('Customer not authenticated'), `unexpected tool result: ${String(toolResult)}`)
+  })
+
   void it('POST returns an own order via getOrderById for a signed-in customer', { timeout: 30000 }, async () => {
     const { token } = await login(app, { email: adminEmail, password: 'admin123' })
     const history = await request(app)
