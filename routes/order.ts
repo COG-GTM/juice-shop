@@ -46,6 +46,14 @@ export function placeOrder () {
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
 
+          const rejectOrder = (error: unknown) => {
+            fileWriter.removeAllListeners('finish')
+            doc.unpipe(fileWriter)
+            fileWriter.once('close', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            fileWriter.destroy()
+            next(error)
+          }
+
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
@@ -72,16 +80,6 @@ export function placeOrder () {
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -141,7 +139,23 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
           if (!Number.isFinite(totalPrice) || totalPrice < 0) {
-            next(new Error('Order total must not be negative.'))
+            rejectOrder(new Error('Order total must not be negative.'))
+            return
+          }
+          if (basketProducts.some(({ quantity }) => !Number.isInteger(quantity) || quantity < 1)) {
+            rejectOrder(new Error('Order item quantities must be positive.'))
+            return
+          }
+
+          try {
+            for (const { id: ProductId, quantity } of basketProducts) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
+              }
+            }
+          } catch (error: unknown) {
+            rejectOrder(error)
             return
           }
 
@@ -151,14 +165,14 @@ export function placeOrder () {
               if ((wallet != null) && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
               } else {
-                next(new Error('Insufficient wallet balance.'))
+                rejectOrder(new Error('Insufficient wallet balance.'))
                 return
               }
             }
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
-              next(error)
+              rejectOrder(error)
               return
             }
           }

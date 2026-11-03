@@ -139,6 +139,18 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
+  void it('POST placing an order with a negative item quantity is rejected even when the total is positive', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 9, quantity: -1 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Order item quantities must be positive.'))
+  })
+
   void it('POST placing an order for a basket with a negative total cost is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')

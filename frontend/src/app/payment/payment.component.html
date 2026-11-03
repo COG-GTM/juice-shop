@@ -54,8 +54,8 @@
           [innerHtml]="'FOLLOW_FOR_MONTHLY_COUPONS' | translate:{blueSky: blueSkyUrl, reddit: redditUrl}">
         </mat-hint>
         <input #coupon id="coupon" [formControl]="couponControl" matInput type="text" placeholder="{{ 'ENTER_COUPON_CODE' | translate}}">
-        <mat-hint align="end">{{coupon.value?.length || 0}}/25</mat-hint>
-        @if (couponControl.invalid && (couponControl.errors.minlength || couponControl.errors.maxlength)) {
+        <mat-hint align="end">{{coupon.value?.length || 0}}/{{ (coupon.value?.length || 0) <= 10 ? 10 : 25 }}</mat-hint>
+        @if (couponControl.invalid && couponControl.errors.couponLength) {
         <mat-error>
           {{'COUPON_CODE_HINT' | translate}}
         </mat-error>
