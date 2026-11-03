@@ -164,6 +164,33 @@ export const isAccounting = () => {
   }
 }
 
+const verifiedPayloadFrom = (token: string) => {
+  const [headerPart, payloadPart, signaturePart] = token.split('.')
+  const header = JSON.parse(Buffer.from(headerPart, 'base64url').toString())
+  const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${headerPart}.${payloadPart}`), publicKey, Buffer.from(signaturePart, 'base64url'))
+  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString())
+  const notExpired = payload.exp === undefined || payload.exp * 1000 > Date.now()
+  return header.alg === 'RS256' && signatureValid && notExpired ? payload : undefined
+}
+
+export const isAdmin = () => async (req: Request, res: Response, next: NextFunction) => {
+  let authorized = false
+  try {
+    const payload = verifiedPayloadFrom(utils.jwtFrom(req))
+    const { UserModel } = await import('../models/user')
+    const user = payload ? await UserModel.findByPk(payload.data?.id) : null
+    authorized = user?.role === roles.admin
+  } catch {
+    authorized = false
+  }
+
+  if (authorized) {
+    next()
+  } else {
+    res.status(403).json({ error: 'Malicious activity detected' })
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
