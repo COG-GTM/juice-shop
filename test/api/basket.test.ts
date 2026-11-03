@@ -188,6 +188,27 @@ void describe('/rest/basket/:id/checkout', () => {
     }
   })
 
+  void it('POST placing an underfunded wallet order leaves stock unchanged', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 100000 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Insufficient wallet balance.'))
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
+    } finally {
+      await item.destroy()
+    }
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
