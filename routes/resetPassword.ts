@@ -13,6 +13,54 @@ import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
+const MAX_FAILED_ATTEMPTS = 5
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000
+const MAX_TRACKED_EMAILS = 10000
+const resetAttempts = new Map<string, { count: number, expiresAt: number }>()
+
+function pruneExpiredAttempts (now: number) {
+  for (const [key, entry] of resetAttempts) {
+    if (entry.expiresAt <= now) resetAttempts.delete(key)
+  }
+}
+
+function evictOldestUnlockedAttempt () {
+  for (const [key, entry] of resetAttempts) {
+    if (entry.count < MAX_FAILED_ATTEMPTS) {
+      resetAttempts.delete(key)
+      return true
+    }
+  }
+  return false
+}
+
+// Counts the attempt before the async answer check so concurrent guesses cannot exceed the limit
+function reserveResetAttempt (key: string) {
+  const now = Date.now()
+  let entry = resetAttempts.get(key)
+  if (entry && entry.expiresAt <= now) {
+    resetAttempts.delete(key)
+    entry = undefined
+  }
+  if (!entry) {
+    if (resetAttempts.size >= MAX_TRACKED_EMAILS) {
+      pruneExpiredAttempts(now)
+      if (resetAttempts.size >= MAX_TRACKED_EMAILS && !evictOldestUnlockedAttempt()) return false
+    }
+    entry = { count: 0, expiresAt: now + LOCKOUT_DURATION_MS }
+    resetAttempts.set(key, entry)
+  }
+  if (entry.count >= MAX_FAILED_ATTEMPTS) return false
+  entry.count++
+  if (entry.count >= MAX_FAILED_ATTEMPTS) entry.expiresAt = now + LOCKOUT_DURATION_MS
+  return true
+}
+
+function releaseResetAttempt (key: string) {
+  const entry = resetAttempts.get(key)
+  if (entry && entry.count > 0) entry.count--
+}
+
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
     const email = body.email
@@ -31,6 +79,12 @@ export function resetPassword () {
       res.status(401).send(res.__('New and repeated password do not match.'))
       return
     }
+    const lockoutKey = String(email).toLowerCase()
+    if (!reserveResetAttempt(lockoutKey)) {
+      res.status(429).send('Too many failed attempts. Please try again later.')
+      return
+    }
+    let wrongAnswer = false
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -42,13 +96,16 @@ export function resetPassword () {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
           const updatedUser = await user.update({ password: newPassword })
+          resetAttempts.delete(lockoutKey)
           verifySecurityAnswerChallenges(updatedUser, answer)
-          res.json({ user: updatedUser })
+          res.json({ status: 'success' })
         }
       } else {
+        wrongAnswer = true
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
+      if (!wrongAnswer) releaseResetAttempt(lockoutKey)
       next(error)
     }
   }
