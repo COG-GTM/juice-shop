@@ -196,6 +196,30 @@ void describe('/file-upload', () => {
         .attach('file', payload, 'parameterEntityText.xml')
       assert.equal(res.status, 410)
     })
+
+    void it('POST XML with dev/random entity referenced only in an attribute value is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo attr="&xxe;"/>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'attributeReference.xml')
+      assert.equal(res.status, 410)
+    })
+
+    void it('POST XML with dev/random entity declared through an internal parameter entity is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % decl '<!ENTITY xxe SYSTEM "file:///dev/random">'> %decl;]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'parameterEntityDeclaration.xml')
+      assert.equal(res.status, 503)
+    })
+
+    void it('POST malformed XML with dev/random entity is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;</bar>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'malformedEntity.xml')
+      assert.equal(res.status, 410)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
