@@ -174,6 +174,32 @@ export const isCustomer = (req: Request) => {
   return decodedToken?.data?.role === roles.customer
 }
 
+export const userFromToken = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  return verify(token) ? decode(token)?.data : undefined
+}
+
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (userFromToken(req)?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const isSelfOrAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = userFromToken(req)
+    if (user?.role === roles.admin || (user?.id !== undefined && String(user.id) === String(req.params.id))) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
