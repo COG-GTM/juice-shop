@@ -7,6 +7,7 @@ import { type Request, type Response } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import jws from 'jws'
 import { z } from 'zod'
 import { Op } from 'sequelize'
 import { ProductModel } from '../models/product'
@@ -39,11 +40,22 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function verifiedTokenPayload (req: Request): { data?: { id?: number }, exp?: number } | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  try {
+    const decoded = jws.decode(token)
+    if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+    const payload = typeof decoded.payload === 'string' ? JSON.parse(decoded.payload) : decoded.payload
+    if (payload?.exp && payload.exp * 1000 < Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return verifiedTokenPayload(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {

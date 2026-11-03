@@ -8,6 +8,9 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import * as db from '../../data/mongodb'
+import { UserModel } from '../../models/user'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 const MOCK_LLM_PORT = 43210
@@ -70,6 +73,43 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+async function getSeededOrderAndOwner (): Promise<{ orderId: string, ownerId: number, ownerEmail: string }> {
+  const users = await UserModel.findAll({ attributes: ['id', 'email'] })
+  const orders = await db.ordersCollection.find()
+  const order = orders.find((candidate: { email: string }) =>
+    users.some(user => user.email.replace(/[aeiou]/gi, '*') === candidate.email)
+  )
+  assert.ok(order)
+  const owner = users.find(user => user.email.replace(/[aeiou]/gi, '*') === order.email)
+  assert.ok(owner)
+  return { orderId: order.orderId, ownerId: owner.id, ownerEmail: owner.email }
+}
+
+async function requestOrderLookup (orderId: string, token: string): Promise<{ response: request.Response, toolContent: string }> {
+  let callCount = 0
+  let toolContent = ''
+  onLlmRequest = (_req, body, res) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const parsed = JSON.parse(body)
+      const toolMessage = parsed.messages.find((message: { role: string }) => message.role === 'tool')
+      toolContent = toolMessage?.content ?? ''
+      sendSSE(res, [contentChunk('Done'), finishChunk()])
+    }
+  }
+
+  const response = await request(app)
+    .post('/rest/chat')
+    .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+    .send({ messages: [{ role: 'user', content: `Where is order ${orderId}?` }] })
+  return { response, toolContent }
 }
 
 before(async () => {
@@ -205,6 +245,39 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('does not allow an unsigned JWT to access another customer order', { timeout: 15000 }, async () => {
+    const { orderId, ownerId, ownerEmail } = await getSeededOrderAndOwner()
+    const encode = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    const token = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ data: { id: ownerId, email: ownerEmail } })}.`
+    const { response, toolContent } = await requestOrderLookup(orderId, token)
+
+    assert.equal(response.status, 200)
+    assert.ok(toolContent.includes('Customer not authenticated'))
+    assert.ok(!toolContent.includes(orderId))
+  })
+
+  void it('does not allow a modified signed JWT payload to access another customer order', { timeout: 15000 }, async () => {
+    const { orderId, ownerId, ownerEmail } = await getSeededOrderAndOwner()
+    const token = security.authorize({ data: { id: ownerId, email: ownerEmail } })
+    const [header, , signature] = token.split('.')
+    const payload = Buffer.from(JSON.stringify({ data: { id: ownerId, email: ownerEmail } })).toString('base64url')
+    const tamperedToken = `${header}.${payload}.${signature}`
+    const { response, toolContent } = await requestOrderLookup(orderId, tamperedToken)
+
+    assert.equal(response.status, 200)
+    assert.ok(toolContent.includes('Customer not authenticated'))
+  })
+
+  void it('allows a valid signed JWT to access its customer order', { timeout: 15000 }, async () => {
+    const { orderId, ownerId, ownerEmail } = await getSeededOrderAndOwner()
+    const token = security.authorize({ data: { id: ownerId, email: ownerEmail } })
+    const { response, toolContent } = await requestOrderLookup(orderId, token)
+
+    assert.equal(response.status, 200)
+    assert.ok(toolContent.includes(orderId))
+    assert.ok(!toolContent.includes('Customer not authenticated'))
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
