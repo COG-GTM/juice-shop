@@ -5,12 +5,15 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -150,6 +153,27 @@ void describe('/encryptionkeys', () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET the current public JWT signing key', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/jwt.pub')
+    assert.equal(res.status, 200)
+    assert.equal(res.text, security.publicKey)
+  })
+
+  void it('rejects an admin token signed by a different RSA key', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    })
+    const token = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set('Authorization', `Bearer ${token}`)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
   })
 
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {

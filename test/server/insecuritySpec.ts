@@ -5,13 +5,46 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('JWT signing keys', () => {
+    it('verifies tokens signed by authorize', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects tokens signed by another RSA key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, privateKey, { algorithm: 'RS256' })
+
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('returns a deterministic 64-character hex token that cannot be recreated with the public key', () => {
+      const email = 'test@juice-sh.op'
+      const token = security.deluxeToken(email)
+      const publicKeyToken = crypto.createHmac('sha256', security.publicKey).update(email + security.roles.deluxe).digest('hex')
+
+      expect(token).to.match(/^[a-f0-9]{64}$/)
+      expect(security.deluxeToken(email)).to.equal(token)
+      expect(token).to.not.equal(publicKeyToken)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
