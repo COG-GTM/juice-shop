@@ -103,6 +103,7 @@ import { checkKeys, nftUnlocked } from './routes/checkKeys'
 import { retrieveLoggedInUser } from './routes/currentUser'
 import authenticatedUsers from './routes/authenticatedUsers'
 import { securityQuestion } from './routes/securityQuestion'
+import { restrictRegistrationAttributes } from './routes/registration'
 import { servePremiumContent } from './routes/premiumReward'
 import { contractExploitListener } from './routes/web3Wallet'
 import { updateUserProfile } from './routes/updateUserProfile'
@@ -390,7 +391,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: No public access allowed. */
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.get('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
@@ -417,6 +419,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
+  app.post('/api/Users', utils.asyncHandler(restrictRegistrationAttributes()))
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
   /* Unauthorized users are not allowed to access B2B API */
@@ -515,6 +518,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: UserModel, continue: any }) => {
+        const securityAnswer = res.locals.securityAnswer
+        if (securityAnswer) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, ...securityAnswer })
+          } catch (err) {
+            await context.instance.destroy({ force: true })
+            throw err
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
