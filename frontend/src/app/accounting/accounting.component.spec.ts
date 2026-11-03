@@ -209,8 +209,36 @@ describe('AccountingComponent', () => {
     it('should modify price of a product', () => {
         productService.search.mockReturnValue(of([]))
         productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
-        component.modifyPrice(1, 100)
-        expect(productService.put).toHaveBeenCalled()
+        component.modifyPrice(1, '1.99')
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 1.99 })
         expect(productService.search).toHaveBeenCalled()
+    })
+
+    it('should clamp negative price strings to zero', () => {
+        productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
+        component.modifyPrice(1, '-1.99')
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 0 })
+    })
+
+    it('should not submit non-numeric price strings', () => {
+        component.modifyPrice(1, 'abc')
+        expect(productService.put).not.toHaveBeenCalled()
+        expect(snackBar.open).toHaveBeenCalled()
+    })
+
+    it('should not submit an empty price string', () => {
+        component.modifyPrice(1, '')
+        expect(productService.put).not.toHaveBeenCalled()
+    })
+
+    it('should not submit a whitespace-only price string', () => {
+        component.modifyPrice(1, '   ')
+        expect(productService.put).not.toHaveBeenCalled()
+    })
+
+    it('should submit zero price as a number', () => {
+        productService.put.mockReturnValue(of({ name: 'Apple Juice' }))
+        component.modifyPrice(1, '0')
+        expect(productService.put).toHaveBeenCalledWith(1, { price: 0 })
     })
 })
