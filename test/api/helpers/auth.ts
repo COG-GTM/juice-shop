@@ -6,6 +6,7 @@
 import request from 'supertest'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
+import config from 'config'
 import * as security from '../../../lib/insecurity'
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -79,4 +80,26 @@ export async function register (app: Express, { email, password, totpSecret }: {
   }
 
   return res
+}
+
+export async function oauthLogin (app: Express, email: string) {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    aud: config.get<string>('application.googleOauth.clientId'),
+    email,
+    email_verified: 'true',
+    expires_in: '3599'
+  }), { status: 200, headers: { 'content-type': 'application/json' } })
+  try {
+    const res = await request(app)
+      .post('/rest/user/oauth-login')
+      .set(jsonHeader)
+      .send({ accessToken: 'valid-google-access-token' })
+    if (res.status !== 200) {
+      throw new Error(`Failed OAuth login for '${email}': ${res.status}`)
+    }
+    return res.body.authentication
+  } finally {
+    globalThis.fetch = originalFetch
+  }
 }
