@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -28,24 +29,25 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
-      const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
+      const tempFile = path.join(os.tmpdir(), `${crypto.randomUUID()}.zip`)
+      const targetDir = path.resolve('uploads/complaints')
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
             fs.createReadStream(tempFile)
+              .on('close', function () { fs.unlink(tempFile, () => {}) })
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const fileName: string = entry.path
+                const absolutePath = path.resolve(targetDir, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
+                if (entry.type !== 'File' || path.isAbsolute(fileName) || fileName.includes('..') || !absolutePath.startsWith(targetDir + path.sep)) {
                   entry.autodrain()
+                  return
                 }
+                entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
               }).on('error', function (err: unknown) { next(err) })
           })
         })
