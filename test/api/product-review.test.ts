@@ -149,3 +149,19 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.body.modified, totalReviews)
   })
 })
+
+void it('GET product reviews includes a newly created review', async () => {
+  const message = `Unique review ${Date.now()}-${Math.random()}`
+  const putRes = await request(app)
+    .put('/rest/products/1/reviews')
+    .send({
+      message,
+      author: 'Anonymous'
+    })
+  assert.equal(putRes.status, 201)
+
+  const getRes = await request(app)
+    .get('/rest/products/1/reviews')
+  assert.equal(getRes.status, 200)
+  assert.ok(getRes.body.data.some(({ message: reviewMessage }: { message: string }) => reviewMessage === message))
+})
