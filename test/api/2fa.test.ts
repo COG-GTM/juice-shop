@@ -5,12 +5,14 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import config from 'config'
 import jwt from 'jsonwebtoken'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
 
@@ -94,6 +96,61 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should fail if an alg none tmp token is used', async () => {
+    const tmpToken = forgeToken('none', {
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken,
+        totpToken: '000000'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an HS256 tmp token signed with the public key is used', async () => {
+    const tmpToken = forgeToken('HS256', {
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    }, security.publicKey)
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail for a user without 2fa even with a valid tmp token', async () => {
+    const user = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+    assert.ok(user)
+    assert.equal(user.totpSecret, '')
+
+    const tmpToken = security.authorize({
+      userId: user.id,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken,
+        totpToken: '000000'
+      })
+
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
@@ -136,6 +193,74 @@ void describe('/rest/2fa/status', () => {
     assert.equal(res.status, 401)
   })
 })
+
+void describe('JWT authentication cannot bypass 2fa setup or disable', () => {
+  async function assertForgedIdentityCannotChangeTwoFactor (endpoint: 'setup' | 'disable') {
+    const user = await UserModel.findByPk(10)
+    assert.ok(user)
+    assert.equal(user.email, `wurstbrot@${config.get<string>('application.domain')}`)
+    const originalTotpSecret = user.totpSecret
+    assert.ok(originalTotpSecret)
+
+    const token = forgeToken('none', {
+      data: {
+        id: user.id,
+        email: user.email,
+        password: security.hash('letmein'),
+        totpSecret: 'x'
+      }
+    })
+
+    const whoamiRes = await request(app)
+      .get('/rest/user/whoami')
+      .set({
+        Authorization: `Bearer ${token}`,
+        Cookie: `token=${token}`
+      })
+
+    assert.equal(whoamiRes.status, 200)
+    assert.equal(whoamiRes.body.user.id, undefined)
+    assert.equal(whoamiRes.body.user.email, undefined)
+
+    const res = await request(app)
+      .post(`/rest/2fa/${endpoint}`)
+      .set({
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json'
+      })
+      .send({
+        password: 'letmein',
+        setupToken: security.authorize({ secret: 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7', type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret: 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7' })
+      })
+
+    assert.equal(res.status, 401)
+    const unchangedUser = await UserModel.findByPk(user.id)
+    assert.equal(unchangedUser?.totpSecret, originalTotpSecret)
+  }
+
+  void it('POST disable should reject an alg none identity after whoami', async () => {
+    await assertForgedIdentityCannotChangeTwoFactor('disable')
+  })
+
+  void it('POST setup should reject an alg none identity after whoami', async () => {
+    await assertForgedIdentityCannotChangeTwoFactor('setup')
+  })
+})
+
+function encodeBase64Url (value: object) {
+  return Buffer.from(JSON.stringify(value)).toString('base64url')
+}
+
+function forgeToken (algorithm: string, payload: object, hmacKey?: string) {
+  const header = encodeBase64Url({ alg: algorithm, typ: 'JWT' })
+  const encodedPayload = encodeBase64Url(payload)
+  const signingInput = `${header}.${encodedPayload}`
+  const signature = algorithm === 'HS256'
+    ? crypto.createHmac('sha256', hmacKey ?? '').update(signingInput).digest('base64url')
+    : ''
+  return `${signingInput}.${signature}`
+}
 
 void describe('/rest/2fa/setup', () => {
   void it('POST should be able to setup 2fa for accounts without 2fa enabled', async () => {
