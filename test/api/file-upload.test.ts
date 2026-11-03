@@ -210,6 +210,17 @@ void describe('/file-upload', () => {
     assert.equal(res.body.error, 'Invalid ZIP archive')
   })
 
+  void it('POST zip file with a malformed record after a valid entry is rejected', async () => {
+    const file = path.resolve(__dirname, '../files/truncatedComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid ZIP archive')
+    assert.equal(fs.existsSync(path.resolve('uploads/complaints/evidence.pdf')), false)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
