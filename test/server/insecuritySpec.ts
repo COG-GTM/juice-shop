@@ -230,6 +230,12 @@ describe('insecurity', () => {
       expect(keyPair.publicKey).to.equal(publicKey.export({ type: 'pkcs1', format: 'pem' }).toString())
     })
 
+    it('rejects a configured RSA key shorter than 2048 bits', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 1024 })
+      const pem = privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      expect(() => security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY: pem })).to.throw('at least 2048 bits')
+    })
+
     it('generates a fresh key pair when none is configured', () => {
       const first = security.loadJwtKeyPair({})
       const second = security.loadJwtKeyPair({})

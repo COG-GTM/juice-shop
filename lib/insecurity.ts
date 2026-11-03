@@ -31,7 +31,11 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   } else {
     privateKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
   }
-  const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
+  const key = crypto.createPublicKey(privateKey)
+  if (key.asymmetricKeyType !== 'rsa' || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 2048) {
+    throw new Error('JWT signing key must be an RSA key of at least 2048 bits')
+  }
+  const publicKey = key.export({ type: 'pkcs1', format: 'pem' }).toString()
   return { privateKey, publicKey }
 }
 
