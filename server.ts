@@ -424,7 +424,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       next()
       return
     }
-    if (typeof securityAnswer !== 'string' || securityAnswer.trim().length === 0 || await SecurityQuestionModel.findByPk(securityQuestion?.id) == null) {
+    if (typeof securityAnswer !== 'string' || securityAnswer.length === 0 || await SecurityQuestionModel.findByPk(securityQuestion?.id) == null) {
       res.status(400).json({ status: 'error', message: 'Invalid security question or answer' })
       return
     }
