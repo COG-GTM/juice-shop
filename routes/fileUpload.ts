@@ -91,6 +91,8 @@ function createExtractionBudget () {
   }
 }
 
+const complaintStoreError = 'Could not store the attached ZIP archive'
+
 interface StagedComplaintEntry { tempPath: string, targetPath: string }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -104,6 +106,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       let aborted = false
       let finalized = false
       let responded = false
+      let storeFailed = false
       const respond = (status: number, error?: string) => {
         if (responded) return
         responded = true
@@ -129,9 +132,13 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         finalized = true
         void Promise.all(staged).then(results => {
           const entries = results.filter((entry): entry is StagedComplaintEntry => entry !== null)
-          if (aborted || !complaintsDirectoryIsSafe()) {
+          if (aborted) {
             removeStaged(entries)
-            respond(204)
+            return
+          }
+          if (storeFailed || !complaintsDirectoryIsSafe()) {
+            removeStaged(entries)
+            respond(500, complaintStoreError)
             return
           }
           const renames = entries.map(async entry => {
@@ -144,13 +151,17 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
               fs.rename(entry.tempPath, entry.targetPath, (err) => {
                 if (err != null) {
                   logger.warn(`Could not store complaint zip entry: ${err.message}`)
+                  storeFailed = true
                   fs.rm(entry.tempPath, { force: true }, () => {})
                 }
                 resolve()
               })
             })
           })
-          void Promise.all(renames).then(() => { respond(204) })
+          void Promise.all(renames).then(() => {
+            if (storeFailed) respond(500, complaintStoreError)
+            else respond(204)
+          })
         })
       }
       parser.on('finish', () => { setImmediate(publish) })
@@ -172,6 +183,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
         const temp = targetPath !== null ? openComplaintTempFile() : null
         if (targetPath === null || temp === null) {
+          if (targetPath !== null) storeFailed = true
           entry.pipe(limiter).resume()
           return
         }
@@ -195,6 +207,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         output.on('error', (err: Error) => {
           if (discarded) return
           logger.warn(`Could not store complaint zip entry: ${err.message}`)
+          storeFailed = true
           limiter.unpipe(output)
           limiter.resume()
           discard()
@@ -202,7 +215,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
-        abort(utils.getErrorMessage(err), 204)
+        abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
       })
     } else {
       res.status(204).end()
