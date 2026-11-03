@@ -39,6 +39,7 @@ export class ComplaintComponent implements OnInit {
   public messageControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.maxLength(160)])
   @ViewChild('fileControl', { static: true }) fileControl!: ElementRef // For controlling the DOM Element for file input.
   public fileUploadError: any = undefined // For controlling error handling related to file input.
+  public uploadRejected = false
   public uploader: FileUploader = new FileUploader({
     url: environment.hostServer + '/file-upload',
     authToken: `Bearer ${localStorage.getItem('token')}`,
@@ -59,13 +60,14 @@ export class ComplaintComponent implements OnInit {
     }
     this.uploader.onAfterAddingFile = () => {
       this.fileUploadError = undefined
+      this.uploadRejected = false
     }
     this.uploader.onSuccessItem = () => {
       this.saveComplaint()
       this.uploader.clearQueue()
     }
     this.uploader.onErrorItem = () => {
-      this.fileUploadError = { name: 'upload' }
+      this.uploadRejected = true
       this.uploader.clearQueue()
     }
     this.formSubmitService.attachEnterKeyHandler('complaint-form', 'submitButton', () => { this.save() })
