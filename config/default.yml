@@ -11,6 +11,7 @@ application:
   showVersionNumber: true
   showGitHubLinks: true
   localBackupEnabled: true
+  seedDefaultCredentials: false
   numberOfRandomFakeUsers: 0
   altcoinName: Juicycoin
   privacyContactEmail: donotreply@owasp-juice.shop

@@ -35,6 +35,7 @@ import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
 import * as datacache from './datacache'
 import * as security from '../lib/insecurity'
+import { resolveSeedCredentials } from '../lib/seedCredentials'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
@@ -183,20 +184,24 @@ async function createChallenges () {
 }
 
 async function createUsers () {
+  const useDefaultCredentials = config.get<boolean>('application.seedDefaultCredentials')
   const users = await loadStaticUserData()
+  let randomizedCredentials = false
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
+        const seedCredentials = resolveSeedCredentials({ key, role, password, totpSecret }, useDefaultCredentials)
+        if (seedCredentials.randomized) randomizedCredentials = true
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seedCredentials.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: seedCredentials.totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
@@ -210,6 +215,10 @@ async function createUsers () {
       }
     })
   )
+
+  if (randomizedCredentials) {
+    logger.info('Privileged seed accounts received random per-deployment credentials. Set JUICE_SHOP_SEED_PASSWORD_<KEY> / JUICE_SHOP_SEED_TOTP_SECRET_<KEY> environment variables or application.seedDefaultCredentials: true (training only) to configure known credentials.')
+  }
 }
 
 async function createWallet () {
