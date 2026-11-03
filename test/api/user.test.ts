@@ -6,12 +6,14 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import sinon from 'sinon'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { SecurityAnswerModel } from '../../models/securityAnswer'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -229,6 +231,42 @@ void describe('/api/Users', () => {
       .set(jsonHeader)
       .send({ email, answer: 'Horst', new: 'new-password', repeat: 'new-password' })
     assert.equal(resetRes.status, 200)
+  })
+
+  void it('POST new user removes the user when saving its security answer fails', async () => {
+    const email = 'security-answer-registration-failure@horstma.nn'
+    const securityAnswerCreateStub = sinon.stub(SecurityAnswerModel, 'create').rejects(new Error('Failed to create security answer'))
+
+    let failedRes
+    try {
+      failedRes = await request(app)
+        .post('/api/Users')
+        .set(jsonHeader)
+        .send({
+          email,
+          password: 'hooooorst',
+          passwordRepeat: 'hooooorst',
+          securityQuestion: { id: 1 },
+          securityAnswer: 'Horst'
+        })
+    } finally {
+      securityAnswerCreateStub.restore()
+    }
+
+    assert.equal(failedRes.status, 500)
+    assert.equal(securityAnswerCreateStub.calledOnce, true)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email,
+        password: 'hooooorst',
+        passwordRepeat: 'hooooorst',
+        securityQuestion: { id: 1 },
+        securityAnswer: 'Horst'
+      })
+    assert.equal(retryRes.status, 201)
   })
 
   void it('POST new user with invalid security question is rejected without creating the user', async () => {

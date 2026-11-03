@@ -526,7 +526,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
           try {
             await SecurityAnswerModel.create({ UserId: context.instance.id, ...securityAnswer })
           } catch (err) {
-            await context.instance.destroy()
+            await context.instance.destroy({ force: true })
             throw err
           }
         }
