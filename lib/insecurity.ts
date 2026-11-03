@@ -168,7 +168,7 @@ export const canUpdateProduct = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
     const role = decodedToken?.data?.role
-    const isPriceOnlyUpdate = req.body === Object(req.body) && Object.keys(req.body).length > 0 && Object.keys(req.body).every((key) => key === 'price')
+    const isPriceOnlyUpdate = req.body === Object(req.body) && Object.keys(req.body).length === 1 && typeof req.body.price === 'number' && Number.isFinite(req.body.price)
     if (role === roles.admin || (role === roles.accounting && isPriceOnlyUpdate)) {
       next()
     } else {

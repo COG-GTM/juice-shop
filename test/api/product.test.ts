@@ -149,6 +149,14 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('PUT update with non-numeric price is forbidden for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'accountant@juice-sh.op', role: security.roles.accounting } }), 'content-type': 'application/x-www-form-urlencoded' })
+      .send('price[description]=<img src=x onerror=alert(1)>')
+    assert.equal(res.status, 403)
+  })
+
   void it('DELETE existing product is forbidden via public API', async () => {
     const res = await request(app)
       .delete('/api/Products/1')
