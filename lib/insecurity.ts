@@ -81,7 +81,7 @@ export const isAuthorized = () => {
 export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
   next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
 }
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => {
   if (!token) return false
   try {
