@@ -20,6 +20,8 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+const MAX_ORDER_DISCOUNT = 99
+
 interface Product {
   quantity: number
   id?: number
@@ -104,7 +106,7 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), MAX_ORDER_DISCOUNT)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
@@ -138,6 +140,10 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            next(new Error('Order total must not be negative.'))
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
