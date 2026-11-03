@@ -75,6 +75,7 @@ function openComplaintTempFile (): { tempPath: string, fd: number } | null {
 
 const maxComplaintZipEntries = 100
 const maxComplaintZipUncompressedBytes = 10 * 1024 * 1024
+const complaintZipLimitError = `Zip archive exceeds the limit of ${maxComplaintZipEntries} entries or ${maxComplaintZipUncompressedBytes / (1024 * 1024)} MB uncompressed`
 
 function createExtractionBudget () {
   let remainingEntries = maxComplaintZipEntries
@@ -102,13 +103,21 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
       const activeDiscards = new Set<() => void>()
       let aborted = false
       let finalized = false
+      let responded = false
+      const respond = (status: number, error?: string) => {
+        if (responded) return
+        responded = true
+        if (error === undefined) res.status(status).end()
+        else res.status(status).json({ error })
+      }
       const removeStaged = (entries: Array<StagedComplaintEntry | null>) => {
         entries.forEach(entry => { if (entry !== null) fs.rm(entry.tempPath, { force: true }, () => {}) })
       }
-      const abort = (reason: string) => {
+      const abort = (reason: string, status: number, error?: string) => {
         if (aborted) return
         aborted = true
         logger.warn(`Aborted complaint zip extraction: ${reason}`)
+        respond(status, error)
         activeDiscards.forEach(discard => { discard() })
         source.unpipe(parser)
         source.destroy()
@@ -120,14 +129,15 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         finalized = true
         void Promise.all(staged).then(results => {
           const entries = results.filter((entry): entry is StagedComplaintEntry => entry !== null)
-          if (entries.length === 0) return
           if (aborted || !complaintsDirectoryIsSafe()) {
             removeStaged(entries)
+            respond(204)
             return
           }
-          entries.forEach(entry => {
+          const renames = entries.map(async entry => { await new Promise<void>(resolve => {
             if (aborted) {
               fs.rm(entry.tempPath, { force: true }, () => {})
+              resolve()
               return
             }
             fs.rename(entry.tempPath, entry.targetPath, (err) => {
@@ -135,8 +145,10 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 logger.warn(`Could not store complaint zip entry: ${err.message}`)
                 fs.rm(entry.tempPath, { force: true }, () => {})
               }
+              resolve()
             })
-          })
+          }) })
+          void Promise.all(renames).then(() => { respond(204) })
         })
       }
       parser.on('finish', () => { setImmediate(publish) })
@@ -150,11 +162,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
         if (!budget.takeEntry()) {
           entry.autodrain()
-          abort('archive exceeds the entry or size limit')
+          abort('archive exceeds the entry or size limit', 413, complaintZipLimitError)
           return
         }
         const limiter = budget.limiter()
-        limiter.on('error', (err: Error) => { abort(err.message) })
+        limiter.on('error', (err: Error) => { abort(err.message, 413, complaintZipLimitError) })
         const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(fileName) : null
         const temp = targetPath !== null ? openComplaintTempFile() : null
         if (targetPath === null || temp === null) {
@@ -188,11 +200,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
-        abort(utils.getErrorMessage(err))
-        next(err)
+        abort(utils.getErrorMessage(err), 204)
       })
+    } else {
+      res.status(204).end()
     }
-    res.status(204).end()
   } else {
     next()
   }
