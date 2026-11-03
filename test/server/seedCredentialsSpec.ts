@@ -12,11 +12,12 @@ import { privilegedRoles, resolveSeedCredentials, seedEnvSuffix } from '../../li
 
 const expect = chai.expect
 
-function makeUser (role: StaticUser['role'], key = 'some-key', totpSecret?: string): Pick<StaticUser, 'key' | 'role' | 'password' | 'totpSecret'> {
+function makeUser (role: StaticUser['role'], key = 'some-key', totpSecret?: string): Pick<StaticUser, 'key' | 'role' | 'password' | 'totpSecret' | 'securityQuestion'> {
   return {
     key,
     role,
     password: 'yml-password',
+    securityQuestion: { id: 1, answer: 'yml-security-answer' },
     ...(totpSecret == null ? {} : { totpSecret })
   }
 }
@@ -29,7 +30,9 @@ describe('seedCredentials', () => {
       expect(resolveSeedCredentials(user, useDefaultCredentials, {})).to.deep.equal({
         password: user.password,
         totpSecret: user.totpSecret,
-        randomized: false
+        securityAnswer: user.securityQuestion?.answer,
+        randomized: false,
+        missingTotpOverride: false
       })
     }
   })
@@ -54,8 +57,87 @@ describe('seedCredentials', () => {
     expect(resolveSeedCredentials(user, true, {})).to.deep.equal({
       password: user.password,
       totpSecret: user.totpSecret,
-      randomized: false
+      securityAnswer: user.securityQuestion?.answer,
+      randomized: false,
+      missingTotpOverride: false
     })
+  })
+
+  it('randomizes privileged security answers when default credentials are disabled', () => {
+    const user = makeUser('admin', 'admin')
+    const result = resolveSeedCredentials(user, false, {})
+
+    expect(result.securityAnswer).to.not.equal(user.securityQuestion?.answer)
+    expect(result.securityAnswer?.length).to.be.at.least(32)
+    expect(result.randomized).to.equal(true)
+  })
+
+  it('uses static security answers when default credentials are enabled', () => {
+    const user = makeUser('admin', 'admin')
+
+    expect(resolveSeedCredentials(user, true, {}).securityAnswer).to.equal(user.securityQuestion?.answer)
+  })
+
+  it('uses a security answer environment override when default credentials are enabled', () => {
+    const user = makeUser('admin', 'admin')
+
+    expect(resolveSeedCredentials(user, true, {
+      JUICE_SHOP_SEED_SECURITY_ANSWER_ADMIN: 'answer-override'
+    }).securityAnswer).to.equal('answer-override')
+  })
+
+  it('randomizes security answers for privileged static users when defaults are disabled', async () => {
+    const users = await loadStaticUserData()
+    const privilegedUsers = users.filter(({ role, securityQuestion }) => privilegedRoles.includes(role) && securityQuestion != null)
+
+    expect(privilegedUsers.length).to.be.greaterThan(0)
+    for (const user of privilegedUsers) {
+      const result = resolveSeedCredentials(user, false, {})
+      expect(result.securityAnswer, `Expected ${user.key} to have a randomized security answer`).to.not.equal(user.securityQuestion?.answer)
+      expect(result.securityAnswer?.length, `Expected ${user.key} to have a long randomized security answer`).to.be.at.least(32)
+    }
+  })
+
+  it('marks a missing TOTP override when a password override is set for a TOTP user', () => {
+    const user = makeUser('admin', 'timo', 'STATIC_TOTP_SECRET')
+
+    const result = resolveSeedCredentials(user, false, { JUICE_SHOP_SEED_PASSWORD_TIMO: 'password-override' })
+
+    expect(result.missingTotpOverride).to.equal(true)
+    expect(result.totpSecret).to.not.equal(user.totpSecret)
+  })
+
+  it('does not mark a missing TOTP override when both overrides are set', () => {
+    const user = makeUser('admin', 'timo', 'STATIC_TOTP_SECRET')
+
+    const result = resolveSeedCredentials(user, false, {
+      JUICE_SHOP_SEED_PASSWORD_TIMO: 'password-override',
+      JUICE_SHOP_SEED_TOTP_SECRET_TIMO: 'totp-override'
+    })
+
+    expect(result.missingTotpOverride).to.equal(false)
+  })
+
+  it('does not mark a missing TOTP override when default credentials are enabled', () => {
+    const user = makeUser('admin', 'timo', 'STATIC_TOTP_SECRET')
+
+    const result = resolveSeedCredentials(user, true, { JUICE_SHOP_SEED_PASSWORD_TIMO: 'password-override' })
+
+    expect(result.missingTotpOverride).to.equal(false)
+  })
+
+  it('does not mark a missing TOTP override without a password override', () => {
+    const user = makeUser('admin', 'timo', 'STATIC_TOTP_SECRET')
+
+    const result = resolveSeedCredentials(user, false, {})
+
+    expect(result.missingTotpOverride).to.equal(false)
+  })
+
+  it('returns static credentials when default credentials are enabled and no security question exists', () => {
+    const user = { ...makeUser('admin', 'admin'), securityQuestion: undefined }
+
+    expect(resolveSeedCredentials(user, true, {}).securityAnswer).to.equal(undefined)
   })
 
   it('uses environment credential overrides when default credentials are disabled', () => {
