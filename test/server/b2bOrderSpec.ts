@@ -93,4 +93,29 @@ describe('b2bOrder', () => {
 
     expect(res.status).to.have.been.calledWith(400)
   })
+
+  it('accepts an empty array of order lines', () => {
+    req.body.orderLinesData = '[]'
+
+    b2bOrder()(req, res)
+
+    expect(res.status.called).to.equal(false)
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('rejects explicit null orderLinesData', () => {
+    req.body.orderLinesData = null
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
+  it('rejects empty string orderLinesData', () => {
+    req.body.orderLinesData = ''
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.been.calledWith(400)
+  })
 })

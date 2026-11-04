@@ -12,7 +12,7 @@ const MAX_ORDER_LINES_DATA_LENGTH = 100000
 export function b2bOrder () {
   return ({ body }: Request, res: Response) => {
     const orderLinesData = body?.orderLinesData
-    if (orderLinesData !== undefined && orderLinesData !== null && orderLinesData !== '' && !isValidOrderLinesData(orderLinesData)) {
+    if (orderLinesData !== undefined && !isValidOrderLinesData(orderLinesData)) {
       res.status(400).json({ error: 'Invalid orderLinesData: expected a JSON array of order lines with integer productId and positive integer quantity.' })
       return
     }
@@ -30,7 +30,7 @@ export function b2bOrder () {
       return false
     }
     const orderLines = Array.isArray(parsed) ? parsed : [parsed]
-    return orderLines.length > 0 && orderLines.every(isValidOrderLine)
+    return orderLines.every(isValidOrderLine)
   }
 
   function isValidOrderLine (orderLine: unknown) {
