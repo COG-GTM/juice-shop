@@ -287,4 +287,41 @@ void describe('/rest/user/data-export', () => {
     const parsedData = JSON.parse(res.body.userData)
     assert.ok(parsedData.reviews.some(({ message }: { message: string }) => message === payload))
   })
+
+  void it('Export data escapes HTML from emails of users who liked a review', async () => {
+    const domain = config.get<string>('application.domain')
+    const { token } = await login(app, { email: 'mc.safesearch@' + domain, password: 'Mr. N00dles' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const reviewRes = await request(app)
+      .put('/rest/products/2/reviews')
+      .set(authHeader)
+      .send({ message: 'Review liked by a markup email' })
+    assert.equal(reviewRes.status, 201)
+    const reviewsRes = await request(app).get('/rest/products/2/reviews')
+    const review = reviewsRes.body.data.find(({ message }: { message: string }) => message === 'Review liked by a markup email')
+
+    const likerEmail = '<img src=x onerror=alert(1)>@' + domain
+    const registerRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: likerEmail, password: 'likerPassw0rd' })
+    assert.equal(registerRes.status, 201)
+    const liker = await login(app, { email: registerRes.body.data.email, password: 'likerPassw0rd' })
+    const likeRes = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: 'Bearer ' + liker.token, 'content-type': 'application/json' })
+      .send({ id: review._id })
+    assert.equal(likeRes.status, 200)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    const exportedReview = parsedData.reviews.find(({ message }: { message: string }) => message === 'Review liked by a markup email')
+    assert.deepEqual(exportedReview.likedBy, [registerRes.body.data.email])
+  })
 })
