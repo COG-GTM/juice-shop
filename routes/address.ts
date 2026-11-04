@@ -42,7 +42,7 @@ export function updateAddressById () {
       await address.update(changes)
     } catch (error: unknown) {
       if (error instanceof ValidationError) {
-        res.status(400).json({ message: error.message, errors: error.errors.map(({ path, message }) => ({ field: path, message })) })
+        res.status(400).json({ status: 'error', error: error.message, message: error.message, errors: error.errors.map(({ path, message }) => ({ field: path, message })) })
         return
       }
       throw error
