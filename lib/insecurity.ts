@@ -212,6 +212,10 @@ const normalizeHost = (host: string | undefined, protocol: string) => {
 }
 
 export const sameOriginOnly = () => (req: Request, res: Response, next: NextFunction) => {
+  if (req.headers['sec-fetch-site'] === 'cross-site') {
+    res.status(403).send('Cross-origin request blocked')
+    return
+  }
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) {
     next()
