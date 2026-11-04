@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,42 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST update username rejects template syntax', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', "x#{process.exit()}")
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST update username rejects newlines', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'x\n- process.exit()')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET user profile renders stored template syntax in username as escaped text', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const payload = "#{global.process.mainModule.require('child_process').execSync('id')}"
+    await UserModel.update({ username: payload }, { where: { id: user.id }, individualHooks: false })
+    const stored = await UserModel.findByPk(user.id)
+    const storedUsername = stored?.username ?? ''
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('uid='))
+    assert.ok(res.text.includes(`text-align: center;">${storedUsername}</p>`))
   })
 })
