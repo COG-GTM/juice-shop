@@ -523,6 +523,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
           res.status(403).json({ error: 'Malicious activity detected' })
           return context.stop
         }
+        for (const key of Object.keys(req.query)) {
+          if (key.toLowerCase() === 'userid') delete req.query[key]
+        }
         context.criteria = { ...context.criteria, UserId: userId }
         return context.continue
       })
