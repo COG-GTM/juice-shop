@@ -125,7 +125,11 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
 
 // Detects forgery attempts for the JWT challenges only; such tokens are rejected by every verifier in lib/insecurity.
 function hasForgedSignature (token: string, algorithm: string) {
-  const [header, payload, signature = ''] = token.split('.')
+  const segments = token.split('.')
+  if (segments.length !== 3) {
+    return false
+  }
+  const [header, payload, signature] = segments
   if (algorithm === 'none') {
     return signature === ''
   }
