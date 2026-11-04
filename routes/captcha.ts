@@ -52,8 +52,9 @@ export function captchas () {
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { captchaId, captcha: answer } = req.body
-    const captcha = typeof captchaId === 'number' || typeof captchaId === 'string'
-      ? await CaptchaModel.findOne({ where: { captchaId } })
+    const id = typeof captchaId === 'string' && /^\d{1,15}$/.test(captchaId) ? Number(captchaId) : captchaId
+    const captcha = Number.isSafeInteger(id) && id > 0
+      ? await CaptchaModel.findOne({ where: { captchaId: id } })
       : null
     /* Every attempt consumes the CAPTCHA; only the request that actually deletes it may pass */
     const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId: captcha.captchaId } }) > 0
