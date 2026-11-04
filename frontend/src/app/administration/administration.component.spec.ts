@@ -106,6 +106,26 @@ describe('AdministrationComponent', () => {
         expect(component.feedbackDataSource.data[1].comment.toString()).toContain('Feedback2')
     })
 
+    it('should render user emails as plain text instead of HTML', () => {
+        const payload = '<img src=x onerror=alert(1)>'
+        userService.find.mockReturnValue(of([{ email: payload }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.mat-column-email.mat-mdc-cell')
+        expect(cell.querySelector('img')).toBeNull()
+        expect(cell.textContent).toContain(payload)
+    })
+
+    it('should render feedback comments as plain text instead of HTML', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)"></iframe>'
+        feedbackService.find.mockReturnValue(of([{ comment: payload, rating: 1 }]))
+        component.findAllFeedbacks()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.mat-column-comment.mat-mdc-cell')
+        expect(cell.querySelector('iframe')).toBeNull()
+        expect(cell.textContent).toContain(payload)
+    })
+
     it('should give an error if FeedbackService fails to find all feedbacks', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         feedbackService.find.mockReturnValue(throwError('Error'))
