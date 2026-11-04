@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
@@ -27,7 +28,12 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   if (env.JUICE_SHOP_JWT_PRIVATE_KEY) {
     privateKey = env.JUICE_SHOP_JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   } else if (env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE) {
-    privateKey = fs.readFileSync(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE, 'utf8')
+    const keyFile = fs.realpathSync(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE)
+    const publicKeyDir = fs.realpathSync(path.resolve('encryptionkeys'))
+    if (!path.relative(publicKeyDir, keyFile).startsWith('..')) {
+      throw new Error('JUICE_SHOP_JWT_PRIVATE_KEY_FILE must not point into the publicly served encryptionkeys/ directory')
+    }
+    privateKey = fs.readFileSync(keyFile, 'utf8')
   } else {
     privateKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
   }
