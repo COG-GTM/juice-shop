@@ -78,4 +78,15 @@ describe('/', () => {
       cy.expectChallengeSolved({ challenge: 'Email Leak' })
     })
   })
+
+  describe('challenge "accessLogDisclosure"', () => {
+    it("should not be able to access today's access log file", () => {
+      cy.task<Date>('toISO8601').then((date: Date) => {
+        cy.request({ url: `/support/logs/access.log.${date.toString()}`, failOnStatusCode: false })
+          .its('status').should('eq', 404)
+      })
+      cy.request('/api/Challenges/?name=Access Log')
+        .its('body.data.0.solved').should('eq', false)
+    })
+  })
 })
