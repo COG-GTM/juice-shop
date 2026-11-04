@@ -356,6 +356,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* BasketItems: API only accessible for authenticated users */
   app.use('/api/BasketItems', security.isAuthorized())
   app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.listOwnBasketItems())) // vuln-code-snippet hide-line
+  app.use('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership())) // vuln-code-snippet hide-line
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
   /* Users: Only POST is allowed in order to register a new user */
