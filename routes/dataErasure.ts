@@ -139,17 +139,27 @@ function isOrderConfirmationPath (layout: string) {
   const resolvedPath = path.resolve(layout)
   const candidates = [resolvedPath]
   if (resolvedPath.startsWith(appRoot + path.sep)) {
-    try {
-      candidates.push(fs.realpathSync(resolvedPath))
-    } catch {
-      try {
-        candidates.push(path.join(fs.realpathSync(path.dirname(resolvedPath)), path.basename(resolvedPath)))
-      } catch {}
-    }
+    const realPath = realpathOfNearestExistingAncestor(resolvedPath)
+    if (realPath) candidates.push(realPath)
   }
   const ordersRoots = ['orders']
   try {
     ordersRoots.push(fs.realpathSync(path.resolve('orders')).toLowerCase())
   } catch {}
   return candidates.some(candidate => ordersRoots.some(root => candidate.toLowerCase().includes(root)))
+}
+
+function realpathOfNearestExistingAncestor (filePath: string) {
+  let existing = filePath
+  const missingSegments: string[] = []
+  while (true) {
+    try {
+      return path.join(fs.realpathSync(existing), ...missingSegments)
+    } catch {
+      const parent = path.dirname(existing)
+      if (parent === existing) return undefined
+      missingSegments.unshift(path.basename(existing))
+      existing = parent
+    }
+  }
 }
