@@ -51,7 +51,9 @@ export function changePassword () {
       await user.update({ password: newPasswordInString })
       const isSlurmClassic = user.id === 3 && await security.verifyPassword('slurmCl4ssic', user.password)
       challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => isSlurmClassic && !currentPassword)
-      res.json({ user })
+      const safeUser = user.toJSON() as Record<string, unknown>
+      for (const key of ['password', 'totpSecret', 'deluxeToken']) delete safeUser[key]
+      res.json({ user: safeUser })
     } catch (error) {
       next(error)
     }
