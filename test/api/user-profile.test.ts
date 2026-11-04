@@ -51,4 +51,22 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders Pug interpolation in username as literal text', async () => {
+    for (const username of ['a#{7*7}', '#{7*7}']) {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .field('username', username)
+        .redirects(0)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(`text-align: center;">${username}</p>`))
+      assert.ok(!res.text.includes(`text-align: center;">${username.replace('#{7*7}', '49')}</p>`))
+    }
+  })
 })
