@@ -103,7 +103,9 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     if (!token) return undefined
     const key = utils.unquote(token)
     const user = this.tokenMap[key]
-    if (user !== undefined && (hasExpired(user) || hasExpired(decodeIfJwt(key)))) {
+    const payload = decodeIfJwt(key)
+    const tokenExpired = payload ? !isUnexpired(payload) : false
+    if (user !== undefined && (hasExpired(user) || tokenExpired)) {
       delete this.tokenMap[key]
       return undefined
     }
@@ -207,7 +209,12 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      const loggedInUser = authenticatedUsers.get(utils.jwtFrom(req))
+      if (loggedInUser === undefined) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' })
+        return
+      }
+      req.body.UserId = loggedInUser.data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })

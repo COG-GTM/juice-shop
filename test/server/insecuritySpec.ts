@@ -176,6 +176,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get('22222')).to.equal(undefined)
     })
 
+    it('returns undefined for a cached legacy session whose token has no exp claim', () => {
+      security.authenticatedUsers.put(nonExpiringToken, { data: { id: 4 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get(nonExpiringToken)).to.equal(undefined)
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -191,6 +197,33 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('appendUserId', () => {
+    it('sets UserId from the cached session of a valid token', () => {
+      const token = security.authorize({ data: { id: 5 } })
+      security.authenticatedUsers.put(token, { data: { id: 5 } as unknown as UserModel })
+      const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
+      const next = sinon.spy()
+
+      security.appendUserId()(req, {} as unknown as Response, next)
+
+      expect(req.body.UserId).to.equal(5)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('rejects a cached session whose token has no exp claim with 401', () => {
+      security.authenticatedUsers.put(nonExpiringToken, { data: { id: 6 } as unknown as UserModel })
+      const req = { headers: { authorization: `Bearer ${nonExpiringToken}` }, body: {} } as unknown as Request
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() } as unknown as Response
+      const next = sinon.spy()
+
+      security.appendUserId()(req, res, next)
+
+      expect((res.status as sinon.SinonStub).calledWith(401)).to.equal(true)
+      expect(next.called).to.equal(false)
+      expect(req.body.UserId).to.equal(undefined)
     })
   })
 
