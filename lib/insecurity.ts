@@ -57,17 +57,16 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
-export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
-export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
-export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
 export const sanitizeSecure = (html: string): string => {
-  const sanitized = sanitizeHtml(html)
+  const sanitized = sanitizeHtmlLib(html)
   if (sanitized === html) {
     return html
   } else {
     return sanitizeSecure(sanitized)
   }
 }
+export const sanitizeHtml = sanitizeSecure
+export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
 
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
