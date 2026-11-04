@@ -228,6 +228,13 @@ void describe('/api/Feedbacks', () => {
     assert.deepEqual(Object.keys(captchaRes.body).sort(), ['captcha', 'captchaId'])
   })
 
+  void it('POST feedback rejects malformed CAPTCHA ids', async () => {
+    for (const captchaId of ['9'.repeat(10000), 'abc', -1, 1.5, { $gt: 0 }, ['1']]) {
+      const res = await request(app).post('/api/Feedbacks').set(jsonHeader).send({ rating: 1, captchaId, captcha: '1' })
+      assert.equal(res.status, 401)
+    }
+  })
+
   void it('POST feedback cannot replay an already used CAPTCHA', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
