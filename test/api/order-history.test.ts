@@ -49,6 +49,34 @@ void describe('/rest/order-history', () => {
   })
 })
 
+void describe('/rest/order-history with vowel-swapped look-alike email', () => {
+  void it('GET does not return orders of the user whose masked email matches', async () => {
+    const lookAlikeEmail = 'odmin@' + config.get<string>('application.domain')
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: lookAlikeEmail, password: 'odmin123' })
+      .expect(201)
+
+    const { token } = await login(app, { email: lookAlikeEmail, password: 'odmin123' })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+
+    const exportRes = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(exportRes.status, 200)
+    assert.deepEqual(JSON.parse(exportRes.body.userData).orders, [])
+  })
+})
+
 void describe('/rest/order-history/orders', () => {
   void it('GET all orders is forbidden for customers', async () => {
     const { token } = await login(app, {
