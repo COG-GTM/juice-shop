@@ -104,6 +104,16 @@ void describe('/api/Wallets', () => {
     assert.equal(res.status, 402)
   })
 
+  void it('PUT charge wallet with malformed card id is forbidden', async () => {
+    for (const paymentId of [[2], true, '2abc']) {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: 10, paymentId })
+      assert.equal(res.status, 402)
+    }
+  })
+
   void it('PUT charge wallet without credit card is forbidden', async () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
