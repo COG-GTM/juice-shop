@@ -109,6 +109,48 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.orders[0].products[0].bonus, 0)
   })
 
+  void it('Export data does not include orders of another user with a colliding vowel-masked email', async () => {
+    const victimEmail = 'alice@acme.com'
+    const attackerEmail = 'elice@acme.com'
+    for (const email of [victimEmail, attackerEmail]) {
+      await request(app)
+        .post('/api/Users')
+        .set({ 'content-type': 'application/json' })
+        .send({ email, password: 'collision123' })
+        .expect(201)
+    }
+
+    const victim = await login(app, { email: victimEmail, password: 'collision123' })
+    const victimAuthHeader = { Authorization: 'Bearer ' + victim.token, 'content-type': 'application/json' }
+    await request(app)
+      .post('/api/BasketItems')
+      .set(victimAuthHeader)
+      .send({ BasketId: victim.bid, ProductId: 1, quantity: 1 })
+      .expect(200)
+    await request(app)
+      .post(`/rest/basket/${victim.bid}/checkout`)
+      .set(victimAuthHeader)
+      .expect(200)
+
+    const victimExport = await request(app)
+      .post('/rest/user/data-export')
+      .set(victimAuthHeader)
+      .send({ format: '1' })
+    assert.equal(victimExport.status, 200)
+    assert.equal(JSON.parse(victimExport.body.userData).orders.length, 1)
+
+    const attacker = await login(app, { email: attackerEmail, password: 'collision123' })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + attacker.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, attackerEmail)
+    assert.deepEqual(parsedData.orders, [])
+  })
+
   void it('Export data including reviews without use of CAPTCHA', async () => {
     const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
