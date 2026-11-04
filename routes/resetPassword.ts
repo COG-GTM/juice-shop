@@ -56,7 +56,8 @@ export function resetPassword () {
 }
 
 function answerMatches (answer: unknown, storedHash: string) {
-  const supplied = Buffer.from(security.hmac(String(answer)))
+  if (typeof answer !== 'string') return false
+  const supplied = Buffer.from(security.hmac(answer))
   const stored = Buffer.from(String(storedHash))
   return supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored)
 }
