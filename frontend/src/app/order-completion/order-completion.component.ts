@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, type OnInit, inject } from '@angular/core'
+import { Component, type OnDestroy, type OnInit, inject } from '@angular/core'
 import { TrackOrderService } from '../Services/track-order.service'
 import { OrderHistoryService } from '../Services/order-history.service'
 import { ActivatedRoute, type ParamMap, RouterLink } from '@angular/router'
@@ -28,7 +28,7 @@ library.add(faTwitter)
   styleUrls: ['./order-completion.component.scss'],
   imports: [MatCardModule, TranslateModule, RouterLink, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow]
 })
-export class OrderCompletionComponent implements OnInit {
+export class OrderCompletionComponent implements OnInit, OnDestroy {
   private readonly configurationService = inject(ConfigurationService)
   private readonly addressService = inject(AddressService)
   private readonly trackOrderService = inject(TrackOrderService)
@@ -43,6 +43,11 @@ export class OrderCompletionComponent implements OnInit {
   public promotionalDiscount = 0
   public address: any
   public tweetText = 'I just purchased'
+  private readonly confirmationPdfUrls: string[] = []
+
+  ngOnDestroy () {
+    this.confirmationPdfUrls.forEach((url) => { URL.revokeObjectURL(url) })
+  }
 
   ngOnInit (): void {
     this.activatedRoute.paramMap.subscribe({
@@ -98,7 +103,7 @@ export class OrderCompletionComponent implements OnInit {
     this.orderHistoryService.getConfirmationPdf(this.orderId).subscribe({
       next: (pdf: Blob) => {
         const pdfUrl = URL.createObjectURL(pdf)
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
+        this.confirmationPdfUrls.push(pdfUrl)
         if (pdfWindow) {
           pdfWindow.location.href = pdfUrl
         } else {

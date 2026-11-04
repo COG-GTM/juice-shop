@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, NgZone, type OnInit, inject } from '@angular/core'
+import { Component, NgZone, type OnDestroy, type OnInit, inject } from '@angular/core'
 import { OrderHistoryService } from '../Services/order-history.service'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table'
 import { ProductDetailsComponent } from '../product-details/product-details.component'
@@ -40,7 +40,7 @@ export interface Order {
   styleUrls: ['./order-history.component.scss'],
   imports: [MatCardModule, MatCardTitle, TranslateModule, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardContent]
 })
-export class OrderHistoryComponent implements OnInit {
+export class OrderHistoryComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router)
   private readonly dialog = inject(MatDialog)
   private readonly orderHistoryService = inject(OrderHistoryService)
@@ -50,6 +50,11 @@ export class OrderHistoryComponent implements OnInit {
   public tableColumns = ['product', 'price', 'quantity', 'total price', 'review']
   public orders: Order[] = []
   public emptyState = true
+  private readonly confirmationPdfUrls: string[] = []
+
+  ngOnDestroy () {
+    this.confirmationPdfUrls.forEach((url) => { URL.revokeObjectURL(url) })
+  }
 
   ngOnInit (): void {
     this.orderHistoryService.get().subscribe({
@@ -113,7 +118,7 @@ export class OrderHistoryComponent implements OnInit {
     this.orderHistoryService.getConfirmationPdf(orderId).subscribe({
       next: (pdf: Blob) => {
         const pdfUrl = URL.createObjectURL(pdf)
-        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
+        this.confirmationPdfUrls.push(pdfUrl)
         if (pdfWindow) {
           pdfWindow.location.href = pdfUrl
         } else {
