@@ -24,11 +24,6 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
-function isInsideDirectory (directory: string, target: string) {
-  const relativePath = path.relative(directory, target)
-  return relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
-}
-
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -47,7 +42,8 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
                 const uploadDir = path.resolve('uploads/complaints')
                 const absolutePath = path.resolve(uploadDir, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (entry.type === 'File' && isInsideDirectory(uploadDir, absolutePath)) {
+                const relativePath = path.relative(uploadDir, absolutePath)
+                if (entry.type === 'File' && relativePath !== '' && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
                   entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
