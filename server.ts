@@ -74,6 +74,7 @@ import { placeOrder } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
+import * as complaints from './routes/complaints'
 import * as twoFactorAuth from './routes/2fa'
 import { applyCoupon } from './routes/coupon'
 import dataErasure from './routes/dataErasure'
@@ -358,10 +359,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/BasketItems/:id', security.isAuthorized())
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
-  /* Users: Only POST is allowed in order to register a new user */
-  app.get('/api/Users', security.isAuthorized())
+  /* Users: Only POST is allowed in order to register a new user, reading users is admin-only */
+  app.get('/api/Users', security.isAuthorized(), security.isAdmin())
   app.route('/api/Users/:id')
-    .get(security.isAuthorized())
+    .get(security.isAuthorized(), security.isAdminOrSelf())
     .put(security.denyAll())
     .delete(security.denyAll())
   /* Products: Only GET is allowed in order to view products */ // vuln-code-snippet neutral-line changeProductChallenge
@@ -394,7 +395,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
-  app.use('/rest/user/authentication-details', security.isAuthorized())
+  app.use('/rest/user/authentication-details', security.isAuthorized(), security.isAdmin())
   app.use('/rest/basket/:id', security.isAuthorized())
   app.use('/rest/basket/:id/order', security.isAuthorized())
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
@@ -452,6 +453,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* Complaints: list only the caller's own complaints (admins see all) */
+  app.get('/api/Complaints', utils.asyncHandler(complaints.listComplaints()))
+  app.post('/api/Complaints', complaints.setComplaintOwner())
+
+  /* BasketItems: Only items in the caller's own basket can be viewed or removed */
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.listOwnBasketItems()))
+  app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
+  app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +524,22 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      const visibleUserAttributes = ['id', 'username', 'email', 'role', 'isActive', 'createdAt', 'updatedAt', 'deletedAt']
+      const toVisibleUser = (user: any) => {
+        const plain = typeof user?.get === 'function' ? user.get({ plain: true }) : user
+        return Object.fromEntries(visibleUserAttributes.filter((key) => key in plain).map((key) => [key, plain[key]]))
+      }
+      resource.list.send.before((req: Request, res: Response, context: { instance: any[], continue: any }) => {
+        context.instance = context.instance.map(toVisibleUser)
+        return context.continue
+      })
+      resource.read.send.before((req: Request, res: Response, context: { instance: any, continue: any }) => {
+        context.instance = toVisibleUser(context.instance)
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
