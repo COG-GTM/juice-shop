@@ -18,6 +18,11 @@ function parseTopUpAmount (value: unknown): number | null {
   return amount
 }
 
+function parseCardId (value: unknown): number | null {
+  const id = typeof value === 'number' ? value : (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN)
+  return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
 function isCardExpired (card: CardModel): boolean {
   const now = new Date()
   const year = now.getFullYear()
@@ -43,8 +48,8 @@ export function addWalletBalance () {
       res.status(400).json({ status: 'error', message: `Top-up amount must be a whole number between ${MIN_TOP_UP_AMOUNT} and ${MAX_TOP_UP_AMOUNT}.` })
       return
     }
-    const cardId = Number(req.body.paymentId)
-    const card = Number.isInteger(cardId) && cardId > 0 ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
+    const cardId = parseCardId(req.body.paymentId)
+    const card = cardId !== null ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
     if (card != null && !isCardExpired(card)) {
       try {
         await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
