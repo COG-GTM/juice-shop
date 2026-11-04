@@ -203,4 +203,27 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('securityAnswerToken', () => {
+    it('can be resolved back to the user id it was issued for', () => {
+      expect(security.userIdFromSecurityAnswerToken(security.securityAnswerToken(42))).to.equal(42)
+    })
+
+    it('is rejected after it expired', () => {
+      const token = security.securityAnswerToken(42, Date.now() - 11 * 60 * 1000)
+      expect(security.userIdFromSecurityAnswerToken(token)).to.equal(undefined)
+    })
+
+    it('is rejected when the user id was tampered with', () => {
+      const [, expiry, signature] = security.securityAnswerToken(42).split('.')
+      expect(security.userIdFromSecurityAnswerToken(`1.${expiry}.${signature}`)).to.equal(undefined)
+    })
+
+    it('is rejected when malformed or missing', () => {
+      expect(security.userIdFromSecurityAnswerToken(undefined)).to.equal(undefined)
+      expect(security.userIdFromSecurityAnswerToken(42)).to.equal(undefined)
+      expect(security.userIdFromSecurityAnswerToken('1.2')).to.equal(undefined)
+      expect(security.userIdFromSecurityAnswerToken(`1.${Date.now() + 60000}.abc`)).to.equal(undefined)
+    })
+  })
 })

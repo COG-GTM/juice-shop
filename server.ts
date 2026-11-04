@@ -452,6 +452,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* SecurityAnswers: POST only with the one-time token issued at registration, bound to the registered user */
+  app.post('/api/SecurityAnswers', security.bindSecurityAnswerToRegisteredUser())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +517,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      resource.create.send.before((req: Request, res: Response, context: { instance: UserModel, continue: any }) => {
+        context.instance.setDataValue('securityAnswerToken' as any, security.securityAnswerToken(context.instance.id))
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
