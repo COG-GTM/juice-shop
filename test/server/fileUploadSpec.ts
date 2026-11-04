@@ -10,7 +10,7 @@ import os from 'node:os'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { Readable, Writable } from 'node:stream'
-import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget, isReachableWithoutSymlinks } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath, createExtractionBudget, isReachableWithoutSymlinks, publishAtomically } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -182,6 +182,57 @@ describe('fileUpload', () => {
       fs.mkdirSync(path.join(root, 'app', 'uploads'))
       fs.symlinkSync(path.join(root, 'outside', 'complaints'), path.join(root, 'app', 'uploads', 'complaints'))
       expect(isReachableWithoutSymlinks(path.join(root, 'app', 'uploads', 'complaints'))).to.equal(false)
+    })
+  })
+
+  describe('publishAtomically', () => {
+    const complaintsDirectory = path.resolve('uploads/complaints')
+    const id = `${process.pid}-${Date.now()}`
+    const existing = path.join(complaintsDirectory, `existing-${id}.pdf`)
+    const fresh = path.join(complaintsDirectory, `fresh-${id}.pdf`)
+    const failing = path.join(complaintsDirectory, `failing-${id}.pdf`)
+    const staged = (name: string, content: string) => {
+      const tempPath = path.join(complaintsDirectory, `.upload-${name}-${id}.part`)
+      fs.writeFileSync(tempPath, content)
+      return tempPath
+    }
+    const originalRename = fs.promises.rename
+
+    beforeEach(() => {
+      fs.mkdirSync(complaintsDirectory, { recursive: true })
+      fs.writeFileSync(existing, 'OLD')
+    })
+
+    afterEach(() => {
+      fs.promises.rename = originalRename
+      for (const file of fs.readdirSync(complaintsDirectory)) {
+        if (file.includes(id)) fs.rmSync(path.join(complaintsDirectory, file), { force: true })
+      }
+    })
+
+    it('should publish every staged entry and drop backups of overwritten files', async () => {
+      const entries = [{ tempPath: staged('a', 'NEW'), targetPath: existing }, { tempPath: staged('b', 'FRESH'), targetPath: fresh }]
+      expect(await publishAtomically(entries, () => false)).to.equal(true)
+      expect(fs.readFileSync(existing, 'utf8')).to.equal('NEW')
+      expect(fs.readFileSync(fresh, 'utf8')).to.equal('FRESH')
+      expect(fs.readdirSync(complaintsDirectory).filter(file => file.includes(id) && file.endsWith('.part'))).to.deep.equal([])
+    })
+
+    it('should roll back already published entries when a later rename fails', async () => {
+      fs.promises.rename = (async (from: fs.PathLike, to: fs.PathLike) => {
+        if (to === failing) throw new Error('EIO: simulated rename failure')
+        await originalRename(from, to)
+      }) as typeof fs.promises.rename
+      const entries = [
+        { tempPath: staged('a', 'NEW'), targetPath: existing },
+        { tempPath: staged('b', 'FRESH'), targetPath: fresh },
+        { tempPath: staged('c', 'FAIL'), targetPath: failing }
+      ]
+      expect(await publishAtomically(entries, () => false)).to.equal(false)
+      expect(fs.readFileSync(existing, 'utf8')).to.equal('OLD')
+      expect(fs.existsSync(fresh)).to.equal(false)
+      expect(fs.existsSync(failing)).to.equal(false)
+      expect(fs.readdirSync(complaintsDirectory).filter(file => file.includes(id) && file.endsWith('.part'))).to.deep.equal([])
     })
   })
 })
