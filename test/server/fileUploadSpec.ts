@@ -234,5 +234,32 @@ describe('fileUpload', () => {
       expect(fs.existsSync(failing)).to.equal(false)
       expect(fs.readdirSync(complaintsDirectory).filter(file => file.includes(id) && file.endsWith('.part'))).to.deep.equal([])
     })
+
+    it('should keep the backup of an overwritten file when restoring it fails', async () => {
+      fs.promises.rename = (async (from: fs.PathLike, to: fs.PathLike) => {
+        const isBackupRestore = to === existing && !String(from).includes(id)
+        if (to === failing || isBackupRestore) throw new Error('EACCES: simulated rename failure')
+        await originalRename(from, to)
+      }) as typeof fs.promises.rename
+      const entries = [{ tempPath: staged('a', 'NEW'), targetPath: existing }, { tempPath: staged('c', 'FAIL'), targetPath: failing }]
+      expect(await publishAtomically(entries, () => false)).to.equal(false)
+      const backups = fs.readdirSync(complaintsDirectory).filter(file => /^\.upload-.*\.part$/.test(file) && !file.includes(id)).map(file => path.join(complaintsDirectory, file))
+      try {
+        expect(backups.map(file => fs.readFileSync(file, 'utf8'))).to.include('OLD')
+      } finally {
+        backups.forEach(file => { fs.rmSync(file, { force: true }) })
+      }
+    })
+
+    it('should not let a failing upload roll back over a concurrent successful upload of the same file', async () => {
+      fs.promises.rename = (async (from: fs.PathLike, to: fs.PathLike) => {
+        if (to === failing) throw new Error('EIO: simulated rename failure')
+        await originalRename(from, to)
+      }) as typeof fs.promises.rename
+      const failingUpload = publishAtomically([{ tempPath: staged('a', 'A'), targetPath: existing }, { tempPath: staged('c', 'FAIL'), targetPath: failing }], () => false)
+      const successfulUpload = publishAtomically([{ tempPath: staged('b', 'B'), targetPath: existing }], () => false)
+      expect(await Promise.all([failingUpload, successfulUpload])).to.deep.equal([false, true])
+      expect(fs.readFileSync(existing, 'utf8')).to.equal('B')
+    })
   })
 })
