@@ -36,6 +36,10 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 200)
+    assert.equal(res.body.user.email, 'kuni@be.rt')
+    for (const key of ['password', 'totpSecret', 'deluxeToken']) {
+      assert.ok(!(key in res.body.user), `response must not contain ${key}`)
+    }
   })
 
   void it('GET password change with passing wrong current password', async () => {
