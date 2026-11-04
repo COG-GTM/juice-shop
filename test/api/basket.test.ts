@@ -201,24 +201,22 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(balanceBefore.status, 200)
     const stockBefore = await QuantityModel.findOne({ where: { ProductId: 10 } })
 
-    const itemRes = await request(app)
-      .post('/api/BasketItems')
-      .set(uvoginHeader)
-      .send({ BasketId: bid, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    const item = await BasketItemModel.create({ BasketId: bid, ProductId: 10, quantity: -100 }, { validate: false })
 
     const res = await request(app)
       .post(`/rest/basket/${bid}/checkout`)
       .set(uvoginHeader)
       .send({ UserId: userId, orderDetails: { paymentId: 'wallet' } })
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Order total must not be negative.'))
+    assert.ok(res.text.includes('Basket item quantities must be positive.'))
 
     const balanceAfter = await request(app).get('/rest/wallet/balance').set(uvoginHeader)
     assert.equal(balanceAfter.body.data, balanceBefore.body.data)
 
     const stockAfter = await QuantityModel.findOne({ where: { ProductId: 10 } })
     assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+
+    await item.destroy()
   })
 })
 

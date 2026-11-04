@@ -148,13 +148,13 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
-          if (totalPrice < 0) {
-            challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return true })
-            abortOrder(new Error('Order total must not be negative.'))
-            return
-          }
+          challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
           if (hasNonPositiveQuantity) {
             abortOrder(new Error('Basket item quantities must be positive.'))
+            return
+          }
+          if (totalPrice < 0) {
+            abortOrder(new Error('Order total must not be negative.'))
             return
           }
 
