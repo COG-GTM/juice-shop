@@ -53,7 +53,9 @@ export function changePassword () {
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
       )
-      res.json({ user })
+      const safeUser = user.toJSON() as Record<string, unknown>
+      for (const key of ['password', 'totpSecret', 'deluxeToken']) delete safeUser[key]
+      res.json({ user: safeUser })
     } catch (error) {
       next(error)
     }
