@@ -93,6 +93,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
     })
 
+    it('keeps only allowlisted user claims in the session map', () => {
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -108,6 +114,34 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+
+    it('signs only allowlisted user claims', () => {
+      const token = security.authorize({
+        status: 'success',
+        data: { id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png', password: 'hash', totpSecret: 'SECRET', isActive: true }
+      })
+
+      expect(payloadOf(token).status).to.equal('success')
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png' })
+    })
+
+    it('leaves payloads without user data unchanged', () => {
+      const token = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+      expect(payloadOf(token).userId).to.equal(10)
+      expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('tokenCookieOptions', () => {
+    it('marks the token cookie Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ secure: false })
     })
   })
 
