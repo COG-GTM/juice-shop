@@ -185,6 +185,41 @@ export const appendUserId = () => {
   }
 }
 
+const securityAnswerTokenSecret = crypto.randomBytes(32)
+const securityAnswerTokenLifetimeMs = 10 * 60 * 1000
+const signSecurityAnswerPayload = (payload: string) => crypto.createHmac('sha256', securityAnswerTokenSecret).update(payload).digest('hex')
+
+export const securityAnswerToken = (userId: number, now = Date.now()) => {
+  const payload = `${userId}.${now + securityAnswerTokenLifetimeMs}`
+  return `${payload}.${signSecurityAnswerPayload(payload)}`
+}
+
+export const userIdFromSecurityAnswerToken = (token: unknown, now = Date.now()): number | undefined => {
+  if (typeof token !== 'string') return undefined
+  const parts = token.split('.')
+  if (parts.length !== 3) return undefined
+  const [userId, expiry, signature] = parts
+  const expected = Buffer.from(signSecurityAnswerPayload(`${userId}.${expiry}`), 'hex')
+  const actual = Buffer.from(signature, 'hex')
+  if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return undefined
+  if (!(Number(expiry) > now)) return undefined
+  const id = Number(userId)
+  return Number.isInteger(id) && id > 0 ? id : undefined
+}
+
+export const bindSecurityAnswerToRegisteredUser = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const body = req.body ?? {}
+    const userId = Array.isArray(body) ? undefined : userIdFromSecurityAnswerToken(body.securityAnswerToken)
+    if (userId === undefined) {
+      res.status(401).json({ status: 'error', message: 'Invalid or expired security answer token' })
+      return
+    }
+    req.body = { UserId: userId, SecurityQuestionId: body.SecurityQuestionId, answer: body.answer }
+    next()
+  }
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
