@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -43,6 +44,16 @@ void describe('/api/BasketItems', () => {
       .post('/api/BasketItems')
       .send({ BasketId: bid, ProductId: 1, quantity: 1 })
     assert.equal(res.status, 401)
+  })
+
+  void it('GET all basket items with valid token not cached in authenticated users', async () => {
+    const token = security.authorize({ data: { id: security.decode(authHeader.Authorization.split(' ')[1]).data.id, email: 'jim@juice-sh.op' } })
+    const res = await request(app)
+      .get('/api/BasketItems')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((item: { BasketId: number }) => item.BasketId === bid))
   })
 
   void it('GET all basket items only returns items of own basket', async () => {
@@ -157,18 +168,19 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT assigning basket ID to basket item without basket ID is forbidden', async () => {
-    const createRes = await request(app)
+  void it('POST new basket item without basket ID is forbidden', async () => {
+    const res = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ ProductId: 8, quantity: 8 })
-    assert.equal(createRes.status, 200)
-    assert.equal(createRes.body.data.BasketId, undefined)
+    assert.equal(res.status, 401)
+  })
 
+  void it('PUT update non-existing basket item is forbidden', async () => {
     const res = await request(app)
-      .put('/api/BasketItems/' + createRes.body.data.id)
+      .put('/api/BasketItems/4711')
       .set(authHeader)
-      .send({ BasketId: 3 })
+      .send({ quantity: 1 })
     assert.equal(res.status, 403)
   })
 

@@ -12,20 +12,28 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 
-export async function isBasketOwner (req: Request, basketId: unknown) {
+export function authenticatedUserIdFrom (req: Request): number | undefined {
   const user = security.authenticatedUsers.from(req)
-  if (user?.data?.id === undefined || basketId === undefined || basketId === null) {
+  if (user?.data?.id !== undefined) {
+    return user.data.id
+  }
+  const token = utils.jwtFrom(req)
+  return token && security.verify(token) ? security.decode(token)?.data?.id : undefined
+}
+
+export async function isBasketOwner (req: Request, basketId: unknown) {
+  const userId = authenticatedUserIdFrom(req)
+  if (userId === undefined || basketId === undefined || basketId === null) {
     return false
   }
   const basket = await BasketModel.findByPk(basketId as number)
-  return basket !== null && basket.UserId === user.data.id
+  return basket !== null && basket.UserId === userId
 }
 
 export function verifyBasketOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const basket = await BasketModel.findByPk(req.params.id)
-      if (basket !== null && !(await isBasketOwner(req, basket.id))) {
+      if (!(await isBasketOwner(req, req.params.id))) {
         res.status(403).json({ status: 'error', message: 'Access to this basket is forbidden' })
         return
       }

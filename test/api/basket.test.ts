@@ -55,11 +55,9 @@ void describe('/rest/basket/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET empty basket when requesting non-existing basket id', async () => {
+  void it('GET non-existing basket id is forbidden', async () => {
     const res = await request(app).get('/rest/basket/4711').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(res.body.data === null || (typeof res.body.data === 'object' && Object.keys(res.body.data).length === 0))
+    assert.equal(res.status, 403)
   })
 
   void it('GET existing basket with contained products by id', async () => {
@@ -143,10 +141,9 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing an order for a non-existing basket fails', async () => {
+  void it('POST placing an order for a non-existing basket is forbidden', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
-    assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
+    assert.equal(res.status, 403)
   })
 
   void it('POST placing an order for a basket with a negative total cost is possible', async () => {
@@ -206,10 +203,10 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT apply valid coupon to non-existing basket throws error', async () => {
+  void it('PUT apply valid coupon to non-existing basket is forbidden', async () => {
     const res = await request(app)
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
-    assert.equal(res.status, 500)
+    assert.equal(res.status, 403)
   })
 })

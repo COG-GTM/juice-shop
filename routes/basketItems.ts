@@ -12,7 +12,7 @@ import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { BasketModel } from '../models/basket'
-import { isBasketOwner } from './basket'
+import { authenticatedUserIdFrom, isBasketOwner } from './basket'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
@@ -37,7 +37,7 @@ export function addBasketItem () {
 
     const user = security.authenticatedUsers.from(req)
     const ownsAllBaskets = (await Promise.all(basketIds.map(async (basketId) => await isBasketOwner(req, basketId)))).every(Boolean)
-    if (!ownsAllBaskets) {
+    if (basketIds.length === 0 || !ownsAllBaskets) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
@@ -71,7 +71,7 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (item != null && !(await isBasketOwner(req, item.BasketId))) {
+      if (item == null || !(await isBasketOwner(req, item.BasketId))) {
         res.status(403).json({ status: 'error', message: 'Access to this basket item is forbidden' })
         return
       }
@@ -93,7 +93,7 @@ export function verifyBasketItemOwnership () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const item = await BasketItemModel.findByPk(req.params.id)
-      if (item !== null && !(await isBasketOwner(req, item.BasketId))) {
+      if (item === null || !(await isBasketOwner(req, item.BasketId))) {
         res.status(403).json({ status: 'error', message: 'Access to this basket item is forbidden' })
         return
       }
@@ -107,12 +107,12 @@ export function verifyBasketItemOwnership () {
 export function retrieveOwnBasketItems () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = security.authenticatedUsers.from(req)
-      if (user?.data?.id === undefined) {
+      const userId = authenticatedUserIdFrom(req)
+      if (userId === undefined) {
         res.status(401).json({ status: 'error', message: 'Unauthorized' })
         return
       }
-      const baskets = await BasketModel.findAll({ where: { UserId: user.data.id } })
+      const baskets = await BasketModel.findAll({ where: { UserId: userId } })
       const items = await BasketItemModel.findAll({ where: { BasketId: baskets.map(basket => basket.id) } })
       res.json({ status: 'success', data: items })
     } catch (error) {
