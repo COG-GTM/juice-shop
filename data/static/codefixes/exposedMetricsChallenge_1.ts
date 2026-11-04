@@ -8,6 +8,7 @@ export async function start (readyCallback?: () => void) {
   const datacreatorEnd = startupGauge.startTimer({ task: 'datacreator' })
   await sequelize.sync({ force: true })
   await preconditionsReady
+  await ftpFolderCleanedUp
   await datacreator()
   datacreatorEnd()
   const port = process.env.PORT ?? config.get('server.port')
