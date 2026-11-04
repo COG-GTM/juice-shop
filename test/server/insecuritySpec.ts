@@ -110,10 +110,14 @@ describe('insecurity', () => {
       expect(security.couponSigningKeyFrom('k'.repeat(32), directory)).to.equal('k'.repeat(32))
     })
 
-    it('ignores an empty or short configured key in favor of a random persisted key', () => {
+    it('rejects a configured key that is too short', () => {
+      expect(() => security.couponSigningKeyFrom('secret', directory)).to.throw('COUPON_SIGNING_KEY must be at least 32 characters long')
+      expect(() => security.couponSigningKeyFrom('k'.repeat(31), directory)).to.throw()
+    })
+
+    it('treats an empty configured key like no key and uses the random persisted key', () => {
       const persistedKey = security.couponSigningKeyIn(directory)
       expect(security.couponSigningKeyFrom('', directory)).to.equal(persistedKey)
-      expect(security.couponSigningKeyFrom('secret', directory)).to.equal(persistedKey)
       expect(persistedKey).to.match(/^[0-9a-f]{64}$/)
     })
 
