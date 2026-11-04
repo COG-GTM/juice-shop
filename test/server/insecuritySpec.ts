@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +202,66 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('verify', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+
+    it('accepts a token signed by authorize()', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with "alg: none"', () => {
+      const token = `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(payload)}.`
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects an HS256 token signed with the public key as HMAC secret', () => {
+      const unsigned = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(`${unsigned}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects an RS256 token with a tampered payload', () => {
+      const [header, , signature] = security.authorize(payload).split('.')
+      const tampered = b64url({ data: { id: 2, email: 'jim@juice-sh.op', role: 'admin' } })
+      expect(security.verify(`${header}.${tampered}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects malformed or missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+  })
+
+  describe('isAuthorized', () => {
+    const run = (middleware: any, authorization?: string) => {
+      let result: any = 'not called'
+      middleware({ headers: authorization ? { authorization } : {} }, {}, (err?: any) => { result = err })
+      return result
+    }
+
+    it('passes requests with a valid RS256 token', () => {
+      expect(run(security.isAuthorized(), `Bearer ${security.authorize({ data: { id: 1 } })}`)).to.equal(undefined)
+    })
+
+    it('rejects requests without a token with 401', () => {
+      expect(run(security.isAuthorized())).to.have.property('status', 401)
+    })
+
+    it('rejects requests with an unsigned token with 401', () => {
+      const token = `${Buffer.from('{"alg":"none"}').toString('base64url')}.${Buffer.from('{"data":{"id":1}}').toString('base64url')}.`
+      expect(run(security.isAuthorized(), `Bearer ${token}`)).to.have.property('status', 401)
+    })
+  })
+
+  describe('denyAll', () => {
+    it('rejects requests even with a valid RS256 token', () => {
+      let result: any
+      security.denyAll()({ headers: { authorization: `Bearer ${security.authorize({ data: { id: 1 } })}` } } as any, {} as any, (err?: any) => { result = err })
+      expect(result).to.have.property('status', 401)
     })
   })
 })
