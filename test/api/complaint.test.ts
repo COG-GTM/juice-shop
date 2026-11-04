@@ -11,7 +11,7 @@ import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const authHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: security.roles.customer } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -24,6 +24,7 @@ void describe('/api/Complaints', () => {
       .post('/api/Complaints')
       .set(authHeader)
       .send({
+        UserId: 2,
         message: 'You have no clue what https://github.com/eslint/eslint-scope/issues/39 means, do you???'
       })
     assert.equal(res.status, 201)
@@ -39,11 +40,32 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET complaints returns only those of the logged-in user', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 2)
+    }
+  })
+
+  void it('GET complaints does not return complaints of other users', async () => {
+    const res = await request(app)
+      .get('/api/Complaints?UserId=3')
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 2)
+    }
+  })
+
+  void it('GET complaints is forbidden for tokens without user id', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' })
+    assert.equal(res.status, 403)
   })
 })
 
