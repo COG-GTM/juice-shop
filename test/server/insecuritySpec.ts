@@ -95,6 +95,33 @@ describe('insecurity', () => {
     })
   })
 
+  describe('couponSigningKeyFrom', () => {
+    let directory: string
+
+    beforeEach(() => {
+      directory = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-coupon-key-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(directory, { recursive: true, force: true })
+    })
+
+    it('uses a configured key of sufficient length', () => {
+      expect(security.couponSigningKeyFrom('k'.repeat(32), directory)).to.equal('k'.repeat(32))
+    })
+
+    it('ignores an empty or short configured key in favor of a random persisted key', () => {
+      const persistedKey = security.couponSigningKeyIn(directory)
+      expect(security.couponSigningKeyFrom('', directory)).to.equal(persistedKey)
+      expect(security.couponSigningKeyFrom('secret', directory)).to.equal(persistedKey)
+      expect(persistedKey).to.match(/^[0-9a-f]{64}$/)
+    })
+
+    it('falls back to the persisted key when no key is configured', () => {
+      expect(security.couponSigningKeyFrom(undefined, directory)).to.equal(security.couponSigningKeyIn(directory))
+    })
+  })
+
   describe('discountFromCoupon', () => {
     it('returns undefined when not passing in a coupon code', () => {
       expect(security.discountFromCoupon(undefined)).to.equal(undefined)
