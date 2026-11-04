@@ -113,6 +113,24 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST file type YAML does not execute !!js/function tags', async () => {
+    const payload = 'toJSON: !!js/function \'function(){ globalThis.yamlRcePwned = true; return "pwned" }\''
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from(payload), 'evil.yml')
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('pwned'))
+    assert.equal((globalThis as any).yamlRcePwned, undefined)
+  })
+
+  void it('POST file type YAML does not reflect parsed content', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from('complaint: reflectedYamlContent'), 'complaint.yml')
+    assert.equal(res.status, 410)
+    assert.ok(!res.text.includes('reflectedYamlContent'))
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
