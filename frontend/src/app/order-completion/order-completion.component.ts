@@ -98,6 +98,7 @@ export class OrderCompletionComponent implements OnInit {
     this.orderHistoryService.getConfirmationPdf(this.orderId).subscribe({
       next: (pdf: Blob) => {
         const pdfUrl = URL.createObjectURL(pdf)
+        setTimeout(() => { URL.revokeObjectURL(pdfUrl) }, 60000)
         if (pdfWindow) {
           pdfWindow.location.href = pdfUrl
         } else {
