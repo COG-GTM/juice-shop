@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
 
@@ -26,7 +27,10 @@ export const listComplaints = () => async (req: Request, res: Response) => {
   if (user === undefined) {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' })
   }
-  const where = user.role === security.roles.admin ? {} : { UserId: user.id }
-  const complaints = await ComplaintModel.findAll({ where, order: [['id', 'ASC']] })
+  const owner = user.role === security.roles.admin ? {} : { UserId: user.id }
+  const filters = Object.fromEntries(['id', 'UserId', 'message', 'file']
+    .filter(key => typeof req.query[key] === 'string')
+    .map(key => [key, req.query[key]]))
+  const complaints = await ComplaintModel.findAll({ where: { [Op.and]: [owner, filters] }, order: [['id', 'ASC']] })
   res.json({ status: 'success', data: complaints })
 }

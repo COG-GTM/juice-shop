@@ -89,6 +89,31 @@ void describe('/api/Complaints', () => {
     }
   })
 
+  void it('GET complaints applies field filters within the caller\'s own complaints', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
+    const jimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const message = `Filtered complaint ${Date.now()}`
+    await request(app).post('/api/Complaints').set(jimHeader).send({ message })
+    await request(app).post('/api/Complaints').set(jimHeader).send({ message: 'Unrelated complaint' })
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .query({ message })
+      .set(jimHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].message, message)
+    assert.equal(res.body.data[0].UserId, jimId)
+
+    const forged = await request(app)
+      .get('/api/Complaints')
+      .query({ UserId: 3 })
+      .set(jimHeader)
+    assert.equal(forged.status, 200)
+    assert.equal(forged.body.data.length, 0)
+  })
+
   void it('GET complaints does not leak other customers\' complaints', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
