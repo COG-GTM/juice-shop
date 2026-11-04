@@ -250,6 +250,14 @@ describe('insecurity', () => {
       }
     })
 
+    it('treats only paths below a directory as inside it', () => {
+      expect(security.isPathInside('/app/encryptionkeys', '/app/encryptionkeys/jwt.key', path.posix)).to.equal(true)
+      expect(security.isPathInside('/app/encryptionkeys', '/app/encryptionkeys/..jwt.key', path.posix)).to.equal(true)
+      expect(security.isPathInside('/app/encryptionkeys', '/app/secrets/jwt.key', path.posix)).to.equal(false)
+      expect(security.isPathInside('C:\\juice-shop\\encryptionkeys', 'C:\\juice-shop\\encryptionkeys\\jwt.key', path.win32)).to.equal(true)
+      expect(security.isPathInside('C:\\juice-shop\\encryptionkeys', 'D:\\secrets\\jwt.key', path.win32)).to.equal(false)
+    })
+
     it('generates a fresh key pair when none is configured', () => {
       const first = security.loadJwtKeyPair({})
       const second = security.loadJwtKeyPair({})
