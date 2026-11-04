@@ -12,6 +12,30 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 
+export async function isBasketOwner (req: Request, basketId: unknown) {
+  const user = security.authenticatedUsers.from(req)
+  if (user?.data?.id === undefined || basketId === undefined || basketId === null) {
+    return false
+  }
+  const basket = await BasketModel.findByPk(basketId as number)
+  return basket !== null && basket.UserId === user.data.id
+}
+
+export function verifyBasketOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const basket = await BasketModel.findByPk(req.params.id)
+      if (basket !== null && !(await isBasketOwner(req, basket.id))) {
+        res.status(403).json({ status: 'error', message: 'Access to this basket is forbidden' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
