@@ -106,7 +106,13 @@ function targetIsNotRegularFile (targetPath: string): boolean {
 const renameAsync = async (from: string, to: string) => { await fs.promises.rename(from, to) }
 const removeQuietly = async (file: string) => { await fs.promises.rm(file, { force: true }).catch(() => {}) }
 
-async function publishAtomically (entries: StagedComplaintEntry[], isAborted: () => boolean): Promise<boolean> {
+const restoreBackup = async (backupPath: string, targetPath: string) => {
+  await renameAsync(backupPath, targetPath).catch(err => {
+    logger.warn(`Could not restore ${targetPath}, original content kept in ${backupPath}: ${utils.getErrorMessage(err)}`)
+  })
+}
+
+async function publishEntries (entries: StagedComplaintEntry[], isAborted: () => boolean): Promise<boolean> {
   const done: Array<{ targetPath: string, backupPath: string | null }> = []
   let failed = false
   for (const entry of entries) {
@@ -121,14 +127,14 @@ async function publishAtomically (entries: StagedComplaintEntry[], isAborted: ()
       done.push({ targetPath: entry.targetPath, backupPath })
     } catch (err) {
       logger.warn(`Could not store complaint zip entry: ${utils.getErrorMessage(err)}`)
-      if (backupPath !== null) await renameAsync(backupPath, entry.targetPath).catch(() => {})
+      if (backupPath !== null && !fs.existsSync(entry.targetPath)) await restoreBackup(backupPath, entry.targetPath)
       failed = true
       break
     }
   }
   if (failed) {
     for (const { targetPath, backupPath } of done.reverse()) {
-      if (backupPath !== null) await renameAsync(backupPath, targetPath).catch(async () => { await removeQuietly(backupPath) })
+      if (backupPath !== null) await restoreBackup(backupPath, targetPath)
       else await removeQuietly(targetPath)
     }
     await Promise.all(entries.map(async entry => { await removeQuietly(entry.tempPath) }))
@@ -136,6 +142,14 @@ async function publishAtomically (entries: StagedComplaintEntry[], isAborted: ()
   }
   await Promise.all(done.map(async ({ backupPath }) => { if (backupPath !== null) await removeQuietly(backupPath) }))
   return true
+}
+
+let publication: Promise<unknown> = Promise.resolve()
+
+async function publishAtomically (entries: StagedComplaintEntry[], isAborted: () => boolean): Promise<boolean> {
+  const result = publication.then(async () => await publishEntries(entries, isAborted))
+  publication = result.catch(() => {})
+  return await result
 }
 
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
