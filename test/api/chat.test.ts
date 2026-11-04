@@ -8,7 +8,9 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -57,6 +59,18 @@ function finishChunk (reason: string = 'stop'): object {
     model: 'test-model',
     choices: [{ index: 0, delta: {}, finish_reason: reason }]
   }
+}
+
+function unsignedToken (payload: object): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`
+}
+
+function hs256TokenSignedWithPublicKey (payload: object): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}`
+  const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+  return `${unsigned}.${signature}`
 }
 
 function sendSSE (res: http.ServerResponse, chunks: object[]): void {
@@ -265,5 +279,81 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  let orderToolCallCounter = 0
+
+  async function getOrderToolResultWithToken (token: string): Promise<string> {
+    const toolCallId = `call_order_${++orderToolCallCounter}`
+    let toolResult = ''
+    onLlmRequest = (_req, body, res) => {
+      let parsed: any
+      try {
+        parsed = JSON.parse(body)
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end('{}')
+        return
+      }
+      const toolMsg = parsed.messages?.find((m: { role: string, tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === toolCallId)
+      if (toolMsg) {
+        toolResult = toolMsg.content
+        sendSSE(res, [contentChunk('Done'), finishChunk()])
+      } else {
+        sendSSE(res, [
+          toolCallChunk(toolCallId, 'getOrderById', '{"orderId":"0000-0000000000000000"}'),
+          finishChunk('tool_calls')
+        ])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+      .send({ messages: [{ role: 'user', content: 'Show me order 0000-0000000000000000' }] })
+
+    assert.equal(res.status, 200)
+    return toolResult
+  }
+
+  void it('POST getOrderById rejects an unsigned token naming another user', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(unsignedToken({ data: { id: 4 } }))
+    assert.ok(toolResult.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById rejects an HS256 token signed with the public key', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(hs256TokenSignedWithPublicKey({ data: { id: 4 } }))
+    assert.ok(toolResult.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById accepts a validly signed token', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(security.authorize({ data: { id: 4 } }))
+    assert.ok(!toolResult.includes('Customer not authenticated'))
+    assert.ok(toolResult.includes('Order not found'))
+  })
+
+  void it('POST does not put the user name of a forged token into the system prompt', { timeout: 15000 }, async () => {
+    const systemPrompts: Record<string, string> = {}
+    onLlmRequest = (_req, body, res) => {
+      try {
+        const parsed = JSON.parse(body)
+        const lastUserMessage = parsed.messages.filter((m: { role: string }) => m.role === 'user').pop()?.content
+        systemPrompts[lastUserMessage] = parsed.messages[0].content
+      } catch {}
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${unsignedToken({ data: { id: 4 } })}` })
+      .send({ messages: [{ role: 'user', content: 'What is my name? (forged)' }] })
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${security.authorize({ data: { id: 4 } })}` })
+      .send({ messages: [{ role: 'user', content: 'What is my name? (signed)' }] })
+
+    assert.ok(systemPrompts['What is my name? (forged)'])
+    assert.ok(!systemPrompts['What is my name? (forged)'].includes('bkimminich'))
+    assert.ok(systemPrompts['What is my name? (signed)'].includes('bkimminich'))
   })
 })

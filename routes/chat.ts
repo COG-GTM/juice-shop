@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response } from 'express'
 import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
@@ -39,11 +40,27 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
+function verifiedTokenPayload (token: string): { data?: { id?: number }, exp?: number } | undefined {
+  const parts = token.split('.')
+  if (parts.length !== 3) return undefined
+  const [encodedHeader, encodedPayload, signature] = parts
+  try {
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8'))
+    if (header?.alg !== 'RS256') return undefined
+    const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${encodedHeader}.${encodedPayload}`), security.publicKey, Buffer.from(signature, 'base64url'))
+    if (!signatureValid) return undefined
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'))
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
 async function getUserId (req: Request): Promise<number | undefined> {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  return verifiedTokenPayload(token)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
