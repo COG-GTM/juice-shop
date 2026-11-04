@@ -107,13 +107,13 @@ const minimumCouponSigningKeyLength = 32
 const couponSigningKey = couponSigningKeyFrom(process.env.COUPON_SIGNING_KEY, 'data')
 
 export function couponSigningKeyFrom (configuredKey: string | undefined, directory: string) {
-  if (configuredKey !== undefined && configuredKey.length >= minimumCouponSigningKeyLength) {
-    return configuredKey
+  if (configuredKey === undefined || configuredKey === '') {
+    return couponSigningKeyIn(directory)
   }
-  if (configuredKey !== undefined) {
-    logger.warn(`COUPON_SIGNING_KEY is ignored because it is shorter than ${minimumCouponSigningKeyLength} characters`)
+  if (configuredKey.length < minimumCouponSigningKeyLength) {
+    throw new Error(`COUPON_SIGNING_KEY must be at least ${minimumCouponSigningKeyLength} characters long`)
   }
-  return couponSigningKeyIn(directory)
+  return configuredKey
 }
 
 // Stored next to the SQLite database so all processes of a single deployment share one key.
