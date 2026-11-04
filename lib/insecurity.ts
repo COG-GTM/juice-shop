@@ -103,7 +103,18 @@ export const MAX_COUPON_DISCOUNT = 99
 const couponSignatureLength = 12
 const couponSignaturePattern = new RegExp(`^[0-9a-f]{${couponSignatureLength}}$`)
 const couponSignatureSeparator = '_' // not part of the z85 alphabet
-const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? couponSigningKeyIn('data')
+const minimumCouponSigningKeyLength = 32
+const couponSigningKey = couponSigningKeyFrom(process.env.COUPON_SIGNING_KEY, 'data')
+
+export function couponSigningKeyFrom (configuredKey: string | undefined, directory: string) {
+  if (configuredKey !== undefined && configuredKey.length >= minimumCouponSigningKeyLength) {
+    return configuredKey
+  }
+  if (configuredKey !== undefined) {
+    logger.warn(`COUPON_SIGNING_KEY is ignored because it is shorter than ${minimumCouponSigningKeyLength} characters`)
+  }
+  return couponSigningKeyIn(directory)
+}
 
 // Stored next to the SQLite database so all processes of a single deployment share one key.
 // Deployments with more than one instance have to set COUPON_SIGNING_KEY instead.
