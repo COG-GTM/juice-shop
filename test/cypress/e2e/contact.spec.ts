@@ -49,29 +49,20 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    // Cypress alert bug
-    // The challenge also passes but its just that cypress freezes and is unable to perform any action
-    xit('should be possible to trick the sanitization with a masked XSS attack', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
-          cy.get('#comment').type(
-            '<<script>Foo</script>iframe src="javascript:alert(`xss`)">'
-          )
-          cy.get('#submitButton').should('not.be.disabled').click()
+    it('should not execute a masked XSS attack from feedback on the About page', () => {
+      const alertStub = cy.stub()
+      cy.on('window:alert', alertStub)
+      cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
+      cy.get('#comment').type(
+        '<<script>Foo</script>iframe src="javascript:alert(`xss`)">'
+      )
+      cy.get('#submitButton').should('not.be.disabled').click()
 
-          cy.visit('/#/about')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-          cy.expectChallengeSolved({ challenge: 'Server-side XSS Protection' })
-        }
-      })
+      cy.visit('/#/about')
+      cy.get('.feedback-comment').should('exist')
+      cy.get('figure.feedback iframe').should('not.exist')
+      cy.get('iframe[src^="javascript:"]').should('not.exist')
+      cy.wrap(alertStub).should('not.have.been.called')
     })
   })
 

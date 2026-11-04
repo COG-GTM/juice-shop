@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -21,6 +22,7 @@ describe('AboutComponent', () => {
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
     let translateService
+    let feedbackService
 
     beforeEach(async () => {
         configurationService = {
@@ -31,6 +33,10 @@ describe('AboutComponent', () => {
             get: vi.fn().mockName("TranslateService.get")
         }
         translateService.get.mockReturnValue(of({}))
+        feedbackService = {
+            find: vi.fn().mockName('FeedbackService.find')
+        }
+        feedbackService.find.mockReturnValue(of([]))
         translateService.onLangChange = new EventEmitter()
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
@@ -44,6 +50,7 @@ describe('AboutComponent', () => {
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
+                { provide: FeedbackService, useValue: feedbackService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -115,5 +122,14 @@ describe('AboutComponent', () => {
         component.ngOnInit()
 
         expect(component.nftUrl).toBe('NFT')
+    })
+
+    it('should pass feedback comments to the gallery as plain data instead of trusted HTML', () => {
+        const payload = '<iframe src="javascript:alert(`xss`)">'
+        feedbackService.find.mockReturnValue(of([{ comment: payload, rating: 3 }]))
+        const addImage = vi.spyOn(component.galleryRef, 'addImage')
+        component.populateSlideshowFromFeedbacks()
+
+        expect(addImage).toHaveBeenCalledWith(expect.objectContaining({ args: { comment: payload, rating: 3 } }))
     })
 })
