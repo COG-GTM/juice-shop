@@ -168,6 +168,7 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ zipCode: 'NX 10111111' })
     assert.equal(res.status, 400)
+    assert.ok(res.body.error)
   })
 
   void it('PUT update address of another user returns 404 and leaves it unchanged', async () => {
