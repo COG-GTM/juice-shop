@@ -133,3 +133,65 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:id/confirmation', () => {
+  let orderId: string
+  let jimToken: string
+
+  before(async () => {
+    jimToken = (await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })).token
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set({ Authorization: 'Bearer ' + jimToken, 'content-type': 'application/json' })
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('GET own order confirmation PDF', async () => {
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + jimToken })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF without authentication is denied', async () => {
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order confirmation PDF of another customer is denied', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+
+    const res = await request(app)
+      .get(`/rest/order-history/${orderId}/confirmation`)
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF from public /ftp folder is not possible', async () => {
+    const res = await request(app)
+      .get(`/ftp/order_${orderId}.pdf`)
+
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET /ftp directory listing does not reveal order confirmations', async () => {
+    const res = await request(app)
+      .get('/ftp')
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes(`order_${orderId}.pdf`))
+  })
+})
