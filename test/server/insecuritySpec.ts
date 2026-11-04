@@ -146,6 +146,12 @@ describe('insecurity', () => {
       expect(check({ host: 'localhost:3000', origin: 'null' })).to.equal(403)
       expect(check({ host: 'localhost:3000', origin: 'ftp://localhost:3000' })).to.equal(403)
     })
+
+    it('blocks browser cross-site requests flagged by Sec-Fetch-Site', () => {
+      expect(check({ host: 'localhost:3000', 'sec-fetch-site': 'cross-site' })).to.equal(403)
+      expect(check({ host: 'juice-shop:3000', 'x-forwarded-host': 'attacker.example', origin: 'https://attacker.example', 'sec-fetch-site': 'cross-site' })).to.equal(403)
+      expect(check({ host: 'localhost:3000', origin: 'http://localhost:3000', 'sec-fetch-site': 'same-origin' })).to.equal('next')
+    })
   })
 
   describe('sanitizeHtml', () => {
