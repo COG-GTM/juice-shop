@@ -22,12 +22,9 @@ import * as z85 from 'z85'
 
 const loadJwtKeyPair = () => {
   const envPrivateKey = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n')
-  const envPublicKey = process.env.JWT_PUBLIC_KEY?.replace(/\\n/g, '\n')
-  if (envPrivateKey && envPublicKey) {
-    return { privateKey: envPrivateKey, publicKey: envPublicKey }
-  }
-  if (envPrivateKey || envPublicKey) {
-    throw new Error('JWT_PRIVATE_KEY and JWT_PUBLIC_KEY must be provided together')
+  if (envPrivateKey) {
+    const derivedPublicKey = crypto.createPublicKey(envPrivateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
+    return { privateKey: envPrivateKey, publicKey: derivedPublicKey }
   }
   return crypto.generateKeyPairSync('rsa', {
     modulusLength: 2048,
