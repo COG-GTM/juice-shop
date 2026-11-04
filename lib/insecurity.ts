@@ -23,6 +23,11 @@ import * as z85 from 'z85'
 export const generateSecret = () => crypto.randomBytes(32).toString('hex')
 export const secretOrRandom = (value?: string) => value !== undefined && value !== '' ? value : generateSecret()
 
+export const isPathInside = (dir: string, file: string, pathLib: path.PlatformPath = path) => {
+  const relative = pathLib.relative(dir, file)
+  return !pathLib.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + pathLib.sep)
+}
+
 export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   let privateKey: string
   if (env.JUICE_SHOP_JWT_PRIVATE_KEY) {
@@ -30,7 +35,7 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   } else if (env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE) {
     const keyFile = fs.realpathSync(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE)
     const publicKeyDir = fs.realpathSync(path.resolve('encryptionkeys'))
-    if (!path.relative(publicKeyDir, keyFile).startsWith('..')) {
+    if (isPathInside(publicKeyDir, keyFile)) {
       throw new Error('JUICE_SHOP_JWT_PRIVATE_KEY_FILE must not point into the publicly served encryptionkeys/ directory')
     }
     privateKey = fs.readFileSync(keyFile, 'utf8')
