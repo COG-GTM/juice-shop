@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import * as feedback from './routes/feedback'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -355,9 +356,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/basket', security.isAuthorized(), security.appendUserId())
   /* BasketItems: API only accessible for authenticated users */
   app.use('/api/BasketItems', security.isAuthorized())
-  app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.use('/api/BasketItems/:id', security.isAuthorized(), utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.checkFeedbackDeletionAllowed()))
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -446,7 +448,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   app.post('/api/Addresss', security.appendUserId())
   app.get('/api/Addresss', security.appendUserId(), utils.asyncHandler(address.getAddress()))
-  app.put('/api/Addresss/:id', security.appendUserId())
+  app.put('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.updateAddressById()))
   app.delete('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.delAddressById()))
   app.get('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.getAddressById()))
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
