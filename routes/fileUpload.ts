@@ -103,6 +103,41 @@ function targetIsNotRegularFile (targetPath: string): boolean {
   }
 }
 
+const renameAsync = async (from: string, to: string) => { await fs.promises.rename(from, to) }
+const removeQuietly = async (file: string) => { await fs.promises.rm(file, { force: true }).catch(() => {}) }
+
+async function publishAtomically (entries: StagedComplaintEntry[], isAborted: () => boolean): Promise<boolean> {
+  const done: Array<{ targetPath: string, backupPath: string | null }> = []
+  let failed = false
+  for (const entry of entries) {
+    if (isAborted()) { failed = true; break }
+    let backupPath: string | null = null
+    try {
+      if (fs.existsSync(entry.targetPath)) {
+        backupPath = path.join(complaintsDirectory, `.upload-${crypto.randomUUID()}.part`)
+        await renameAsync(entry.targetPath, backupPath)
+      }
+      await renameAsync(entry.tempPath, entry.targetPath)
+      done.push({ targetPath: entry.targetPath, backupPath })
+    } catch (err) {
+      logger.warn(`Could not store complaint zip entry: ${utils.getErrorMessage(err)}`)
+      if (backupPath !== null) await renameAsync(backupPath, entry.targetPath).catch(() => {})
+      failed = true
+      break
+    }
+  }
+  if (failed) {
+    for (const { targetPath, backupPath } of done.reverse()) {
+      if (backupPath !== null) await renameAsync(backupPath, targetPath).catch(async () => { await removeQuietly(backupPath) })
+      else await removeQuietly(targetPath)
+    }
+    await Promise.all(entries.map(async entry => { await removeQuietly(entry.tempPath) }))
+    return false
+  }
+  await Promise.all(done.map(async ({ backupPath }) => { if (backupPath !== null) await removeQuietly(backupPath) }))
+  return true
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -155,26 +190,9 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             respond(500, complaintStoreError)
             return
           }
-          const renames = entries.map(async entry => {
-            await new Promise<void>(resolve => {
-              if (aborted) {
-                fs.rm(entry.tempPath, { force: true }, () => {})
-                resolve()
-                return
-              }
-              fs.rename(entry.tempPath, entry.targetPath, (err) => {
-                if (err != null) {
-                  logger.warn(`Could not store complaint zip entry: ${err.message}`)
-                  storeFailed = true
-                  fs.rm(entry.tempPath, { force: true }, () => {})
-                }
-                resolve()
-              })
-            })
-          })
-          void Promise.all(renames).then(() => {
-            if (storeFailed) respond(500, complaintStoreError)
-            else respond(204)
+          void publishAtomically(entries, () => aborted).then(published => {
+            if (published) respond(204)
+            else if (!aborted) respond(500, complaintStoreError)
           })
         })
       }
@@ -325,6 +343,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 
 export {
   isReachableWithoutSymlinks,
+  publishAtomically,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
