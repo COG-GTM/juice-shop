@@ -7,7 +7,6 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,10 +50,58 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+class UnauthorizedError extends Error {
+  status = 401
+  constructor (message: string) {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+const parseJwtSegment = (segment: string) => JSON.parse(Buffer.from(segment, 'base64url').toString('utf8'))
+
+export const verifyToken = (token: unknown) => {
+  if (typeof token !== 'string') throw new UnauthorizedError('jwt must be a string')
+  const parts = token.split('.')
+  if (parts.length !== 3 || parts.some(part => !part)) throw new UnauthorizedError('jwt malformed')
+  let header, payload
+  try {
+    header = parseJwtSegment(parts[0])
+    payload = parseJwtSegment(parts[1])
+  } catch {
+    throw new UnauthorizedError('jwt malformed')
+  }
+  if (header?.alg !== 'RS256') throw new UnauthorizedError('invalid algorithm')
+  const signatureValid = crypto.verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), publicKey, Buffer.from(parts[2], 'base64url'))
+  if (!signatureValid) throw new UnauthorizedError('invalid signature')
+  if (payload === null || typeof payload !== 'object') throw new UnauthorizedError('jwt malformed')
+  if (payload.exp !== undefined && (typeof payload.exp !== 'number' || Math.floor(Date.now() / 1000) >= payload.exp)) throw new UnauthorizedError('jwt expired')
+  return payload
+}
+
+export const isAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (!token) {
+    next(new UnauthorizedError('No Authorization header was found'))
+    return
+  }
+  try {
+    (req as Request & { user?: unknown }).user = verifyToken(token)
+    next()
+  } catch (error) {
+    next(error)
+  }
+}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => { next(new UnauthorizedError('Access denied')) }
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const verify = (token: string) => {
+  try {
+    verifyToken(token)
+    return true
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -188,14 +235,13 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
+    try {
+      const decoded = verifyToken(token)
+      if (authenticatedUsers.get(token) === undefined) {
+        authenticatedUsers.put(token, decoded)
+        res.cookie('token', token)
       }
-    })
+    } catch {}
   }
   next()
 }
