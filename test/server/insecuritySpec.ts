@@ -6,7 +6,6 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import chai from 'chai'
@@ -234,9 +233,13 @@ describe('insecurity', () => {
 
     it('loads the private key from JUICE_SHOP_JWT_PRIVATE_KEY_FILE outside of encryptionkeys/', () => {
       const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
-      const keyFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-key-')), 'jwt.key')
-      fs.writeFileSync(keyFile, pem)
-      expect(security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY_FILE: keyFile }).privateKey).to.equal(pem)
+      const keyFile = path.resolve(`jwt-test-${process.pid}.key`)
+      fs.writeFileSync(keyFile, pem, { mode: 0o600 })
+      try {
+        expect(security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY_FILE: keyFile }).privateKey).to.equal(pem)
+      } finally {
+        fs.unlinkSync(keyFile)
+      }
     })
 
     it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE inside the publicly served encryptionkeys/ directory', () => {
