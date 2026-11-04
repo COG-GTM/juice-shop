@@ -4,6 +4,8 @@
  */
 
 import { describe, it, before } from 'node:test'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -33,6 +35,17 @@ void describe('/api/Users', () => {
   void it('GET all users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all users is rejected with RS256 token signed by a foreign private key', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+      publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+    })
+    const forged = jwt.sign({ data: { email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${forged}` })
+    assert.equal(res.status, 401)
   })
 
   void it('GET all users doesnt include passwords', async () => {
