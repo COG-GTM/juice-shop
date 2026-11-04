@@ -281,20 +281,29 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     }
   })
 
+  let orderToolCallCounter = 0
+
   async function getOrderToolResultWithToken (token: string): Promise<string> {
+    const toolCallId = `call_order_${++orderToolCallCounter}`
     let toolResult = ''
-    let callCount = 0
     onLlmRequest = (_req, body, res) => {
-      callCount++
-      if (callCount === 1) {
+      let parsed: any
+      try {
+        parsed = JSON.parse(body)
+      } catch {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end('{}')
+        return
+      }
+      const toolMsg = parsed.messages?.find((m: { role: string, tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === toolCallId)
+      if (toolMsg) {
+        toolResult = toolMsg.content
+        sendSSE(res, [contentChunk('Done'), finishChunk()])
+      } else {
         sendSSE(res, [
-          toolCallChunk('call_order', 'getOrderById', '{"orderId":"0000-0000000000000000"}'),
+          toolCallChunk(toolCallId, 'getOrderById', '{"orderId":"0000-0000000000000000"}'),
           finishChunk('tool_calls')
         ])
-      } else {
-        const parsed = JSON.parse(body)
-        toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content ?? ''
-        sendSSE(res, [contentChunk('Done'), finishChunk()])
       }
     }
 
@@ -324,22 +333,27 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
   })
 
   void it('POST does not put the user name of a forged token into the system prompt', { timeout: 15000 }, async () => {
-    let systemPrompt = ''
+    const systemPrompts: Record<string, string> = {}
     onLlmRequest = (_req, body, res) => {
-      systemPrompt = JSON.parse(body).messages[0].content
+      try {
+        const parsed = JSON.parse(body)
+        const lastUserMessage = parsed.messages.filter((m: { role: string }) => m.role === 'user').pop()?.content
+        systemPrompts[lastUserMessage] = parsed.messages[0].content
+      } catch {}
       sendSSE(res, [contentChunk('Hi'), finishChunk()])
     }
 
     await request(app)
       .post('/rest/chat')
       .set({ 'content-type': 'application/json', Authorization: `Bearer ${unsignedToken({ data: { id: 4 } })}` })
-      .send({ messages: [{ role: 'user', content: 'What is my name?' }] })
-    assert.ok(!systemPrompt.includes('bkimminich'))
-
+      .send({ messages: [{ role: 'user', content: 'What is my name? (forged)' }] })
     await request(app)
       .post('/rest/chat')
       .set({ 'content-type': 'application/json', Authorization: `Bearer ${security.authorize({ data: { id: 4 } })}` })
-      .send({ messages: [{ role: 'user', content: 'What is my name?' }] })
-    assert.ok(systemPrompt.includes('bkimminich'))
+      .send({ messages: [{ role: 'user', content: 'What is my name? (signed)' }] })
+
+    assert.ok(systemPrompts['What is my name? (forged)'])
+    assert.ok(!systemPrompts['What is my name? (forged)'].includes('bkimminich'))
+    assert.ok(systemPrompts['What is my name? (signed)'].includes('bkimminich'))
   })
 })
