@@ -8,7 +8,9 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -57,6 +59,18 @@ function finishChunk (reason: string = 'stop'): object {
     model: 'test-model',
     choices: [{ index: 0, delta: {}, finish_reason: reason }]
   }
+}
+
+function unsignedToken (payload: object): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`
+}
+
+function hs256TokenSignedWithPublicKey (payload: object): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}`
+  const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+  return `${unsigned}.${signature}`
 }
 
 function sendSSE (res: http.ServerResponse, chunks: object[]): void {
@@ -265,5 +279,67 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  async function getOrderToolResultWithToken (token: string): Promise<string> {
+    let toolResult = ''
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_order', 'getOrderById', '{"orderId":"0000-0000000000000000"}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        const parsed = JSON.parse(body)
+        toolResult = parsed.messages.find((m: { role: string }) => m.role === 'tool')?.content ?? ''
+        sendSSE(res, [contentChunk('Done'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+      .send({ messages: [{ role: 'user', content: 'Show me order 0000-0000000000000000' }] })
+
+    assert.equal(res.status, 200)
+    return toolResult
+  }
+
+  void it('POST getOrderById rejects an unsigned token naming another user', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(unsignedToken({ data: { id: 4 } }))
+    assert.ok(toolResult.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById rejects an HS256 token signed with the public key', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(hs256TokenSignedWithPublicKey({ data: { id: 4 } }))
+    assert.ok(toolResult.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById accepts a validly signed token', { timeout: 15000 }, async () => {
+    const toolResult = await getOrderToolResultWithToken(security.authorize({ data: { id: 4 } }))
+    assert.ok(!toolResult.includes('Customer not authenticated'))
+    assert.ok(toolResult.includes('Order not found'))
+  })
+
+  void it('POST does not put the user name of a forged token into the system prompt', { timeout: 15000 }, async () => {
+    let systemPrompt = ''
+    onLlmRequest = (_req, body, res) => {
+      systemPrompt = JSON.parse(body).messages[0].content
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${unsignedToken({ data: { id: 4 } })}` })
+      .send({ messages: [{ role: 'user', content: 'What is my name?' }] })
+    assert.ok(!systemPrompt.includes('bkimminich'))
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${security.authorize({ data: { id: 4 } })}` })
+      .send({ messages: [{ role: 'user', content: 'What is my name?' }] })
+    assert.ok(systemPrompt.includes('bkimminich'))
   })
 })
