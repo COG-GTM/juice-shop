@@ -54,8 +54,13 @@ export function placeOrder () {
           const abortOrder = (error: unknown) => {
             fileWriter.removeAllListeners('finish')
             doc.unpipe(fileWriter)
-            fileWriter.destroy()
-            fs.unlink(path.join('ftp/', pdfFile), () => {})
+            const removePdf = () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) }
+            if (fileWriter.closed) {
+              removePdf()
+            } else {
+              fileWriter.once('close', removePdf) // a still pending open would otherwise recreate the file after unlink
+              fileWriter.destroy()
+            }
             next(error)
           }
 
