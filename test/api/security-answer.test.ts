@@ -6,12 +6,17 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import jws from 'jws'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
 
 let app: Express
 const authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+
+const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+const unsignedTokenHeader = { Authorization: `Bearer ${jws.sign({ header: { alg: 'none', typ: 'JWT' }, payload: forgedPayload, secret: '' })}` }
+const hmacForgedTokenHeader = { Authorization: `Bearer ${jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload: forgedPayload, secret: security.publicKey })}` }
 
 before(async () => {
   const result = await createTestApp()
@@ -40,6 +45,18 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.message, 'Validation error')
+  })
+})
+
+void describe('/api/SecurityAnswers with forged tokens', () => {
+  void it('GET is rejected for an unsigned token with algorithm "none"', async () => {
+    const res = await request(app).get('/api/SecurityAnswers').set(unsignedTokenHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET is rejected for a token HMAC-signed with the public RSA key', async () => {
+    const res = await request(app).get('/api/SecurityAnswers').set(hmacForgedTokenHeader)
+    assert.equal(res.status, 401)
   })
 })
 
