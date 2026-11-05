@@ -16,6 +16,18 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
+    it('should not be possible to disarm CSP via profile image URL', () => {
+      cy.visit('/profile')
+      cy.get('#url').type(
+        "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
+      )
+      cy.get('#submitUrl').click()
+      cy.request('/profile')
+        .its('headers')
+        .its('content-security-policy')
+        .should('not.contain', "'unsafe-inline'")
+    })
+
     it('should reject a script tag in the username even after disarming CSP via profile image URL', () => {
       const alert = cy.stub()
       cy.on('window:alert', alert)
