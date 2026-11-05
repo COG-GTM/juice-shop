@@ -15,18 +15,22 @@ export class LoginGuard implements CanActivate {
 
 
   canActivate () {
+    this.clearExpiredToken()
+    if (localStorage.getItem('token')) {
+      return true
+    } else {
+      this.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
+      return false
+    }
+  }
+
+  clearExpiredToken () {
     const payload = this.tokenDecode()
     if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
       if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
       }
       localStorage.removeItem('token')
-    }
-    if (localStorage.getItem('token')) {
-      return true
-    } else {
-      this.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
-      return false
     }
   }
 
@@ -57,6 +61,7 @@ export class AdminGuard implements CanActivate {
 
 
   canActivate () {
+    this.loginGuard.clearExpiredToken()
     const payload = this.loginGuard.tokenDecode()
     if (payload?.data && payload.data.role === roles.admin) {
       return true
@@ -73,6 +78,7 @@ export class AccountingGuard implements CanActivate {
 
 
   canActivate () {
+    this.loginGuard.clearExpiredToken()
     const payload = this.loginGuard.tokenDecode()
     if (payload?.data && payload.data.role === roles.accounting) {
       return true
