@@ -4,6 +4,7 @@
  */
 
 import { describe, it, before } from 'node:test'
+import crypto from 'node:crypto'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
@@ -93,6 +94,75 @@ void describe('/rest/2fa/verify', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token with algorithm "none" is used', async () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const tmpTokenWurstbrot = `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token' })}.`
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token signed with HS256 using the public key is used', async () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const signingInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token' })}`
+    const signature = crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: `${signingInput}.${signature}`,
+        totpToken
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail for a validly signed tmp token of a user without 2fa enabled', async () => {
+    const tmpTokenAdmin = security.authorize({
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenAdmin,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should be rate limited per user after 5 failed codes regardless of client IP', async () => {
+    const verifyFrom = (ip: string, userId: number) => request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .set('X-Forwarded-For', ip)
+      .send({
+        tmpToken: security.authorize({ userId, type: 'password_valid_needs_second_factor_token' }),
+        totpToken: '000000'
+      })
+
+    for (let i = 1; i <= 5; i++) {
+      assert.equal((await verifyFrom(`10.0.0.${i}`, 9999)).status, 401)
+    }
+    assert.equal((await verifyFrom('10.0.0.6', 9999)).status, 429)
+    assert.equal((await verifyFrom('10.0.0.7', 9998)).status, 401)
   })
 })
 

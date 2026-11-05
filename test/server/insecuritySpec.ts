@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -193,6 +194,43 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('verifyRS256', () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = { userId: 1, type: 'password_valid_needs_second_factor_token' }
+
+    it('accepts tokens signed by the server with RS256', () => {
+      expect(security.verifyRS256(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with algorithm "none"', () => {
+      expect(security.verifyRS256(`${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public key', () => {
+      const signingInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')
+      expect(security.verifyRS256(`${signingInput}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects RS256 tokens with a tampered payload', () => {
+      const [header, , signature] = security.authorize(payload).split('.')
+      expect(security.verifyRS256(`${header}.${encode({ ...payload, userId: 2 })}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects expired tokens', () => {
+      const expiredToken = security.authorize({ ...payload, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(security.decode(expiredToken).exp).to.be.below(Date.now() / 1000)
+      expect(security.verifyRS256(expiredToken)).to.equal(false)
+    })
+
+    it('rejects malformed input', () => {
+      expect(security.verifyRS256(undefined)).to.equal(false)
+      expect(security.verifyRS256('')).to.equal(false)
+      expect(security.verifyRS256('not.a.jwt')).to.equal(false)
+      expect(security.verifyRS256({ alg: 'none' })).to.equal(false)
     })
   })
 
