@@ -24,12 +24,21 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+export function resolveComplaintEntryPath (entryPath: unknown): string | null {
+  if (typeof entryPath !== 'string' || entryPath.length === 0 || entryPath.includes('\0')) return null
+  if (path.isAbsolute(entryPath) || path.win32.isAbsolute(entryPath)) return null
+  if (entryPath.split(/[\\/]/).includes('..')) return null
+  const complaintsDir = path.resolve('uploads/complaints')
+  const absolutePath = path.resolve(complaintsDir, entryPath)
+  return absolutePath.startsWith(complaintsDir + path.sep) ? absolutePath : null
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
       const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
+      const tempFile = path.join(os.tmpdir(), path.basename(filename))
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
@@ -39,10 +48,10 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
-                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return path.resolve('uploads/complaints/' + fileName) === path.resolve('ftp/legal.md') })
+                const safePath = resolveComplaintEntryPath(fileName)
+                if (safePath !== null) {
+                  entry.pipe(fs.createWriteStream(safePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
