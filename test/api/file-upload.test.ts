@@ -141,6 +141,14 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 503)
     })
 
+    void it('POST XML with dev/random entity and DTD-like text in a trailing comment is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;<!-- <!DOCTYPE example> --></foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'trailing-comment.xml')
+      assert.equal(res.status, 503)
+    })
+
     void it('POST XML with dev/random parameter entity is treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % xxe SYSTEM "file:///dev/random"> %xxe;]><foo/>')
       const res = await request(app)
