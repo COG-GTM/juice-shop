@@ -78,7 +78,16 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
         this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        console.log(err)
+        if (err?.status === 401) {
+          localStorage.removeItem('token')
+          this.userService.isLoggedIn.next(false)
+          this.snackBarHelperService.open('UNAUTHORIZED_ACCESS_ERROR', 'errorBar')
+        } else {
+          this.snackBarHelperService.open(err?.error?.message ?? 'Error', 'errorBar')
+        }
+      }
     })
   }
 
