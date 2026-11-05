@@ -188,6 +188,14 @@ void describe('/ftp', () => {
     assert.ok(responseText(res).includes('"epilogue-js": "~0.7",'))
   })
 
+  void it('GET a file outside /ftp via backslash traversal fails with a 403 error', async () => {
+    for (const traversal of ['..%5Cpackage.json%2500.md', '..%5C..%5Cdata%5Cjuiceshop.sqlite%2500.md', 'C:%5CWindows%5Cwin.ini%2500.md']) {
+      const res = await request(app)
+        .get('/ftp/' + traversal)
+      assert.equal(res.status, 403)
+    }
+  })
+
   void it('GET file /ftp/quarantine/juicy_malware_linux_amd_64.url', async () => {
     const res = await request(app)
       .get('/ftp/quarantine/juicy_malware_linux_amd_64.url')
