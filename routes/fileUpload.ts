@@ -116,7 +116,7 @@ async function publishEntries (entries: StagedComplaintEntry[], isAborted: () =>
   const done: Array<{ targetPath: string, backupPath: string | null }> = []
   let failed = false
   for (const entry of entries) {
-    if (isAborted()) { failed = true; break }
+    if (isAborted() || !complaintsDirectoryIsSafe()) { failed = true; break }
     let backupPath: string | null = null
     try {
       if (fs.existsSync(entry.targetPath)) {
