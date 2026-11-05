@@ -151,9 +151,10 @@ const couponSignature = (payload: string) => {
   return crypto.createHmac('sha256', couponSigningKey).update(payload).digest('hex').substring(0, couponSignatureLength)
 }
 
+export const normalizeCouponDiscount = (discount: number) => Math.min(Math.max(Math.trunc(discount), 0), MAX_COUPON_DISCOUNT)
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const cappedDiscount = Math.min(Math.max(Math.trunc(discount), 0), MAX_COUPON_DISCOUNT)
-  const payload = utils.toMMMYY(date) + '-' + String(cappedDiscount).padStart(2, '0')
+  const payload = utils.toMMMYY(date) + '-' + String(normalizeCouponDiscount(discount)).padStart(2, '0')
   return z85.encode(payload) + couponSignatureSeparator + couponSignature(payload)
 }
 
