@@ -60,6 +60,7 @@ export const retrieveChallengesWithCodeSnippet = async () => {
 
 export const getVerdict = (vulnLines: number[], neutralLines: number[], selectedLines: number[]) => {
   if (selectedLines === undefined) return false
+  if (vulnLines.length === 0) return false
   if (vulnLines.length > selectedLines.length) return false
   if (!vulnLines.every(e => selectedLines.includes(e))) return false
   const okLines = [...vulnLines, ...neutralLines]
