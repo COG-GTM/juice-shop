@@ -518,13 +518,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     // vuln-code-snippet end registerAdminChallenge
 
     if (name === 'User') {
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
-        const { securityQuestion, securityAnswer } = req.body
-        if (securityQuestion?.id !== undefined && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+      const hasSecurityAnswer = (body: any) => body.securityQuestion?.id !== undefined && typeof body.securityAnswer === 'string' && body.securityAnswer.length > 0
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any }) => {
+        if (hasSecurityAnswer(req.body) && (await SecurityQuestionModel.findByPk(req.body.securityQuestion.id)) == null) {
+          throw new finale.Errors.BadRequestError('Invalid security question')
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: UserModel, continue: any }) => {
+        if (hasSecurityAnswer(req.body)) {
           try {
-            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestion.id, answer: securityAnswer })
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: req.body.securityQuestion.id, answer: req.body.securityAnswer })
           } catch (err: unknown) {
-            console.log(err)
+            await context.instance.destroy({ force: true })
+            throw new finale.Errors.BadRequestError('Security answer could not be saved', [utils.getErrorMessage(err)])
           }
         }
         return context.continue
