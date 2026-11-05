@@ -21,6 +21,11 @@ describe('vulnCodeSnippet', () => {
     expect(getVerdict([1, 2], [3, 4], [1, 2, 3, 4])).to.equal(true)
   })
 
+  it('should assert any selection as wrong when there are no vuln lines', () => {
+    expect(getVerdict([], [], [])).to.equal(false)
+    expect(getVerdict([], [1, 2], [1])).to.equal(false)
+  })
+
   it('should assert missing vuln lines as wrong', () => {
     expect(getVerdict([1, 2], [], [1])).to.equal(false)
     expect(getVerdict([1, 2], [], [2])).to.equal(false)
@@ -36,9 +41,5 @@ describe('vulnCodeSnippet', () => {
 
   it('should assert lack of selected lines as wrong', () => {
     expect(getVerdict([1, 2], [], [])).to.equal(false)
-  })
-
-  it('should assert empty edge case as correct', () => {
-    expect(getVerdict([], [], [])).to.equal(true)
   })
 })
