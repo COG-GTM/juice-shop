@@ -10,8 +10,11 @@ import {
   contractExploitListener,
   consumeWallet,
   isWalletAddress,
+  LISTENER_RETRY_DELAY_MS,
+  listenerDeps,
   MAX_WALLETS_CONNECTED,
   rememberWallet,
+  resetExploitListener,
   WALLET_TTL_MS,
   walletsConnected
 } from '../../routes/web3Wallet'
@@ -74,5 +77,56 @@ describe('web3Wallet', () => {
     expect(walletsConnected.has('0x413744d59d31afdc2889aee602636177805bd7b0')).to.equal(true)
     expect(consumeWallet('0x413744D59d31AFDC2889aeE602636177805Bd7b0')).to.equal(true)
     expect(consumeWallet('0x413744D59d31AFDC2889aeE602636177805Bd7b0')).to.equal(false)
+  })
+
+  describe('contract exploit listener', () => {
+    let providers: any[]
+    let now: number
+    const originalDeps = { ...listenerDeps }
+    const validRequest = () => ({ body: { walletAddress: address(1) } }) as any
+
+    beforeEach(() => {
+      resetExploitListener()
+      providers = []
+      now = 0
+      class WebSocketProvider {
+        websocket: any = { onerror: null }
+        destroy = sinon.spy()
+        constructor () { providers.push(this) }
+      }
+      class Contract {
+        async on () {}
+      }
+      listenerDeps.loadEthers = async () => ({ WebSocketProvider, Contract }) as any
+      listenerDeps.now = () => now
+    })
+
+    afterEach(() => {
+      Object.assign(listenerDeps, originalDeps)
+      resetExploitListener()
+    })
+
+    it('opens a single provider for concurrent requests', async () => {
+      await Promise.all(Array.from({ length: 20 }, async () => { await contractExploitListener()(validRequest(), res) }))
+
+      expect(providers.length).to.equal(1)
+      expect(res.status).to.have.always.been.calledWith(200)
+    })
+
+    it('destroys a failed provider and throttles reconnects', async () => {
+      await contractExploitListener()(validRequest(), res)
+      providers[0].websocket.onerror(new Error('401'))
+
+      expect(providers[0].destroy.calledOnce).to.equal(true)
+      for (let i = 0; i < 10; i++) {
+        await contractExploitListener()(validRequest(), res)
+      }
+      expect(providers.length).to.equal(1)
+      expect(res.status).to.have.been.calledWith(500)
+
+      now = LISTENER_RETRY_DELAY_MS
+      await contractExploitListener()(validRequest(), res)
+      expect(providers.length).to.equal(2)
+    })
   })
 })
