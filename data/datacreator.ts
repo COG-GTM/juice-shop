@@ -39,6 +39,8 @@ import { variableDependencies, domainDependencies, preconditionResults } from '.
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 
 const entities = new Entities()
 
@@ -183,6 +185,8 @@ async function createChallenges () {
   }
 }
 
+const generatedAdminPasswordFile = path.resolve('data/generated-admin-password.txt')
+
 function adminCredentialEnvName (key: string, suffix: 'PASSWORD' | 'TOTP_SECRET') {
   return `JUICE_SHOP_${key.toUpperCase()}_${suffix}`
 }
@@ -193,7 +197,9 @@ function resolveAdminCredentials (key: string) {
   if (!password) {
     password = crypto.randomBytes(18).toString('base64url')
     if (key === 'admin') {
-      logger.warn(`No ${passwordEnvName} set: generated random password for admin account: ${password}`)
+      fs.writeFileSync(generatedAdminPasswordFile, `${password}\n`, { mode: 0o600 })
+      fs.chmodSync(generatedAdminPasswordFile, 0o600)
+      logger.warn(`No ${passwordEnvName} set: generated random password for admin account was written to ${generatedAdminPasswordFile}`)
     }
   }
   return { password, totpSecret: process.env[adminCredentialEnvName(key, 'TOTP_SECRET')] }
