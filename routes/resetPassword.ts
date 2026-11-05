@@ -47,6 +47,7 @@ export function resetPassword () {
           res.json({ user: { id: updatedUser.id, email: updatedUser.email } })
         }
       } else {
+        res.locals.wrongSecurityAnswer = true
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {

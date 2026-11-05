@@ -348,7 +348,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
   app.set('trust proxy', rateLimiting.trustedProxyHops()) // overrides the snippet's trust-all setting so X-Forwarded-For cannot pick the client address
-  app.use('/rest/user/reset-password', rateLimiting.accountRateLimit(rateLimiting.emailOf))
+  app.use('/rest/user/reset-password', rateLimiting.accountRateLimit(rateLimiting.emailOf, { isFailedAttempt: rateLimiting.wrongSecurityAnswer }))
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/

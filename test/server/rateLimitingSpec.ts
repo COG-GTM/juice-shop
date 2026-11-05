@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request } from 'express'
+import { type Request, type Response } from 'express'
 import chai from 'chai'
 
 import * as rateLimiting from '../../lib/rateLimiting'
@@ -49,6 +49,14 @@ describe('rateLimiting', () => {
       expect(rateLimiting.emailOf(requestWithBody({}))).to.equal(undefined)
       expect(rateLimiting.emailOf(requestWithBody({ email: '  ' }))).to.equal(undefined)
       expect(rateLimiting.emailOf(requestWithBody(undefined))).to.equal(undefined)
+    })
+  })
+
+  describe('wrongSecurityAnswer', () => {
+    it('only flags responses marked as a wrong security answer', () => {
+      const req = {} as unknown as Request
+      expect(rateLimiting.wrongSecurityAnswer(req, { locals: { wrongSecurityAnswer: true } } as unknown as Response)).to.equal(true)
+      expect(rateLimiting.wrongSecurityAnswer(req, { locals: {}, statusCode: 401 } as unknown as Response)).to.equal(false)
     })
   })
 })
