@@ -69,13 +69,26 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
-const loginSessionTokens = new Set<string>()
+const loginSessionExpiries = new Map<string, number>()
+function trackLoginSession (token: string) {
+  const now = Date.now()
+  for (const [sessionToken, expiry] of loginSessionExpiries) {
+    if (expiry <= now) loginSessionExpiries.delete(sessionToken)
+  }
+  const decoded = jws.decode(token)
+  const payload = typeof decoded?.payload === 'string' ? JSON.parse(decoded.payload) : decoded?.payload
+  if (typeof payload?.exp === 'number' && payload.exp * 1000 > now) loginSessionExpiries.set(token, payload.exp * 1000)
+}
+function isActiveLoginSession (token?: string) {
+  const expiry = token ? loginSessionExpiries.get(utils.unquote(token)) : undefined
+  return expiry !== undefined && expiry > Date.now()
+}
 export const loginSessions = {
-  start: (token: string) => { loginSessionTokens.add(token) },
+  start: trackLoginSession,
   renew: (previousToken: string | undefined, token: string) => {
-    if (previousToken && loginSessionTokens.has(utils.unquote(previousToken))) loginSessionTokens.add(token)
+    if (isActiveLoginSession(previousToken)) trackLoginSession(token)
   },
-  isActive: (token?: string) => !!token && loginSessionTokens.has(utils.unquote(token))
+  isActive: isActiveLoginSession
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
