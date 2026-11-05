@@ -8,6 +8,8 @@ import { ComplaintModel } from '../models/complaint'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
+const filterableAttributes = ['id', 'UserId', 'message', 'file']
+
 const callerFrom = (req: Request) => {
   const user = security.decode(utils.jwtFrom(req))?.data
   return user?.id === undefined || user?.id === null ? undefined : user
@@ -27,7 +29,12 @@ export const listComplaints = () => async (req: Request, res: Response) => {
   if (user === undefined) {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' })
   }
-  const where = user.role === security.roles.admin ? {} : { UserId: user.id }
+  const where: Record<string, string | number> = {}
+  for (const attribute of filterableAttributes) {
+    const value = req.query[attribute]
+    if (typeof value === 'string') where[attribute] = value
+  }
+  if (user.role !== security.roles.admin) where.UserId = user.id
   const complaints = await ComplaintModel.findAll({ where, order: [['id', 'ASC']] })
   res.json({ status: 'success', data: complaints })
 }
