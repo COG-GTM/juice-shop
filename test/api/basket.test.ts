@@ -233,6 +233,14 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.body.discount, 15)
   })
 
+  void it('PUT apply coupon above 99% reports the capped discount', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(security.generateCoupon(100000)))
+      .set(authHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.discount, 99)
+  })
+
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/xxxxxxxxxx')

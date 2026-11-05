@@ -6,6 +6,7 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function applyCoupon () {
   return async ({ params }: Request, res: Response, next: NextFunction) => {
@@ -23,7 +24,7 @@ export function applyCoupon () {
 
       await basket.update({ coupon: coupon?.toString() })
       if (discount) {
-        return res.json({ discount })
+        return res.json({ discount: utils.capDiscount(discount) })
       } else {
         return res.status(404).send('Invalid coupon.')
       }
