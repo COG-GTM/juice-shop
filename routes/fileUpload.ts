@@ -79,7 +79,7 @@ function containsDtd (data: string) {
 const xmlToken = /<\?[\s\S]*?(?:\?>|$)|<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<!ENTITY\s+(%\s+)?([^\s%>"']+)\s+(SYSTEM\s+|PUBLIC\s+(?:"[^"]*"|'[^']*')\s+)?("[^"]*"|'[^']*')[^>]*>?|<![a-z][^>"'[]*(?:(?:"[^"]*"?|'[^']*'?)[^>"'[]*)*(\[?)|(\])|<[a-z_:][^>"']*(?:(?:"[^"]*"?|'[^']*'?)[^>"']*)*>?|([&%])([^\s;&%#<>"'[\]]+);/gi
 const fileDisclosureTarget = /^file:\/\/\/?(?:etc\/passwd|[a-z]:\/windows\/system\.ini)$/i
 const devRandomTarget = /^file:\/\/\/?dev\/u?random$/i
-const maxParameterEntityDepth = 8
+const maxParameterEntityDepth = 40
 
 function parseXmlWithoutEntities (data: string) {
   const sandbox = { libxml, data }
@@ -129,7 +129,7 @@ function reachableExternalEntities (data: string) {
     }
   }
   scan(data, false, 0)
-  if (!isWellFormedWithoutDtd(data, doctypeEnd, declarations)) return []
+  if (!isWellFormedWithoutExpansion(data, doctypeEnd, declarations)) return []
   const visited = new Set<string>()
   const externalTargets: string[] = []
   while (pending.length > 0) {
@@ -140,18 +140,19 @@ function reachableExternalEntities (data: string) {
     if (declaration.external) {
       externalTargets.push(declaration.value)
     } else {
-      pending.push(...contentReferences(declaration.value))
+      for (const reference of contentReferences(declaration.value)) pending.push(reference)
     }
   }
   return externalTargets
 }
 
-function isWellFormedWithoutDtd (data: string, doctypeEnd: number, declarations: Map<string, unknown>) {
+function isWellFormedWithoutExpansion (data: string, doctypeEnd: number, declarations: Map<string, unknown>) {
   if (doctypeEnd < 0) return false
   const body = data.slice(doctypeEnd + 1).replace(/&([^\s;&%#<>"'[\]]+);/g, (reference: string, name: string) => declarations.has('&' + name) ? '' : reference)
   if (containsDtd(body)) return false
   try {
     parseXmlWithoutEntities(body)
+    parseXmlWithoutEntities(data.slice(0, doctypeEnd + 1) + body)
     return true
   } catch {
     return false
