@@ -6,7 +6,7 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +62,62 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('handleYamlUpload', () => {
+    const { deprecatedInterfaceChallenge, yamlBombChallenge } = challenges
+
+    afterEach(() => {
+      challenges.deprecatedInterfaceChallenge = deprecatedInterfaceChallenge
+      challenges.yamlBombChallenge = yamlBombChallenge
+    })
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: true, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: true, save } as unknown as Challenge
+      res = { status: () => res, end: () => {} }
+    })
+
+    it('should not construct or invoke !!js/function values from uploaded YAML', () => {
+      (globalThis as any).yamlFunctionInvoked = false
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('toJSON: !!js/function "function () { globalThis.yamlFunctionInvoked = true; return \'pwned\' }"') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+      expect((globalThis as any).yamlFunctionInvoked).to.equal(false)
+      expect(error?.message).to.contain('unknown tag')
+      delete (globalThis as any).yamlFunctionInvoked
+    })
+
+    for (const tag of ['!!js/undefined ""', '!!js/regexp /pwned/']) {
+      it(`should reject ${tag.split(' ')[0]} tags from uploaded YAML`, () => {
+        req.file = { originalname: 'complaint.yml', buffer: Buffer.from(`value: ${tag}`) }
+        let error: Error | undefined
+
+        handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+        expect(error?.message).to.contain('unknown tag')
+      })
+    }
+
+    it('should not echo the offending YAML source in parse errors', () => {
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('toJSON: !!js/function \'function(){ return 42 }\'') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+      expect(error?.message).to.contain('unknown tag')
+      expect(error?.message).to.not.contain('42')
+    })
+
+    it('should still echo plain YAML content in the deprecation error', () => {
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+      expect(error?.message).to.contain('{"message":"hello"}')
+    })
   })
 })
