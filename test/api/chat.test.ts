@@ -5,10 +5,13 @@
 
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login, register } from './helpers/auth'
 
 const MOCK_LLM_PORT = 43210
 
@@ -70,6 +73,42 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   }
   res.write('data: [DONE]\n\n')
   res.end()
+}
+
+async function getOrderByIdToolResult (token: string, orderId: string): Promise<string> {
+  let toolResult = ''
+  onLlmRequest = (_req, body, res) => {
+    let messages: Array<{ role: string, content?: string }> = []
+    try {
+      messages = JSON.parse(body).messages ?? []
+    } catch {}
+    const toolMsg = messages.find((m) => m.role === 'tool')
+    if (toolMsg) {
+      toolResult = toolMsg.content ?? ''
+      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
+    } else {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+  assert.equal(res.status, 200)
+  return toolResult
+}
+
+async function firstAdminOrderId (adminToken: string): Promise<string> {
+  const res = await request(app)
+    .get('/rest/order-history')
+    .set({ Authorization: 'Bearer ' + adminToken, 'content-type': 'application/json' })
+  assert.equal(res.status, 200)
+  return res.body.data[0].orderId
 }
 
 before(async () => {
@@ -205,6 +244,31 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST getOrderById returns an order to its owner', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(token)
+
+    const toolResult = await getOrderByIdToolResult(token, orderId)
+
+    assert.ok(toolResult.includes(orderId))
+    assert.ok(toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById denies an account whose email only differs in vowels from the owner', { timeout: 15000 }, async () => {
+    const domain = config.get<string>('application.domain')
+    const { token: adminToken } = await login(app, { email: 'admin@' + domain, password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+
+    const lookalike = { email: 'edmin@' + domain, password: randomUUID() }
+    await register(app, lookalike)
+    const { token } = await login(app, lookalike)
+
+    const toolResult = await getOrderByIdToolResult(token, orderId)
+
+    assert.ok(toolResult.includes('Order does not belong to the current customer'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
