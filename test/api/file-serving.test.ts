@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -201,10 +202,44 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file is denied without authentication', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log folder listing is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is denied for non-admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })}`)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is allowed for admin users', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('access log does not record query string parameters such as passwords', async () => {
+    await request(app)
+      .get('/rest/user/change-password?current=leakedOld123&new=leakedNew123&repeat=leakedNew123')
+    await new Promise(resolve => setTimeout(resolve, 200))
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`)
+    assert.equal(res.status, 200)
+    const log = Buffer.isBuffer(res.body) ? res.body.toString() : res.text
+    assert.ok(log.includes('/rest/user/change-password'))
+    assert.ok(!log.includes('leakedNew123'))
+    assert.ok(!log.includes('leakedOld123'))
   })
 })
