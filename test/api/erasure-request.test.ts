@@ -118,6 +118,19 @@ void describe('/dataerasure', () => {
     assert.equal(await deletionRequestCount(), before)
   })
 
+  void it('POST erasure request without body is rejected and records nothing', async () => {
+    const { token } = await erasureSession()
+    const before = await deletionRequestCount()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Invalid or missing anti-forgery token'))
+    assert.equal(await deletionRequestCount(), before)
+  })
+
   void it('POST erasure request with anti-forgery token of another session is rejected', async () => {
     const { token } = await erasureSession()
     const other = await login(app, { email: 'bjoern@juice-sh.op', password: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase' })

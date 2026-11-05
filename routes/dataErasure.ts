@@ -92,7 +92,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       return
     }
 
-    if (!safeEqual(req.body._csrf, csrfTokenFor(req.cookies.token))) {
+    if (!safeEqual(req.body?._csrf, csrfTokenFor(req.cookies.token))) {
       res.status(403)
       next(new Error('Invalid or missing anti-forgery token'))
       return
