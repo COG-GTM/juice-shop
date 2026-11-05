@@ -16,7 +16,7 @@ import * as utils from '../lib/utils'
 export function upgradeToDeluxe () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = await UserModel.findOne({ where: { id: req.body.UserId, role: security.roles.customer } })
+      const user = await UserModel.scope('withSecrets').findOne({ where: { id: req.body.UserId, role: security.roles.customer } })
       if (user == null) {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
         return
