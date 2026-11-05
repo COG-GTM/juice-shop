@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { BJOERN_GOOGLE_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
@@ -114,7 +115,7 @@ void describe('/api/Feedbacks', () => {
   void it('POST feedback is associated with current user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
 
     const captchaRes = await request(app)
@@ -140,7 +141,7 @@ void describe('/api/Feedbacks', () => {
   void it('POST feedback is associated with any passed user ID', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
 
     const captchaRes = await request(app)

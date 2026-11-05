@@ -11,6 +11,7 @@ import config from 'config'
 import * as security from '../../lib/insecurity'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import { createTestApp } from './helpers/setup'
+import { ADMIN_PASSWORD, BJOERN_GOOGLE_PASSWORD, SUPPORT_PASSWORD } from './helpers/adminCredentials'
 
 const christmasProduct = config.get<ProductConfig[]>('products').filter(({ useForChristmasSpecialChallenge }) => useForChristmasSpecialChallenge)[0]
 const pastebinLeakProduct = config.get<ProductConfig[]>('products').filter(({ keywordsForPastebinDataLeakChallenge }) => keywordsForPastebinDataLeakChallenge)[0]
@@ -95,7 +96,7 @@ void describe('/rest/products/search', () => {
     assert.ok(res.headers['content-type']?.includes('application/json'))
 
     const adminMatch = res.body.data.find((item: any) =>
-      item.id === 1 && item.price === `admin@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('admin123')
+      item.id === 1 && item.price === `admin@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash(ADMIN_PASSWORD)
     )
     assert.ok(adminMatch, 'Expected admin user in UNION SELECT results')
 
@@ -110,7 +111,7 @@ void describe('/rest/products/search', () => {
     assert.ok(benderMatch, 'Expected bender user in UNION SELECT results')
 
     const bjoernMatch = res.body.data.find((item: any) =>
-      item.id === 4 && item.price === 'bjoern.kimminich@gmail.com' && item.deluxePrice === security.hash('bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=')
+      item.id === 4 && item.price === 'bjoern.kimminich@gmail.com' && item.deluxePrice === security.hash(BJOERN_GOOGLE_PASSWORD)
     )
     assert.ok(bjoernMatch, 'Expected bjoern user in UNION SELECT results')
 
@@ -120,7 +121,7 @@ void describe('/rest/products/search', () => {
     assert.ok(cisoMatch, 'Expected ciso user in UNION SELECT results')
 
     const supportMatch = res.body.data.find((item: any) =>
-      item.id === 6 && item.price === `support@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash('J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P')
+      item.id === 6 && item.price === `support@${config.get<string>('application.domain')}` && item.deluxePrice === security.hash(SUPPORT_PASSWORD)
     )
     assert.ok(supportMatch, 'Expected support user in UNION SELECT results')
   })

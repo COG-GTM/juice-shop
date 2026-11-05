@@ -250,6 +250,11 @@ jobs:
         run: npm install -g @angular/cli
       - name: "Install application"
         run: npm install
+      - name: "Generate admin password for end-to-end tests"
+        run: |
+          ADMIN_PASSWORD=$(openssl rand -base64 24)
+          echo "::add-mask::$ADMIN_PASSWORD"
+          echo "JUICE_SHOP_ADMIN_PASSWORD=$ADMIN_PASSWORD" >> "$GITHUB_ENV"
       - name: "Execute end-to-end tests on Ubuntu"
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: cypress-io/github-action@57b70560982e6a11d23d4b8bec7f8a487cdbb71b #v6.7.8

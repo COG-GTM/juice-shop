@@ -12,14 +12,12 @@ import { PrivacyPolicyInstruction } from './challenges/privacyPolicy'
 import { LoginJimInstruction } from './challenges/loginJim'
 import { ViewBasketInstruction } from './challenges/viewBasket'
 import { ForgedFeedbackInstruction } from './challenges/forgedFeedback'
-import { PasswordStrengthInstruction } from './challenges/passwordStrength'
 import { BonusPayloadInstruction } from './challenges/bonusPayload'
 import { LoginBenderInstruction } from './challenges/loginBender'
 import { TutorialUnavailableInstruction } from './tutorialUnavailable'
 import { CodingChallengesInstruction } from './challenges/codingChallenges'
 import { AdminSectionInstruction } from './challenges/adminSection'
 import { ReflectedXssInstruction } from './challenges/reflectedXss'
-import { ExposedCredentialsInstruction } from './challenges/exposedCredentials'
 
 const challengeInstructions: ChallengeInstruction[] = [
   ScoreBoardInstruction,
@@ -29,13 +27,11 @@ const challengeInstructions: ChallengeInstruction[] = [
   PrivacyPolicyInstruction,
   ViewBasketInstruction,
   ForgedFeedbackInstruction,
-  PasswordStrengthInstruction,
   BonusPayloadInstruction,
   LoginBenderInstruction,
   CodingChallengesInstruction,
   AdminSectionInstruction,
-  ReflectedXssInstruction,
-  ExposedCredentialsInstruction
+  ReflectedXssInstruction
 ]
 
 export interface ChallengeInstruction {

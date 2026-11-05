@@ -53,7 +53,7 @@ describe('/rest/products/search', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
-        password: 'admin123'
+        password: Cypress.env('adminPassword')
       })
     })
 
@@ -80,7 +80,7 @@ describe('/rest/products/search', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
-        password: 'admin123'
+        password: Cypress.env('adminPassword')
       })
     })
 

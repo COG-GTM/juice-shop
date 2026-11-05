@@ -69,7 +69,7 @@ void describe('Required Internet resource', () => {
     const res = await fetch('https://pastebin.com/4U1V1UjU')
     const body = await res.text()
     assert.equal(res.status, 200)
-    assert.ok(body.includes('current=0Y8rMnww$*9VFYE%C2%A759-!Fg1L6t&amp;6lB'))
+    assert.ok(body.includes('/rest/user/change-password?current='))
   })
 
   void it('StackOverflow question "Less verbose access logs using expressjs/morgan" with log snippet and PasteBin paste URL spoiler available', async () => {
