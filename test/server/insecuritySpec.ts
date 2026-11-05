@@ -300,6 +300,27 @@ describe('insecurity', () => {
     })
   })
 
+  describe('secretOrDerived', () => {
+    const { privateKey } = security.loadJwtKeyPair({})
+
+    it('uses a configured secret', () => {
+      expect(security.secretOrDerived('configured', privateKey, 'deluxe-token')).to.equal('configured')
+    })
+
+    it('derives a stable secret from the JWT signing key when unset or empty', () => {
+      const derived = security.secretOrDerived(undefined, privateKey, 'deluxe-token')
+      expect(derived).to.match(/^[0-9a-f]{64}$/)
+      expect(security.secretOrDerived('', privateKey, 'deluxe-token')).to.equal(derived)
+    })
+
+    it('derives independent secrets per purpose and per signing key', () => {
+      const derived = security.secretOrDerived(undefined, privateKey, 'deluxe-token')
+      expect(security.secretOrDerived(undefined, privateKey, 'hmac')).to.not.equal(derived)
+      expect(security.secretOrDerived(undefined, security.loadJwtKeyPair({}).privateKey, 'deluxe-token')).to.not.equal(derived)
+      expect(derived).to.not.equal(crypto.createHmac('sha256', privateKey).update('deluxe-token').digest('hex'))
+    })
+  })
+
   describe('verify', () => {
     const forge = (alg: string, sign: (input: string) => string) => {
       const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
