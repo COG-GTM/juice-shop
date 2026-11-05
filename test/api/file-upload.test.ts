@@ -113,6 +113,17 @@ void describe('/file-upload', () => {
     })
   }
 
+  if (utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
+    void it('POST file type YAML does not instantiate JavaScript functions', async () => {
+      const file = path.resolve(__dirname, '../files/yamlFunction.yml')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('pwned'))
+    })
+  }
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
