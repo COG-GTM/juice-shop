@@ -22,6 +22,7 @@ import * as z85 from 'z85'
 
 export const generateSecret = () => crypto.randomBytes(32).toString('hex')
 export const secretOrRandom = (value?: string) => value !== undefined && value !== '' ? value : generateSecret()
+export const secretOrDerived = (value: string | undefined, key: string, purpose: string) => value !== undefined && value !== '' ? value : crypto.createHmac('sha256', key).update('juice-shop:' + purpose).digest('hex')
 
 export const isPathInside = (dir: string, file: string, pathLib: path.PlatformPath = path) => {
   const relative = pathLib.relative(dir, file)
@@ -55,8 +56,8 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
 const jwtKeyPair = loadJwtKeyPair()
 const privateKey = jwtKeyPair.privateKey
 export const publicKey = jwtKeyPair.publicKey
-const hmacSecret = secretOrRandom(process.env.JUICE_SHOP_HMAC_SECRET)
-const deluxeTokenSecret = secretOrRandom(process.env.JUICE_SHOP_DELUXE_TOKEN_SECRET)
+const hmacSecret = secretOrDerived(process.env.JUICE_SHOP_HMAC_SECRET, privateKey, 'hmac')
+const deluxeTokenSecret = secretOrDerived(process.env.JUICE_SHOP_DELUXE_TOKEN_SECRET, privateKey, 'deluxe-token')
 
 interface ResponseWithUser {
   status?: string
