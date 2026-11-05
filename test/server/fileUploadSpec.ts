@@ -85,6 +85,8 @@ describe('fileUpload', () => {
       '../../node_modules/svg-captcha/index.js',
       '../../node_modules/pug/lib/index.js',
       '../../data/static/users.yml',
+      '../../config/default.yml',
+      '../../node_modules/pdfkit/js/pdfkit.js',
       '../../test-zip-slip.txt',
       '../../views/promotionVideo.pug',
       '../../views/userProfile.pug',
