@@ -56,7 +56,6 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private resizeObserver?: ResizeObserver
   public emptyState = false
 
-  // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
     const products = this.productService.search('')
     const quantities = this.quantityService.getAll()
@@ -93,17 +92,15 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
         this.routerSubscription = this.router.events.subscribe(() => {
           this.filterTable()
         })
-        const challenge: string = this.route.snapshot.queryParams.challenge // vuln-code-snippet hide-start
+        const challenge: string = this.route.snapshot.queryParams.challenge
         if (challenge && this.route.snapshot.url.join('').match(/hacking-instructor/)) {
           this.startHackingInstructor(decodeURIComponent(challenge))
-        } // vuln-code-snippet hide-end
+        }
         this.cdRef.detectChanges()
       },
       error: (err) => { console.log(err) }
     })
   }
-
-  // vuln-code-snippet end restfulXssChallenge
 
   ngOnDestroy () {
     if (this.routerSubscription) {
