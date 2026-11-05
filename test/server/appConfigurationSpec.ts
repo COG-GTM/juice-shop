@@ -56,6 +56,17 @@ describe('appConfiguration', () => {
     expect(returnedConfig).to.not.have.property('server')
   })
 
+  it('should not expose fields that are not explicitly allowlisted inside public sections', () => {
+    const returnedConfig = retrieveConfig()
+    expect(Object.keys(returnedConfig.application.social)).to.have.members(Object.keys(config.util.toObject(config.get('application.social'))))
+    expect(returnedConfig.challenges).to.not.have.property('xssBonusPayload')
+    expect(returnedConfig.challenges).to.not.have.property('csafHashValue')
+    expect(returnedConfig.ctf).to.not.have.property('countryMapping')
+    for (const redirect of returnedConfig.application.googleOauth.authorizedRedirects) {
+      expect(Object.keys(redirect)).to.satisfy((keys: string[]) => keys.every(key => ['uri', 'proxy'].includes(key)))
+    }
+  })
+
   it('should not expose any security answers', () => {
     const serializedConfig = JSON.stringify(retrieveConfig())
     expect(serializedConfig).to.not.match(/SecurityAnswer/)

@@ -6,62 +6,113 @@
 import config from 'config'
 import { type Request, type Response } from 'express'
 
-const publicConfigPaths = [
-  'application.domain',
-  'application.name',
-  'application.logo',
-  'application.favicon',
-  'application.theme',
-  'application.showVersionNumber',
-  'application.showGitHubLinks',
-  'application.localBackupEnabled',
-  'application.altcoinName',
-  'application.privacyContactEmail',
-  'application.social',
-  'application.chatBot.name',
-  'application.chatBot.avatar',
-  'application.chatBot.sampleQuestions',
-  'application.recyclePage',
-  'application.welcomeBanner',
-  'application.cookieConsent',
-  'application.securityTxt',
-  'application.promotion',
-  'application.googleOauth.clientId',
-  'application.googleOauth.authorizedRedirects',
-  'challenges.showSolvedNotifications',
-  'challenges.showHints',
-  'challenges.showMitigations',
-  'challenges.codingChallengesEnabled',
-  'challenges.restrictToTutorialsFirst',
-  'challenges.safetyMode',
-  'hackingInstructor.isEnabled',
-  'hackingInstructor.avatarImage',
-  'hackingInstructor.hintPlaybackSpeed',
-  'ctf.showFlagsInNotifications',
-  'ctf.showCountryDetailsInNotifications',
-  'ctf.systemWideNotifications.url',
-  'ctf.systemWideNotifications.pollFrequencySeconds'
-]
+type PublicConfigSpec = true | PublicConfigSpec[] | { [key: string]: PublicConfigSpec }
 
-function buildPublicConfig () {
-  const publicConfig: Record<string, any> = {}
-  for (const path of publicConfigPaths) {
-    if (!config.has(path)) continue
-    const keys = path.split('.')
-    const leaf = keys.pop() as string
-    let target = publicConfig
-    for (const key of keys) {
-      target[key] ??= {}
-      target = target[key]
+const publicConfigSpec: PublicConfigSpec = {
+  application: {
+    domain: true,
+    name: true,
+    logo: true,
+    favicon: true,
+    theme: true,
+    showVersionNumber: true,
+    showGitHubLinks: true,
+    localBackupEnabled: true,
+    altcoinName: true,
+    privacyContactEmail: true,
+    social: {
+      blueSkyUrl: true,
+      mastodonUrl: true,
+      twitterUrl: true,
+      facebookUrl: true,
+      slackUrl: true,
+      redditUrl: true,
+      pressKitUrl: true,
+      nftUrl: true,
+      questionnaireUrl: true
+    },
+    chatBot: {
+      name: true,
+      avatar: true,
+      sampleQuestions: true
+    },
+    recyclePage: {
+      topProductImage: true,
+      bottomProductImage: true
+    },
+    welcomeBanner: {
+      showOnFirstStart: true,
+      title: true,
+      message: true
+    },
+    cookieConsent: {
+      message: true,
+      dismissText: true,
+      linkText: true,
+      linkUrl: true
+    },
+    securityTxt: {
+      contact: true,
+      encryption: true,
+      acknowledgements: true,
+      hiring: true,
+      csaf: true
+    },
+    promotion: {
+      video: true,
+      subtitles: true
+    },
+    googleOauth: {
+      clientId: true,
+      authorizedRedirects: [{ uri: true, proxy: true }]
     }
-    const value = config.get(path)
-    target[leaf] = value !== null && typeof value === 'object' ? structuredClone(config.util.toObject(value)) : value
+  },
+  challenges: {
+    showSolvedNotifications: true,
+    showHints: true,
+    showMitigations: true,
+    codingChallengesEnabled: true,
+    restrictToTutorialsFirst: true,
+    safetyMode: true
+  },
+  hackingInstructor: {
+    isEnabled: true,
+    avatarImage: true,
+    hintPlaybackSpeed: true
+  },
+  ctf: {
+    showFlagsInNotifications: true,
+    showCountryDetailsInNotifications: true,
+    systemWideNotifications: {
+      url: true,
+      pollFrequencySeconds: true
+    }
   }
-  return publicConfig
+}
+
+const isPrimitive = (value: unknown) => value === null || typeof value !== 'object'
+
+function pickPublic (value: any, spec: PublicConfigSpec): any {
+  if (spec === true) {
+    if (isPrimitive(value)) return value
+    if (Array.isArray(value) && value.every(isPrimitive)) return [...value]
+    return undefined
+  }
+  if (Array.isArray(spec)) {
+    return Array.isArray(value) ? value.map((item) => pickPublic(item, spec[0])) : undefined
+  }
+  if (isPrimitive(value) || Array.isArray(value)) return undefined
+  const result: Record<string, any> = {}
+  for (const key of Object.keys(spec)) {
+    if (value[key] === undefined) continue
+    const picked = pickPublic(value[key], spec[key])
+    if (picked !== undefined) result[key] = picked
+  }
+  return result
 }
 
 export function retrieveAppConfiguration () {
   return (_req: Request, res: Response) => {
-    res.json({ config: buildPublicConfig() })
+    res.json({ config: pickPublic(config.util.toObject(config), publicConfigSpec) })
   }
 }
