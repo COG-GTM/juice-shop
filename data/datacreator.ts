@@ -744,7 +744,7 @@ async function createOrders () {
   ]
 
   const adminEmail = 'admin@' + config.get<string>('application.domain')
-  const demoEmail = 'demo@' + config.get<string>('application.domain')
+  const demoEmail = 'demo'
   const adminUser = await UserModel.findOne({ where: { email: adminEmail } })
   const demoUser = await UserModel.findOne({ where: { email: demoEmail } })
   const orders = [
