@@ -260,3 +260,23 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 })
+
+void describe('/rest/user/reset-password brute force protection', () => {
+  void it('POST password reset is blocked after 10 wrong answers for the same account despite rotating X-Forwarded-For', async () => {
+    const email = 'lockout-test@' + config.get<string>('application.domain')
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ email, answer: `wrong${i}`, new: 'abcdef', repeat: 'abcdef' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.1.1' })
+      .send({ email: email.toUpperCase(), answer: 'wrong', new: 'abcdef', repeat: 'abcdef' })
+
+    assert.equal(res.status, 429)
+  })
+})

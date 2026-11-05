@@ -94,6 +94,31 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should be blocked after 10 invalid totp tokens for the same user', async () => {
+    const tmpToken = security.authorize({
+      userId: 4711,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ tmpToken, totpToken: '000000' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ ...jsonHeader, 'X-Forwarded-For': '10.0.1.1' })
+      .send({
+        tmpToken: security.authorize({ userId: 4711, type: 'password_valid_needs_second_factor_token' }),
+        totpToken: '000000'
+      })
+
+    assert.equal(res.status, 429)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
