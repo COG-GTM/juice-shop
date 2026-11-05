@@ -76,6 +76,15 @@ describe('insecurity', () => {
       expect(security.couponSigningKeyIn(directory)).to.equal(security.couponSigningKeyIn(directory))
     })
 
+    it('restricts access to an existing key file to its owner', function () {
+      if (process.platform === 'win32') this.skip()
+      const keyFile = path.join(directory, 'juiceshop.coupon.key')
+      fs.writeFileSync(keyFile, 'a'.repeat(64), { mode: 0o644 })
+      fs.chmodSync(keyFile, 0o644)
+      expect(security.couponSigningKeyIn(directory)).to.equal('a'.repeat(64))
+      expect(fs.statSync(keyFile).mode & 0o777).to.equal(0o600)
+    })
+
     it('returns a key even when the directory cannot be written to', () => {
       expect(security.couponSigningKeyIn(path.join(directory, 'missing'))).to.match(/^[0-9a-f]{64}$/)
     })
