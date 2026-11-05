@@ -12,6 +12,7 @@ import { SecurityAnswerModel } from '../models/securityAnswer'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { markFailedAttempt } from '../lib/rateLimiting'
 import { UserModel } from '../models/user'
 
 export function resetPassword () {
@@ -47,6 +48,7 @@ export function resetPassword () {
           res.json({ user: { id: updatedUser.id, email: updatedUser.email } })
         }
       } else {
+        markFailedAttempt(res)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
