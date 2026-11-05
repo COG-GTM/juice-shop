@@ -19,6 +19,18 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/api/PrivacyRequests', () => {
+  void it('POST new privacy request ignores a passed user ID of another user', async () => {
+    const res = await request(app)
+      .post('/api/PrivacyRequests')
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } }), 'content-type': 'application/json' })
+      .send({
+        UserId: 1,
+        deletionRequested: true
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 2)
+  })
+
   void it('POST new complaint', async () => {
     const res = await request(app)
       .post('/api/PrivacyRequests')
