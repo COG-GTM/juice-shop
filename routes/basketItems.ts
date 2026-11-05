@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -62,17 +63,81 @@ export function quantityCheckBeforeBasketItemAddition () {
     })
   }
 }
+
+function callerUserId (req: Request): number | undefined {
+  const cachedId = security.authenticatedUsers.from(req)?.data?.id
+  if (cachedId != null) {
+    return cachedId
+  }
+  const token = utils.jwtFrom(req)
+  return token && security.verify(token) ? (security.decode(token) as { data?: { id?: number } } | undefined)?.data?.id : undefined
+}
+
+async function findOwnBasketItem (req: Request, userId: number) {
+  const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+  if (item?.BasketId == null) {
+    return null
+  }
+  const basket = await BasketModel.findOne({ where: { id: item.BasketId, UserId: userId } })
+  return basket != null ? item : null
+}
+
+export function onlyOwnBasketItemsInList () {
+  return async (req: Request, res: Response, context: { instance: Array<{ BasketId?: number | null }>, continue: any }) => {
+    const userId = callerUserId(req)
+    if (userId == null) {
+      context.instance = []
+      return context.continue
+    }
+    const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+    const ownBasketIds = new Set(baskets.map(({ id }) => id))
+    context.instance = context.instance.filter(item => item.BasketId != null && ownBasketIds.has(item.BasketId))
+    return context.continue
+  }
+}
+
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = callerUserId(req)
+      if (userId == null) {
+        res.status(401).json({ error: 'Unauthorized' })
+        return
+      }
+      if (await findOwnBasketItem(req, userId) == null) {
+        res.status(403).json({ error: 'Not allowed' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function quantityCheckBeforeBasketItemUpdate () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
-      const user = security.authenticatedUsers.from(req)
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (req.body.quantity) {
-        if (item == null) {
-          throw new Error('No such item found!')
-        }
-        void quantityCheck(req, res, next, item.ProductId, req.body.quantity)
+      const userId = callerUserId(req)
+      if (userId == null) {
+        res.status(401).json({ error: 'Unauthorized' })
+        return
+      }
+      const item = await findOwnBasketItem(req, userId)
+      if (item == null) {
+        res.status(403).json({ error: 'Not allowed' })
+        return
+      }
+      const rawQuantity = req.body?.quantity
+      const quantity = typeof rawQuantity === 'string' && /^-?\d+$/.test(rawQuantity) ? Number(rawQuantity) : rawQuantity
+      const otherFields = Object.keys(req.body ?? {}).filter(key => key !== 'quantity' && key !== 'UserId')
+      if (otherFields.length > 0 || !Number.isSafeInteger(quantity)) {
+        res.status(400).json({ error: 'Only the quantity of a basket item can be updated.' })
+        return
+      }
+      req.body = { quantity }
+      if (quantity) {
+        await quantityCheck(req, res, next, item.ProductId, quantity)
       } else {
         next()
       }
