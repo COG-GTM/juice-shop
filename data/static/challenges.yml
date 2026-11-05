@@ -1492,17 +1492,6 @@
   mitigationUrl: ~
   key: csafChallenge
 -
-  name: 'Exposed credentials'
-  category: 'Sensitive Data Exposure'
-  description: 'A developer was careless with hardcoding unused, but still valid credentials for a testing account on the client-side.'
-  difficulty: 2
-  hints:
-    - 'Have a look at the client-side code in the dev console.'
-  mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html'
-  key: exposedCredentialsChallenge
-  tutorial:
-    order: 6
--
   name: 'Leaked API Key'
   category: 'Sensitive Data Exposure'
   description: '<a href="/#/contact">Inform the shop</a> about a leaked API key. (Mention the exact key in your comment)'
