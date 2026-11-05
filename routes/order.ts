@@ -17,6 +17,7 @@ import { QuantityModel } from '../models/quantity'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
+import { CardModel } from '../models/card'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
@@ -41,6 +42,11 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id, UserId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const paymentId = req.body.orderDetails?.paymentId
+          if (paymentId !== 'wallet' && !await isUsableCardOfUser(paymentId, UserId)) {
+            res.status(400).json({ status: 'error', error: 'Invalid payment method.' })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -183,6 +189,18 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function isUsableCardOfUser (paymentId: unknown, UserId: number) {
+  if ((typeof paymentId !== 'string' && typeof paymentId !== 'number') || !/^[1-9]\d*$/.test(String(paymentId))) {
+    return false
+  }
+  const card = await CardModel.findOne({ where: { id: Number(paymentId), UserId } })
+  if (card == null) {
+    return false
+  }
+  const now = new Date()
+  return card.expYear > now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth - 1 >= now.getMonth())
 }
 
 async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {

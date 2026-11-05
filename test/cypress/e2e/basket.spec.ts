@@ -34,6 +34,13 @@ describe('/#/basket', () => {
       })
 
       it('should be possible to place an order with a negative total amount', () => {
+        cy.window().then(async () => {
+          const response = await fetch(`${Cypress.config('baseUrl')}/api/Cards`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+          const cards = await response.json()
+          window.sessionStorage.paymentId = cards.data[0].id
+        })
         cy.visit('/#/order-summary')
         cy.get('#checkoutButton').click()
         cy.expectChallengeSolved({ challenge: 'Payback Time' })
@@ -142,6 +149,8 @@ describe('/#/basket', () => {
           cy.get('#coupon').type(coupon)
           cy.get('#applyCouponButton').click()
         })
+        cy.get('.mat-mdc-radio-button').first().click()
+        cy.get('.nextButton').click()
       })
 
       it('should be possible to place an order with a forged coupon', () => {

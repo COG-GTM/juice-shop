@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
+import { CardModel } from '../../models/card'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -125,14 +126,53 @@ void describe('/rest/basket/:id', () => {
   })
 })
 
+async function usableCardId (header: { Authorization: string, 'content-type': string }) {
+  const cards = (await request(app).get('/api/Cards').set(header)).body.data
+  if (cards.length > 0) return cards[0].id
+  const res = await request(app).post('/api/Cards').set(header).send({ fullName: 'Test Buyer', cardNum: 4111111111111111, expMonth: 12, expYear: 2090 })
+  assert.equal(res.status, 201)
+  return res.body.data.id
+}
+
 void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a basket is not allowed via public API', async () => {
     const res = await request(app).post('/rest/basket/1/checkout')
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for the own basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+  void it('POST placing an order without a payment method is rejected and leaves the basket untouched', async () => {
+    const itemsBefore = await BasketItemModel.count({ where: { BasketId: 2 } })
+    assert.ok(itemsBefore > 0)
+
+    for (const orderDetails of [undefined, { paymentId: 'card' }, { paymentId: 4711 }, { paymentId: { $gt: 0 } }]) {
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid payment method.')
+    }
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 2 } }), itemsBefore)
+  })
+
+  void it('POST placing an order paid with another user\'s card is rejected', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderCardId = await usableCardId({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    const walletBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: benderCardId } })
+    assert.equal(res.status, 400)
+    assert.equal((await request(app).get('/rest/wallet/balance').set(authHeader)).body.data, walletBefore)
+  })
+
+  void it('POST placing an order paid with an expired own card is rejected', async () => {
+    const cardRes = await request(app).post('/api/Cards').set(authHeader).send({ fullName: 'Jim', cardNum: 4111111111111111, expMonth: 1, expYear: 2081 })
+    assert.equal(cardRes.status, 201)
+    await CardModel.update({ expYear: 2001 }, { where: { id: cardRes.body.data.id }, validate: false })
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: cardRes.body.data.id } })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST placing an order for the own basket paid with an own card returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: await usableCardId(authHeader) } })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -159,7 +199,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: await usableCardId(authHeader) } })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -191,7 +231,7 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(couponRes.headers['content-type']?.includes('application/json'))
     assert.equal(couponRes.body.discount, 99)
 
-    const res = await request(app).post(`/rest/basket/${ownBasketId}/checkout`).set(authHeader)
+    const res = await request(app).post(`/rest/basket/${ownBasketId}/checkout`).set(authHeader).send({ orderDetails: { paymentId: await usableCardId(authHeader) } })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -278,7 +318,7 @@ void describe('/rest/basket/:id/checkout with campaign couponData', () => {
     const res = await request(app)
       .post(`/rest/basket/${bid}/checkout`)
       .set(accountantHeader)
-      .send({ couponData })
+      .send({ couponData, orderDetails: { paymentId: await usableCardId(accountantHeader) } })
     assert.equal(res.status, 200)
 
     const historyRes = await request(app).get('/rest/order-history').set(accountantHeader)
