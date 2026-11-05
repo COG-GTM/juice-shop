@@ -13,7 +13,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -21,14 +21,33 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
-  void it('GET all users with password replaced by asterisks', async () => {
+  void it('GET all users is forbidden without authentication', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users is forbidden for non-admin users', async () => {
+    for (const role of [security.roles.customer, security.roles.deluxe, security.roles.accounting]) {
+      const res = await request(app)
+        .get('/rest/user/authentication-details')
+        .set({ Authorization: `Bearer ${security.authorize({ data: { email: `${role}@juice-sh.op`, role } })}` })
+
+      assert.equal(res.status, 403, `Expected 403 for role ${role}`)
+    }
+  })
+
+  void it('GET all users returns only id, email and lastLoginTime for admin', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    const userWithAsterisks = res.body.data.find((user: any) => user.password === '********************************')
-    assert.ok(userWithAsterisks, 'Expected at least one user with password replaced by asterisks')
+    assert.ok(res.body.data.length > 0)
+    for (const user of res.body.data) {
+      assert.deepEqual(Object.keys(user).sort(), ['email', 'id', 'lastLoginTime'])
+    }
   })
 
   void it('GET returns lastLoginTime for users with active sessions', async () => {
