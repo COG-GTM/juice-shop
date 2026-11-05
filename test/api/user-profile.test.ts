@@ -51,4 +51,55 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders Pug interpolation in username as literal text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'x #{7*7} !{6*7}' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('x #{7*7} !{6*7}'))
+    assert.ok(!res.text.includes('x 49'))
+    assert.ok(!res.text.includes('42'))
+  })
+
+  void it('GET user profile does not evaluate code lines injected via username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: "a\n- throw new Error('injected')" })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
+  })
+
+  void it('GET user profile does not eval username wrapped in #{...}', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{7*7}' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+    assert.equal(app.locals.abused_ssti_bug, false)
+  })
 })
