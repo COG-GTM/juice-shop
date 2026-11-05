@@ -220,6 +220,14 @@ void describe('/file-upload', () => {
         .attach('file', payload, 'malformedEntity.xml')
       assert.equal(res.status, 410)
     })
+
+    void it('POST XML with dev/random entity in an invalid DTD is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random"> nonsense ]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'invalidDtd.xml')
+      assert.equal(res.status, 410)
+    })
   }
 
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
