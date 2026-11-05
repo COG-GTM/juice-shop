@@ -69,6 +69,15 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+const loginSessionTokens = new Set<string>()
+export const loginSessions = {
+  start: (token: string) => { loginSessionTokens.add(token) },
+  renew: (previousToken: string | undefined, token: string) => {
+    if (previousToken && loginSessionTokens.has(utils.unquote(previousToken))) loginSessionTokens.add(token)
+  },
+  isActive: (token?: string) => !!token && loginSessionTokens.has(utils.unquote(token))
+}
+
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},

@@ -96,6 +96,17 @@ void describe('/rest/order-confirmation/:orderId', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET with a validly signed token registered via /rest/user/whoami is denied', async () => {
+    const forgedToken = security.authorize({ data: (security.decode(jimToken) as any).data })
+    const whoami = await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forgedToken)
+    assert.equal(whoami.status, 200)
+    assert.ok(security.authenticatedUsers.get(forgedToken))
+    const res = await request(app)
+      .get(`/rest/order-confirmation/${orderId}`)
+      .set('Authorization', 'Bearer ' + forgedToken)
+    assert.equal(res.status, 401)
+  })
+
   void it('GET with a registered but unverifiable token is denied', async () => {
     const forgedToken = jwt.sign({ data: { id: 2 } }, crypto.randomBytes(32).toString('hex'))
     security.authenticatedUsers.put(forgedToken, { data: { id: 2 } } as any)

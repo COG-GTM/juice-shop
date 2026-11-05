@@ -52,7 +52,7 @@ function notFound (res: Response) {
 export function retrieveOrderConfirmation () {
   return (req: Request, res: Response, next: NextFunction) => {
     const token = utils.unquote(utils.jwtFrom(req) ?? req.cookies?.token ?? '')
-    const userId = isValidToken(token) ? security.authenticatedUsers.get(token)?.data?.id : undefined
+    const userId = isValidToken(token) && security.loginSessions.isActive(token) ? security.authenticatedUsers.get(token)?.data?.id : undefined
     res.set('Cache-Control', 'private, no-store')
     if (!userId) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
