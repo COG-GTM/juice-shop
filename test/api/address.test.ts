@@ -170,6 +170,47 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT update address of another user is forbidden and leaves the address unchanged', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const otherUserHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherUserHeader)
+      .send({ fullName: 'Mallory', streetAddress: 'Evil Street' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.status, 'error')
+
+    const otherUserGet = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(otherUserHeader)
+    assert.equal(otherUserGet.status, 400)
+
+    const ownerGet = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerGet.status, 200)
+    assert.equal(ownerGet.body.data.fullName, 'Jimy')
+    assert.equal(ownerGet.body.data.streetAddress, 'Bakers Street')
+  })
+
+  void it('PUT update address by id cannot reassign it to another user', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ UserId: 3, id: 424242 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, addressId)
+
+    const ownerGet = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerGet.status, 200)
+  })
+
   void it('DELETE address by id', async () => {
     const res = await request(app)
       .delete('/api/Addresss/' + addressId)
