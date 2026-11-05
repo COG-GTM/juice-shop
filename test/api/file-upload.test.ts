@@ -113,6 +113,16 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST YAML file with !!js/function payload does not execute code', async () => {
+    const payload = 'toJSON: !!js/function \'function () { globalThis.yamlRceMarker = true; return "yamlRceExecuted" }\'\n'
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from(payload), 'complaint.yml')
+    assert.ok(res.status >= 410)
+    assert.ok(!res.text.includes('yamlRceExecuted'))
+    assert.equal((globalThis as any).yamlRceMarker, undefined)
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)

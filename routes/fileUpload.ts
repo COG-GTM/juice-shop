@@ -109,14 +109,14 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
-    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
+    if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
       const data = file.buffer.toString()
       try {
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        vm.runInContext('JSON.stringify(yaml.safeLoad(data, { schema: yaml.DEFAULT_SAFE_SCHEMA }))', sandbox, { timeout: 2000 })
         res.status(410)
-        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
+        next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
         if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
@@ -127,7 +127,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons (' + file.originalname + ')'))
         }
       }
     } else {
