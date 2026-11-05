@@ -56,6 +56,29 @@ export class BasketService {
     return this.http.post(`${this.hostServer}/rest/basket/${id}/checkout`, { couponData, orderDetails }).pipe(map((response: any) => response.orderConfirmation), catchError((error) => { throw error }))
   }
 
+  getOrderConfirmation (orderId: string) {
+    return this.http.get(`${this.hostServer}/rest/order-history/${encodeURIComponent(orderId)}/confirmation`, { responseType: 'blob' }).pipe(catchError((error) => { throw error }))
+  }
+
+  openOrderConfirmation (orderId: string) {
+    const confirmationWindow = window.open('', '_blank')
+    this.getOrderConfirmation(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const url = URL.createObjectURL(pdf)
+        if (confirmationWindow) {
+          confirmationWindow.location.href = url
+        } else {
+          const link = document.createElement('a')
+          link.href = url
+          link.download = `order_${orderId}.pdf`
+          link.click()
+        }
+        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
+      },
+      error: () => { confirmationWindow?.close() }
+    })
+  }
+
   applyCoupon (id?: number, coupon?: string) {
     return this.http.put(`${this.hostServer}/rest/basket/${id}/coupon/${coupon}`, {}).pipe(map((response: any) => response.discount), catchError((error) => { throw error }))
   }

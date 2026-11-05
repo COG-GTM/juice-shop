@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+export const ORDERS_DIR = 'orders/'
+const ORDER_ID_PATTERN = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
 interface Product {
   quantity: number
   id?: number
@@ -42,7 +45,8 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          await fs.promises.mkdir(ORDERS_DIR, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(ORDERS_DIR, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -164,6 +168,7 @@ export function placeOrder () {
             orderId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+            userId: customer?.data?.id,
             totalPrice,
             products: basketProducts,
             bonus: totalPoints,
@@ -178,6 +183,30 @@ export function placeOrder () {
       }).catch((error: unknown) => {
         next(error)
       })
+  }
+}
+
+export function serveOrderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId === undefined || userId === null) {
+      res.status(401).json({ status: 'error', error: 'Unauthorized' })
+      return
+    }
+    if (!ORDER_ID_PATTERN.test(req.params.id)) {
+      res.status(404).json({ status: 'error', error: 'Order not found' })
+      return
+    }
+    const order = await db.ordersCollection.findOne({ orderId: req.params.id, userId })
+    if (order == null) {
+      res.status(404).json({ status: 'error', error: 'Order not found' })
+      return
+    }
+    res.sendFile(path.resolve(ORDERS_DIR, `order_${order.orderId}.pdf`), (err) => {
+      if (err && !res.headersSent) {
+        res.status(404).json({ status: 'error', error: 'Order confirmation not found' })
+      }
+    })
   }
 }
 
