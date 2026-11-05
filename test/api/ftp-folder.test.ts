@@ -21,12 +21,12 @@ function responseText (res: request.Response): string {
 }
 
 void describe('/ftp', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/ftp')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /ftp</title>'))
+    assert.equal(res.status, 404)
+    assert.ok(!responseText(res).includes('listing directory /ftp'))
+    assert.ok(!responseText(res).includes('acquisitions.md'))
   })
 
   void it('GET a non-existing Markdown file in /ftp will return a 404 error', async () => {
@@ -38,6 +38,18 @@ void describe('/ftp', () => {
   void it('GET a non-existing PDF file in /ftp will return a 404 error', async () => {
     const res = await request(app)
       .get('/ftp/doesnotexist.pdf')
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET an order confirmation PDF in /ftp will return a 404 error', async () => {
+    const res = await request(app)
+      .get('/ftp/order_0000-0000000000000000.pdf')
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET an order confirmation PDF in /ftp by using Poison Null Byte attack will return a 404 error', async () => {
+    const res = await request(app)
+      .get('/ftp/order_0000-0000000000000000.pdf%2500.md')
     assert.equal(res.status, 404)
   })
 
