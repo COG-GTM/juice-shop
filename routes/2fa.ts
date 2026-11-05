@@ -17,15 +17,14 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
-
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
-    }
+    const { userId } = security.verifySecondFactorToken(tmpToken)
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
+    }
+    if (typeof user.totpSecret !== 'string' || user.totpSecret === '' || typeof totpToken !== 'string') {
+      return res.status(401).send()
     }
 
     const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
