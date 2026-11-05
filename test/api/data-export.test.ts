@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -264,5 +264,35 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.email, 'jim@' + config.get<string>('application.domain'))
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
+  })
+
+  void it('Export data does not include orders of another user with a colliding vowel-masked email', async () => {
+    const adminEmail = 'admin@' + config.get<string>('application.domain')
+    const clashingEmail = adminEmail.replace(/[aeiou]/gi, '*')
+    await register(app, { email: clashingEmail, password: 'clash123' })
+    const { token } = await login(app, { email: clashingEmail, password: 'clash123' })
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.email, clashingEmail)
+    assert.equal(parsedData.orders.length, 0)
+  })
+
+  void it('Export data includes own seeded orders', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.orders.length >= 2)
   })
 })
