@@ -24,6 +24,13 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+function isSafeZipEntryPath (fileName: string, absolutePath: string, targetDir: string) {
+  return !path.isAbsolute(fileName) &&
+    !path.win32.isAbsolute(fileName) &&
+    !fileName.split(/[\\/]/).includes('..') &&
+    absolutePath.startsWith(targetDir + path.sep)
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
@@ -38,11 +45,12 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
-                const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const fileName: string = entry.path
+                const complaintsDir = path.resolve('uploads/complaints')
+                const absolutePath = path.resolve(complaintsDir, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                if (isSafeZipEntryPath(fileName, absolutePath, complaintsDir)) {
+                  entry.pipe(fs.createWriteStream(absolutePath).on('error', function (err) { next(err) }))
                 } else {
                   entry.autodrain()
                 }
