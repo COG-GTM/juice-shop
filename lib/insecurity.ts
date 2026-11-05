@@ -121,6 +121,9 @@ export function couponSigningKeyIn (directory: string) {
         fs.unlinkSync(stagedKeyFile)
       } catch { /* cleanup must not keep the winner's key from being read */ }
     }
+    try {
+      fs.chmodSync(keyFile, 0o600)
+    } catch { /* e.g. key file owned by another user */ }
     const persistedKey = fs.readFileSync(keyFile, 'utf8')
     if (persistedKey.length > 0) {
       return persistedKey
