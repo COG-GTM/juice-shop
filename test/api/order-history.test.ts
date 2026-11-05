@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import fs from 'node:fs'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -132,4 +134,50 @@ void describe('/rest/order-history/:id/delivery-status', () => {
 
     assert.equal(res.status, 200)
   })
+})
+
+void describe('forged accounting JWTs', () => {
+  const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const payload = b64url({ data: { id: 1, email: 'mallory@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 })
+  const unsignedToken = `${b64url({ alg: 'none', typ: 'JWT' })}.${payload}.`
+  const hsInput = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+  const hsSignature = crypto.createHmac('sha256', fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')).update(hsInput).digest('base64url')
+  const hsToken = `${hsInput}.${hsSignature}`
+
+  for (const [name, token] of [['alg none', unsignedToken], ['HS256 signed with public key', hsToken]]) {
+    void it(`GET all orders rejects ${name} token`, async () => {
+      const res = await request(app)
+        .get('/rest/order-history/orders')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      assert.equal(res.status, 403)
+    })
+
+    void it(`PUT delivery status rejects ${name} token`, async () => {
+      const res = await request(app)
+        .put('/rest/order-history/1/delivery-status')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+        .send({ delivered: false })
+      assert.equal(res.status, 403)
+    })
+
+    void it(`protected route rejects ${name} token`, async () => {
+      const res = await request(app)
+        .get('/api/Cards')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      assert.equal(res.status, 401)
+    })
+
+    void it(`whoami does not register ${name} token as a session`, async () => {
+      const res = await request(app)
+        .get('/rest/user/whoami')
+        .set({ Authorization: 'Bearer ' + token, Cookie: 'token=' + token })
+      assert.equal(res.status, 200)
+      assert.equal(res.body.user.id, undefined)
+
+      const cards = await request(app)
+        .get('/api/Cards')
+        .set({ Authorization: 'Bearer ' + token, Cookie: 'token=' + token })
+      assert.equal(cards.status, 401)
+    })
+  }
 })
