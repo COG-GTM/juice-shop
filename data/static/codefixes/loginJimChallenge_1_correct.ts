@@ -12,9 +12,10 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND password = $2 AND deletedAt IS NULL`,
-      { bind: [ req.body.email, security.hash(req.body.password) ], model: models.User, plain: true })
-      .then((authenticatedUser) => {
+    models.sequelize.query(`SELECT * FROM Users WHERE email = $1 AND deletedAt IS NULL`,
+      { bind: [ req.body.email ], model: models.User, plain: true })
+      .then((foundUser) => {
+        const authenticatedUser = foundUser && security.verifyPassword(req.body.password, foundUser.password) ? foundUser : null
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
