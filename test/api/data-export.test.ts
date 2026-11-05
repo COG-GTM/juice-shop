@@ -85,9 +85,14 @@ void describe('/rest/user/data-export', () => {
     const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
+    const cardRes = await request(app)
+      .post('/api/Cards')
+      .set(authHeader)
+      .send({ fullName: 'Amy', cardNum: 4111111111111111, expMonth: 12, expYear: 2090 })
     await request(app)
       .post('/rest/basket/4/checkout')
       .set(authHeader)
+      .send({ orderDetails: { paymentId: cardRes.body.data.id } })
 
     const res = await request(app)
       .post('/rest/user/data-export')
@@ -167,9 +172,14 @@ void describe('/rest/user/data-export', () => {
     const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
+    const cardRes = await request(app)
+      .post('/api/Cards')
+      .set(authHeader)
+      .send({ fullName: 'Amy', cardNum: 4111111111111111, expMonth: 12, expYear: 2090 })
     await request(app)
       .post('/rest/basket/4/checkout')
       .set(authHeader)
+      .send({ orderDetails: { paymentId: cardRes.body.data.id } })
 
     const captchaRes = await request(app)
       .get('/rest/image-captcha')

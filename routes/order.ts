@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -16,6 +17,7 @@ import { QuantityModel } from '../models/quantity'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
+import { CardModel } from '../models/card'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
@@ -32,9 +34,19 @@ interface Product {
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
-    BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const UserId = req.body?.UserId
+    if (UserId == null) {
+      res.status(403).json({ status: 'error', message: 'Not allowed' })
+      return
+    }
+    BasketModel.findOne({ where: { id, UserId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const paymentId = req.body.orderDetails?.paymentId
+          if (paymentId !== 'wallet' && !await isUsableCardOfUser(paymentId, UserId)) {
+            res.status(400).json({ status: 'error', error: 'Invalid payment method.' })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -47,7 +59,7 @@ export function placeOrder () {
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
-              await BasketItemModel.destroy({ where: { BasketId: id } })
+              await BasketItemModel.destroy({ where: { BasketId: basket.id } })
               res.json({ orderConfirmation: orderId })
             })()
           })
@@ -140,17 +152,15 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  next(new Error('Insufficient wallet balance.'))
+                  return
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
             } catch (error: unknown) {
               next(error)
               return
@@ -173,12 +183,35 @@ export function placeOrder () {
             doc.end()
           })
         } else {
-          next(new Error(`Basket with id=${id} does not exist.`))
+          res.status(403).json({ status: 'error', message: 'Not allowed' })
         }
       }).catch((error: unknown) => {
         next(error)
       })
   }
+}
+
+async function isUsableCardOfUser (paymentId: unknown, UserId: number) {
+  if ((typeof paymentId !== 'string' && typeof paymentId !== 'number') || !/^[1-9]\d*$/.test(String(paymentId))) {
+    return false
+  }
+  const card = await CardModel.findOne({ where: { id: Number(paymentId), UserId } })
+  if (card == null) {
+    return false
+  }
+  const now = new Date()
+  return card.expYear > now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth - 1 >= now.getMonth())
+}
+
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
@@ -187,17 +220,23 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
-    const campaign = campaigns[couponCode as keyof typeof campaigns]
+    const [couponCode, clientDate] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
+    const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+    if (campaign) {
+      if (isCampaignActive(campaign, Date.now())) {
+        return campaign.discount
+      }
+      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return Number(clientDate) === campaign.validOn })
     }
   }
   return 0
+}
+
+const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000
+
+function isCampaignActive (campaign: { validOn: number }, now: number) {
+  return now >= campaign.validOn && now < campaign.validOn + ONE_DAY_IN_MS
 }
 
 const campaigns = {
