@@ -20,6 +20,8 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+export const orderConfirmationsDir = 'orders'
+
 interface Product {
   quantity: number
   id?: number
@@ -42,7 +44,8 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          fs.mkdirSync(orderConfirmationsDir, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(orderConfirmationsDir, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -162,6 +165,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: customer?.data?.id,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,

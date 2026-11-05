@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { ordersCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
+import { orderConfirmationsDir } from './order'
 
 export function orderHistory () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -35,5 +38,29 @@ export function toggleDeliveryStatus () {
     const eta = deliveryStatus ? '0' : '1'
     await ordersCollection.update({ _id: req.params.id }, { $set: { delivered: deliveryStatus, eta } })
     res.status(200).json({ status: 'success' })
+  }
+}
+
+export function orderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const token = utils.jwtFrom(req) ?? req.cookies?.token
+    const loggedInUser = token && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    if (!loggedInUser?.data?.id) {
+      res.status(401).json({ status: 'error', error: 'Unauthorized' })
+      return
+    }
+    const orderId = req.params.id
+    if (!/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
+      res.status(400).json({ status: 'error', error: 'Invalid order id' })
+      return
+    }
+    const order = await ordersCollection.findOne({ orderId })
+    if (!order || order.UserId !== loggedInUser.data.id) {
+      res.status(403).json({ status: 'error', error: 'Forbidden' })
+      return
+    }
+    res.sendFile(path.resolve(orderConfirmationsDir, `order_${orderId}.pdf`), (err) => {
+      if (err) next(err)
+    })
   }
 }
