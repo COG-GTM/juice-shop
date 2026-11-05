@@ -258,6 +258,24 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(res.body.error, 'Invalid payment mode')
   })
 
+  void it('POST upgrade deluxe membership fails for payment mode "none"', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({
+        paymentMode: 'none'
+      })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid payment mode')
+  })
+
   void it('POST upgrade deluxe membership fails for customers with an empty wallet', async () => {
     const { token } = await login(app, {
       email: `john@${config.get<string>('application.domain')}`,
