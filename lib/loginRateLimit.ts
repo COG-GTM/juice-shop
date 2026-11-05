@@ -13,8 +13,8 @@ const tooManyAttempts = 'Too many failed login attempts. Please try again later.
 
 export function loginAccountKey (req: Request): string | undefined {
   const email = typeof req.body === 'object' && req.body !== null ? req.body.email : undefined
-  if (typeof email !== 'string') return undefined
-  const key = email.trim().toLowerCase()
+  // Stringified the same way routes/login.ts builds its query, so e.g. ["a@b.c"] shares the bucket of "a@b.c"
+  const key = `${email || ''}`.trim().toLowerCase()
   return key !== '' ? key : undefined
 }
 
@@ -35,7 +35,7 @@ const markPasswordValid = (req: Request, res: Response, next: NextFunction) => {
   next()
 }
 
-const passwordWasValid = (req: Request, res: Response) => res.statusCode < 400 || res.locals.loginPasswordValid === true
+const passwordWasValid = (req: Request, res: Response) => res.statusCode !== 401 || res.locals.loginPasswordValid === true
 
 export function loginRateLimit (): RequestHandler[] {
   const perClient = rateLimit({

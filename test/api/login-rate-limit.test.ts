@@ -56,6 +56,19 @@ void describe('/rest/user/login rate limiting', () => {
     assert.equal(res.status, 429)
   })
 
+  void it('shares the lockout between a plain email and the same email wrapped in an array', { timeout: 60000 }, async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .post('/rest/user/login')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: ['array@rate.limit'], password: 'wrong' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await login('array@rate.limit', 'wrong')
+    assert.equal(res.status, 429)
+  })
+
   void it('does not lock other accounts', async () => {
     await register('unaffected@rate.limit', 'still-works')
 
