@@ -8,8 +8,13 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import fs from 'node:fs'
+import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { ordersCollection } from '../../data/mongodb'
+import * as security from '../../lib/insecurity'
+import { ORDERS_DIR } from '../../routes/order'
 
 let app: Express
 
@@ -171,6 +176,26 @@ void describe('/rest/order-history/:id/confirmation', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF of a user with colliding masked email and hash prefix is denied', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const orderId = security.hash(email).slice(0, 4) + '-0123456789abcdef'
+    await ordersCollection.insert({ orderId, email: email.replace(/[aeiou]/gi, '*'), userId: 999999 })
+    const pdfFile = path.join(ORDERS_DIR, `order_${orderId}.pdf`)
+    await fs.promises.mkdir(ORDERS_DIR, { recursive: true })
+    await fs.promises.writeFile(pdfFile, '%PDF-1.3')
+
+    try {
+      const res = await request(app)
+        .get(`/rest/order-history/${orderId}/confirmation`)
+        .set({ Authorization: 'Bearer ' + token })
+
+      assert.equal(res.status, 404)
+    } finally {
+      await fs.promises.rm(pdfFile, { force: true })
+    }
   })
 
   void it('GET order confirmation PDF is not exposed via /ftp', async () => {

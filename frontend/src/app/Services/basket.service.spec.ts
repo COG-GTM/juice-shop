@@ -51,6 +51,34 @@ describe('BasketService', () => {
         httpMock.verify()
     })
 
+    it('should open the order confirmation tab synchronously and navigate it to the PDF', () => {
+        const service = TestBed.inject(BasketService)
+        const httpMock = TestBed.inject(HttpTestingController)
+        const confirmationWindow = { location: { href: '' }, close: vi.fn() }
+        const openSpy = vi.spyOn(window, 'open').mockReturnValue(confirmationWindow as any)
+        vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/pdf')
+
+        service.openOrderConfirmation('5267-f9cd5882f54c75a3')
+        expect(openSpy).toHaveBeenCalledWith('', '_blank')
+        httpMock.expectOne('http://localhost:3000/rest/order-history/5267-f9cd5882f54c75a3/confirmation').flush(new Blob(['%PDF'], { type: 'application/pdf' }))
+        expect(confirmationWindow.location.href).toBe('blob:http://localhost/pdf')
+        httpMock.verify()
+        vi.restoreAllMocks()
+    })
+
+    it('should close the order confirmation tab when the PDF cannot be retrieved', () => {
+        const service = TestBed.inject(BasketService)
+        const httpMock = TestBed.inject(HttpTestingController)
+        const confirmationWindow = { location: { href: '' }, close: vi.fn() }
+        vi.spyOn(window, 'open').mockReturnValue(confirmationWindow as any)
+
+        service.openOrderConfirmation('5267-f9cd5882f54c75a3')
+        httpMock.expectOne('http://localhost:3000/rest/order-history/5267-f9cd5882f54c75a3/confirmation').flush(new Blob(), { status: 404, statusText: 'Not Found' })
+        expect(confirmationWindow.close).toHaveBeenCalled()
+        httpMock.verify()
+        vi.restoreAllMocks()
+    })
+
     it('should get single basket item directly from the rest api', () => {
         const service = TestBed.inject(BasketService)
         const httpMock = TestBed.inject(HttpTestingController)

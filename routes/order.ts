@@ -168,6 +168,7 @@ export function placeOrder () {
             orderId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
+            userId: customer?.data?.id,
             totalPrice,
             products: basketProducts,
             bonus: totalPoints,
@@ -187,22 +188,21 @@ export function placeOrder () {
 
 export function serveOrderConfirmation () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const orderId = req.params.id
-    const email = security.authenticatedUsers.from(req)?.data?.email
-    if (!email) {
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId === undefined || userId === null) {
       res.status(401).json({ status: 'error', error: 'Unauthorized' })
       return
     }
-    if (!ORDER_ID_PATTERN.test(orderId) || !orderId.startsWith(security.hash(email).slice(0, 4))) {
+    if (!ORDER_ID_PATTERN.test(req.params.id)) {
       res.status(404).json({ status: 'error', error: 'Order not found' })
       return
     }
-    const order = await db.ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
+    const order = await db.ordersCollection.findOne({ orderId: req.params.id, userId })
     if (order == null) {
       res.status(404).json({ status: 'error', error: 'Order not found' })
       return
     }
-    res.sendFile(path.resolve(ORDERS_DIR, `order_${orderId}.pdf`), (err) => {
+    res.sendFile(path.resolve(ORDERS_DIR, `order_${order.orderId}.pdf`), (err) => {
       if (err && !res.headersSent) {
         res.status(404).json({ status: 'error', error: 'Order confirmation not found' })
       }
