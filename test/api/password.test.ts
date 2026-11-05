@@ -279,6 +279,18 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 429)
   })
 
+  void it('POST password reset lockout cannot be bypassed with concurrent guesses', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const responses = await Promise.all(Array.from({ length: 10 }, async (_, i) => await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.2.${i}` })
+      .send({ email, answer: `wrong-${i}`, new: 'abcdef', repeat: 'abcdef' })))
+
+    const statuses = responses.map(res => res.status)
+    assert.equal(statuses.filter(status => status === 401).length, 5)
+    assert.equal(statuses.filter(status => status === 429).length, 5)
+  })
+
   void it('POST password reset rate limit cannot be bypassed with spoofed X-Forwarded-For headers', async () => {
     const statuses: number[] = []
     for (let i = 0; i < 110; i++) {

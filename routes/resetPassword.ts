@@ -42,8 +42,18 @@ function pruneExpiredAttempts (now: number) {
   }
 }
 
-function recordFailedAttempt (key: string, now: number) {
-  if (resetAttempts.size >= MAX_TRACKED_ACCOUNTS) pruneExpiredAttempts(now)
+function evictOldestAttempts () {
+  for (const key of resetAttempts.keys()) {
+    if (resetAttempts.size < MAX_TRACKED_ACCOUNTS) return
+    resetAttempts.delete(key)
+  }
+}
+
+function recordAttempt (key: string, now: number) {
+  if (!resetAttempts.has(key) && resetAttempts.size >= MAX_TRACKED_ACCOUNTS) {
+    pruneExpiredAttempts(now)
+    evictOldestAttempts()
+  }
   let attempts = resetAttempts.get(key)
   if (attempts === undefined || attempts.windowStart + LOCKOUT_DURATION_MS <= now) {
     attempts = { failures: 0, windowStart: now, lockedUntil: 0 }
@@ -78,10 +88,12 @@ export function resetPassword () {
       return
     }
     const key = attemptKey(email)
-    if (isLockedOut(key, Date.now())) {
+    const now = Date.now()
+    if (isLockedOut(key, now)) {
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
       return
     }
+    recordAttempt(key, now)
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -98,7 +110,6 @@ export function resetPassword () {
           res.json({ user: updatedUser })
         }
       } else {
-        recordFailedAttempt(key, Date.now())
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
