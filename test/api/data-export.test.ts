@@ -10,7 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -264,5 +264,40 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.email, 'jim@' + config.get<string>('application.domain'))
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
+  })
+
+  void it('Export data does not include orders of a user whose email only differs in vowels', async () => {
+    const suffix = Date.now().toString().replace(/[aeiou]/g, '')
+    const victim = { email: `vctm${suffix}a@juice-sh.op`, password: 'victim123' }
+    const attacker = { email: `vctm${suffix}e@juice-sh.op`, password: 'attacker123' }
+    await register(app, victim)
+    await register(app, attacker)
+
+    const victimAuth = await login(app, victim)
+    const victimHeader = { Authorization: 'Bearer ' + victimAuth.token, 'content-type': 'application/json' }
+    await request(app)
+      .post('/api/BasketItems')
+      .set(victimHeader)
+      .send({ BasketId: victimAuth.bid, ProductId: 1, quantity: 1 })
+      .expect(200)
+    await request(app)
+      .post(`/rest/basket/${victimAuth.bid}/checkout`)
+      .set(victimHeader)
+      .expect(200)
+
+    const victimRes = await request(app)
+      .post('/rest/user/data-export')
+      .set(victimHeader)
+      .send({ format: '1' })
+    assert.equal(victimRes.status, 200)
+    assert.equal(JSON.parse(victimRes.body.userData).orders.length, 1)
+
+    const attackerAuth = await login(app, attacker)
+    const attackerRes = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + attackerAuth.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+    assert.equal(attackerRes.status, 200)
+    assert.deepEqual(JSON.parse(attackerRes.body.userData).orders, [])
   })
 })
