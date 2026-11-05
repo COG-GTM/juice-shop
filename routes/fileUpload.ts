@@ -154,14 +154,56 @@ function referencesExternalEntity (key: string, declarations: Map<string, { exte
   return [...declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)].some(([, name]) => referencesExternalEntity('&' + name, declarations, visited))
 }
 
+const entityReferenceAt = /&([^\s;&%#<>"'[\]]+);/y
+
+function stripDeclaredReferences (text: string, declarations: Map<string, { external: boolean, value: string }>) {
+  const externalReferences = new Map<string, boolean>()
+  const isExternal = (key: string) => {
+    if (!externalReferences.has(key)) externalReferences.set(key, referencesExternalEntity(key, declarations))
+    return externalReferences.get(key) === true
+  }
+  let result = ''
+  let index = 0
+  while (index < text.length) {
+    const character = text[index]
+    if (character === '&') {
+      entityReferenceAt.lastIndex = index
+      const reference = entityReferenceAt.exec(text)
+      if (reference !== null) {
+        if (!declarations.has('&' + reference[1])) result += reference[0]
+        index += reference[0].length
+        continue
+      }
+    } else if (character === '<') {
+      const closer = text.startsWith('<!--', index) ? '-->' : text.startsWith('<![CDATA[', index) ? ']]>' : text.startsWith('<?', index) ? '?>' : null
+      if (closer !== null) {
+        const closerIndex = text.indexOf(closer, index)
+        if (closerIndex < 0) return result + text.slice(index)
+        result += text.slice(index, closerIndex + closer.length)
+        index = closerIndex + closer.length
+        continue
+      }
+      let tagEnd = index + 1
+      let quote: string | null = null
+      while (tagEnd < text.length && (quote !== null || text[tagEnd] !== '>')) {
+        if (quote === null && (text[tagEnd] === '"' || text[tagEnd] === "'")) quote = text[tagEnd]
+        else if (text[tagEnd] === quote) quote = null
+        tagEnd++
+      }
+      if (tagEnd >= text.length) return result + text.slice(index)
+      result += text.slice(index, tagEnd + 1).replace(/&([^\s;&%#<>"'[\]]+);/g, (reference: string, name: string) => declarations.has('&' + name) && !isExternal('&' + name) ? '' : reference)
+      index = tagEnd + 1
+      continue
+    }
+    result += character
+    index++
+  }
+  return result
+}
+
 function isWellFormedWithoutExpansion (data: string, doctypeEnd: number, declarations: Map<string, { external: boolean, value: string }>) {
   if (doctypeEnd < 0) return false
-  const entityReference = /&([^\s;&%#<>"'[\]]+);/g
-  const body = data.slice(doctypeEnd + 1).replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>|&([^\s;&%#<>"'[\]]+);/g, (token: string, name?: string) => {
-    if (name !== undefined) return declarations.has('&' + name) ? '' : token
-    if (!token.startsWith('<') || /^<[!?]/.test(token)) return token
-    return token.replace(entityReference, (reference: string, attributeName: string) => declarations.has('&' + attributeName) && !referencesExternalEntity('&' + attributeName, declarations) ? '' : reference)
-  })
+  const body = stripDeclaredReferences(data.slice(doctypeEnd + 1), declarations)
   if (containsDtd(body)) return false
   try {
     parseXmlWithoutEntities(body)
