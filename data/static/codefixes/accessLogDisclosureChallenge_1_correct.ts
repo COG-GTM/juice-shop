@@ -1,5 +1,4 @@
-/* /ftp directory browsing and file download */
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true }))
+/* /ftp file download */
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles())
   app.use('/ftp/quarantine/:file', serveQuarantineFiles())
 
