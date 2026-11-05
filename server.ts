@@ -519,13 +519,21 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // store the security answer chosen during registration for the newly created user
     if (name === 'User') {
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
-        const securityQuestionId = req.body.securityQuestion?.id
-        const securityAnswer = req.body.securityAnswer
-        if (securityQuestionId && typeof securityAnswer === 'string' && securityAnswer !== '') {
-          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer }).catch((err: unknown) => {
-            console.log(err)
-          })
+      const hasSecurityAnswer = (req: Request) => req.body.securityQuestion?.id && typeof req.body.securityAnswer === 'string' && req.body.securityAnswer !== ''
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any, error: (status: number, message: string) => any }) => {
+        if (hasSecurityAnswer(req) && !(await SecurityQuestionModel.findByPk(req.body.securityQuestion.id))) {
+          return context.error(400, 'Invalid security question')
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number, destroy: () => Promise<void> }, continue: any, error: (status: number, message: string) => any }) => {
+        if (hasSecurityAnswer(req)) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: req.body.securityQuestion.id, answer: req.body.securityAnswer })
+          } catch (err: unknown) {
+            await context.instance.destroy()
+            return context.error(500, 'Could not store security answer')
+          }
         }
         return context.continue
       })
