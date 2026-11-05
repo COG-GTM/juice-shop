@@ -105,6 +105,18 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT product review is rejected for a product that does not exist', async () => {
+    const { token } = await login(app, await seededCredentials('jim'))
+    const res = await request(app)
+      .put('/rest/products/999999/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ message: 'Review for a ghost product' })
+    assert.equal(res.status, 404)
+
+    const reviews = await request(app).get('/rest/products/999999/reviews')
+    assert.ok(!reviews.body.data.some(({ message }: { message: string }) => message === 'Review for a ghost product'))
+  })
+
   void it('PUT product review is rejected when the message is missing, not a string or too long', async () => {
     const { token } = await login(app, await seededCredentials('jim'))
     for (const message of [undefined, '', { $gt: '' }, 'x'.repeat(161)]) {
