@@ -12,10 +12,17 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import { loadStaticUserData } from '../../data/staticData'
 
 let app: Express
 
 const authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+
+async function seededCredentials (key: string) {
+  const user = (await loadStaticUserData()).find((u) => u.key === key)
+  assert.ok(user)
+  return { email: user.customDomain ? user.email : `${user.email}@${config.get<string>('application.domain')}`, password: user.password }
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -49,14 +56,93 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
+    const { token } = await login(app, await seededCredentials('jim'))
     const res = await request(app)
       .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
       .send({
-        message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        message: 'Lorem Ipsum'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
+  void it('PUT product review is rejected without authentication', async () => {
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({
+        message: 'Anonymous spoofed review',
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(res.status, 401)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    assert.ok(!reviews.body.data.some(({ message }: { message: string }) => message === 'Anonymous spoofed review'))
+  })
+
+  void it('PUT product review author is taken from the authenticated user, not the request body', async () => {
+    const { token } = await login(app, await seededCredentials('bjoernGoogle'))
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Authenticated spoof attempt',
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const created = reviews.body.data.find(({ message }: { message: string }) => message === 'Authenticated spoof attempt')
+    assert.equal(created.author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT product review is rejected for a non-numeric product id', async () => {
+    const { token } = await login(app, await seededCredentials('jim'))
+    const res = await request(app)
+      .put('/rest/products/1%20or%201/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ message: 'Bad product id' })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT product review is rejected when the message is missing, not a string or too long', async () => {
+    const { token } = await login(app, await seededCredentials('jim'))
+    for (const message of [undefined, '', { $gt: '' }, 'x'.repeat(161)]) {
+      const res = await request(app)
+        .put('/rest/products/1/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ message })
+      assert.equal(res.status, 400)
+    }
+  })
+
+  void it('PUT product review creation is rate limited per user', async () => {
+    const { token } = await login(app, await seededCredentials('rapper'))
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .put('/rest/products/1/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ message: '' })
+      statuses.push(res.status)
+    }
+    assert.deepEqual(statuses.slice(0, 10), Array(10).fill(400))
+    assert.equal(statuses[10], 429)
+  })
+
+  void it('PUT product review is rejected for a valid token without a login session', async () => {
+    const token = security.authorize({ data: { id: 1, email: 'jwt.only@juice-sh.op' } } as any)
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Token-only review',
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(res.status, 401)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    assert.ok(!reviews.body.data.some(({ message }: { message: string }) => message === 'Token-only review'))
   })
 })
 
@@ -124,7 +210,8 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const reviewsCreatedByTests = 2
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, reviewsCreatedByTests)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
