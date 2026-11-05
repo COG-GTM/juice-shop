@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,259 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+
+    it('revokes all other tokens of a user but keeps the current one', () => {
+      security.authenticatedUsers.put('rev-old', { data: { id: 42 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-other-user', { data: { id: 43 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-current', { data: { id: 42 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeOtherSessions(42, 'rev-current')
+
+      expect(security.authenticatedUsers.get('rev-old')).to.equal(undefined)
+      expect(security.isRevoked('rev-old')).to.equal(true)
+      expect(security.authenticatedUsers.get('rev-current')).to.deep.equal({ data: { id: 42 } })
+      expect(security.authenticatedUsers.get('rev-other-user')).to.deep.equal({ data: { id: 43 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 42 } as unknown as UserModel)).to.equal('rev-current')
+    })
+
+    it('does not re-register a revoked token', () => {
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.put('rev-fresh', { data: { id: 44 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(44, 'rev-fresh')
+
+      security.authenticatedUsers.put('rev-stale', { data: { id: 44 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('rev-stale')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 44 } as unknown as UserModel)).to.equal('rev-fresh')
+    })
+
+    it('stops treating a revoked token as revoked once it has expired', () => {
+      const expired = security.authorize({ data: { id: 45 }, exp: Math.floor(Date.now() / 1000) + 6 * 60 * 60 })
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.put(expired, { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.put('rev-keep-45', { data: { id: 45 } as unknown as UserModel })
+        security.authenticatedUsers.revokeOtherSessions(45, 'rev-keep-45')
+        expect(security.isRevoked(expired)).to.equal(true)
+
+        clock.tick(6 * 60 * 60 * 1000 + 1000)
+        expect(security.isRevoked(expired)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('bounds the revocation of a token without exp claim but keeps rejecting it', () => {
+      const noExp = security.authorize({ data: { id: 48 }, exp: undefined })
+      security.authenticatedUsers.tokenMap[noExp] = { data: { id: 48 } as unknown as UserModel }
+      const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.revokeOtherSessions(48, 'rev-keep-48')
+        expect(security.isRevoked(noExp)).to.equal(true)
+
+        clock.tick(6 * 60 * 60 * 1000 + 1000)
+        expect(security.isRevoked(noExp)).to.equal(false)
+        expect(security.verify(noExp)).to.equal(false)
+        security.authenticatedUsers.put(noExp, { data: { id: 48 } as unknown as UserModel })
+        expect(security.authenticatedUsers.get(noExp)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('fails signature verification for revoked tokens', () => {
+      const token = security.authorize({ data: { id: 49 } })
+      expect(security.verify(token)).to.equal(true)
+
+      security.authenticatedUsers.put(token, { data: { id: 49 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(49, 'rev-keep-49')
+
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('denies deluxe and accounting privileges to revoked tokens', () => {
+      const deluxe = security.authorize({ data: { id: 46, email: 'deluxe@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('deluxe@juice-sh.op') } })
+      const accounting = security.authorize({ data: { id: 47, role: security.roles.accounting } })
+      const deluxeReq = { headers: { authorization: 'Bearer ' + deluxe } } as unknown as Request
+      const accountingReq = { headers: { authorization: 'Bearer ' + accounting } } as unknown as Request
+      expect(security.isDeluxe(deluxeReq)).to.equal(true)
+
+      security.authenticatedUsers.put(deluxe, { data: { id: 46 } as unknown as UserModel })
+      security.authenticatedUsers.put(accounting, { data: { id: 47 } as unknown as UserModel })
+      security.authenticatedUsers.revokeOtherSessions(46, 'rev-keep-46')
+      security.authenticatedUsers.revokeOtherSessions(47, 'rev-keep-47')
+
+      expect(security.isDeluxe(deluxeReq)).to.equal(false)
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAccounting()(accountingReq, res as unknown as Response, next)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+  })
+
+  describe('session revocation', () => {
+    it('revokes every session of a user', () => {
+      const first = security.authorize({ data: { id: 60 } })
+      const second = security.authorize({ data: { id: 60 } })
+      const other = security.authorize({ data: { id: 61 } })
+      security.authenticatedUsers.put(first, { data: { id: 60 } as unknown as UserModel })
+      security.authenticatedUsers.put(second, { data: { id: 60 } as unknown as UserModel })
+      security.authenticatedUsers.put(other, { data: { id: 61 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeAllFor(60)
+
+      expect(security.authenticatedUsers.get(first)).to.equal(undefined)
+      expect(security.authenticatedUsers.get(second)).to.equal(undefined)
+      expect(security.verify(first)).to.equal(false)
+      expect(security.authenticatedUsers.tokenOf({ id: 60 } as unknown as UserModel)).to.equal(undefined)
+      expect(security.authenticatedUsers.get(other)).to.deep.equal({ data: { id: 61 } })
+    })
+
+    it('revokes a single session on logout and leaves other sessions of the user intact', () => {
+      const loggedOut = security.authorize({ data: { id: 70 } })
+      const otherDevice = security.authorize({ data: { id: 70 } })
+      security.authenticatedUsers.put(loggedOut, { data: { id: 70 } as unknown as UserModel })
+      security.authenticatedUsers.put(otherDevice, { data: { id: 70 } as unknown as UserModel })
+
+      security.authenticatedUsers.revoke(loggedOut)
+
+      expect(security.authenticatedUsers.get(loggedOut)).to.equal(undefined)
+      expect(security.verify(loggedOut)).to.equal(false)
+      expect(security.authenticatedUsers.get(otherDevice)).to.deep.equal({ data: { id: 70 } })
+      expect(security.verify(otherDevice)).to.equal(true)
+
+      security.authenticatedUsers.put(loggedOut, { data: { id: 70 } as unknown as UserModel })
+      expect(security.authenticatedUsers.get(loggedOut)).to.equal(undefined)
+    })
+
+    it('rejects tokens of a user issued before revokeAllFor even if they were never cached', () => {
+      const issuedAt = Date.now()
+      const uncached = security.authorize({ data: { id: 66 } })
+      const clock = sinon.useFakeTimers({ now: issuedAt + 2000, toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.revokeAllFor(66)
+        expect(security.verify(uncached)).to.equal(false)
+        security.authenticatedUsers.put(uncached, { data: { id: 66 } as unknown as UserModel })
+        expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
+        clock.tick(1)
+        const fresh = security.authorize({ data: { id: 66 } })
+        expect(security.verify(fresh)).to.equal(true)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects uncached tokens of other sessions but keeps the current one after revokeOtherSessions', () => {
+      const issuedAt = Date.now()
+      const current = security.authorize({ data: { id: 67 } })
+      const uncached = security.authorize({ data: { id: 67 } })
+      const clock = sinon.useFakeTimers({ now: issuedAt + 2000, toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.revokeOtherSessions(67, current)
+        expect(security.verify(current)).to.equal(true)
+        expect(security.verify(uncached)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects uncached tokens issued in the same second as revokeAllFor', () => {
+      const clock = sinon.useFakeTimers({ now: Math.floor(Date.now() / 1000) * 1000 + 100, toFake: ['Date'] })
+      try {
+        const uncached = security.authorize({ data: { id: 68 } })
+        clock.tick(200)
+        security.authenticatedUsers.revokeAllFor(68)
+        clock.tick(200)
+        const fresh = security.authorize({ data: { id: 68 } })
+        expect(security.verify(uncached)).to.equal(false)
+        expect(security.verify(fresh)).to.equal(true)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('issues distinct tokens for identical payloads so revoking one does not revoke a later login', () => {
+      const first = security.authorize({ data: { id: 62 } })
+      const second = security.authorize({ data: { id: 62 } })
+      expect(first).to.not.equal(second)
+    })
+
+    it('drops expired sessions from the token map when they are looked up', () => {
+      const token = security.authorize({ data: { id: 63 } })
+      security.authenticatedUsers.put(token, { data: { id: 63 } as unknown as UserModel })
+      const clock = sinon.useFakeTimers({ now: Date.now() + 6 * 60 * 60 * 1000 + 1000, toFake: ['Date'] })
+      try {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenOf({ id: 63 } as unknown as UserModel)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects expired and revoked sessions in appendUserId', () => {
+      const expired = security.authorize({ data: { id: 64 }, exp: Math.floor(Date.now() / 1000) - 1 })
+      security.authenticatedUsers.tokenMap[expired] = { data: { id: 64 } as unknown as UserModel }
+      const revoked = security.authorize({ data: { id: 65 } })
+      security.authenticatedUsers.put(revoked, { data: { id: 65 } as unknown as UserModel })
+      security.authenticatedUsers.revokeAllFor(65)
+
+      for (const token of [expired, revoked]) {
+        const req = { headers: { authorization: 'Bearer ' + token }, body: {} } as unknown as Request
+        const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+        const next = sinon.spy()
+        security.appendUserId()(req, res as unknown as Response, next)
+        expect(next.called).to.equal(false)
+        expect(res.status.calledWith(401)).to.equal(true)
+      }
+    })
+  })
+
+  describe('token expiry', () => {
+    it('issues tokens that expire after 6 hours', () => {
+      const now = Math.floor(Date.now() / 1000)
+      const { exp } = security.decode(security.authorize({ data: { id: 50 } }))
+      expect(exp).to.be.within(now + 6 * 60 * 60 - 5, now + 6 * 60 * 60 + 5)
+    })
+
+    it('rejects expired tokens in verify and the authenticated users map', () => {
+      const token = security.authorize({ data: { id: 51 } })
+      security.authenticatedUsers.put(token, { data: { id: 51 } as unknown as UserModel })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.authenticatedUsers.get(token)).to.deep.equal({ data: { id: 51 } })
+
+      const clock = sinon.useFakeTimers({ now: Date.now() + 6 * 60 * 60 * 1000 + 1000, toFake: ['Date'] })
+      try {
+        expect(security.isExpired(token)).to.equal(true)
+        expect(security.verify(token)).to.equal(false)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects malformed tokens without throwing', () => {
+      expect(security.verify('unknown')).to.equal(false)
+      expect(security.isExpired('unknown')).to.equal(false)
+      expect(security.decode('unknown')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('unknown')).to.equal(undefined)
+    })
+
+    it('treats signed tokens without exp claim as expired', () => {
+      const token = security.authorize({ data: { id: 53 }, exp: undefined })
+      expect(security.decode(token).exp).to.equal(undefined)
+      expect(security.isExpired(token)).to.equal(true)
+      expect(security.verify(token)).to.equal(false)
+      security.authenticatedUsers.put(token, { data: { id: 53 } as unknown as UserModel })
+      expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+    })
+
+    it('does not register already expired tokens', () => {
+      const token = security.authorize({ data: { id: 52 }, exp: Math.floor(Date.now() / 1000) - 1 })
+      security.authenticatedUsers.put(token, { data: { id: 52 } as unknown as UserModel })
+      expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
     })
   })
 

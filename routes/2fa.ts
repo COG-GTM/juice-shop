@@ -104,7 +104,12 @@ export async function setup (req: Request, res: Response) {
 
     const { password, setupToken, initialToken } = req.body
 
-    if (user.password !== security.hash(password)) {
+    const userModel = await UserModel.findByPk(user.id)
+    if (userModel == null) {
+      throw new Error('No such user found!')
+    }
+
+    if (userModel.password !== security.hash(password)) {
       throw new Error('Password doesnt match stored password')
     }
 
@@ -120,15 +125,10 @@ export async function setup (req: Request, res: Response) {
       throw new Error('Initial token doesnt match the secret from the setupToken')
     }
 
-    // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
-    if (userModel == null) {
-      throw new Error('No such user found!')
-    }
-
     userModel.totpSecret = secret
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    security.authenticatedUsers.revokeOtherSessions(userModel.id, utils.jwtFrom(req))
 
     res.status(200).send()
   } catch (error) {
@@ -149,19 +149,19 @@ export async function disable (req: Request, res: Response) {
 
     const { password } = req.body
 
-    if (user.password !== security.hash(password)) {
-      throw new Error('Password doesnt match stored password')
-    }
-
-    // Update db model and cached object
     const userModel = await UserModel.findByPk(user.id)
     if (userModel == null) {
       throw new Error('No such user found!')
     }
 
+    if (userModel.password !== security.hash(password)) {
+      throw new Error('Password doesnt match stored password')
+    }
+
     userModel.totpSecret = ''
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    security.authenticatedUsers.revokeOtherSessions(userModel.id, utils.jwtFrom(req))
 
     res.status(200).send()
   } catch (error) {

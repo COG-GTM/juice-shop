@@ -93,10 +93,11 @@ describe('UserService', () => {
         let res: any
         service.changePassword({ current: 'foo', new: 'bar', repeat: 'bar' }).subscribe((data) => (res = data))
 
-        const req = httpMock.expectOne('http://localhost:3000/rest/user/change-password?current=foo&new=bar&repeat=bar')
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/change-password')
         req.flush({ user: 'apiResponse' })
 
-        expect(req.request.method).toBe('GET')
+        expect(req.request.method).toBe('POST')
+        expect(req.request.body).toEqual({ current: 'foo', new: 'bar', repeat: 'bar' })
         expect(res).toBe('apiResponse')
         httpMock.verify()
     })
@@ -186,6 +187,20 @@ describe('UserService', () => {
 
         expect(req.request.method).toBe('GET')
         expect(res).toEqual({ id: '123' })
+        httpMock.verify()
+    })
+
+    it('should end the session via the rest api with the given token', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.logout('session-token').subscribe()
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/logout')
+        req.flush(null)
+
+        expect(req.request.method).toBe('POST')
+        expect(req.request.headers.get('Authorization')).toBe('Bearer session-token')
         httpMock.verify()
     })
 
