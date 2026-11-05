@@ -219,6 +219,36 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(other)).to.deep.equal({ data: { id: 61 } })
     })
 
+    it('rejects tokens of a user issued before revokeAllFor even if they were never cached', () => {
+      const issuedAt = Date.now()
+      const uncached = security.authorize({ data: { id: 66 } })
+      const clock = sinon.useFakeTimers({ now: issuedAt + 2000, toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.revokeAllFor(66)
+        expect(security.verify(uncached)).to.equal(false)
+        security.authenticatedUsers.put(uncached, { data: { id: 66 } } as unknown as UserModel)
+        expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
+        const fresh = security.authorize({ data: { id: 66 } })
+        expect(security.verify(fresh)).to.equal(true)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects uncached tokens of other sessions but keeps the current one after revokeOtherSessions', () => {
+      const issuedAt = Date.now()
+      const current = security.authorize({ data: { id: 67 } })
+      const uncached = security.authorize({ data: { id: 67 } })
+      const clock = sinon.useFakeTimers({ now: issuedAt + 2000, toFake: ['Date'] })
+      try {
+        security.authenticatedUsers.revokeOtherSessions(67, current)
+        expect(security.verify(current)).to.equal(true)
+        expect(security.verify(uncached)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
     it('issues distinct tokens for identical payloads so revoking one does not revoke a later login', () => {
       const first = security.authorize({ data: { id: 62 } })
       const second = security.authorize({ data: { id: 62 } })
