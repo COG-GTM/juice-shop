@@ -363,9 +363,22 @@ function reachableExternalEntities (data: string) {
   return externalTargets
 }
 
-function isWellFormedWithoutExpansion (data: string, doctypeEnd: number, declarations: Map<string, unknown>) {
+function referencesExternalEntity (key: string, declarations: Map<string, { external: boolean, value: string }>, visited = new Set<string>()): boolean {
+  const declaration = declarations.get(key)
+  if (declaration === undefined || visited.has(key)) return false
+  if (declaration.external) return true
+  visited.add(key)
+  return [...declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)].some(([, name]) => referencesExternalEntity('&' + name, declarations, visited))
+}
+
+function isWellFormedWithoutExpansion (data: string, doctypeEnd: number, declarations: Map<string, { external: boolean, value: string }>) {
   if (doctypeEnd < 0) return false
-  const body = data.slice(doctypeEnd + 1).replace(/&([^\s;&%#<>"'[\]]+);/g, (reference: string, name: string) => declarations.has('&' + name) ? '' : reference)
+  const entityReference = /&([^\s;&%#<>"'[\]]+);/g
+  const body = data.slice(doctypeEnd + 1).replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<[^>"']*(?:(?:"[^"]*"|'[^']*')[^>"']*)*>|&([^\s;&%#<>"'[\]]+);/g, (token: string, name?: string) => {
+    if (name !== undefined) return declarations.has('&' + name) ? '' : token
+    if (!token.startsWith('<') || /^<[!?]/.test(token)) return token
+    return token.replace(entityReference, (reference: string, attributeName: string) => declarations.has('&' + attributeName) && !referencesExternalEntity('&' + attributeName, declarations) ? '' : reference)
+  })
   if (containsDtd(body)) return false
   try {
     parseXmlWithoutEntities(body)
