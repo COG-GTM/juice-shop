@@ -17,6 +17,17 @@ describe('/#/search', () => {
       cy.expectChallengeSolved({ challenge: 'DOM XSS' })
     })
   })
+  describe('search query rendering', () => {
+    it('should render HTML in the q parameter as literal text without executing it', () => {
+      const payload = '<img src=x onerror=alert(1)>'
+      const onAlert = cy.stub()
+      cy.on('window:alert', onAlert)
+      cy.visit(`/#/search?q=${encodeURIComponent(payload)}`)
+      cy.get('#searchValue').should('have.text', payload)
+      cy.get('#searchValue img').should('not.exist')
+      cy.wrap(onAlert).should('not.have.been.called')
+    })
+  })
   describe('challenge "xssBonusPayload"', () => {
     it('search query should be susceptible to reflected XSS attacks', () => {
       cy.get('#searchQuery').click()
