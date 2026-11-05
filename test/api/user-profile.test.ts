@@ -51,4 +51,54 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{7*7}' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+    assert.ok(!res.text.includes('>49<'))
+  })
+
+  void it('GET user profile HTML-escapes username', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '<<a|ascript>alert(`xss`)</script>' })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+    assert.ok(res.text.includes('&lt;script&gt;alert(`xss`)&lt;/script&gt;'))
+  })
+
+  void it('GET user profile CSP does not include raw profile image value', async () => {
+    await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ imageUrl: "https://a.png; script-src 'unsafe-inline' 'self'" })
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.headers['content-security-policy']?.includes("'unsafe-inline'"))
+  })
 })
