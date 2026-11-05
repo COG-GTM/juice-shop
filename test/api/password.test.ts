@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -93,6 +94,32 @@ void describe('/rest/user/change-password', () => {
 
     assert.equal(await loginStatus('nocurrent@be.rt', 'original-secret'), 200)
     assert.equal(await loginStatus('nocurrent@be.rt', 'hijacked'), 401)
+  })
+
+  void it('POST password change with an expired token that is still cached is rejected and leaves password unchanged', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'expiredtoken@be.rt',
+        password: 'original-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'expiredtoken@be.rt', password: 'original-secret' })
+    const session = security.authenticatedUsers.get(token)
+    assert.ok(session)
+    const expiredToken = security.authorize({ data: session.data, exp: Math.floor(Date.now() / 1000) - 60 })
+    security.authenticatedUsers.tokenMap[expiredToken] = session
+
+    const res = await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + expiredToken })
+      .send({ current: 'original-secret', new: 'hijacked', repeat: 'hijacked' })
+
+    assert.notEqual(res.status, 200)
+    assert.equal(await loginStatus('expiredtoken@be.rt', 'original-secret'), 200)
+    assert.equal(await loginStatus('expiredtoken@be.rt', 'hijacked'), 401)
   })
 
   void it('POST password change revokes the other sessions of the user', async () => {
