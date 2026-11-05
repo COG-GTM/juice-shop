@@ -82,6 +82,7 @@ void describe('/rest/memories', () => {
       .attach('image', Buffer.alloc(1000001), { filename: 'oversized.png', contentType: 'image/png' })
       .field('caption', 'Oversized Image')
     assert.equal(res.status, 413)
+    assert.equal(res.body.error, 'File too large')
     assert.ok(res.text.includes('File too large'))
     assert.deepEqual(uploadedFiles(), filesBefore)
   })
@@ -95,6 +96,7 @@ void describe('/rest/memories', () => {
       .attach('image', Buffer.from('<html><script>alert(1)</script></html>'), { filename: 'disguised.png', contentType: 'image/png' })
       .field('caption', 'Disguised Image')
     assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Uploaded file is not a PNG or JPEG image')
     assert.deepEqual(uploadedFiles(), filesBefore)
   })
 
