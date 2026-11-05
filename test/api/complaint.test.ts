@@ -21,9 +21,10 @@ before(async () => {
 
 void describe('/api/Complaints', () => {
   void it('POST new complaint', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
       .post('/api/Complaints')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
       .send({
         message: 'You have no clue what https://github.com/eslint/eslint-scope/issues/39 means, do you???'
       })
@@ -62,6 +63,31 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 200)
     assert.ok(res.body.data.length > 0)
     assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === 2))
+  })
+
+  void it('POST complaint is always assigned to the current user', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const userHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const withoutUserId = await request(app)
+      .post('/api/Complaints')
+      .set(userHeader)
+      .send({ message: 'Complaint without explicit owner' })
+    assert.equal(withoutUserId.status, 201)
+    assert.equal(withoutUserId.body.data.UserId, 2)
+
+    const forgedUserId = await request(app)
+      .post('/api/Complaints')
+      .set(userHeader)
+      .send({ UserId: 1, message: 'Complaint with forged owner' })
+    assert.equal(forgedUserId.status, 201)
+    assert.equal(forgedUserId.body.data.UserId, 2)
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(userHeader)
+    const ids = res.body.data.map((complaint: { id: number }) => complaint.id)
+    assert.ok(ids.includes(withoutUserId.body.data.id))
+    assert.ok(ids.includes(forgedUserId.body.data.id))
   })
 })
 
