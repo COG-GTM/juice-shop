@@ -47,6 +47,8 @@ void describe('/rest/user/login', () => {
     assert.equal(data.role, 'customer')
     assert.equal(data.password, undefined)
     assert.equal(data.totpSecret, undefined)
+    assert.equal(data.deluxeToken, undefined)
+    assert.equal(data.lastLoginIp, undefined)
   })
 
   void it('POST login non-existing user', async () => {

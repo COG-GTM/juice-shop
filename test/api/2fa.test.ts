@@ -60,6 +60,8 @@ void describe('/rest/2fa/verify', () => {
     assert.equal(data.id, 10)
     assert.equal(data.password, undefined)
     assert.equal(data.totpSecret, undefined)
+    assert.equal(data.deluxeToken, undefined)
+    assert.equal(data.lastLoginIp, undefined)
   })
 
   void it('POST should fail if a invalid totp token is used', async () => {

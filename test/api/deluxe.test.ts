@@ -105,7 +105,8 @@ void describe('/rest/deluxe-membership', () => {
 
     const { data } = JSON.parse(Buffer.from(res.body.data.token.split('.')[1], 'base64').toString())
     assert.equal(data.role, 'deluxe')
-    assert.equal(typeof data.deluxeToken, 'string')
+    assert.equal(data.deluxeToken, undefined)
+    assert.equal(data.lastLoginIp, undefined)
     assert.equal(data.password, undefined)
     assert.equal(data.totpSecret, undefined)
   })

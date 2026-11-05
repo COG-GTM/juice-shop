@@ -127,7 +127,24 @@ describe('insecurity', () => {
       })
 
       expect(payloadOf(token).status).to.equal('success')
-      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png' })
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', profileImage: 'x.png' })
+    })
+
+    it('keeps deluxe token and last login IP only in the server-side session', () => {
+      const user = { status: 'success', data: { id: 1, email: 'a@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('a@b.c'), lastLoginIp: '1.2.3.4', password: 'hash', totpSecret: 'SECRET' } }
+      const token = security.authorize(user)
+      security.authenticatedUsers.put(token, user as any)
+
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', role: 'deluxe' })
+      expect(security.authenticatedUsers.get(token)?.data).to.deep.equal({ id: 1, email: 'a@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('a@b.c'), lastLoginIp: '1.2.3.4' })
+      expect(security.isDeluxe({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal(true)
+    })
+
+    it('does not treat a token with deluxe role as deluxe without a server-side deluxe session', () => {
+      const token = security.authorize({ status: 'success', data: { id: 2, email: 'b@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('b@b.c') } })
+      security.authenticatedUsers.put(token, { status: 'success', data: { id: 2, email: 'b@b.c', role: 'deluxe' } } as any)
+
+      expect(security.isDeluxe({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal(false)
     })
 
     it('leaves payloads without user data unchanged', () => {
