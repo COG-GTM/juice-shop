@@ -82,4 +82,40 @@ void describe('WebSocket', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
   })
+
+  void it('server survives websocket events carrying non-string payloads', async () => {
+    const payloads = [1, {}, [], true, { includes: 'x', match: 'y' }]
+    for (const data of payloads) {
+      socket.emit('verifyLocalXssChallenge', data)
+      socket.emit('verifySvgInjectionChallenge', data)
+      socket.emit('verifyCloseNotificationsChallenge', data)
+      socket.emit('notification received', data)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+    assert.ok(socket.connected)
+  })
+
+  void it('server stays responsive after oversized websocket string payloads', async () => {
+    const long = 'a'.repeat(90 * 1024)
+    const started = Date.now()
+    socket.emit('verifySvgInjectionChallenge', long)
+    socket.emit('verifyLocalXssChallenge', long)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+    assert.ok(Date.now() - started < 2000)
+    assert.ok(socket.connected)
+  })
+
+  void it('server stays responsive and drops the connection for payloads above maxHttpBufferSize', async () => {
+    const disconnected = new Promise((resolve) => socket.once('disconnect', resolve))
+    const started = Date.now()
+    socket.emit('verifySvgInjectionChallenge', 'a'.repeat(900 * 1024))
+    await disconnected
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+    assert.ok(Date.now() - started < 2000)
+  })
 })
