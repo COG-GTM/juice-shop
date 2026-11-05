@@ -19,8 +19,9 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
+const configuredPrivateKey = process.env.JWT_PRIVATE_KEY ?? (process.env.JWT_PRIVATE_KEY_FILE ? fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8') : undefined)
+
 const loadJwtKeyPair = () => {
-  const configuredPrivateKey = process.env.JWT_PRIVATE_KEY ?? (process.env.JWT_PRIVATE_KEY_FILE ? fs.readFileSync(process.env.JWT_PRIVATE_KEY_FILE, 'utf8') : undefined)
   if (configuredPrivateKey) {
     return {
       privateKey: configuredPrivateKey,
@@ -36,7 +37,8 @@ const loadJwtKeyPair = () => {
 
 const { privateKey, publicKey } = loadJwtKeyPair()
 export { publicKey }
-const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ??
+  (configuredPrivateKey ? crypto.createHmac('sha256', configuredPrivateKey).update('deluxeTokenSecret').digest('hex') : crypto.randomBytes(32).toString('hex'))
 
 interface ResponseWithUser {
   status?: string
