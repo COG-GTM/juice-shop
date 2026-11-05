@@ -253,6 +253,26 @@ describe('insecurity', () => {
       }
     })
 
+    it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE symlink inside encryptionkeys/ that points outside of it', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const keyFile = path.resolve(`jwt-test-${process.pid}.key`)
+      const link = path.resolve('encryptionkeys', `jwt-test-${process.pid}.key`)
+      fs.writeFileSync(keyFile, pem, { mode: 0o600 })
+      try {
+        fs.symlinkSync(keyFile, link)
+      } catch (err) {
+        fs.unlinkSync(keyFile)
+        if ((err as NodeJS.ErrnoException).code === 'EPERM') return
+        throw err
+      }
+      try {
+        expect(() => security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY_FILE: link })).to.throw(/encryptionkeys/)
+      } finally {
+        fs.unlinkSync(link)
+        fs.unlinkSync(keyFile)
+      }
+    })
+
     it('treats only paths below a directory as inside it', () => {
       expect(security.isPathInside('/app/encryptionkeys', '/app/encryptionkeys/jwt.key', path.posix)).to.equal(true)
       expect(security.isPathInside('/app/encryptionkeys', '/app/encryptionkeys/..jwt.key', path.posix)).to.equal(true)
