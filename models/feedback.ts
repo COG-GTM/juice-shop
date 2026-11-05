@@ -17,6 +17,10 @@ import {
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 
+// Mirrors the non-recursive tag stripping of sanitize-html 1.4.2 so the challenge stays detectable
+const stripTagsOnce = (html: string) =>
+  html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>|<\/?[a-z][^<>]*>/gi, '')
+
 class Feedback extends Model<
 InferAttributes<Feedback>,
 InferCreationAttributes<Feedback>
@@ -43,7 +47,7 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
           if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
             challengeUtils.solveIf(challenges.persistedXssFeedbackChallenge, () => {
               return utils.contains(
-                security.sanitizeHtml(comment),
+                stripTagsOnce(comment),
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
