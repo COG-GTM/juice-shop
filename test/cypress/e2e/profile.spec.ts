@@ -15,6 +15,16 @@ describe('/profile', () => {
     })
   })
 
+  describe('username rendering', () => {
+    it('should render Pug interpolation in the username as literal text', () => {
+      cy.visit('/profile')
+      cy.get('#username').clear()
+      cy.get('#username').type('a#{7*7}', { parseSpecialCharSequences: false })
+      cy.get('#submit').click()
+      cy.get('#card p').should('contain.text', 'a#{7*7}').and('not.contain.text', 'a49')
+    })
+  })
+
   describe('challenge "csrf"', () => {
     // FIXME Only works on Chrome <80 but Protractor uses latest Chrome version. Test can probably never be turned on again.
     xit('should be possible to perform a CSRF attack against the user profile page', () => {
