@@ -3,38 +3,41 @@
  * SPDX-License-Identifier: MIT
  */
 
-import vm from 'node:vm'
 import { type Request, type Response, type NextFunction } from 'express'
-// @ts-expect-error FIXME due to non-existing type definitions for notevil
-import { eval as safeEval } from 'notevil'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
+
+interface OrderLine {
+  productId: number
+  quantity: number
+}
 
 export function b2bOrder () {
   return ({ body }: Request, res: Response, next: NextFunction) => {
-    if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-      const orderLinesData = body.orderLinesData || ''
-      try {
-        const sandbox = { safeEval, orderLinesData }
-        vm.createContext(sandbox)
-        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })
-        res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
-      } catch (err) {
-        if (utils.getErrorMessage(err).match(/Script execution timed out.*/) != null) {
-          challengeUtils.solveIf(challenges.rceOccupyChallenge, () => { return true })
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          challengeUtils.solveIf(challenges.rceChallenge, () => { return utils.getErrorMessage(err) === 'Infinite loop detected - reached max iterations' })
-          next(err)
-        }
-      }
-    } else {
-      res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
+    const orderLinesData = body.orderLinesData
+    if (orderLinesData !== undefined && orderLinesData !== null && orderLinesData !== '' && parseOrderLines(orderLinesData) === null) {
+      res.status(400).json({ status: 'error', error: 'Invalid orderLinesData' })
+      return
     }
+    res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
+  }
+
+  function parseOrderLines (orderLinesData: unknown): OrderLine[] | null {
+    if (typeof orderLinesData !== 'string') return null
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(orderLinesData)
+    } catch {
+      return null
+    }
+    const orderLines = Array.isArray(parsed) ? parsed : [parsed]
+    return orderLines.length > 0 && orderLines.every(isOrderLine) ? orderLines : null
+  }
+
+  function isOrderLine (line: unknown): line is OrderLine {
+    if (typeof line !== 'object' || line === null || Array.isArray(line)) return false
+    const { productId, quantity } = line as Record<string, unknown>
+    return Number.isInteger(productId) && Number.isInteger(quantity)
   }
 
   function uniqueOrderNumber () {
