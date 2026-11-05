@@ -15,12 +15,13 @@ export function logout () {
       res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
       return
     }
-    security.authenticatedUsers.revoke(bearer)
     const cookie = req.cookies?.token
-    if (cookie && security.authenticatedUsers.get(cookie)?.data?.id === userId) {
+    const sameUserCookie = !!cookie && (utils.unquote(cookie) === utils.unquote(bearer) || security.authenticatedUsers.get(cookie)?.data?.id === userId)
+    security.authenticatedUsers.revoke(bearer)
+    if (sameUserCookie) {
       security.authenticatedUsers.revoke(cookie)
+      res.clearCookie('token')
     }
-    res.clearCookie('token')
     res.status(204).send()
   }
 }

@@ -48,6 +48,19 @@ void describe('/api/Wallets', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('logout keeps the token cookie of another account', async () => {
+    const { token: mine } = await login(app, { email: 'demo', password: 'demo' })
+    const { token: other } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+
+    const res = await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: `Bearer ${mine}`, Cookie: `token=${other}` })
+    assert.equal(res.status, 204)
+    assert.ok(!String(res.headers['set-cookie'] ?? '').includes('token=;'))
+
+    await request(app).get('/rest/wallet/balance').set({ Authorization: `Bearer ${other}` }).expect(200)
+  })
+
   void it('PUT wallet is forbidden via public API', async () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
