@@ -32,6 +32,7 @@ export function login () {
   return (req: Request, res: Response, next: NextFunction) => {
     verifyPreLoginChallenges(req) // vuln-code-snippet hide-line
     UserModel.findOne({ where: { email: req.body.email || '' }, attributes: ['password'] })
+      .then(async (storedUser) => await upgradeLegacyPasswordHash(storedUser, req.body.email || '', req.body.password || '')) // vuln-code-snippet hide-line
       .then((storedUser) => security.rehashPassword(req.body.password || '', storedUser?.password))
       .then((passwordHash) => models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${passwordHash}' AND deletedAt IS NULL`, { model: UserModel, plain: true })) // vuln-code-snippet vuln-line loginAdminChallenge loginBenderChallenge loginJimChallenge
       .then((authenticatedUser) => { // vuln-code-snippet neutral-line loginAdminChallenge loginBenderChallenge loginJimChallenge
@@ -57,6 +58,12 @@ export function login () {
       })
   }
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
+
+  async function upgradeLegacyPasswordHash (storedUser: UserModel | null, email: string, password: string) {
+    if (!storedUser || !security.verifyLegacyPassword(password, storedUser.password)) return storedUser
+    const user = await UserModel.findOne({ where: { email }, attributes: ['id', 'password'] })
+    return user ? await user.update({ password }) : storedUser
+  }
 
   function verifyPreLoginChallenges (req: Request) {
     challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })

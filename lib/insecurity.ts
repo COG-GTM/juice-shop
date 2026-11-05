@@ -104,6 +104,14 @@ export const verifyPassword = async (password: string, storedHash?: string | nul
   return crypto.timingSafeEqual(key, parsed.key)
 }
 
+const LEGACY_MD5_HASH = /^[a-f0-9]{32}$/
+
+export const isLegacyPasswordHash = (storedHash?: string | null): storedHash is string =>
+  typeof storedHash === 'string' && LEGACY_MD5_HASH.test(storedHash)
+
+export const verifyLegacyPassword = (password: string, storedHash?: string | null) =>
+  isLegacyPasswordHash(storedHash) && crypto.timingSafeEqual(Buffer.from(hash(String(password))), Buffer.from(storedHash))
+
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
