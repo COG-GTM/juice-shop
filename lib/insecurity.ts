@@ -41,6 +41,39 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const scryptParams = { N: 65536, r: 8, p: 1 }
+const scryptKeyLength = 64
+const scryptSaltLength = 16
+const scryptHashPattern = /^\$scrypt\$N=(\d+),r=(\d+),p=(\d+)\$([A-Za-z0-9+/]+={0,2})\$([A-Za-z0-9+/]+={0,2})$/
+
+const scryptOptions = (N: number, r: number, p: number) => ({ N, r, p, maxmem: 2 * 128 * N * r * p })
+
+export const hashPassword = (password: string) => {
+  const { N, r, p } = scryptParams
+  const salt = crypto.randomBytes(scryptSaltLength)
+  const derivedKey = crypto.scryptSync(password, salt, scryptKeyLength, scryptOptions(N, r, p))
+  return `$scrypt$N=${N},r=${r},p=${p}$${salt.toString('base64')}$${derivedKey.toString('base64')}`
+}
+
+export const verifyPassword = (password: unknown, storedHash: unknown) => {
+  if (typeof password !== 'string' || typeof storedHash !== 'string') {
+    return false
+  }
+  const match = scryptHashPattern.exec(storedHash)
+  if (match == null) {
+    return false
+  }
+  const [N, r, p] = match.slice(1, 4).map(Number)
+  const salt = Buffer.from(match[4], 'base64')
+  const expectedKey = Buffer.from(match[5], 'base64')
+  try {
+    const derivedKey = crypto.scryptSync(password, salt, expectedKey.length, scryptOptions(N, r, p))
+    return crypto.timingSafeEqual(derivedKey, expectedKey)
+  } catch {
+    return false
+  }
+}
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {

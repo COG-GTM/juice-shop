@@ -196,6 +196,37 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash instead of an MD5 digest', () => {
+      const hashed = security.hashPassword('admin123')
+      expect(hashed).to.match(/^\$scrypt\$N=\d+,r=\d+,p=\d+\$/)
+      expect(hashed).to.not.equal(security.hash('admin123'))
+    })
+
+    it('uses a unique salt for every hash', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password', () => {
+      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password', () => {
+      expect(security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects an unsalted MD5 digest as stored hash', () => {
+      expect(security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+    })
+
+    it('rejects non-string input', () => {
+      expect(security.verifyPassword(undefined, security.hashPassword('admin123'))).to.equal(false)
+      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
