@@ -17,7 +17,7 @@ export function createProductReviews () {
     if (!author) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized' })
     }
-    challengeUtils.solveIf(challenges.forgedReviewChallenge, () => req.body.author !== undefined && req.body.author !== author)
+    challengeUtils.solveIf(challenges.forgedReviewChallenge, () => typeof req.body.author === 'string' && req.body.author !== 'Anonymous' && req.body.author !== author)
 
     try {
       await reviewsCollection.insert({
