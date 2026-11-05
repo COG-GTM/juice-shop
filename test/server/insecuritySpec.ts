@@ -219,6 +219,23 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(other)).to.deep.equal({ data: { id: 61 } })
     })
 
+    it('revokes a single session on logout and leaves other sessions of the user intact', () => {
+      const loggedOut = security.authorize({ data: { id: 70 } })
+      const otherDevice = security.authorize({ data: { id: 70 } })
+      security.authenticatedUsers.put(loggedOut, { data: { id: 70 } as unknown as UserModel })
+      security.authenticatedUsers.put(otherDevice, { data: { id: 70 } as unknown as UserModel })
+
+      security.authenticatedUsers.revoke(loggedOut)
+
+      expect(security.authenticatedUsers.get(loggedOut)).to.equal(undefined)
+      expect(security.verify(loggedOut)).to.equal(false)
+      expect(security.authenticatedUsers.get(otherDevice)).to.deep.equal({ data: { id: 70 } })
+      expect(security.verify(otherDevice)).to.equal(true)
+
+      security.authenticatedUsers.put(loggedOut, { data: { id: 70 } as unknown as UserModel })
+      expect(security.authenticatedUsers.get(loggedOut)).to.equal(undefined)
+    })
+
     it('rejects tokens of a user issued before revokeAllFor even if they were never cached', () => {
       const issuedAt = Date.now()
       const uncached = security.authorize({ data: { id: 66 } })

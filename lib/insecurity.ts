@@ -40,6 +40,7 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
   revokeOtherSessions: (userId: number, currentToken: string) => void
   revokeAllFor: (userId: number) => void
+  revoke: (token: string) => void
 }
 
 const tokenLifetimeSeconds = 6 * 60 * 60
@@ -216,6 +217,11 @@ export const authenticatedUsers: IAuthenticatedUsers = {
       }
     }
     delete this.idMap[userId]
+  },
+  revoke: function (token: string) {
+    const key = utils.unquote(token)
+    revokeToken(key)
+    forgetSession(this, key)
   }
 }
 
