@@ -139,6 +139,15 @@ describe('AdministrationComponent', () => {
         expect(dialog.open).toHaveBeenCalledWith(FeedbackDetailsComponent, { data: { feedback: 'Feedback', id: 1 } })
     })
 
+    it('should not render active markup from a feedback comment', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)"></iframe>2 &lt; 3', rating: 1 }]))
+        component.findAllFeedbacks()
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+        expect(fixture.nativeElement.textContent).toContain('2 < 3')
+    })
+
     it('should have three columns in the user table', () => {
         expect(component.userColumns.length).toBe(3)
         expect(component.userColumns[0]).toBe('user')

@@ -43,4 +43,12 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should not render active markup from a feedback comment', () => {
+        component.feedback = '<iframe src="javascript:alert(`xss`)"></iframe>2 &lt; 3'
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('cite iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite').textContent).toBe('2 < 3')
+    })
 })
