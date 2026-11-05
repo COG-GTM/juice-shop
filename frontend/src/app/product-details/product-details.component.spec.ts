@@ -22,10 +22,11 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatExpansionModule } from '@angular/material/expansion'
 
 import { ProductDetailsComponent } from './product-details.component'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('ProductDetailsComponent', () => {
@@ -38,7 +39,8 @@ describe('ProductDetailsComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            whoAmI: vi.fn().mockName("UserService.whoAmI")
+            whoAmI: vi.fn().mockName("UserService.whoAmI"),
+            isLoggedIn: new Subject()
         }
         userService.whoAmI.mockReturnValue(of({}))
         productReviewService = {
@@ -140,6 +142,61 @@ describe('ProductDetailsComponent', () => {
         buttonDe.triggerEventHandler('click', null)
         expect(console.log).toHaveBeenCalledWith('Error')
         fixture.destroy()
+    })
+
+    it('should keep the review text when posting fails', () => {
+        component.data = { productData: { id: 42 } as Product }
+        userService.whoAmI.mockReturnValue(of({}))
+        productReviewService.create.mockReturnValue(throwError(() => ({ status: 401 })))
+        console.log = vi.fn()
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(textArea.value).toBe('Great product!')
+    })
+
+    it('should log out and show an error when posting fails with 401', () => {
+        component.data = { productData: { id: 42 } as Product }
+        productReviewService.create.mockReturnValue(throwError(() => ({ status: 401 })))
+        const snackBarHelper = TestBed.inject(SnackBarHelperService)
+        vi.spyOn(snackBarHelper, 'open')
+        localStorage.setItem('token', 'expired')
+        console.log = vi.fn()
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        component.addReview(textArea)
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(snackBarHelper.open).toHaveBeenCalledWith('UNAUTHORIZED_ACCESS_ERROR', 'errorBar')
+        expect(snackBarHelper.open).not.toHaveBeenCalledWith('CONFIRM_REVIEW_SAVED')
+    })
+
+    it('should show the server error message when posting fails otherwise', () => {
+        component.data = { productData: { id: 42 } as Product }
+        productReviewService.create.mockReturnValue(throwError(() => ({ status: 429, error: { message: 'Too many reviews, please try again later' } })))
+        const snackBarHelper = TestBed.inject(SnackBarHelperService)
+        vi.spyOn(snackBarHelper, 'open')
+        console.log = vi.fn()
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        component.addReview(textArea)
+        expect(snackBarHelper.open).toHaveBeenCalledWith('Too many reviews, please try again later', 'errorBar')
+        expect(textArea.value).toBe('Great product!')
+    })
+
+    it('should clear the review text after posting succeeds', () => {
+        component.data = { productData: { id: 42 } as Product }
+        userService.whoAmI.mockReturnValue(of({}))
+        productReviewService.create.mockReturnValue(of({}))
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        buttonDe.triggerEventHandler('click', null)
+        expect(textArea.value).toBe('')
     })
 
     it('should refresh reviews after posting a review', () => {
