@@ -15,6 +15,23 @@ describe('/profile', () => {
     })
   })
 
+  describe('username rendering', () => {
+    it('should render template syntax and markup in the username as literal text', () => {
+      const payload = 'x #{7*7} <b>bold</b>'
+      cy.visit('/profile')
+      cy.get('#username').clear()
+      cy.get('#username').type(payload, { parseSpecialCharSequences: false })
+      cy.get('#submit').click()
+
+      cy.get('p').contains('x #{7*7}').should('have.text', payload)
+      cy.get('p b').should('not.exist')
+      cy.get('#username').should('have.value', payload)
+
+      cy.get('#username').clear()
+      cy.get('#submit').click()
+    })
+  })
+
   describe('challenge "csrf"', () => {
     // FIXME Only works on Chrome <80 but Protractor uses latest Chrome version. Test can probably never be turned on again.
     xit('should be possible to perform a CSRF attack against the user profile page', () => {

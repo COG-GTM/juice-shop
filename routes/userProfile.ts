@@ -8,9 +8,7 @@ import { AllHtmlEntities as Entities } from 'html-entities'
 import config from 'config'
 import fs from 'node:fs/promises'
 
-import * as challengeUtils from '../lib/challengeUtils'
 import { themes } from '../views/themes/themes'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
@@ -68,10 +66,6 @@ export function getUserProfile () {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
-
-      challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
-        return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
-      })
 
       res.set({
         'Content-Security-Policy': CSP
