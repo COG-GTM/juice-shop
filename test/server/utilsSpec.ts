@@ -213,6 +213,12 @@ describe('utils', () => {
       expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.10'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '198.51.100.10' } })).to.equal('203.0.113.7')
     })
 
+    it('keys on the forwarding proxy when it forwarded a malformed address', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': 'junk-1' }, socket: { remoteAddress: '10.0.0.2' } })).to.equal('10.0.0.2')
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '198.51.100.9, junk-2' }, socket: { remoteAddress: '10.0.0.2' } })).to.equal('10.0.0.2')
+      expect(utils.createClientIpForRateLimit(['198.51.100.10'])({ headers: { 'x-forwarded-for': '1.2.3.4:5678' }, socket: { remoteAddress: '198.51.100.10' } })).to.equal('198.51.100.10')
+    })
+
     it('trusts only the configured proxies once a trusted proxy list is given', () => {
       const spoofed = { headers: { 'x-forwarded-for': '203.0.113.99' }, socket: { remoteAddress: '10.0.0.5' } }
       expect(utils.createClientIpForRateLimit(['10.0.0.1'])(spoofed)).to.equal('10.0.0.5')
