@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Request, type Response, type NextFunction, type CookieOptions } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -31,8 +31,8 @@ interface ResponseWithUser {
 }
 
 interface IAuthenticatedUsers {
-  tokenMap: Record<string, ResponseWithUser>
-  idMap: Record<string, string>
+  tokenMap: Map<string, ResponseWithUser>
+  idMap: Map<string, string>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
   tokenOf: (user: UserModel) => string | undefined
@@ -53,9 +53,35 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+const tokenUserClaims = ['id', 'email', 'username', 'role', 'deluxeToken', 'lastLoginIp', 'profileImage']
+
+export const tokenPayload = (payload: any = {}) => {
+  if (payload?.data === null || typeof payload?.data !== 'object') {
+    return payload
+  }
+  const data: Record<string, unknown> = {}
+  for (const claim of tokenUserClaims) {
+    if (payload.data[claim] !== undefined) {
+      data[claim] = payload.data[claim]
+    }
+  }
+  return { ...payload, data }
+}
+
+export const authorize = (user = {}) => jwt.sign(tokenPayload(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+export const sessionCookieOptions = (req: Request): CookieOptions => ({ httpOnly: true, secure: req.secure, sameSite: 'strict' })
+export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, { ...sessionCookieOptions(res.req), maxAge: 6 * 60 * 60 * 1000 })
+export const clearSessionCookie = (res: Response) => res.clearCookie('token', sessionCookieOptions(res.req))
+
+export const bearerTokenFromSessionCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!utils.jwtFrom(req) && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -70,17 +96,17 @@ export const sanitizeSecure = (html: string): string => {
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
-  tokenMap: {},
-  idMap: {},
+  tokenMap: new Map(),
+  idMap: new Map(),
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = user
-    this.idMap[user.data.id] = token
+    this.tokenMap.set(token, tokenPayload(user))
+    this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    return token ? this.tokenMap.get(utils.unquote(token)) : undefined
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    return user ? this.idMap.get(String(user.id)) : undefined
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
@@ -177,7 +203,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.tokenMap.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
@@ -192,7 +218,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          setSessionCookie(res, token)
         }
       }
     })

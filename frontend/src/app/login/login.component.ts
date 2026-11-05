@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { CookieService } from 'ngy-cookie'
 import { WindowRefService } from '../Services/window-ref.service'
 import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
@@ -26,6 +25,7 @@ import { of } from 'rxjs'
 import { catchError } from 'rxjs/operators'
 
 import { MatCardModule } from '@angular/material/card'
+import { endSession, startSession } from '../Services/auth-session'
 
 library.add(faKey, faEye, faEyeSlash, faGoogle)
 
@@ -42,7 +42,6 @@ export class LoginComponent implements OnInit {
   private readonly configurationService = inject(ConfigurationService)
   private readonly userService = inject(UserService)
   private readonly windowRefService = inject(WindowRefService)
-  private readonly cookieService = inject(CookieService)
   private readonly router = inject(Router)
   private readonly route = inject(ActivatedRoute)
   private readonly formSubmitService = inject(FormSubmitService)
@@ -102,10 +101,7 @@ export class LoginComponent implements OnInit {
     this.userService.login(this.user).subscribe({
       next: (authentication: any) => {
         const redirectUrl = this.route.snapshot.queryParamMap.get('redirectUrl') ?? '/search'
-        localStorage.setItem('token', authentication.token)
-        const expires = new Date()
-        expires.setHours(expires.getHours() + 8)
-        this.cookieService.put('token', authentication.token, { expires })
+        startSession(authentication.token)
         sessionStorage.setItem('bid', authentication.bid)
 
         this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)
@@ -125,8 +121,7 @@ export class LoginComponent implements OnInit {
           this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
           return
         }
-        localStorage.removeItem('token')
-        this.cookieService.remove('token')
+        endSession()
         sessionStorage.removeItem('bid')
         this.error = error
         this.userService.isLoggedIn.next(false)
