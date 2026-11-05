@@ -16,6 +16,8 @@ import { QuantityModel } from '../models/quantity'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
+import { CardModel } from '../models/card'
+import { AddressModel } from '../models/address'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
@@ -35,6 +37,11 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const orderDetailsError = await validateOrderDetails(req.body.UserId, req.body.orderDetails)
+          if (orderDetailsError != null) {
+            res.status(orderDetailsError.status).json({ status: 'error', error: { message: orderDetailsError.message } })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -179,6 +186,36 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+function isPositiveId (value: unknown): value is number | string {
+  return (typeof value === 'number' || typeof value === 'string') && /^[1-9]\d{0,9}$/.test(String(value))
+}
+
+function isExpired (card: CardModel) {
+  const now = new Date()
+  return card.expYear < now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth - 1 < now.getMonth())
+}
+
+async function validateOrderDetails (UserId: unknown, orderDetails: { paymentId?: unknown, addressId?: unknown } | undefined) {
+  if (!isPositiveId(UserId)) {
+    return { status: 401, message: 'Unauthorized' }
+  }
+  const paymentId = orderDetails?.paymentId
+  if (paymentId !== 'wallet') {
+    const card = isPositiveId(paymentId) ? await CardModel.findOne({ where: { id: paymentId, UserId } }) : null
+    if (card == null || isExpired(card)) {
+      return { status: 402, message: 'Payment not accepted.' }
+    }
+  }
+  const addressId = orderDetails?.addressId
+  if (addressId !== undefined && addressId !== null) {
+    const address = isPositiveId(addressId) ? await AddressModel.findOne({ where: { id: addressId, UserId } }) : null
+    if (address == null) {
+      return { status: 400, message: 'Invalid address.' }
+    }
+  }
+  return null
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
