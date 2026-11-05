@@ -259,4 +259,49 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+
+  void it('POST password reset locks the account after 5 wrong answers regardless of X-Forwarded-For', async () => {
+    const email = 'uvogin@' + config.get<string>('application.domain')
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ email, answer: `wrong-${i}`, new: 'abcdef', repeat: 'abcdef' })
+
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.1.1' })
+      .send({ email: email.toUpperCase(), answer: 'Silence of the Lambs', new: 'abcdef', repeat: 'abcdef' })
+
+    assert.equal(res.status, 429)
+  })
+
+  void it('POST password reset lockout cannot be bypassed with concurrent guesses', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const responses = await Promise.all(Array.from({ length: 10 }, async (_, i) => await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.2.${i}` })
+      .send({ email, answer: `wrong-${i}`, new: 'abcdef', repeat: 'abcdef' })))
+
+    const statuses = responses.map(res => res.status)
+    assert.equal(statuses.filter(status => status === 401).length, 5)
+    assert.equal(statuses.filter(status => status === 429).length, 5)
+  })
+
+  void it('POST password reset rate limit cannot be bypassed with spoofed X-Forwarded-For headers', async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 110; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `192.168.${Math.floor(i / 256)}.${i % 256}` })
+        .send({ email: 'bjoern@' + config.get<string>('application.domain'), answer: 'W-2082' })
+      statuses.push(res.status)
+    }
+
+    assert.ok(statuses.includes(429))
+    assert.equal(statuses[statuses.length - 1], 429)
+  })
 })
