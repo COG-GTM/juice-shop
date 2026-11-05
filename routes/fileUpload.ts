@@ -418,10 +418,30 @@ function stripDeclaredReferences (text: string, declarations: Map<string, { exte
   return result
 }
 
+function withoutCommentsCdataAndPis (text: string) {
+  let result = ''
+  let index = 0
+  while (index < text.length) {
+    const start = text.indexOf('<', index)
+    if (start < 0) break
+    const closer = text.startsWith('<!--', start) ? '-->' : text.startsWith('<![CDATA[', start) ? ']]>' : text.startsWith('<?', start) ? '?>' : null
+    if (closer === null) {
+      result += text.slice(index, start + 1)
+      index = start + 1
+      continue
+    }
+    result += text.slice(index, start)
+    const closerIndex = text.indexOf(closer, start)
+    if (closerIndex < 0) return result
+    index = closerIndex + closer.length
+  }
+  return result + text.slice(index)
+}
+
 function isWellFormedWithoutExpansion (data: string, doctypeEnd: number, declarations: Map<string, { external: boolean, value: string }>) {
   if (doctypeEnd < 0) return false
   const body = stripDeclaredReferences(data.slice(doctypeEnd + 1), declarations)
-  if (containsDtd(body)) return false
+  if (containsDtd(withoutCommentsCdataAndPis(body))) return false
   try {
     parseXmlWithoutEntities(body)
     parseXmlWithoutEntities(data.slice(0, doctypeEnd + 1) + body)
