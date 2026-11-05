@@ -205,6 +205,14 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 410)
     })
 
+    void it('POST XML with dev/random entity referenced in both an attribute value and element text is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo attr="&xxe;">&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'attributeAndTextReference.xml')
+      assert.equal(res.status, 410)
+    })
+
     void it('POST XML with dev/random entity declared through an internal parameter entity is treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % decl \'<!ENTITY xxe SYSTEM "file:///dev/random">\'> %decl;]><foo>&xxe;</foo>')
       const res = await request(app)
