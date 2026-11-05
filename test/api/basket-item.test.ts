@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -67,6 +68,19 @@ void describe('/api/BasketItems', () => {
     for (const item of otherRes.body.data) {
       assert.equal(item.BasketId, 1)
     }
+  })
+
+  void it('GET all basket items with a valid JWT that is not in the session cache returns the caller\'s own items', async () => {
+    const uncachedAuthHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op' } }) }
+    const res = await request(app).get('/api/BasketItems').set(uncachedAuthHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const item of res.body.data) {
+      assert.equal(item.BasketId, 2)
+    }
+
+    const itemRes = await request(app).get('/api/BasketItems/' + res.body.data[0].id).set(uncachedAuthHeader)
+    assert.equal(itemRes.status, 200)
   })
 
   void it('POST new basket item', async () => {
