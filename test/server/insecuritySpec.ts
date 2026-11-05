@@ -241,6 +241,29 @@ describe('insecurity', () => {
       security.authenticatedUsers.tokenMap[token] = { data: { id: 7 } as unknown as UserModel }
       expect(security.authenticatedUsers.get(token)).to.equal(undefined)
     })
+
+    it('appendUserId rejects an expired token that is still cached', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      security.authenticatedUsers.tokenMap[token] = { data: { id: 7 } as unknown as UserModel }
+      let status = 0
+      let passed = false
+      const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as unknown as Response
+      security.appendUserId()(req, res, () => { passed = true })
+      expect(passed).to.equal(false)
+      expect(status).to.equal(401)
+    })
+
+    it('isAuthorized rejects an expired token before express-jwt', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      let status = 0
+      let passed = false
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as unknown as Response
+      security.isAuthorized()(req, res, () => { passed = true })
+      expect(passed).to.equal(false)
+      expect(status).to.equal(401)
+    })
   })
 
   describe('isAccounting', () => {
