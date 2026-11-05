@@ -68,6 +68,7 @@ import locales from './data/static/locales.json'
 import { login } from './routes/login'
 import * as verify from './routes/verify'
 import * as address from './routes/address'
+import * as complaint from './routes/complaint'
 import * as metrics from './routes/metrics'
 import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
@@ -79,7 +80,7 @@ import { applyCoupon } from './routes/coupon'
 import dataErasure from './routes/dataErasure'
 import { dataExport } from './routes/dataExport'
 import { chat } from './routes/chat'
-import { retrieveBasket } from './routes/basket'
+import { retrieveBasket, ensureBasketOwnership } from './routes/basket'
 import { searchProducts } from './routes/search'
 import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
@@ -355,9 +356,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/basket', security.isAuthorized(), security.appendUserId())
   /* BasketItems: API only accessible for authenticated users */
   app.use('/api/BasketItems', security.isAuthorized())
-  app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.get('/api/BasketItems', utils.asyncHandler(basketItems.getBasketItems()))
+  app.use('/api/BasketItems/:id', security.isAuthorized(), utils.asyncHandler(basketItems.ensureBasketItemOwnership()))
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
+  app.delete('/api/Feedbacks/:id', security.isAdmin())
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -377,7 +380,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .get(security.denyAll())
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
+  app.get('/api/Complaints', security.isAuthorized(), utils.asyncHandler(complaint.getComplaints()))
   app.post('/api/Complaints', security.isAuthorized())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
@@ -446,7 +449,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   app.post('/api/Addresss', security.appendUserId())
   app.get('/api/Addresss', security.appendUserId(), utils.asyncHandler(address.getAddress()))
-  app.put('/api/Addresss/:id', security.appendUserId())
+  app.put('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.ensureAddressOwnership()))
   app.delete('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.delAddressById()))
   app.get('/api/Addresss/:id', security.appendUserId(), utils.asyncHandler(address.getAddressById()))
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
@@ -599,9 +602,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/user/whoami', security.updateAuthenticatedUsers(), utils.asyncHandler(retrieveLoggedInUser()))
   app.get('/rest/user/authentication-details', utils.asyncHandler(authenticatedUsers()))
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
-  app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
-  app.post('/rest/basket/:id/checkout', placeOrder())
-  app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
+  app.get('/rest/basket/:id', utils.asyncHandler(ensureBasketOwnership()), utils.asyncHandler(retrieveBasket()))
+  app.post('/rest/basket/:id/checkout', utils.asyncHandler(ensureBasketOwnership()), placeOrder())
+  app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(ensureBasketOwnership()), utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
   app.get('/rest/repeat-notification', utils.asyncHandler(repeatNotification()))

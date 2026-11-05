@@ -11,6 +11,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { basketIdOf } from './basket'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
@@ -34,7 +35,8 @@ export function addBasketItem () {
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    const ownBasketId = await basketIdOf(req)
+    if (ownBasketId === undefined || basketIds.length === 0 || basketIds.some((basketId) => Number(basketId) !== ownBasketId)) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
@@ -51,6 +53,38 @@ export function addBasketItem () {
       } catch (error) {
         next(error)
       }
+    }
+  }
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const ownBasketId = await basketIdOf(req)
+      const items = ownBasketId === undefined ? [] : await BasketItemModel.findAll({ where: { BasketId: ownBasketId } })
+      res.json({ status: 'success', data: items })
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
+export function ensureBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const item = await BasketItemModel.findByPk(req.params.id)
+      if (item == null) {
+        next()
+        return
+      }
+      const ownBasketId = await basketIdOf(req)
+      if (ownBasketId === undefined || item.BasketId !== ownBasketId) {
+        res.status(403).json({ status: 'error', message: 'Malicious activity detected' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
     }
   }
 }
