@@ -287,6 +287,15 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('DELETE existing feedback with admin-role token of unknown user is forbidden', async () => {
+    const id = await createFeedback(jsonHeader)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + id)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: security.roles.admin } }) })
+    assert.equal(res.status, 403)
+  })
+
   void it('DELETE own feedback as customer', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const id = await createFeedback({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })

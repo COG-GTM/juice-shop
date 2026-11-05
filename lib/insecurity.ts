@@ -170,8 +170,7 @@ export const isDeluxe = (req: Request) => {
 }
 
 export const isAdmin = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.admin
+  return authenticatedUsers.from(req)?.data?.role === roles.admin
 }
 
 export const isCustomer = (req: Request) => {

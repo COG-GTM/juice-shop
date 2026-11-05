@@ -84,6 +84,13 @@ void describe('/api/Complaints', () => {
     assert.ok(!res.body.data.some((complaint: { id: number }) => complaint.id === createRes.body.data.id))
   })
 
+  void it('GET complaints with admin-role token of unknown user fails', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { id: 1, role: security.roles.admin } }) })
+    assert.equal(res.status, 401)
+  })
+
   void it('GET all complaints as admin', async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const res = await request(app)
