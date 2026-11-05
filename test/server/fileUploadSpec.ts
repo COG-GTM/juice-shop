@@ -101,6 +101,16 @@ describe('fileUpload', () => {
       })
     }
 
+    it('should not echo the offending YAML source in parse errors', () => {
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from('toJSON: !!js/function \'function(){ return 42 }\'') }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+      expect(error?.message).to.contain('unknown tag')
+      expect(error?.message).to.not.contain('42')
+    })
+
     it('should still echo plain YAML content in the deprecation error', () => {
       req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello') }
       let error: Error | undefined
