@@ -211,6 +211,38 @@ describe('insecurity', () => {
     })
   })
 
+  describe('verify', () => {
+    const past = () => Math.floor(Date.now() / 1000) - 60
+
+    it('accepts a freshly issued token', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 } }))).to.equal(true)
+    })
+
+    it('rejects an expired token', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 }, exp: past() }))).to.equal(false)
+    })
+
+    it('rejects a signed token without exp claim', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 }, exp: undefined }))).to.equal(false)
+    })
+
+    it('rejects a revoked token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.revokeToken(token)
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a malformed token instead of throwing', () => {
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+
+    it('does not return the cached session of an expired token', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      security.authenticatedUsers.tokenMap[token] = { data: { id: 7 } as unknown as UserModel }
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+  })
+
   describe('isAccounting', () => {
     const allowed = (token: string) => {
       let passed = false

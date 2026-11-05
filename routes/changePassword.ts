@@ -25,7 +25,7 @@ export function changePassword () {
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
+    if (token === null || !security.verify(token)) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
     }
