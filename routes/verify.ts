@@ -117,7 +117,7 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: jws.Algori
     }
 
     challengeUtils.solveIf(challenge, () => {
-      return hasAlgorithm(token, algorithm) && isForgedWith(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
+      return hasAlgorithm(token, algorithm) && isForgedWith(token, algorithm) && isWithinValidityPeriod(decoded) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
 }
@@ -129,6 +129,11 @@ function isForgedWith (token: string, algorithm: jws.Algorithm) {
   } catch {
     return false
   }
+}
+
+function isWithinValidityPeriod ({ exp, nbf }: jwt.JwtPayload) {
+  const now = Math.floor(Date.now() / 1000)
+  return (exp === undefined || now < exp) && (nbf === undefined || now >= nbf)
 }
 
 function hasAlgorithm (token: string, algorithm: string) {
