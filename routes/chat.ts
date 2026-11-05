@@ -62,10 +62,19 @@ function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'ass
 }
 
 const COUPON_DISCOUNT = 10
+const SESSION_MAX_AGE_SECONDS = 6 * 60 * 60
+
+function isUnexpiredToken (token: string): boolean {
+  const claims = security.decode(token) as { exp?: unknown, iat?: unknown } | undefined
+  const now = Date.now() / 1000
+  if (typeof claims?.exp === 'number') return claims.exp > now
+  return typeof claims?.iat === 'number' && claims.iat + SESSION_MAX_AGE_SECONDS > now
+}
 
 async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
-  const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
-  if (!email) return { error: 'Customer not authenticated' }
+  const token = utils.jwtFrom(req)
+  const email = security.authenticatedUsers.get(token)?.data?.email
+  if (!email || !token || !isUnexpiredToken(token)) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
   const isOwnOrder = order?.email === email.replace(/[aeiou]/gi, '*') && String(order?.orderId).startsWith(security.hash(email).slice(0, 4) + '-')
   if (!order || !isOwnOrder) return { error: 'No order with this ID found for the current customer' }

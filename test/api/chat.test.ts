@@ -384,6 +384,20 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(!result.includes('couponCode'))
   })
 
+  void it('refuses to mint coupons for expired sessions', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(token)
+    const realNow = Date.now
+    Date.now = () => realNow() + 7 * 60 * 60 * 1000
+    try {
+      const result = await couponToolResult({ discount: 10, orderId }, token)
+      assert.ok(result.includes('Customer not authenticated'))
+      assert.ok(!result.includes('couponCode'))
+    } finally {
+      Date.now = realNow
+    }
+  })
+
   void it('refuses to mint coupons for orders of other customers', { timeout: 15000 }, async () => {
     const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(admin.token)
