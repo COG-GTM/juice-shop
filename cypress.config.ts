@@ -1,4 +1,5 @@
 import { defineConfig } from 'cypress'
+import './test/helpers/ephemeralSecrets.cjs'
 import * as security from './lib/insecurity'
 import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'

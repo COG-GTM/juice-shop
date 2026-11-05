@@ -21,7 +21,7 @@ import * as z85 from 'z85'
 
 const loadSecret = (name: string) => {
   const file = process.env[`${name}_FILE`]
-  const value = process.env[name] ?? (file ? fs.readFileSync(file, 'utf8') : undefined)
+  const value = process.env[name]?.trim() ? process.env[name] : (file ? fs.readFileSync(file, 'utf8') : undefined)
   if (!value?.trim()) {
     throw new Error(`Missing required secret: set ${name} or ${name}_FILE`)
   }
