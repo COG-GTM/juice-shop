@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -168,6 +168,41 @@ void describe('/api/Addresss/:id', () => {
       .set(authHeader)
       .send({ zipCode: 'NX 10111111' })
     assert.equal(res.status, 400)
+  })
+
+  void it('PUT update of another user\'s address is forbidden and keeps the owner', async () => {
+    const credentials = { email: 'mallory.address@juice-sh.op', password: 'mallory123' }
+    await register(app, credentials)
+    const { token } = await login(app, credentials)
+    const attackerHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const putRes = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(attackerHeader)
+      .send({ streetAddress: 'Mallory Street' })
+    assert.equal(putRes.status, 400)
+    assert.equal(putRes.body.status, 'error')
+    assert.equal(putRes.body.data, 'Malicious activity detected.')
+
+    const attackerGetRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(attackerHeader)
+    assert.equal(attackerGetRes.status, 400)
+
+    const ownerGetRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerGetRes.status, 200)
+    assert.equal(ownerGetRes.body.data.streetAddress, 'Bakers Street')
+  })
+
+  void it('PUT update address by non-existing id returns 400 for authorized user', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/999999')
+      .set(authHeader)
+      .send({ fullName: 'Jimy' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
   })
 
   void it('DELETE address by id', async () => {
