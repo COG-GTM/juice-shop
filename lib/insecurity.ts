@@ -35,7 +35,7 @@ const loadPrivateKey = (): string => {
 
 const privateKey = loadPrivateKey()
 export const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
-const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? Buffer.from(crypto.hkdfSync('sha256', privateKey, '', 'juice-shop-deluxe-token', 32)).toString('hex')
+const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 interface ResponseWithUser {
   status?: string
