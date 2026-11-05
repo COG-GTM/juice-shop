@@ -4,38 +4,42 @@
  */
 
 import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import chai from 'chai'
 import cleanupFtpFolder from '../../lib/startup/cleanupFtpFolder'
 const expect = chai.expect
 
 describe('cleanupFtpFolder', () => {
-  const ftpPdf = 'ftp/order_cleanup-spec.pdf'
-  const ordersPdf = 'orders/order_cleanup-spec.pdf'
-  const ordersNonPdf = 'orders/cleanup-spec.txt'
+  const originalCwd = process.cwd()
+  let sandbox: string
 
   beforeEach(() => {
-    fs.mkdirSync('orders', { recursive: true })
-    for (const file of [ftpPdf, ordersPdf, ordersNonPdf]) {
+    sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-cleanup-'))
+    process.chdir(sandbox)
+    fs.mkdirSync('ftp')
+    fs.mkdirSync('orders')
+    for (const file of ['ftp/order_a.pdf', 'orders/order_b.pdf', 'ftp/legal.md', 'orders/notes.txt']) {
       fs.writeFileSync(file, '')
     }
   })
 
   afterEach(() => {
-    for (const file of [ftpPdf, ordersPdf, ordersNonPdf]) {
-      fs.rmSync(file, { force: true })
-    }
+    process.chdir(originalCwd)
+    fs.rmSync(sandbox, { recursive: true, force: true })
   })
 
   it('removes order confirmation PDFs from ftp and orders folders', async () => {
     await cleanupFtpFolder()
 
-    expect(fs.existsSync(ftpPdf)).to.equal(false)
-    expect(fs.existsSync(ordersPdf)).to.equal(false)
+    expect(fs.existsSync('ftp/order_a.pdf')).to.equal(false)
+    expect(fs.existsSync('orders/order_b.pdf')).to.equal(false)
   })
 
-  it('keeps non-PDF files in orders folder', async () => {
+  it('keeps non-PDF files', async () => {
     await cleanupFtpFolder()
 
-    expect(fs.existsSync(ordersNonPdf)).to.equal(true)
+    expect(fs.existsSync('ftp/legal.md')).to.equal(true)
+    expect(fs.existsSync('orders/notes.txt')).to.equal(true)
   })
 })
