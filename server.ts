@@ -691,9 +691,11 @@ const mimeTypeMap: any = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg'
 }
+const memoryUploadMimeTypes = new WeakMap<Request, string>()
 const uploadToDisk = multer({
   storage: multer.diskStorage({
     destination: (req: Request, file: any, cb: any) => {
+      memoryUploadMimeTypes.set(req, file.mimetype)
       const isValid = mimeTypeMap[file.mimetype]
       let error: Error | null = new Error('Invalid mime type')
       if (isValid) {
@@ -715,6 +717,7 @@ const uploadToDisk = multer({
 const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
   uploadToDisk.single('image')(req, res, (error: unknown) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      metrics.countFileUploadError(memoryUploadMimeTypes.get(req) ?? 'unknown')
       res.status(413).json({ status: 'error', message: 'File too large' })
       return
     }
