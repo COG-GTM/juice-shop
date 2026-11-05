@@ -37,6 +37,7 @@ export function placeOrder () {
         if (basket != null) {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
+          const userId = customer?.data?.id
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
           const { default: PDFDocument } = await import('pdfkit')
@@ -162,6 +163,7 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
+            UserId: userId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,
