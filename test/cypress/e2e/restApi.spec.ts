@@ -46,30 +46,37 @@ describe('/api', () => {
   })
 
   describe('challenge "changeProduct"', () => {
-    it('should be possible to change product via PUT request without being logged in', () => {
+    it('should not be possible to change product via PUT request without being logged in', () => {
       cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
         cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/api/Products/${tamperingProductId}`,
-              {
-                method: 'PUT',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                  description: `<a href="${overwriteUrl}" target="_blank">More...</a>`
-                })
-              }
-            )
-            assert.equal(response.status, 200)
-          })
+          cy.request({
+            method: 'PUT',
+            url: `/api/Products/${tamperingProductId}`,
+            body: { description: `<a href="${overwriteUrl}" target="_blank">More...</a>` },
+            failOnStatusCode: false
+          }).its('status').should('eq', 401)
 
-          cy.visit('/#/search')
+          cy.request(`/api/Products/${tamperingProductId}`)
+            .its('body.data.description')
+            .should('not.contain', overwriteUrl)
         })
       })
-      cy.expectChallengeSolved({ challenge: 'Product Tampering' })
+    })
+
+    it('should not be possible to change product via PUT request as non-admin user', () => {
+      cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
+        cy.request('POST', '/rest/user/login', { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+          .its('body.authentication.token')
+          .then((token: string) => {
+            cy.request({
+              method: 'PUT',
+              url: `/api/Products/${tamperingProductId}`,
+              headers: { Authorization: `Bearer ${token}` },
+              body: { description: 'Tampered' },
+              failOnStatusCode: false
+            }).its('status').should('eq', 403)
+          })
+      })
     })
   })
 })
