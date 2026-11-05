@@ -46,7 +46,11 @@ describe('/api', () => {
   })
 
   describe('challenge "changeProduct"', () => {
-    it('should be possible to change product via PUT request without being logged in', () => {
+    beforeEach(() => {
+      cy.login({ email: 'admin', password: 'admin123' })
+    })
+
+    it('should be possible to change product via PUT request as admin', () => {
       cy.task<number>('GetTamperingProductId').then((tamperingProductId: number) => {
         cy.task<string>('GetOverwriteUrl').then((overwriteUrl: string) => {
           cy.window().then(async () => {
@@ -56,7 +60,8 @@ describe('/api', () => {
                 method: 'PUT',
                 cache: 'no-cache',
                 headers: {
-                  'Content-type': 'application/json'
+                  'Content-type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
                   description: `<a href="${overwriteUrl}" target="_blank">More...</a>`
