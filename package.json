@@ -66,7 +66,7 @@
     "test:coverage": "npm run test:frontend:coverage && npm run test:server:coverage && npm run test:api:coverage",
     "test:frontend": "cd frontend && npm run test",
     "test:frontend:coverage": "cd frontend && npm run test:coverage",
-    "test:server": "mocha -r tsx --recursive test/server/**/*.ts",
+    "test:server": "mocha -r ./test/helpers/ephemeralSecrets.cjs -r tsx --recursive test/server/**/*.ts",
     "test:server:coverage": "nyc --report-dir=./coverage/server-tests npm run test:server",
     "test:api": "node --import ./test/api/helpers/test-env.mjs --import tsx --test --test-force-exit \"test/api/**/*.test.ts\"",
     "test:api:coverage": "nyc --report-dir=./coverage/api-tests npm run test:api",

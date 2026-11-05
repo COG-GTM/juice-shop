@@ -16,11 +16,10 @@ describe('/', () => {
     it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
       cy.task('isWindows').then((isWindows) => {
         if (!isWindows) {
-          cy.window().then(() => {
-            localStorage.setItem(
-              'token',
-              'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgzMDM3NzExfQ.gShXDT5TrE5736mpIbfVDEcQbLfteJaQUG7Z0PH8Xc8'
-            )
+          cy.request('/encryptionkeys/jwt.pub').then((response) => {
+            cy.task<string>('ForgeHs256Jwt', { payload: { data: { email: 'rsa_lord@juice-sh.op' }, iat: 1583037711 }, secret: response.body }).then((token) => {
+              localStorage.setItem('token', token)
+            })
           })
           cy.visit('/#/')
 
