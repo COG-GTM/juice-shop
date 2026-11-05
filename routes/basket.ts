@@ -12,6 +12,30 @@ import * as utils from '../lib/utils'
 import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 
+export async function basketIdOf (req: Request): Promise<number | undefined> {
+  const userId = security.authenticatedUsers.from(req)?.data?.id
+  if (userId === undefined || userId === null) {
+    return undefined
+  }
+  const basket = await BasketModel.findOne({ where: { UserId: userId } })
+  return basket?.id
+}
+
+export function ensureBasketOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const basketId = await basketIdOf(req)
+      if (basketId === undefined || String(basketId) !== req.params.id) {
+        res.status(403).json({ status: 'error', message: 'Malicious activity detected' })
+        return
+      }
+      next()
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function retrieveBasket () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
