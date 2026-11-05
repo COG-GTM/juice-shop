@@ -94,8 +94,21 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    const redirectUrl = `${this.basketService.hostServer}/ftp/order_${this.orderId}.pdf`
-    window.open(redirectUrl, '_blank')
+    const pdfWindow = window.open('', '_blank')
+    this.basketService.getOrderConfirmation(this.orderId).subscribe({
+      next: (pdf: Blob) => {
+        const pdfUrl = URL.createObjectURL(pdf)
+        if (pdfWindow) {
+          pdfWindow.location.href = pdfUrl
+        } else {
+          window.open(pdfUrl, '_blank')
+        }
+      },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
+    })
   }
 
   truncateTweet = (tweet: string, maxLength = 140) => {

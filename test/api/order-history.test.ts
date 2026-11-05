@@ -133,3 +133,37 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:id/confirmation', () => {
+  async function placeOrder (email: string, password: string, basketId: number) {
+    const { token } = await login(app, { email: email + '@' + config.get<string>('application.domain'), password })
+    const headers = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const res = await request(app).post(`/rest/basket/${basketId}/checkout`).set(headers)
+    assert.equal(res.status, 200)
+    return { headers, orderId: res.body.orderConfirmation as string }
+  }
+
+  void it('GET order confirmation PDF is only available to the purchasing user', async () => {
+    const { headers, orderId } = await placeOrder('jim', 'ncc-1701', 2)
+    const { token: otherToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+
+    const own = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(headers)
+    assert.equal(own.status, 200)
+    assert.ok(own.headers['content-type']?.includes('application/pdf'))
+
+    const anonymous = await request(app).get(`/rest/order-history/${orderId}/confirmation`)
+    assert.equal(anonymous.status, 401)
+
+    const other = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set({ Authorization: 'Bearer ' + otherToken })
+    assert.equal(other.status, 404)
+
+    const publicFtp = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(publicFtp.status, 403)
+  })
+
+  void it('GET order confirmation with malformed order id fails with 404 error', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const res = await request(app).get('/rest/order-history/..%2f..%2fpackage.json/confirmation').set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 404)
+  })
+})

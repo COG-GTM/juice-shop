@@ -111,8 +111,21 @@ export class OrderHistoryComponent implements OnInit {
   }
 
   openConfirmationPDF (orderId: string) {
-    const redirectUrl = `${this.basketService.hostServer}/ftp/order_${orderId}.pdf`
-    window.open(redirectUrl, '_blank')
+    const pdfWindow = window.open('', '_blank')
+    this.basketService.getOrderConfirmation(orderId).subscribe({
+      next: (pdf: Blob) => {
+        const pdfUrl = URL.createObjectURL(pdf)
+        if (pdfWindow) {
+          pdfWindow.location.href = pdfUrl
+        } else {
+          window.open(pdfUrl, '_blank')
+        }
+      },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
+    })
   }
 
   trackOrder (orderId) {
