@@ -188,6 +188,14 @@ void describe('/ftp', () => {
     assert.ok(responseText(res).includes('"epilogue-js": "~0.7",'))
   })
 
+  void it('GET a file outside /ftp via backslash traversal fails with a 403 error', async () => {
+    for (const traversal of ['..%5Cpackage.json%2500.md', '..%5C..%5Cdata%5Cjuiceshop.sqlite%2500.md', 'C:%5CWindows%5Cwin.ini%2500.md']) {
+      const res = await request(app)
+        .get('/ftp/' + traversal)
+      assert.equal(res.status, 403)
+    }
+  })
+
   void it('GET file /ftp/quarantine/juicy_malware_linux_amd_64.url', async () => {
     const res = await request(app)
       .get('/ftp/quarantine/juicy_malware_linux_amd_64.url')
@@ -210,5 +218,32 @@ void describe('/ftp', () => {
     const res = await request(app)
       .get('/ftp/quarantine/juicy_malware_windows_64.exe.url')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET a quarantine file whose name contains a "/" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/%2fetc%2fos-release')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+  })
+
+  void it('GET a quarantine file via backslash traversal fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/..%5C..%5Cconfig%5Cdefault.yml')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET package.json via encoded backslash or slash traversal fails with a 403 error', async () => {
+    for (const traversal of ['..%5c..%5cpackage.json', '..%2f..%2fpackage.json']) {
+      const res = await request(app)
+        .get('/ftp/quarantine/' + traversal)
+      assert.equal(res.status, 403)
+    }
+  })
+
+  void it('GET a quarantine file via absolute Windows path fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/C:%5CWindows%5Cwin.ini')
+    assert.equal(res.status, 403)
   })
 })
