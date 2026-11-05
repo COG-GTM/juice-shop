@@ -110,7 +110,7 @@ describe('/#/complain', () => {
       })
     })
 
-    xit('should be solved either through dev/random or Quadratic Blowup attack', () => { // FIXME Unreliable during CI/CD as sometimes the Quadratic Blowup is blocked for entity loops
+    it('should be solved either through dev/random or Quadratic Blowup attack', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.expectChallengeSolved({ challenge: 'XXE DoS' })
