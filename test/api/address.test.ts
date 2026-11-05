@@ -170,6 +170,44 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT update address of another user is forbidden and keeps ownership', async () => {
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const otherAuthHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+      .send({ fullName: 'Mallory' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const otherRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(otherAuthHeader)
+    assert.equal(otherRes.status, 400)
+
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRes.status, 200)
+    assert.notEqual(ownerRes.body.data.fullName, 'Mallory')
+  })
+
+  void it('PUT update address by id cannot change UserId', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ UserId: 1, fullName: 'Jim' })
+    assert.equal(res.status, 200)
+    const ownerRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(ownerRes.status, 200)
+  })
+
   void it('DELETE address by id', async () => {
     const res = await request(app)
       .delete('/api/Addresss/' + addressId)
