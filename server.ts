@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Only POST of own answer allowed when logged in. */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.isAuthorized(), security.appendUserId())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -515,6 +516,28 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer chosen during registration for the newly created user
+    if (name === 'User') {
+      const hasSecurityAnswer = (req: Request) => req.body.securityQuestion?.id && typeof req.body.securityAnswer === 'string' && req.body.securityAnswer !== ''
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any, error: (status: number, message: string) => any }) => {
+        if (hasSecurityAnswer(req) && !(await SecurityQuestionModel.findByPk(req.body.securityQuestion.id))) {
+          return context.error(400, 'Invalid security question')
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number, destroy: (options?: { force?: boolean }) => Promise<void> }, continue: any, error: (status: number, message: string) => any }) => {
+        if (hasSecurityAnswer(req)) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: req.body.securityQuestion.id, answer: req.body.securityAnswer })
+          } catch (err: unknown) {
+            await context.instance.destroy({ force: true })
+            return context.error(500, 'Could not store security answer')
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
