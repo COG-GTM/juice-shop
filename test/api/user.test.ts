@@ -30,6 +30,18 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET all users is forbidden with an unsigned "alg": "none" token', async () => {
+    const res = await request(app).get('/api/Users')
+      .set('Authorization', 'Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiYWRtaW5AanVpY2Utc2gub3AifSwiaWF0IjoxNTA4NjM5NjEyLCJleHAiOjk5OTk5OTk5OTl9.')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all users is forbidden with a token HMAC-signed with the public RSA key', async () => {
+    const res = await request(app).get('/api/Users')
+      .set('Authorization', 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg')
+    assert.equal(res.status, 401)
+  })
+
   void it('GET all users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
     assert.equal(res.status, 200)
