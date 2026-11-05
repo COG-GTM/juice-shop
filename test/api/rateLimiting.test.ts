@@ -49,4 +49,21 @@ void describe('/rest/user/reset-password rate limiting', () => {
       .send({ email: 'jim@' + config.get<string>('application.domain'), answer: 'wrong', new: 'abcdef', repeat: 'abcdef' })
     assert.equal(res.status, 401)
   })
+
+  void it('POST does not count password validation errors against the account', async () => {
+    const email = 'bender@' + config.get<string>('application.domain')
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/rest/user/reset-password')
+        .set(jsonHeader)
+        .send({ email, answer: 'Stop\'n\'Drop', new: 'abcdef', repeat: 'abcdeg' })
+      assert.equal(res.status, 401)
+    }
+
+    const correct = await request(app)
+      .post('/rest/user/reset-password')
+      .set(jsonHeader)
+      .send({ email, answer: 'Stop\'n\'Drop', new: 'abcdef', repeat: 'abcdef' })
+    assert.equal(correct.status, 200)
+  })
 })
