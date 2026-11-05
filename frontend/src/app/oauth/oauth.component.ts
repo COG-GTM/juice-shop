@@ -9,6 +9,7 @@ import { CookieService } from 'ngy-cookie'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
+import { switchMap, throwError } from 'rxjs'
 
 @Component({
   selector: 'app-oauth',
@@ -25,6 +26,7 @@ export class OAuthComponent implements OnInit {
 
   ngOnInit (): void {
     const expectedState = sessionStorage.getItem('oauthState')
+    const expectedClientId = sessionStorage.getItem('oauthClientId')
     sessionStorage.removeItem('oauthState')
     let params: any
     try {
@@ -37,7 +39,11 @@ export class OAuthComponent implements OnInit {
       this.ngZone.run(async () => await this.router.navigate(['/login']))
       return
     }
-    this.userService.oauthLogin(params.access_token).subscribe({
+    this.userService.oauthTokenInfo(params.access_token).pipe(
+      switchMap((tokenInfo: any) => expectedClientId && tokenInfo?.aud === expectedClientId
+        ? this.userService.oauthLogin(params.access_token)
+        : throwError(() => new Error('OAuth access token was not issued to this client')))
+    ).subscribe({
       next: (profile: any) => {
         const password = btoa(profile.email.split('').reverse().join(''))
         this.userService.save({ email: profile.email, password, passwordRepeat: password }).subscribe({

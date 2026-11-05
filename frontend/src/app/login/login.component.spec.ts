@@ -126,6 +126,7 @@ describe('LoginComponent', () => {
         const state = sessionStorage.getItem('oauthState')
         expect(state).toMatch(/^[0-9a-f]{32}$/)
         expect(replace).toHaveBeenCalledWith(expect.stringContaining(`&state=${state}`))
+        expect(sessionStorage.getItem('oauthClientId')).toBe(component.clientId)
         component.googleLogin()
         expect(sessionStorage.getItem('oauthState')).not.toBe(state)
         nativeWindow.mockRestore()
