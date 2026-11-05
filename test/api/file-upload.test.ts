@@ -157,6 +157,19 @@ void describe('/file-upload', () => {
     fs.unlinkSync(extracted)
   })
 
+  void it('POST zip file whose entry exceeds the extraction limit leaves no file behind', async (t) => {
+    if (!utils.isChallengeEnabled(challenges.fileWriteChallenge)) { t.skip(); return }
+    const extracted = path.resolve('uploads/complaints/zipBombTestReport.txt')
+    if (fs.existsSync(extracted)) fs.unlinkSync(extracted)
+    const file = path.resolve(__dirname, '../files/oversizedComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    assert.equal(fs.existsSync(extracted), false)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
