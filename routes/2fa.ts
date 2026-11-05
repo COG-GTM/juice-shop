@@ -104,11 +104,16 @@ export async function setup (req: Request, res: Response) {
 
     const { password, setupToken, initialToken } = req.body
 
-    if (user.password !== security.hash(password)) {
+    const userModel = await UserModel.findByPk(user.id)
+    if (userModel == null) {
+      throw new Error('No such user found!')
+    }
+
+    if (typeof password !== 'string' || userModel.password !== security.hash(password)) {
       throw new Error('Password doesnt match stored password')
     }
 
-    if (user.totpSecret !== '') {
+    if (userModel.totpSecret !== '') {
       throw new Error('User has 2fa already setup')
     }
 
@@ -118,12 +123,6 @@ export async function setup (req: Request, res: Response) {
     }
     if (!verifySync({ secret, token: initialToken, epochTolerance: 30 }).valid) {
       throw new Error('Initial token doesnt match the secret from the setupToken')
-    }
-
-    // Update db model and cached object
-    const userModel = await UserModel.findByPk(user.id)
-    if (userModel == null) {
-      throw new Error('No such user found!')
     }
 
     userModel.totpSecret = secret
@@ -138,6 +137,7 @@ export async function setup (req: Request, res: Response) {
 
 /**
  * Disables 2fa for the current user
+ * Requires the users password and a current TOTP token, both checked against the database.
  */
 export async function disable (req: Request, res: Response) {
   try {
@@ -147,16 +147,23 @@ export async function disable (req: Request, res: Response) {
     }
     const { data: user } = data
 
-    const { password } = req.body
+    const { password, totpToken } = req.body
 
-    if (user.password !== security.hash(password)) {
-      throw new Error('Password doesnt match stored password')
-    }
-
-    // Update db model and cached object
     const userModel = await UserModel.findByPk(user.id)
     if (userModel == null) {
       throw new Error('No such user found!')
+    }
+
+    if (typeof password !== 'string' || userModel.password !== security.hash(password)) {
+      throw new Error('Password doesnt match stored password')
+    }
+
+    if (!userModel.totpSecret) {
+      throw new Error('User has no 2fa setup')
+    }
+
+    if (typeof totpToken !== 'string' || !verifySync({ secret: userModel.totpSecret, token: totpToken, epochTolerance: 30 }).valid) {
+      throw new Error('Invalid totp token')
     }
 
     userModel.totpSecret = ''
