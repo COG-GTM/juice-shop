@@ -68,6 +68,21 @@ void describe('/dataerasure', () => {
     assert.equal(loginRes.status, 200)
   })
 
+  void it('POST erasure request ends the session it was made from', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .field('email', 'bjoern.kimminich@gmail.com')
+      .expect(200)
+
+    const res = await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 401)
+  })
+
   void it('POST erasure form  fails on unauthenticated access', async () => {
     const res = await request(app)
       .post('/dataerasure/')

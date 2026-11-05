@@ -334,6 +334,26 @@ void describe('/rest/2fa/disable', () => {
     assert.equal(statusRes2.body.setup, false)
   })
 
+  void it('POST should revoke the other sessions of the user but keep the current one', async () => {
+    const email = 'fooooodisable3@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+    const { token: stolenToken } = await login(app, { email, password, totpSecret })
+    const { token: ownerToken } = await login(app, { email, password, totpSecret })
+    assert.notEqual(stolenToken, ownerToken)
+
+    const disableRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + ownerToken, 'content-type': 'application/json' })
+      .send({ password })
+    assert.equal(disableRes.status, 200)
+
+    assert.equal((await getStatus(stolenToken)).status, 401)
+    assert.equal((await getStatus(ownerToken)).status, 200)
+  })
+
   void it('POST should not be possible to disable 2fa without the correct password', async () => {
     const email = 'fooooodisable2@bar.com'
     const password = '123456'

@@ -128,6 +128,7 @@ export async function setup (req: Request, res: Response) {
     userModel.totpSecret = secret
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    security.authenticatedUsers.revokeOtherSessions(userModel.id, utils.jwtFrom(req))
 
     res.status(200).send()
   } catch (error) {
@@ -160,6 +161,7 @@ export async function disable (req: Request, res: Response) {
     userModel.totpSecret = ''
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    security.authenticatedUsers.revokeOtherSessions(userModel.id, utils.jwtFrom(req))
 
     res.status(200).send()
   } catch (error) {

@@ -349,6 +349,29 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST password reset revokes all existing sessions of the user', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const reset = async (password: string) => await request(app)
+      .post('/rest/user/reset-password')
+      .set(jsonHeader)
+      .send({ email, answer: 'Samuel', new: password, repeat: password })
+      .expect(200)
+
+    await reset('ncc-1701')
+    const { token: stolenToken } = await login(app, { email, password: 'ncc-1701' })
+    await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + stolenToken })
+      .expect(200)
+
+    await reset('ncc-1701-d')
+    await request(app)
+      .get('/rest/2fa/status')
+      .set({ Authorization: 'Bearer ' + stolenToken })
+      .expect(401)
+    await reset('ncc-1701')
+  })
+
   void it('POST password reset for Bender with correct answer to his security question', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')

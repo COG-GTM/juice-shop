@@ -201,6 +201,61 @@ describe('insecurity', () => {
     })
   })
 
+  describe('session revocation', () => {
+    it('revokes every session of a user', () => {
+      const first = security.authorize({ data: { id: 60 } })
+      const second = security.authorize({ data: { id: 60 } })
+      const other = security.authorize({ data: { id: 61 } })
+      security.authenticatedUsers.put(first, { data: { id: 60 } as unknown as UserModel })
+      security.authenticatedUsers.put(second, { data: { id: 60 } as unknown as UserModel })
+      security.authenticatedUsers.put(other, { data: { id: 61 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeAllFor(60)
+
+      expect(security.authenticatedUsers.get(first)).to.equal(undefined)
+      expect(security.authenticatedUsers.get(second)).to.equal(undefined)
+      expect(security.verify(first)).to.equal(false)
+      expect(security.authenticatedUsers.tokenOf({ id: 60 } as unknown as UserModel)).to.equal(undefined)
+      expect(security.authenticatedUsers.get(other)).to.deep.equal({ data: { id: 61 } })
+    })
+
+    it('issues distinct tokens for identical payloads so revoking one does not revoke a later login', () => {
+      const first = security.authorize({ data: { id: 62 } })
+      const second = security.authorize({ data: { id: 62 } })
+      expect(first).to.not.equal(second)
+    })
+
+    it('drops expired sessions from the token map when they are looked up', () => {
+      const token = security.authorize({ data: { id: 63 } })
+      security.authenticatedUsers.put(token, { data: { id: 63 } as unknown as UserModel })
+      const clock = sinon.useFakeTimers({ now: Date.now() + 6 * 60 * 60 * 1000 + 1000, toFake: ['Date'] })
+      try {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenOf({ id: 63 } as unknown as UserModel)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects expired and revoked sessions in appendUserId', () => {
+      const expired = security.authorize({ data: { id: 64 }, exp: Math.floor(Date.now() / 1000) - 1 })
+      security.authenticatedUsers.tokenMap[expired] = { data: { id: 64 } as unknown as UserModel }
+      const revoked = security.authorize({ data: { id: 65 } })
+      security.authenticatedUsers.put(revoked, { data: { id: 65 } as unknown as UserModel })
+      security.authenticatedUsers.revokeAllFor(65)
+
+      for (const token of [expired, revoked]) {
+        const req = { headers: { authorization: 'Bearer ' + token }, body: {} } as unknown as Request
+        const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+        const next = sinon.spy()
+        security.appendUserId()(req, res as unknown as Response, next)
+        expect(next.called).to.equal(false)
+        expect(res.status.calledWith(401)).to.equal(true)
+      }
+    })
+  })
+
   describe('token expiry', () => {
     it('issues tokens that expire after 6 hours', () => {
       const now = Math.floor(Date.now() / 1000)
