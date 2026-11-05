@@ -228,6 +228,7 @@ describe('insecurity', () => {
         expect(security.verify(uncached)).to.equal(false)
         security.authenticatedUsers.put(uncached, { data: { id: 66 } } as unknown as UserModel)
         expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
+        clock.tick(1)
         const fresh = security.authorize({ data: { id: 66 } })
         expect(security.verify(fresh)).to.equal(true)
       } finally {
@@ -244,6 +245,21 @@ describe('insecurity', () => {
         security.authenticatedUsers.revokeOtherSessions(67, current)
         expect(security.verify(current)).to.equal(true)
         expect(security.verify(uncached)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects uncached tokens issued in the same second as revokeAllFor', () => {
+      const clock = sinon.useFakeTimers({ now: Math.floor(Date.now() / 1000) * 1000 + 100, toFake: ['Date'] })
+      try {
+        const uncached = security.authorize({ data: { id: 68 } })
+        clock.tick(200)
+        security.authenticatedUsers.revokeAllFor(68)
+        clock.tick(200)
+        const fresh = security.authorize({ data: { id: 68 } })
+        expect(security.verify(uncached)).to.equal(false)
+        expect(security.verify(fresh)).to.equal(true)
       } finally {
         clock.restore()
       }
