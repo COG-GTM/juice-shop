@@ -56,7 +56,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'x #{7*7}')
+      .type('form')
+      .send({ username: 'x #{7*7}' })
       .redirects(0)
 
     const res = await request(app)
@@ -72,7 +73,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', "a\n- throw new Error('x')")
+      .type('form')
+      .send({ username: "a\n- throw new Error('x')" })
       .redirects(0)
 
     const res = await request(app)
