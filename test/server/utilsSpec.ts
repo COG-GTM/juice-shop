@@ -174,6 +174,18 @@ describe('utils', () => {
       expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&token=abc')).to.equal('/rest/products/search?q=apple&token=[REDACTED]')
     })
 
+    it('redacts sensitive parameters with percent-encoded names', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?%70assword=secret&%2570wd=secret')).to.equal('/rest/user/change-password?%70assword=[REDACTED]&%2570wd=[REDACTED]')
+    })
+
+    it('redacts sensitive parameters in absolute referrer URLs', () => {
+      expect(utils.redactSensitiveQueryParams('http://localhost:3000/rest/user/change-password?current=old&new=secret')).to.equal('http://localhost:3000/rest/user/change-password?current=[REDACTED]&new=[REDACTED]')
+    })
+
+    it('does not fail on malformed percent-encoding in parameter names', () => {
+      expect(utils.redactSensitiveQueryParams('/search?%E0%A4%A=x&q=1')).to.equal('/search?%E0%A4%A=x&q=1')
+    })
+
     it('returns URLs without query string unchanged', () => {
       expect(utils.redactSensitiveQueryParams('/rest/user/whoami')).to.equal('/rest/user/whoami')
     })
