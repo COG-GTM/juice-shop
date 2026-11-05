@@ -33,6 +33,19 @@ export const queryResultToJson = <T>(
   }
 }
 
+const sensitiveQueryParams = /pass|pwd|current|new|repeat|token|secret|answer|otp|code/i
+
+export const redactSensitiveQueryParams = (url: string) => {
+  const queryStart = url.indexOf('?')
+  if (queryStart === -1) return url
+  const params = url.substring(queryStart + 1).split('&').map(param => {
+    const separator = param.indexOf('=')
+    const key = separator === -1 ? param : param.substring(0, separator)
+    return separator !== -1 && sensitiveQueryParams.test(key) ? `${key}=[REDACTED]` : param
+  })
+  return url.substring(0, queryStart + 1) + params.join('&')
+}
+
 export const isUrl = (url: string) => {
   return startsWith(url, 'http')
 }

@@ -165,6 +165,20 @@ describe('utils', () => {
     }
   })
 
+  describe('redactSensitiveQueryParams', () => {
+    it('redacts password parameters from query string', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/change-password?current=old&new=secret&repeat=secret')).to.equal('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]')
+    })
+
+    it('keeps non-sensitive parameters unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/products/search?q=apple&token=abc')).to.equal('/rest/products/search?q=apple&token=[REDACTED]')
+    })
+
+    it('returns URLs without query string unchanged', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/whoami')).to.equal('/rest/user/whoami')
+    })
+  })
+
   describe('startsWith', () => {
     it('accepts string starting with another string', () => {
       expect(utils.startsWith('Bla Blubb', 'Bla')).to.equal(true)
