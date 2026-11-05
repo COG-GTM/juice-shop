@@ -526,12 +526,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
         }
         return context.continue
       })
-      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number, destroy: () => Promise<void> }, continue: any, error: (status: number, message: string) => any }) => {
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number, destroy: (options?: { force?: boolean }) => Promise<void> }, continue: any, error: (status: number, message: string) => any }) => {
         if (hasSecurityAnswer(req)) {
           try {
             await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: req.body.securityQuestion.id, answer: req.body.securityAnswer })
           } catch (err: unknown) {
-            await context.instance.destroy()
+            await context.instance.destroy({ force: true })
             return context.error(500, 'Could not store security answer')
           }
         }
