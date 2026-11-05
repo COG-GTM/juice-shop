@@ -146,12 +146,18 @@ function reachableExternalEntities (data: string) {
   return externalTargets
 }
 
-function referencesExternalEntity (key: string, declarations: Map<string, { external: boolean, value: string }>, visited = new Set<string>()): boolean {
-  const declaration = declarations.get(key)
-  if (declaration === undefined || visited.has(key)) return false
-  if (declaration.external) return true
-  visited.add(key)
-  return [...declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)].some(([, name]) => referencesExternalEntity('&' + name, declarations, visited))
+function referencesExternalEntity (key: string, declarations: Map<string, { external: boolean, value: string }>) {
+  const pending = [key]
+  const visited = new Set<string>()
+  while (pending.length > 0) {
+    const current = pending.pop() as string
+    const declaration = declarations.get(current)
+    if (declaration === undefined || visited.has(current)) continue
+    if (declaration.external) return true
+    visited.add(current)
+    for (const [, name] of declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)) pending.push('&' + name)
+  }
+  return false
 }
 
 const entityReferenceAt = /&([^\s;&%#<>"'[\]]+);/y
