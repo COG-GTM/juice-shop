@@ -35,12 +35,11 @@ export class OAuthComponent implements OnInit {
       params = {}
     }
     if (!expectedState || params.state !== expectedState || !params.access_token) {
-      console.log('OAuth callback rejected: missing or mismatching state')
       this.ngZone.run(async () => await this.router.navigate(['/login']))
       return
     }
     this.userService.oauthTokenInfo(params.access_token).pipe(
-      switchMap((tokenInfo: any) => expectedClientId && tokenInfo?.aud === expectedClientId
+      switchMap((tokenInfo: any) => expectedClientId && (tokenInfo?.aud ?? tokenInfo?.audience) === expectedClientId
         ? this.userService.oauthLogin(params.access_token)
         : throwError(() => new Error('OAuth access token was not issued to this client')))
     ).subscribe({

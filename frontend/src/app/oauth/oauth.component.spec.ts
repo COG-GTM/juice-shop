@@ -143,6 +143,14 @@ describe('OAuthComponent', () => {
         expect(userService.login).not.toHaveBeenCalled()
     })
 
+    it('accepts a token info response that identifies the client as audience', () => {
+        userService.oauthLogin.mockClear()
+        userService.oauthTokenInfo.mockReturnValue(of({ audience: 'CLIENT' }))
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
+    })
+
     it('rejects an access token when the token info lookup fails', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockClear()
