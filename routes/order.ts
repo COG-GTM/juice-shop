@@ -145,11 +145,13 @@ export function placeOrder () {
           }
 
           const decrementedStock: typeof stockUpdates = []
+          let outOfStock = false
           try {
             for (const stockUpdate of stockUpdates) {
               const stockResult = await decrementStock(stockUpdate)
               if (stockResult === 'insufficient') {
-                throw new Error(res.__('We are out of stock! Sorry for the inconvenience.'))
+                outOfStock = true
+                throw new Error('We are out of stock! Sorry for the inconvenience.')
               }
               if (stockResult === 'decremented') {
                 decrementedStock.push(stockUpdate)
@@ -169,6 +171,13 @@ export function placeOrder () {
             if (unrestoredProductIds.length > 0) {
               logger.error(`Checkout failed (${utils.getErrorMessage(error)}) and stock could not be restored for product(s) ${unrestoredProductIds.join(', ')}`)
               next(new Error('Checkout failed and stock could not be restored.'))
+              return
+            }
+            if (outOfStock) {
+              fileWriter.removeAllListeners('finish')
+              fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+              doc.end()
+              res.status(400).json({ error: res.__('We are out of stock! Sorry for the inconvenience.') })
               return
             }
             next(error)

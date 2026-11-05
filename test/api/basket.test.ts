@@ -188,7 +188,7 @@ void describe('/rest/basket/:id/checkout', () => {
     }
   })
 
-  void it('POST placing an order for more items than are in stock is rejected and restores stock', async () => {
+  void it('POST placing an order for more items than are in stock returns 400 and restores stock', async () => {
     const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 2 })
     const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
     const otherStockBefore = await QuantityModel.findOne({ where: { ProductId: 4 } })
@@ -199,8 +199,8 @@ void describe('/rest/basket/:id/checkout', () => {
         .post('/rest/basket/2/checkout')
         .set(authHeader)
         .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
-      assert.equal(res.status, 500)
-      assert.ok(res.text.includes('Error: We are out of stock! Sorry for the inconvenience.'))
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'We are out of stock! Sorry for the inconvenience.')
 
       const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
       const otherStockAfter = await QuantityModel.findOne({ where: { ProductId: 4 } })
