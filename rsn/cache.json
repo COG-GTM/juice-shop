@@ -684,23 +684,8 @@
 		]
 	},
 	"dbSchemaChallenge_2_correct.ts": {
-		"added": [
-			3,
-			4,
-			5,
-			6,
-			7,
-			8,
-			10,
-			11
-		],
-		"removed": [
-			3,
-			5,
-			6,
-			7,
-			8
-		]
+		"added": [],
+		"removed": []
 	},
 	"dbSchemaChallenge_3.ts": {
 		"added": [
@@ -1311,23 +1296,8 @@
 		]
 	},
 	"unionSqlInjectionChallenge_2_correct.ts": {
-		"added": [
-			3,
-			4,
-			5,
-			6,
-			7,
-			8,
-			10,
-			11
-		],
-		"removed": [
-			3,
-			5,
-			6,
-			7,
-			8
-		]
+		"added": [],
+		"removed": []
 	},
 	"unionSqlInjectionChallenge_3.ts": {
 		"added": [
