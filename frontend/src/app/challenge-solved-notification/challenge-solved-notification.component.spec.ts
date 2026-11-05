@@ -140,6 +140,18 @@ describe('ChallengeSolvedNotificationComponent', () => {
         })
     })
 
+    it('should acknowledge a received notification by its key even without a flag', () => {
+        let handler: any
+        mockSocket.on = (event: string, callback: any) => { if (event === 'challenge solved') handler = callback }
+        mockSocket.emit = vi.fn()
+        translateService.get.mockReturnValue(of('CHALLENGE_SOLVED'))
+        component.ngOnInit()
+
+        handler({ key: 'scoreBoardChallenge', challenge: 'Score Board', isRestore: true })
+
+        expect(mockSocket.emit).toHaveBeenCalledWith('notification received', 'scoreBoardChallenge')
+    })
+
     it('should store retrieved continue code as cookie for 1 year', () => {
         challengeService.continueCode.mockReturnValue(of('12345'))
 
