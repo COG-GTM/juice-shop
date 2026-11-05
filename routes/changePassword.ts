@@ -54,7 +54,7 @@ export function changePassword () {
 
       await user.update({ password: newPassword })
       const currentToken = utils.unquote(token)
-      security.authenticatedUsers.put(currentToken, utils.queryResultToJson(user))
+      security.authenticatedUsers.put(currentToken, { ...loggedInUser, data: user })
       revokeOtherSessions(user.id, currentToken)
       res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
