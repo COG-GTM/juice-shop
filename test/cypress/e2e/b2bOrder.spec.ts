@@ -1,63 +1,32 @@
 describe('/b2b/v2/order', () => {
-  describe('challenge "rce"', () => {
-    it('an infinite loop deserialization payload should not bring down the server', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.login({ email: 'admin', password: 'admin123' })
-
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/b2b/v2/orders/`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                  orderLinesData: '(function dos() { while(true); })()'
-                })
-              }
-            )
-            if (response.status === 500) {
-              console.log('Success')
-            }
-          })
-          cy.expectChallengeSolved({ challenge: 'Blocked RCE DoS' })
-        }
-      })
-    })
+  const postOrderLinesData = (orderLinesData: string) => cy.window().then(async () => {
+    return await fetch(
+      `${Cypress.config('baseUrl')}/b2b/v2/orders/`,
+      {
+        method: 'POST',
+        cache: 'no-cache',
+        headers: {
+          'Content-type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ orderLinesData })
+      }
+    ).then(response => response.status)
   })
 
-  describe('challenge "rceOccupy"', () => {
-    it('should be possible to cause request timeout using a recursive regular expression payload', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.login({ email: 'admin', password: 'admin123' })
-          cy.window().then(async () => {
-            const response = await fetch(
-              `${Cypress.config('baseUrl')}/b2b/v2/orders/`,
-              {
-                method: 'POST',
-                cache: 'no-cache',
-                headers: {
-                  'Content-type': 'application/json',
-                  Authorization: `Bearer ${localStorage.getItem('token')}`
-                },
-                body: JSON.stringify({
-                  orderLinesData:
-                    "/((a+)+)b/.test('aaaaaaaaaaaaaaaaaaaaaaaaaaaaa')"
-                })
-              }
-            )
-            if (response.status === 503) {
-              console.log('Success')
-            }
-          })
-          cy.expectChallengeSolved({ challenge: 'Successful RCE DoS' })
-        }
-      })
-    })
+  beforeEach(() => {
+    cy.login({ email: 'admin', password: 'admin123' })
+  })
+
+  it('should reject an infinite loop payload without executing it', () => {
+    postOrderLinesData('(function dos() { while(true); })()').should('equal', 400)
+  })
+
+  it('should reject a recursive regular expression payload without executing it', () => {
+    postOrderLinesData("/((a+)+)b/.test('aaaaaaaaaaaaaaaaaaaaaaaaaaaaa')").should('equal', 400)
+  })
+
+  it('should accept order lines as documented in Swagger', () => {
+    postOrderLinesData('[{"productId": 12,"quantity": 10000}]').should('equal', 200)
   })
 })
