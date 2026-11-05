@@ -386,6 +386,23 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(result.includes('No order with this ID found for the current customer'))
   })
 
+  void it('refuses to mint coupons for orders of customers whose emails mask identically', { timeout: 15000 }, async () => {
+    const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const orderId = await deliveredOrderOf(admin.token)
+    const lookalike = { email: 'edmen@joaca-sh.ap', password: 'lookalike123' }
+    assert.equal(lookalike.email.replace(/[aeiou]/gi, '*'), 'admin@juice-sh.op'.replace(/[aeiou]/gi, '*'))
+    assert.notEqual(security.hash(lookalike.email).slice(0, 4), security.hash('admin@juice-sh.op').slice(0, 4))
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send(lookalike)
+      .expect(201)
+    const { token } = await login(app, lookalike)
+    const result = await couponToolResult({ discount: 10, orderId }, token)
+    assert.ok(result.includes('No order with this ID found for the current customer'))
+    assert.ok(!result.includes('couponCode'))
+  })
+
   void it('mints the same 10% coupon again when asked twice for an owned delivered order', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
