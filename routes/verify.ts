@@ -107,7 +107,7 @@ export const serverSideChallenges = () => (req: Request, res: Response, next: Ne
   next()
 }
 
-function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, email: string | RegExp) {
+function jwtChallenge (challenge: Challenge, req: Request, algorithm: jws.Algorithm, email: string | RegExp) {
   const token = utils.jwtFrom(req)
   if (token) {
     const decoded = jws.decode(token) ? jwt.decode(token) : null
@@ -116,13 +116,18 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
       return
     }
 
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
+    challengeUtils.solveIf(challenge, () => {
+      return hasAlgorithm(token, algorithm) && isForgedWith(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
     })
+  }
+}
+
+// Only detects a correctly forged token for the challenge; such tokens are rejected by all authentication checks in lib/insecurity.ts
+function isForgedWith (token: string, algorithm: jws.Algorithm) {
+  try {
+    return jws.verify(token, algorithm, security.publicKey)
+  } catch {
+    return false
   }
 }
 
