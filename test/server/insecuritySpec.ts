@@ -8,6 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import sinon from 'sinon'
 import { UserModel as UserDbModel } from '../../models/user'
+import { BasketModel } from '../../models/basket'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -153,14 +154,17 @@ describe('insecurity', () => {
       const email = 'restore@b.c'
       const token = security.authorize({ status: 'success', data: { id: 3, email, role: 'deluxe' } })
       const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
-      const findByPk = sinon.stub(UserDbModel, 'findByPk').resolves({ email, deluxeToken: security.deluxeToken(email), lastLoginIp: '5.6.7.8' } as any)
+      const findByPk = sinon.stub(UserDbModel, 'findByPk').resolves({ id: 3, email, deluxeToken: security.deluxeToken(email), lastLoginIp: '5.6.7.8' } as any)
+      const findBasket = sinon.stub(BasketModel, 'findOne').resolves({ id: 7 } as any)
       try {
         expect(security.isDeluxe(req)).to.equal(false)
         await new Promise<void>((resolve, reject) => { security.restoreAuthenticatedUser()(req, {} as any, (err?: unknown) => { err ? reject(err) : resolve() }) })
       } finally {
         findByPk.restore()
+        findBasket.restore()
       }
 
+      expect(security.authenticatedUsers.get(token)?.bid).to.equal(7)
       expect(security.authenticatedUsers.get(token)?.data.lastLoginIp).to.equal('5.6.7.8')
       expect(security.isDeluxe(req)).to.equal(true)
     })
@@ -171,6 +175,7 @@ describe('insecurity', () => {
       const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
       const res = { cookie: () => {} } as any
       const findByPk = sinon.stub(UserDbModel, 'findByPk').rejects(new Error('db down'))
+      const findBasket = sinon.stub(BasketModel, 'findOne').resolves(null)
       try {
         await new Promise<void>((resolve) => { security.updateAuthenticatedUsers()(req, res, () => { resolve() }) })
         expect(security.authenticatedUsers.get(token)).to.equal(undefined)
@@ -179,6 +184,7 @@ describe('insecurity', () => {
         await new Promise<void>((resolve) => { security.restoreAuthenticatedUser()(req, res, () => { resolve() }) })
       } finally {
         findByPk.restore()
+        findBasket.restore()
       }
 
       expect(security.isDeluxe(req)).to.equal(true)

@@ -207,9 +207,11 @@ export const appendUserId = () => {
 const restoreServerSideClaims = async (token: string, decoded: any) => {
   try {
     const { UserModel } = await import('../models/user')
+    const { BasketModel } = await import('../models/basket')
     const user = await UserModel.findByPk(decoded.data.id)
     if (user != null && user.email === decoded.data.email) {
-      authenticatedUsers.put(token, { ...decoded, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
+      const basket = await BasketModel.findOne({ where: { UserId: user.id } })
+      authenticatedUsers.put(token, { ...decoded, bid: basket?.id, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
     }
   } catch {
     authenticatedUsers.tokenMap.delete(token)
