@@ -61,8 +61,10 @@ export function login () {
 
   async function upgradeLegacyPasswordHash (storedUser: UserModel | null, email: string, password: string) {
     if (!storedUser || !security.verifyLegacyPassword(password, storedUser.password)) return storedUser
-    const user = await UserModel.findOne({ where: { email }, attributes: ['id', 'password'] })
-    return user ? await user.update({ password }) : storedUser
+    await models.sequelize.query('UPDATE Users SET password = ? WHERE email = ? AND password = ?', {
+      replacements: [security.hashPassword(password), email, storedUser.password]
+    })
+    return await UserModel.findOne({ where: { email }, attributes: ['password'] })
   }
 
   function verifyPreLoginChallenges (req: Request) {

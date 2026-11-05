@@ -268,8 +268,12 @@ describe('insecurity', () => {
       expect(await security.verifyPassword('admin124', security.hashPassword('admin123'))).to.equal(false)
     })
 
-    it('rejects unsalted MD5 and missing hashes', async () => {
-      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(false)
+    it('accepts the matching password for a legacy MD5 hash not yet upgraded at login', async () => {
+      expect(await security.verifyPassword('admin123', security.hash('admin123'))).to.equal(true)
+      expect(await security.verifyPassword('admin124', security.hash('admin123'))).to.equal(false)
+    })
+
+    it('rejects missing hashes', async () => {
       expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
       expect(await security.verifyPassword('', '')).to.equal(false)
     })

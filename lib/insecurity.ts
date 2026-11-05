@@ -97,13 +97,6 @@ export const rehashPassword = async (password: string, storedHash?: string | nul
   return formatPasswordHash(N, r, p, salt, await deriveKey(password, salt, N, r, p))
 }
 
-export const verifyPassword = async (password: string, storedHash?: string | null) => {
-  const parsed = parsePasswordHash(storedHash)
-  if (!parsed) return false
-  const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
-  return crypto.timingSafeEqual(key, parsed.key)
-}
-
 const LEGACY_MD5_HASH = /^[a-f0-9]{32}$/
 
 export const isLegacyPasswordHash = (storedHash?: string | null): storedHash is string =>
@@ -111,6 +104,14 @@ export const isLegacyPasswordHash = (storedHash?: string | null): storedHash is 
 
 export const verifyLegacyPassword = (password: string, storedHash?: string | null) =>
   isLegacyPasswordHash(storedHash) && crypto.timingSafeEqual(Buffer.from(hash(String(password))), Buffer.from(storedHash))
+
+export const verifyPassword = async (password: string, storedHash?: string | null) => {
+  if (isLegacyPasswordHash(storedHash)) return verifyLegacyPassword(password, storedHash)
+  const parsed = parsePasswordHash(storedHash)
+  if (!parsed) return false
+  const key = await deriveKey(password, parsed.salt, parsed.N, parsed.r, parsed.p)
+  return crypto.timingSafeEqual(key, parsed.key)
+}
 
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
