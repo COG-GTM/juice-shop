@@ -169,6 +169,11 @@ export const isDeluxe = (req: Request) => {
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
+export const isAdmin = (req: Request) => {
+  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+  return decodedToken?.data?.role === roles.admin
+}
+
 export const isCustomer = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.customer
@@ -182,6 +187,20 @@ export const appendUserId = () => {
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
     }
+  }
+}
+
+export const appendUserIdIfAuthenticated = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const userId = authenticatedUsers.from(req)?.data?.id
+    if (req.body) {
+      if (userId !== undefined) {
+        req.body.UserId = userId
+      } else {
+        delete req.body.UserId
+      }
+    }
+    next()
   }
 }
 
