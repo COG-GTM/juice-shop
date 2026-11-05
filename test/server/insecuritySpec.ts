@@ -221,8 +221,9 @@ describe('insecurity', () => {
     })
 
     it('rejects expired tokens', () => {
-      const [header, , signature] = security.authorize(payload).split('.')
-      expect(security.verifyRS256(`${header}.${encode({ ...payload, exp: 1 })}.${signature}`)).to.equal(false)
+      const expiredToken = security.authorize({ ...payload, exp: Math.floor(Date.now() / 1000) - 60 })
+      expect(security.decode(expiredToken).exp).to.be.below(Date.now() / 1000)
+      expect(security.verifyRS256(expiredToken)).to.equal(false)
     })
 
     it('rejects malformed input', () => {
