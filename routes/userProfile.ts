@@ -24,6 +24,19 @@ async function profileTemplate () {
   return renderProfile
 }
 
+const cspHostSource = /^https?:\/\/(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(?::\d{1,5})?$/i
+
+export function profileImageCspSource (profileImage?: string | null) {
+  if (!profileImage) return undefined
+  try {
+    const { protocol, origin } = new URL(profileImage)
+    if (protocol !== 'http:' && protocol !== 'https:') return undefined
+    return cspHostSource.test(origin) ? origin : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
@@ -60,7 +73,8 @@ export function getUserProfile () {
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
     try {
-      const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
+      const imageSource = profileImageCspSource(user.profileImage)
+      const CSP = `img-src 'self'${imageSource ? ' ' + imageSource : ''}; script-src 'self' 'unsafe-eval'`
 
       res.set({
         'Content-Security-Policy': CSP
