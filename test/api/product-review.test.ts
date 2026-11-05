@@ -12,6 +12,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
+import { BJOERN_GOOGLE_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 
@@ -98,7 +99,7 @@ void describe('/rest/products/reviews', () => {
   void it('POST non-existing product review cannot be liked', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .post('/rest/products/reviews')
@@ -112,7 +113,7 @@ void describe('/rest/products/reviews', () => {
   void it('POST single product review can be liked', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .post('/rest/products/reviews')

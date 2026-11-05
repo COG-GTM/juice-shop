@@ -1,6 +1,6 @@
 describe('/dataerasure', () => {
   beforeEach(() => {
-    cy.login({ email: 'admin', password: 'admin123' })
+    cy.login({ email: 'admin', password: Cypress.env('adminPassword') })
   })
 
   describe('challenge "lfr"', () => {

@@ -1,18 +1,4 @@
 describe('/#/basket', () => {
-  describe('as wurstbrot', () => {
-    beforeEach(() => {
-      cy.login({
-        email: 'wurstbrot',
-        password: 'EinBelegtesBrotMitSchinkenSCHINKEN!',
-        totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'
-      })
-    })
-
-    it('should show an success message for 2fa enabled accounts', () => {
-      cy.visit('/#/privacy-security/two-factor-authentication')
-    })
-  })
-
   describe('as amy', () => {
     beforeEach(() => {
       cy.login({

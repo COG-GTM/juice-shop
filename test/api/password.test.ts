@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { BJOERN_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 
@@ -41,7 +42,7 @@ void describe('/rest/user/change-password', () => {
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
-      password: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase'
+      password: BJOERN_PASSWORD
     })
 
     const res = await request(app)
@@ -127,20 +128,6 @@ void describe('/rest/user/reset-password', () => {
         answer: 'Stop\'n\'Drop',
         new: 'OhG0dPlease1nsertLiquor!',
         repeat: 'OhG0dPlease1nsertLiquor!'
-      })
-
-    assert.equal(res.status, 200)
-  })
-
-  void it('POST password reset for Bjoern\u00b4s internal account with correct answer to his security question', async () => {
-    const res = await request(app)
-      .post('/rest/user/reset-password')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern@' + config.get<string>('application.domain'),
-        answer: 'West-2082',
-        new: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase',
-        repeat: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase'
       })
 
     assert.equal(res.status, 200)

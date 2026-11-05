@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { BJOERN_GOOGLE_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 
@@ -21,7 +22,7 @@ before(async () => {
 
 void describe('/rest/user/data-export', () => {
   void it('Export data without use of CAPTCHA', async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: BJOERN_GOOGLE_PASSWORD })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     const res = await request(app)
@@ -38,7 +39,7 @@ void describe('/rest/user/data-export', () => {
   })
 
   void it('Export data when CAPTCHA requested need right answer', async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: BJOERN_GOOGLE_PASSWORD })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     const captchaRes = await request(app)
@@ -58,7 +59,7 @@ void describe('/rest/user/data-export', () => {
   })
 
   void it('Export data using right answer to CAPTCHA', async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: BJOERN_GOOGLE_PASSWORD })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     const captchaRes = await request(app)

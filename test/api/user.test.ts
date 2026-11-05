@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { BJOERN_GOOGLE_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -237,7 +238,7 @@ void describe('/rest/user/whoami', () => {
   void it('GET own user id and email on who-am-i request', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .get('/rest/user/whoami')
@@ -286,7 +287,7 @@ void describe('/rest/user/whoami', () => {
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .get('/rest/user/whoami?fields=id,email')
@@ -301,7 +302,7 @@ void describe('/rest/user/whoami', () => {
   void it('GET who-am-i with fields parameter does not return password by default', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .get('/rest/user/whoami?fields=id,email')
@@ -315,7 +316,7 @@ void describe('/rest/user/whoami', () => {
   void it('GET who-am-i with fields parameter can be tricked into returning password', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .get('/rest/user/whoami?fields=id,email,password')

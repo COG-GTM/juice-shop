@@ -12,12 +12,15 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let ownCardIds: number[]
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
   const { token } = await login(app, { email: 'demo', password: 'demo' })
   authHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+  const cardsRes = await request(app).get('/api/Cards').set(authHeader)
+  ownCardIds = cardsRes.body.data.map((card: { id: number }) => card.id)
 }, { timeout: 60000 })
 
 void describe('/api/Wallets', () => {
@@ -47,7 +50,7 @@ void describe('/api/Wallets', () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
       .set(authHeader)
-      .send({ balance: 10, paymentId: 2 })
+      .send({ balance: 10, paymentId: ownCardIds[0] })
     assert.equal(res.status, 200)
 
     const balanceRes = await request(app)
@@ -62,7 +65,7 @@ void describe('/api/Wallets', () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
       .set(authHeader)
-      .send({ balance: 10, paymentId: 1 })
+      .send({ balance: 10, paymentId: [1, 2, 3, 4, 5].find(id => !ownCardIds.includes(id)) })
     assert.equal(res.status, 402)
   })
 
