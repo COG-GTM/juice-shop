@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import { UserModel as UserDbModel } from '../../models/user'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -145,6 +147,41 @@ describe('insecurity', () => {
       security.authenticatedUsers.put(token, { status: 'success', data: { id: 2, email: 'b@b.c', role: 'deluxe' } } as any)
 
       expect(security.isDeluxe({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal(false)
+    })
+
+    it('restores a deluxe session from the database before deluxe-priced routes run', async () => {
+      const email = 'restore@b.c'
+      const token = security.authorize({ status: 'success', data: { id: 3, email, role: 'deluxe' } })
+      const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
+      const findByPk = sinon.stub(UserDbModel, 'findByPk').resolves({ email, deluxeToken: security.deluxeToken(email), lastLoginIp: '5.6.7.8' } as any)
+      try {
+        expect(security.isDeluxe(req)).to.equal(false)
+        await new Promise<void>((resolve, reject) => { security.restoreAuthenticatedUser()(req, {} as any, (err?: unknown) => { err ? reject(err) : resolve() }) })
+      } finally {
+        findByPk.restore()
+      }
+
+      expect(security.authenticatedUsers.get(token)?.data.lastLoginIp).to.equal('5.6.7.8')
+      expect(security.isDeluxe(req)).to.equal(true)
+    })
+
+    it('does not cache a partially restored session when the database lookup fails', async () => {
+      const email = 'retry@b.c'
+      const token = security.authorize({ status: 'success', data: { id: 4, email, role: 'deluxe' } })
+      const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
+      const res = { cookie: () => {} } as any
+      const findByPk = sinon.stub(UserDbModel, 'findByPk').rejects(new Error('db down'))
+      try {
+        await new Promise<void>((resolve) => { security.updateAuthenticatedUsers()(req, res, () => { resolve() }) })
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+
+        findByPk.resolves({ email, deluxeToken: security.deluxeToken(email), lastLoginIp: '' } as any)
+        await new Promise<void>((resolve) => { security.restoreAuthenticatedUser()(req, res, () => { resolve() }) })
+      } finally {
+        findByPk.restore()
+      }
+
+      expect(security.isDeluxe(req)).to.equal(true)
     })
 
     it('leaves payloads without user data unchanged', () => {

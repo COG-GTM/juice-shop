@@ -205,11 +205,30 @@ export const appendUserId = () => {
 }
 
 const restoreServerSideClaims = async (token: string, decoded: any) => {
-  const { UserModel } = await import('../models/user')
-  const user = await UserModel.findByPk(decoded.data.id)
-  if (user != null && user.email === decoded.data.email && authenticatedUsers.get(token) !== undefined) {
-    authenticatedUsers.put(token, { ...decoded, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
+  try {
+    const { UserModel } = await import('../models/user')
+    const user = await UserModel.findByPk(decoded.data.id)
+    if (user != null && user.email === decoded.data.email) {
+      authenticatedUsers.put(token, { ...decoded, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
+    }
+  } catch {
+    authenticatedUsers.tokenMap.delete(token)
   }
+}
+
+export const restoreAuthenticatedUser = () => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (!token || authenticatedUsers.get(token) !== undefined) {
+    next()
+    return
+  }
+  jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    if (err === null && decoded?.data?.id !== undefined) {
+      restoreServerSideClaims(token, decoded).then(() => { next() }, next)
+    } else {
+      next()
+    }
+  })
 }
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
@@ -222,7 +241,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token, tokenCookieOptions(req))
           if (decoded?.data?.id !== undefined) {
-            restored = restoreServerSideClaims(token, decoded).catch(() => {})
+            restored = restoreServerSideClaims(token, decoded)
           }
         }
       }

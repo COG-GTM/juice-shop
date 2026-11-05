@@ -347,6 +347,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
+  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], security.restoreAuthenticatedUser())
+
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
   /* Checks on JWT in Authorization header */ // vuln-code-snippet hide-line
