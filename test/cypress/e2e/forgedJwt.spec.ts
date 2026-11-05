@@ -1,7 +1,13 @@
-// Forged JWTs are rejected since tokens are only accepted when signed with RS256
-describe.skip('/', () => {
+describe('/', () => {
+  const expectChallengeNotSolved = (challengeName: string) => {
+    cy.wait(2000)
+    cy.request({ method: 'GET', url: '/api/Challenges/?name=' + challengeName, timeout: 60000 }).then((response) => {
+      expect(response.body.data[0].solved).to.equal(false)
+    })
+  }
+
   describe('challenge "jwtUnsigned"', () => {
-    it('should accept an unsigned token with email jwtn3d@juice-sh.op in the payload ', () => {
+    it('should reject an unsigned token with email jwtn3d@juice-sh.op in the payload ', () => {
       cy.window().then(() => {
         localStorage.setItem(
           'token',
@@ -9,25 +15,20 @@ describe.skip('/', () => {
         )
       })
       cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'Unsigned JWT' })
+      expectChallengeNotSolved('Unsigned JWT')
     })
   })
 
   describe('challenge "jwtForged"', () => {
-    it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
-      cy.task('isWindows').then((isWindows) => {
-        if (!isWindows) {
-          cy.window().then(() => {
-            localStorage.setItem(
-              'token',
-              'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgzMDM3NzExfQ.gShXDT5TrE5736mpIbfVDEcQbLfteJaQUG7Z0PH8Xc8'
-            )
-          })
-          cy.visit('/#/')
-
-          cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
-        }
+    it('should reject a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
+      cy.window().then(() => {
+        localStorage.setItem(
+          'token',
+          'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgzMDM3NzExfQ.gShXDT5TrE5736mpIbfVDEcQbLfteJaQUG7Z0PH8Xc8'
+        )
       })
+      cy.visit('/#/')
+      expectChallengeNotSolved('Forged Signed JWT')
     })
   })
 })
