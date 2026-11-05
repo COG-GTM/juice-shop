@@ -6,7 +6,8 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import path from 'node:path'
+import { checkUploadSize, checkFileType, resolveComplaintEntryPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,36 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveComplaintEntryPath', () => {
+    const complaintsDir = path.resolve('uploads/complaints')
+
+    const maliciousEntries = [
+      '../../views/promotionVideo.pug',
+      '../../ftp/legal.md',
+      '../complaints/../../views/test.txt',
+      'subdir/../../../views/test.txt',
+      '..\\..\\views\\test.txt',
+      '..',
+      '/etc/passwd',
+      'C:\\Windows\\win.ini',
+      'evil\0.txt',
+      ''
+    ]
+    maliciousEntries.forEach(entry => {
+      it(`should reject zip entry "${entry}"`, () => {
+        expect(resolveComplaintEntryPath(entry)).to.equal(null)
+      })
+    })
+
+    it('should reject non-string entry paths', () => {
+      expect(resolveComplaintEntryPath(undefined)).to.equal(null)
+    })
+
+    it('should resolve benign entries inside the complaints directory', () => {
+      expect(resolveComplaintEntryPath('complaint.pdf')).to.equal(path.join(complaintsDir, 'complaint.pdf'))
+      expect(resolveComplaintEntryPath('sub/complaint.pdf')).to.equal(path.join(complaintsDir, 'sub', 'complaint.pdf'))
+    })
   })
 })
