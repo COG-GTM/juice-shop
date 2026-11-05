@@ -6,6 +6,8 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
@@ -106,6 +108,31 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+  })
+
+  void it('GET product with unknown description does not write it into locale files', async () => {
+    const description = 'untranslated-' + utils.randomHexString(16)
+    const putRes = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(jsonHeader)
+      .send({ description })
+    assert.equal(putRes.status, 200)
+
+    const readRes = await request(app)
+      .get('/api/Products/' + tamperingProductId)
+      .set('Cookie', 'language=de_DE')
+    assert.equal(readRes.status, 200)
+    assert.equal(readRes.body.data.description, description)
+
+    const listRes = await request(app)
+      .get('/api/Products')
+      .set('Cookie', 'language=de_DE')
+    assert.equal(listRes.status, 200)
+
+    for (const locale of ['en', 'de_DE']) {
+      const file = await fs.readFile(path.resolve('i18n', locale + '.json'), 'utf8')
+      assert.ok(!file.includes(description), `i18n/${locale}.json must not contain ${description}`)
+    }
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
