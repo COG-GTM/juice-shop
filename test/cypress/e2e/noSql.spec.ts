@@ -3,7 +3,7 @@ describe('/rest/products/reviews', () => {
     cy.visit('/#/search')
   })
 
-  describe('challenge "NoSQL DoS"', () => {
+  xdescribe('challenge "NoSQL DoS"', () => { // Review ids are no longer evaluated as $where JavaScript (sfind-fb5869f7)
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })
     })
