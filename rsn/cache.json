@@ -669,41 +669,27 @@
 		]
 	},
 	"dbSchemaChallenge_1.ts": {
-		"added": [
-			3,
-			4,
-			5,
-			6,
-			7,
-			8,
-			10
-		],
-		"removed": [
-			3,
-			5
-		]
-	},
-	"dbSchemaChallenge_2_correct.ts": {
 		"added": [],
 		"removed": []
 	},
-	"dbSchemaChallenge_3.ts": {
+	"dbSchemaChallenge_2_correct.ts": {
 		"added": [
-			3,
-			4,
-			5,
-			8,
-			9,
-			10
+			6
 		],
+		"removed": [
+			6,
+			7,
+			8
+		]
+	},
+	"dbSchemaChallenge_3.ts": {
+		"added": [],
 		"removed": [
 			1,
 			2,
-			3,
-			4,
-			5,
 			6,
-			6
+			7,
+			8
 		]
 	},
 	"directoryListingChallenge_1_correct.ts": {
@@ -1280,41 +1266,26 @@
 		]
 	},
 	"unionSqlInjectionChallenge_1.ts": {
-		"added": [
-			3,
-			4,
-			5,
-			6,
-			7,
-			8,
-			10
-		],
-		"removed": [
-			3,
-			5,
-			6
-		]
-	},
-	"unionSqlInjectionChallenge_2_correct.ts": {
 		"added": [],
 		"removed": []
 	},
-	"unionSqlInjectionChallenge_3.ts": {
+	"unionSqlInjectionChallenge_2_correct.ts": {
 		"added": [
-			3,
-			4,
-			5,
-			8,
-			9,
-			10
+			6
 		],
 		"removed": [
-			3,
-			4,
-			5,
 			6,
 			7,
-			6
+			8
+		]
+	},
+	"unionSqlInjectionChallenge_3.ts": {
+		"added": [],
+		"removed": [
+			6,
+			7,
+			8,
+			9
 		]
 	},
 	"weakPasswordChallenge_1_correct.ts": {
