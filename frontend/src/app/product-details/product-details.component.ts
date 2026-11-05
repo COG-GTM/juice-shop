@@ -72,14 +72,14 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   addReview (textPut: HTMLTextAreaElement) {
     const review = { message: textPut.value, author: this.author }
 
-    textPut.value = ''
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
+        textPut.value = ''
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
+        this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
       error: (err) => { console.log(err) }
     })
-    this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
   }
 
   editReview (review: Review) {
