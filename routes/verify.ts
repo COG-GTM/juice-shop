@@ -116,12 +116,8 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
       return
     }
 
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
+    challengeUtils.solveIf(challenge, () => {
+      return hasAlgorithm(token, algorithm) && isSignedWith(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
 }
@@ -129,6 +125,14 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
 function hasAlgorithm (token: string, algorithm: string) {
   const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString())
   return token && header && header.alg === algorithm
+}
+
+function isSignedWith (token: string, algorithm: string) {
+  try {
+    return jws.verify(token, algorithm as jws.Algorithm, security.publicKey)
+  } catch {
+    return false
+  }
 }
 
 function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
