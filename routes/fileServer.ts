@@ -35,7 +35,7 @@ export function servePublicFiles () {
     }
 
     try {
-      if (!(await fs.stat(path.join(ftpRoot, file))).isFile()) {
+      if (!(await fs.lstat(path.join(ftpRoot, file))).isFile()) {
         res.status(404)
         next(new Error('File not found!'))
         return
