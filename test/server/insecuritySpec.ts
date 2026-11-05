@@ -182,9 +182,9 @@ describe('insecurity', () => {
   })
 
   describe('tokenCookieOptions', () => {
-    it('marks the token cookie Secure only on HTTPS requests', () => {
-      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ secure: true })
-      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ secure: false })
+    it('marks the token cookie SameSite=Lax and Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ sameSite: 'lax', secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ sameSite: 'lax', secure: false })
     })
   })
 
