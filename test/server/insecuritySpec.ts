@@ -6,6 +6,9 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import { UserModel as UserDbModel } from '../../models/user'
+import { BasketModel } from '../../models/basket'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -93,6 +96,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
     })
 
+    it('keeps only allowlisted user claims in the session map', () => {
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -108,6 +117,91 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+
+    it('signs only allowlisted user claims', () => {
+      const token = security.authorize({
+        status: 'success',
+        data: { id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png', password: 'hash', totpSecret: 'SECRET', isActive: true }
+      })
+
+      expect(payloadOf(token).status).to.equal('success')
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', profileImage: 'x.png' })
+    })
+
+    it('keeps deluxe token and last login IP only in the server-side session', () => {
+      const user = { status: 'success', data: { id: 1, email: 'a@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('a@b.c'), lastLoginIp: '1.2.3.4', password: 'hash', totpSecret: 'SECRET' } }
+      const token = security.authorize(user)
+      security.authenticatedUsers.put(token, user as any)
+
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', role: 'deluxe' })
+      expect(security.authenticatedUsers.get(token)?.data).to.deep.equal({ id: 1, email: 'a@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('a@b.c'), lastLoginIp: '1.2.3.4' })
+      expect(security.isDeluxe({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal(true)
+    })
+
+    it('does not treat a token with deluxe role as deluxe without a server-side deluxe session', () => {
+      const token = security.authorize({ status: 'success', data: { id: 2, email: 'b@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('b@b.c') } })
+      security.authenticatedUsers.put(token, { status: 'success', data: { id: 2, email: 'b@b.c', role: 'deluxe' } } as any)
+
+      expect(security.isDeluxe({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)).to.equal(false)
+    })
+
+    it('restores a deluxe session from the database before deluxe-priced routes run', async () => {
+      const email = 'restore@b.c'
+      const token = security.authorize({ status: 'success', data: { id: 3, email, role: 'deluxe' } })
+      const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
+      const findByPk = sinon.stub(UserDbModel, 'findByPk').resolves({ id: 3, email, deluxeToken: security.deluxeToken(email), lastLoginIp: '5.6.7.8' } as any)
+      const findBasket = sinon.stub(BasketModel, 'findOne').resolves({ id: 7 } as any)
+      try {
+        expect(security.isDeluxe(req)).to.equal(false)
+        await new Promise<void>((resolve, reject) => { security.restoreAuthenticatedUser()(req, {} as any, (err?: unknown) => { err ? reject(err) : resolve() }) })
+      } finally {
+        findByPk.restore()
+        findBasket.restore()
+      }
+
+      expect(security.authenticatedUsers.get(token)?.bid).to.equal(7)
+      expect(security.authenticatedUsers.get(token)?.data.lastLoginIp).to.equal('5.6.7.8')
+      expect(security.isDeluxe(req)).to.equal(true)
+    })
+
+    it('does not cache a partially restored session when the database lookup fails', async () => {
+      const email = 'retry@b.c'
+      const token = security.authorize({ status: 'success', data: { id: 4, email, role: 'deluxe' } })
+      const req = { headers: { authorization: 'Bearer ' + token }, cookies: {} } as unknown as Request
+      const res = { cookie: () => {} } as any
+      const findByPk = sinon.stub(UserDbModel, 'findByPk').rejects(new Error('db down'))
+      const findBasket = sinon.stub(BasketModel, 'findOne').resolves(null)
+      try {
+        await new Promise<void>((resolve) => { security.updateAuthenticatedUsers()(req, res, () => { resolve() }) })
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+
+        findByPk.resolves({ email, deluxeToken: security.deluxeToken(email), lastLoginIp: '' } as any)
+        await new Promise<void>((resolve) => { security.restoreAuthenticatedUser()(req, res, () => { resolve() }) })
+      } finally {
+        findByPk.restore()
+        findBasket.restore()
+      }
+
+      expect(security.isDeluxe(req)).to.equal(true)
+    })
+
+    it('leaves payloads without user data unchanged', () => {
+      const token = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+      expect(payloadOf(token).userId).to.equal(10)
+      expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('tokenCookieOptions', () => {
+    it('marks the token cookie Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ secure: false })
     })
   })
 

@@ -31,8 +31,8 @@ interface ResponseWithUser {
 }
 
 interface IAuthenticatedUsers {
-  tokenMap: Record<string, ResponseWithUser>
-  idMap: Record<string, string>
+  tokenMap: Map<string, ResponseWithUser>
+  idMap: Map<string, string>
   put: (token: string, user: ResponseWithUser) => void
   get: (token?: string) => ResponseWithUser | undefined
   tokenOf: (user: UserModel) => string | undefined
@@ -53,7 +53,25 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+const tokenUserClaims = ['id', 'email', 'username', 'role', 'profileImage']
+const sessionUserClaims = [...tokenUserClaims, 'deluxeToken', 'lastLoginIp']
+
+export const tokenPayload = (payload: any = {}, claims = tokenUserClaims) => {
+  if (payload?.data === null || typeof payload?.data !== 'object') {
+    return payload
+  }
+  const data: Record<string, unknown> = {}
+  for (const claim of claims) {
+    if (payload.data[claim] !== undefined) {
+      data[claim] = payload.data[claim]
+    }
+  }
+  return { ...payload, data }
+}
+
+export const tokenCookieOptions = (req: Request) => ({ secure: req.secure })
+
+export const authorize = (user = {}) => jwt.sign(tokenPayload(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -70,17 +88,17 @@ export const sanitizeSecure = (html: string): string => {
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
-  tokenMap: {},
-  idMap: {},
+  tokenMap: new Map(),
+  idMap: new Map(),
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = user
-    this.idMap[user.data.id] = token
+    this.tokenMap.set(token, tokenPayload(user, sessionUserClaims))
+    this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    return token ? this.tokenMap.get(utils.unquote(token)) : undefined
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    return user ? this.idMap.get(String(user.id)) : undefined
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)
@@ -166,7 +184,8 @@ export const isAccounting = () => {
 
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
+  const session = authenticatedUsers.from(req)?.data
+  return decodedToken?.data?.role === roles.deluxe && session?.id === decodedToken?.data?.id && session?.role === roles.deluxe && !!session?.deluxeToken && session?.deluxeToken === deluxeToken(session?.email)
 }
 
 export const isCustomer = (req: Request) => {
@@ -177,7 +196,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.tokenMap.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
@@ -185,17 +204,54 @@ export const appendUserId = () => {
   }
 }
 
+const restoreServerSideClaims = async (token: string, decoded: any) => {
+  try {
+    const { UserModel } = await import('../models/user')
+    const { BasketModel } = await import('../models/basket')
+    const user = await UserModel.findByPk(decoded.data.id)
+    if (user != null && user.email === decoded.data.email) {
+      const basket = await BasketModel.findOne({ where: { UserId: user.id } })
+      authenticatedUsers.put(token, { ...decoded, bid: basket?.id, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
+    }
+  } catch {
+    authenticatedUsers.tokenMap.delete(token)
+  }
+}
+
+export const restoreAuthenticatedUser = () => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (!token || authenticatedUsers.get(token) !== undefined) {
+    next()
+    return
+  }
+  jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    if (err === null && decoded?.data?.id !== undefined) {
+      restoreServerSideClaims(token, decoded).then(() => { next() }, next)
+    } else {
+      next()
+    }
+  })
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
+  let restored: Promise<void> | undefined
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, tokenCookieOptions(req))
+          if (decoded?.data?.id !== undefined) {
+            restored = restoreServerSideClaims(token, decoded)
+          }
         }
       }
     })
   }
-  next()
+  if (restored !== undefined) {
+    restored.then(() => { next() }, next)
+  } else {
+    next()
+  }
 }
