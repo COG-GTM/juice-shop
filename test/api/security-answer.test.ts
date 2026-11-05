@@ -32,7 +32,7 @@ void describe('/api/SecurityAnswers', () => {
       .post('/api/SecurityAnswers')
       .set(authHeader)
       .send({
-        UserId: 1,
+        UserId: 2,
         SecurityQuestionId: 1,
         answer: 'Horst'
       })

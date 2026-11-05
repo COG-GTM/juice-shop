@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BJOERN_GOOGLE_PASSWORD } from './helpers/adminCredentials'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -107,7 +108,7 @@ void describe('/rest/basket/:id', () => {
   void it('GET existing basket of another user', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
-      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      password: BJOERN_GOOGLE_PASSWORD
     })
     const res = await request(app)
       .get('/rest/basket/2')

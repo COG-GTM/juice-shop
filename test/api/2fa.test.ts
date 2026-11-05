@@ -13,6 +13,7 @@ import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
+import { JANNIK_PASSWORD, TIMO_PASSWORD, TIMO_TOTP_SECRET } from './helpers/adminCredentials'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
@@ -39,7 +40,7 @@ void describe('/rest/2fa/verify', () => {
       type: 'password_valid_needs_second_factor_token'
     })
 
-    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+    const totpToken = generateSync({ secret: TIMO_TOTP_SECRET })
 
     const res = await request(app)
       .post('/rest/2fa/verify')
@@ -82,7 +83,7 @@ void describe('/rest/2fa/verify', () => {
       type: 'password_valid_needs_second_factor_token'
     }, 'this_surly_isnt_the_right_key')
 
-    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+    const totpToken = generateSync({ secret: TIMO_TOTP_SECRET })
 
     const res = await request(app)
       .post('/rest/2fa/verify')
@@ -100,8 +101,8 @@ void describe('/rest/2fa/status', () => {
   void it('GET should indicate 2fa is setup for 2fa enabled users', async () => {
     const { token } = await login(app, {
       email: `wurstbrot@${config.get<string>('application.domain')}`,
-      password: 'EinBelegtesBrotMitSchinkenSCHINKEN!',
-      totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'
+      password: TIMO_PASSWORD,
+      totpSecret: TIMO_TOTP_SECRET
     })
 
     const res = await getStatus(token)
@@ -115,7 +116,7 @@ void describe('/rest/2fa/status', () => {
   void it('GET should indicate 2fa is not setup for users with 2fa disabled', async () => {
     const { token } = await login(app, {
       email: `J12934@${config.get<string>('application.domain')}`,
-      password: '0Y8rMnww$*9VFYE§59-!Fg1L6t&6lB'
+      password: JANNIK_PASSWORD
     })
 
     const res = await getStatus(token)
@@ -250,8 +251,8 @@ void describe('/rest/2fa/setup', () => {
 
   void it('POST should fail if the account has already set up 2fa', async () => {
     const email = `wurstbrot@${config.get<string>('application.domain')}`
-    const password = 'EinBelegtesBrotMitSchinkenSCHINKEN!'
-    const totpSecret = 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH'
+    const password = TIMO_PASSWORD
+    const totpSecret = TIMO_TOTP_SECRET
 
     const { token } = await login(app, { email, password, totpSecret })
 
