@@ -231,6 +231,11 @@ describe('insecurity', () => {
       expect(keyPair.publicKey).to.equal(publicKey.export({ type: 'pkcs1', format: 'pem' }).toString())
     })
 
+    it('refuses RSA signing keys shorter than 2048 bits', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 1024 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      expect(() => security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY: pem })).to.throw(/at least 2048 bits/)
+    })
+
     it('loads the private key from JUICE_SHOP_JWT_PRIVATE_KEY_FILE outside of encryptionkeys/', () => {
       const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
       const keyFile = path.resolve(`jwt-test-${process.pid}.key`)
