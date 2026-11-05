@@ -82,11 +82,11 @@ void describe('/rest/user/data-export', () => {
   })
 
   void it('Export data including orders without use of CAPTCHA', async () => {
-    const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
+    const { token, bid } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     await request(app)
-      .post('/rest/basket/4/checkout')
+      .post(`/rest/basket/${bid}/checkout`)
       .set(authHeader)
 
     const res = await request(app)
@@ -164,11 +164,11 @@ void describe('/rest/user/data-export', () => {
   })
 
   void it('Export data including orders with use of CAPTCHA', async () => {
-    const { token } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
+    const { token, bid } = await login(app, { email: 'amy@' + config.get<string>('application.domain'), password: 'K1f.....................' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
     await request(app)
-      .post('/rest/basket/4/checkout')
+      .post(`/rest/basket/${bid}/checkout`)
       .set(authHeader)
 
     const captchaRes = await request(app)
