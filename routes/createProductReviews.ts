@@ -5,25 +5,31 @@
 
 import { type Request, type Response } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
 import { reviewsCollection } from '../data/mongodb'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
+const MAX_REVIEW_LENGTH = 160
+
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
-    const user = security.authenticatedUsers.from(req)
-    challengeUtils.solveIf(
-      challenges.forgedReviewChallenge,
-      () => user?.data?.email !== req.body.author
-    )
+    const author = security.authenticatedUsers.from(req)?.data?.email
+    if (!author) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' })
+    }
+    if (!/^\d+$/.test(req.params.id)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid product id' })
+    }
+    const message = req.body?.message
+    if (typeof message !== 'string' || message.trim().length === 0 || message.length > MAX_REVIEW_LENGTH) {
+      return res.status(400).json({ status: 'error', message: `Review must be between 1 and ${MAX_REVIEW_LENGTH} characters` })
+    }
 
     try {
       await reviewsCollection.insert({
         product: req.params.id,
-        message: req.body.message,
-        author: req.body.author,
+        message,
+        author,
         likesCount: 0,
         likedBy: []
       })
