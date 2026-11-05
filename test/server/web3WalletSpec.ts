@@ -128,5 +128,16 @@ describe('web3Wallet', () => {
       await contractExploitListener()(validRequest(), res)
       expect(providers.length).to.equal(2)
     })
+
+    it('does not keep a wallet registered when the listener cannot be created', async () => {
+      await contractExploitListener()(validRequest(), res)
+      providers[0].websocket.onerror(new Error('401'))
+
+      await contractExploitListener()(({ body: { walletAddress: address(2) } }) as any, res)
+
+      expect(res.status).to.have.been.calledWith(500)
+      expect(walletsConnected.has(address(2))).to.equal(false)
+      expect(walletsConnected.has(address(1))).to.equal(true)
+    })
   })
 })
