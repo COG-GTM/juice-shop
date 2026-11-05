@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -79,6 +80,50 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 }
+    const unsignedToken = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(payload)}.`
+    const hs256Input = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(payload)}`
+    const hs256Token = `${hs256Input}.${crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')}`
+    const runIsAuthorized = async (token: string) => await new Promise<any>((resolve) => {
+      void security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as unknown as Response, resolve)
+    })
+
+    it('accepts tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: payload.data }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens with alg "none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public RSA key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.verify('InvalidAuthToken')).to.equal(false)
+    })
+
+    for (const [name, token] of [['unsigned', unsignedToken], ['HS256-forged', hs256Token]]) {
+      it(`isAuthorized() rejects ${name} tokens`, async () => {
+        const error = await runIsAuthorized(token)
+        expect(error?.status).to.equal(401)
+      })
+
+      it(`updateAuthenticatedUsers() does not cache ${name} tokens`, () => {
+        security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, { cookie: () => {} } as unknown as Response, () => {})
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      })
+    }
+
+    it('isAuthorized() accepts tokens issued by authorize()', async () => {
+      const error = await runIsAuthorized(security.authorize({ data: payload.data }))
+      expect(error).to.equal(undefined)
     })
   })
 

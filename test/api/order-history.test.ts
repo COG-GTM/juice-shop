@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import crypto from 'node:crypto'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -88,6 +90,42 @@ void describe('/rest/order-history/orders', () => {
 
     assert.equal(res.status, 200)
   })
+})
+
+void describe('forged JWTs', () => {
+  const base64url = (data: object) => Buffer.from(JSON.stringify(data)).toString('base64url')
+  const payload = { data: { id: 1, email: 'accountant@' + config.get<string>('application.domain'), role: 'accounting' }, iat: 1508639612, exp: 9999999999 }
+  const unsignedToken = `${base64url({ alg: 'none', typ: 'JWT' })}.${base64url(payload)}.`
+  const hs256Input = `${base64url({ alg: 'HS256', typ: 'JWT' })}.${base64url(payload)}`
+  const hs256Token = `${hs256Input}.${crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')}`
+
+  for (const [name, token] of [['unsigned', unsignedToken], ['HS256-forged', hs256Token]]) {
+    void it(`GET all orders is forbidden with ${name} accounting token`, async () => {
+      const res = await request(app)
+        .get('/rest/order-history/orders')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+      assert.equal(res.status, 403)
+    })
+
+    void it(`GET /api/Users is unauthorized with ${name} token`, async () => {
+      const res = await request(app)
+        .get('/api/Users')
+        .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+      assert.equal(res.status, 401)
+    })
+
+    void it(`GET who-am-i returns nothing for ${name} token`, async () => {
+      const res = await request(app)
+        .get('/rest/user/whoami')
+        .set({ Authorization: 'Bearer ' + token, Cookie: `token=${token}` })
+
+      assert.equal(res.status, 200)
+      assert.equal(res.body.user.id, undefined)
+      assert.equal(res.body.user.email, undefined)
+    })
+  }
 })
 
 void describe('/rest/order-history/:id/delivery-status', () => {
