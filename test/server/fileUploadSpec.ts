@@ -6,7 +6,8 @@
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import path from 'node:path'
+import { checkUploadSize, checkFileType, resolveSafeZipEntryPath } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +63,35 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('resolveSafeZipEntryPath', () => {
+    const complaintsDir = path.resolve('uploads/complaints')
+
+    it('should resolve plain file names inside the complaints directory', () => {
+      expect(resolveSafeZipEntryPath('complaint.txt', 'File')).to.equal(path.join(complaintsDir, 'complaint.txt'))
+    })
+
+    const maliciousNames = [
+      '../../ftp/legal.md',
+      '../../frontend/dist/frontend/index.html',
+      'foo/../../../ftp/legal.md',
+      '..\\..\\ftp\\legal.md',
+      '/etc/passwd',
+      'C:\\Windows\\win.ini',
+      'sub/dir/file.txt',
+      '..',
+      '',
+      'evil\0.txt'
+    ]
+    maliciousNames.forEach(name => {
+      it(`should reject entry name ${JSON.stringify(name)}`, () => {
+        expect(resolveSafeZipEntryPath(name, 'File')).to.equal(null)
+      })
+    })
+
+    it('should reject directory entries', () => {
+      expect(resolveSafeZipEntryPath('folder/', 'Directory')).to.equal(null)
+    })
   })
 })

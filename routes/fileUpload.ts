@@ -4,12 +4,14 @@
  */
 
 import os from 'node:os'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
+import { pipeline, Transform, Writable } from 'node:stream'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -24,28 +26,72 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const COMPLAINTS_DIR = path.resolve('uploads/complaints')
+const MAX_EXTRACTED_BYTES = 10 * 1024 * 1024
+
+function resolveSafeZipEntryPath (entryName: unknown, entryType: unknown): string | null {
+  if (typeof entryName !== 'string' || entryName.length === 0 || entryType !== 'File') return null
+  if (entryName.includes('\0') || path.isAbsolute(entryName) || path.win32.isAbsolute(entryName)) return null
+  if (entryName.split(/[\\/]/).includes('..')) return null
+  const resolved = path.resolve(COMPLAINTS_DIR, entryName)
+  if (!resolved.startsWith(COMPLAINTS_DIR + path.sep)) return null
+  if (path.dirname(resolved) !== COMPLAINTS_DIR) return null
+  return resolved
+}
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
       const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
+      const tempFile = path.join(os.tmpdir(), path.basename(filename))
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
+            let extractedBytes = 0
+            const source = fs.createReadStream(tempFile)
+            const parser = source.pipe(unzipper.Parse())
+            const abortExtraction = () => {
+              source.unpipe(parser)
+              source.destroy()
+              parser.destroy()
+            }
+            const createLimiter = () => new Transform({
+              transform (chunk: Buffer, _encoding, callback) {
+                extractedBytes += chunk.length
+                if (extractedBytes > MAX_EXTRACTED_BYTES) {
+                  callback(new Error('Extracted archive content exceeds size limit'))
+                } else {
+                  callback(null, chunk)
+                }
+              }
+            })
+            parser
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const absolutePath = path.resolve(COMPLAINTS_DIR, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
-                } else {
-                  entry.autodrain()
+                const targetPath = resolveSafeZipEntryPath(fileName, entry.type)
+                if (targetPath === null) {
+                  const discard = new Writable({ write (_chunk, _encoding, callback) { callback() } })
+                  pipeline(entry, createLimiter(), discard, function (err) {
+                    if (err != null) abortExtraction()
+                  })
+                  return
                 }
+                const partialPath = path.join(COMPLAINTS_DIR, `.${crypto.randomUUID()}.part`)
+                pipeline(entry, createLimiter(), fs.createWriteStream(partialPath, { flags: 'wx' }), function (err) {
+                  if (err != null) {
+                    fs.rm(partialPath, { force: true }, () => {})
+                    abortExtraction()
+                  } else {
+                    fs.rename(partialPath, targetPath, function (err) {
+                      if (err != null) fs.rm(partialPath, { force: true }, () => {})
+                    })
+                  }
+                })
               }).on('error', function (err: unknown) { next(err) })
           })
         })
@@ -139,6 +185,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
 }
 
 export {
+  resolveSafeZipEntryPath,
   ensureFileIsPassed,
   handleZipFileUpload,
   checkUploadSize,
