@@ -236,6 +236,16 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 410)
     })
 
+    void it('POST XML with entity declarations followed by many unterminated tags is rejected quickly', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;' + '<"'.repeat(90000))
+      const start = Date.now()
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'unterminatedTags.xml')
+      assert.equal(res.status, 410)
+      assert.ok(Date.now() - start < 5000)
+    })
+
     void it('POST XML with dev/random entity declared through an internal parameter entity is treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY % decl \'<!ENTITY xxe SYSTEM "file:///dev/random">\'> %decl;]><foo>&xxe;</foo>')
       const res = await request(app)
