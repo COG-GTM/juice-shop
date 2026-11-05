@@ -3,7 +3,8 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    it('should be possible to request internal resources using image upload URL', () => {
+    // FIXME Profile image URLs must be https and resolve to public addresses, so the server no longer fetches internal resources (sfind-e9d30c29)
+    xit('should be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
       cy.get('#url').type(
@@ -16,7 +17,8 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
+    // FIXME Unfetchable profile image URLs are no longer stored and only the image origin goes into the CSP, so it cannot be disarmed (sfind-e9d30c29)
+    xit('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')
