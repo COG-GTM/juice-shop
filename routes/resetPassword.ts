@@ -93,11 +93,11 @@ export function resetPassword () {
     }
     const key = attemptKey(email)
     const now = Date.now()
-    const attempts = isLockedOut(key, now) ? undefined : reserveAttempt(key, now)
-    if (attempts === undefined) {
+    if (isLockedOut(key, now)) {
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
       return
     }
+    const attempts = reserveAttempt(key, now)
     let answerChecked = false
     try {
       const data = await SecurityAnswerModel.findOne({
@@ -120,7 +120,7 @@ export function resetPassword () {
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
-      if (!answerChecked) releaseAttempt(key, attempts)
+      if (!answerChecked && attempts !== undefined) releaseAttempt(key, attempts)
       next(error)
     }
   }
