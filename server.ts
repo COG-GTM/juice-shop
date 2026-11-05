@@ -167,6 +167,13 @@ void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
+const sessionRateLimit = (windowMs: number, max: number) => rateLimit({
+  windowMs,
+  max,
+  validate: false,
+  keyGenerator: (req: Request) => req.socket.remoteAddress ?? ''
+})
+
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
   app.locals.captchaId = 0
@@ -347,7 +354,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
-  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], rateLimit({ windowMs: 60 * 1000, max: 600, validate: false }), security.restoreAuthenticatedUser())
+  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], sessionRateLimit(60 * 1000, 600), security.restoreAuthenticatedUser())
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
@@ -462,7 +469,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Check 2FA Status for the current User */
   app.get('/rest/2fa/status',
-    rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    sessionRateLimit(5 * 60 * 1000, 100),
     security.isAuthorized(),
     utils.asyncHandler(twoFactorAuth.status)
   )
@@ -602,7 +609,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
   app.post('/rest/user/reset-password', utils.asyncHandler(resetPassword()))
   app.get('/rest/user/security-question', utils.asyncHandler(securityQuestion()))
-  app.get('/rest/user/whoami', rateLimit({ windowMs: 60 * 1000, max: 600, validate: false }), security.updateAuthenticatedUsers(), utils.asyncHandler(retrieveLoggedInUser()))
+  app.get('/rest/user/whoami', sessionRateLimit(60 * 1000, 600), security.updateAuthenticatedUsers(), utils.asyncHandler(retrieveLoggedInUser()))
   app.get('/rest/user/authentication-details', utils.asyncHandler(authenticatedUsers()))
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
   app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
@@ -668,7 +675,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/video', getVideo())
 
   /* Routes for profile page */
-  app.get('/profile', rateLimit({ windowMs: 60 * 1000, max: 600, validate: false }), security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
+  app.get('/profile', sessionRateLimit(60 * 1000, 600), security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
