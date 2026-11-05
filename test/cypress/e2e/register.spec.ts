@@ -37,8 +37,8 @@ describe('/#/register', () => {
           })
 
           cy.visit('/#/administration')
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
+          cy.on('window:alert', () => {
+            throw new Error('XSS payload in email address must not execute')
           })
           cy.expectChallengeSolved({ challenge: 'Client-side XSS Protection' })
         }
