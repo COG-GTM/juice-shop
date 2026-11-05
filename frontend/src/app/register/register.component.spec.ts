@@ -145,7 +145,6 @@ describe('RegisterComponent', () => {
 
     it('redirects to login page after user registration', async () => {
         userService.save.mockReturnValue(of({ id: 1, question: 'Wat is?' }))
-        securityAnswerService.save.mockReturnValue(of({}))
         component.securityQuestions = [{ id: 1, question: 'Wat is?' }]
         component.emailControl.setValue('x@x.xx')
         component.passwordControl.setValue('password')
@@ -153,11 +152,10 @@ describe('RegisterComponent', () => {
         component.securityQuestionControl.setValue(1)
         component.securityAnswerControl.setValue('Answer')
         const user = { email: 'x@x.xx', password: 'password', passwordRepeat: 'password', securityQuestion: { id: 1, question: 'Wat is?' }, securityAnswer: 'Answer' }
-        const securityAnswerObject = { UserId: 1, answer: 'Answer', SecurityQuestionId: 1 }
         component.save()
         await fixture.whenStable()
         expect(vi.mocked(userService.save).mock.calls[0][0]).toEqual(user)
-        expect(vi.mocked(securityAnswerService.save).mock.calls[0][0]).toEqual(securityAnswerObject)
+        expect(securityAnswerService.save).not.toHaveBeenCalled()
         expect(location.path()).toBe('/login')
         fixture.destroy()
     })
