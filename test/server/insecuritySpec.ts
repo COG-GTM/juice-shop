@@ -226,7 +226,7 @@ describe('insecurity', () => {
       try {
         security.authenticatedUsers.revokeAllFor(66)
         expect(security.verify(uncached)).to.equal(false)
-        security.authenticatedUsers.put(uncached, { data: { id: 66 } } as unknown as UserModel)
+        security.authenticatedUsers.put(uncached, { data: { id: 66 } as unknown as UserModel })
         expect(security.authenticatedUsers.get(uncached)).to.equal(undefined)
         clock.tick(1)
         const fresh = security.authorize({ data: { id: 66 } })
