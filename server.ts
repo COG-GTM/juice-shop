@@ -339,11 +339,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
-  app.enable('trust proxy')
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal') // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   app.use('/rest/user/reset-password', rateLimit({
     windowMs: 5 * 60 * 1000,
-    max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
+    max: 100
+  }))
+  app.use('/rest/user/reset-password', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 10,
+    skipSuccessfulRequests: true,
+    keyGenerator ({ body, ip }: { body: any, ip: any }) { return typeof body?.email === 'string' ? `email:${body.email.toLowerCase()}` : `ip:${ip}` }
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
@@ -456,6 +461,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
     rateLimit({ windowMs: 5 * 60 * 1000, max: 100, validate: false }),
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 10,
+      skipSuccessfulRequests: true,
+      validate: false,
+      keyGenerator ({ body, ip }: { body: any, ip: any }) {
+        const tmpToken = body?.tmpToken
+        const userId = typeof tmpToken === 'string' && security.verify(tmpToken) ? security.decode(tmpToken)?.userId : undefined
+        return userId !== undefined ? `user:${userId}` : `ip:${ip}`
+      }
+    }),
     utils.asyncHandler(twoFactorAuth.verify)
   )
   /* Check 2FA Status for the current User */
