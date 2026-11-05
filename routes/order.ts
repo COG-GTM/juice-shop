@@ -36,7 +36,7 @@ export function placeOrder () {
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
           if (basket.UserId !== req.body.UserId) {
-            res.status(403).json({ status: 'error', message: 'You are not allowed to check out this basket.' })
+            res.status(403).json({ status: 'error', error: { message: 'You are not allowed to check out this basket.' } })
             return
           }
           const customer = security.authenticatedUsers.from(req)
