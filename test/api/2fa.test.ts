@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
 import config from 'config'
 import jwt from 'jsonwebtoken'
@@ -36,7 +37,8 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should return a valid authentication when a valid tmp token is passed', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
-      type: 'password_valid_needs_second_factor_token'
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
     })
 
     const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
@@ -60,7 +62,8 @@ void describe('/rest/2fa/verify', () => {
   void it('POST should fail if a invalid totp token is used', async () => {
     const tmpTokenWurstbrot = security.authorize({
       userId: 10,
-      type: 'password_valid_needs_second_factor_token'
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
     })
 
     const totpToken = generateSync({ secret: 'BI6KJAURX3LL5VQI2ZBFVLUWSBYBDX4H' })
@@ -93,6 +96,88 @@ void describe('/rest/2fa/verify', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+})
+
+void describe('/rest/2fa/verify tmp token expiry', () => {
+  void it('POST should fail if an expired tmp token is used', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: Date.now() - 1000
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: '123456'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if a tmp token without expiry is used', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: '123456'
+      })
+
+    assert.equal(res.status, 401)
+  })
+})
+
+void describe('/rest/2fa/verify forged tmp token', () => {
+  const forge = (alg: string, sign: (input: string) => string) => {
+    const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
+    })).toString('base64url')
+    return `${header}.${payload}.${sign(`${header}.${payload}`)}`
+  }
+
+  const verifyWith = async (tmpToken: string) => await request(app)
+    .post('/rest/2fa/verify')
+    .set(jsonHeader)
+    .send({ tmpToken, totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' }) })
+
+  void it('POST should fail for an unsigned alg:none tmp token', async () => {
+    const res = await verifyWith(forge('none', () => ''))
+    assert.equal(res.status, 401)
+    assert.equal(res.body?.authentication, undefined)
+  })
+
+  void it('POST should fail for an HS256 tmp token signed with the public key', async () => {
+    const res = await verifyWith(forge('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))
+    assert.equal(res.status, 401)
+    assert.equal(res.body?.authentication, undefined)
+  })
+
+  void it('POST should fail for a user without 2FA enabled', async () => {
+    const tmpTokenAdmin = security.authorize({
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken: tmpTokenAdmin, totpToken: '000000' })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body?.authentication, undefined)
   })
 })
 
