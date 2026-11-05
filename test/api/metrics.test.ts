@@ -9,19 +9,69 @@ import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
+import { app as serverApp } from '../../server'
 
 let app: Express
+let adminAuth: { Authorization: string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+  adminAuth = { Authorization: 'Bearer ' + token }
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
+  void it('GET metrics anonymously is denied', async () => {
+    const res = await request(serverApp)
+      .get('/metrics')
+      .expect(401)
+
+    assert.doesNotMatch(res.text, /_version_info/)
+  })
+
+  void it('GET metrics with a forged unsigned admin token is denied', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@' + config.get<string>('application.domain'), role: 'admin' } })).toString('base64url')
+    await request(serverApp)
+      .get('/metrics')
+      .set({ Authorization: `Bearer ${header}.${payload}.` })
+      .expect(401)
+  })
+
+  void it('GET metrics as non-admin customer is forbidden', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    await request(serverApp)
+      .get('/metrics')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(403)
+  })
+
+  void it('GET metrics with a validly signed accounting token is forbidden', async () => {
+    const token = security.authorize({ data: { email: 'accountant@' + config.get<string>('application.domain'), role: 'accounting' } })
+    await request(serverApp)
+      .get('/metrics')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(403)
+  })
+
+  void it('GET metrics as admin', async () => {
+    const res = await request(serverApp)
+      .get('/metrics')
+      .set(adminAuth)
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +100,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +117,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))

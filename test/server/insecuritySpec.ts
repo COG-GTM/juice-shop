@@ -5,10 +5,12 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +203,56 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+  describe('isAdmin', () => {
+    const run = (authorization?: string) => {
+      let nextCalled = false
+      let status: number | undefined
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as unknown as Response
+      security.isAdmin()(req, res, () => { nextCalled = true })
+      return { nextCalled, status }
+    }
+
+    it('allows a validly signed admin token', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+      expect(run(`Bearer ${token}`)).to.deep.equal({ nextCalled: true, status: undefined })
+    })
+
+    it('returns 401 without a token', () => {
+      expect(run()).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('returns 401 for an expired admin token', () => {
+      const clock = sinon.useFakeTimers({ now: Date.now() - 7 * 60 * 60 * 1000, toFake: ['Date'] })
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+      clock.restore()
+      expect(run(`Bearer ${token}`)).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('returns 401 for a malformed token', () => {
+      expect(run('Bearer not-a-jwt')).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('returns 403 for validly signed non-admin tokens', () => {
+      for (const role of ['customer', 'deluxe', 'accounting']) {
+        const token = security.authorize({ data: { email: 'jim@juice-sh.op', role } })
+        expect(run(`Bearer ${token}`)).to.deep.equal({ nextCalled: false, status: 403 })
+      }
+    })
+
+    it('returns 401 for an unsigned admin token', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      expect(run(`Bearer ${header}.${payload}.`)).to.deep.equal({ nextCalled: false, status: 401 })
+    })
+
+    it('returns 401 for an HS256 admin token signed with the public key', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+      expect(run(`Bearer ${header}.${payload}.${signature}`)).to.deep.equal({ nextCalled: false, status: 401 })
     })
   })
 })
