@@ -53,6 +53,44 @@ async function getUserNameFromToken (req: Request): Promise<string | undefined> 
   return user?.username ?? undefined
 }
 
+function conversationFromClient (messages: unknown): Array<{ role: 'user' | 'assistant', content: string }> {
+  if (!Array.isArray(messages)) return []
+  return messages
+    .filter((m): m is { role: 'user' | 'assistant', content: string } =>
+      (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string')
+    .map(({ role, content }) => ({ role, content }))
+}
+
+const COUPON_DISCOUNT = 10
+const SESSION_MAX_AGE_SECONDS = 6 * 60 * 60
+
+function isUnexpiredToken (token: string): boolean {
+  const claims = security.decode(token) as { exp?: unknown, iat?: unknown } | undefined
+  const now = Date.now() / 1000
+  if (typeof claims?.exp === 'number') return claims.exp > now
+  return typeof claims?.iat === 'number' && claims.iat + SESSION_MAX_AGE_SECONDS > now
+}
+
+async function claimCouponEligibleOrder (req: Request, orderId: string): Promise<{ error?: string }> {
+  const token = utils.jwtFrom(req)
+  const email = security.authenticatedUsers.get(token)?.data?.email
+  if (!email || !token || !isUnexpiredToken(token)) return { error: 'Customer not authenticated' }
+  const order = await db.ordersCollection.findOne({ orderId })
+  const isOwnOrder = order?.email === email.replace(/[aeiou]/gi, '*') && String(order?.orderId).startsWith(security.hash(email).slice(0, 4) + '-')
+  if (!order || !isOwnOrder) return { error: 'No order with this ID found for the current customer' }
+  if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
+  // Coupons are deterministic per month, so re-issuing within the same month re-delivers the identical code
+  const couponMonth = utils.toMMMYY(new Date())
+  if (order.couponIssued && order.couponMonth !== couponMonth) return { error: 'A coupon was already issued for this order' }
+  if (order.couponIssued) return {}
+  try {
+    await db.ordersCollection.update({ _id: order._id }, { $set: { couponIssued: true, couponMonth } })
+    return {}
+  } catch {
+    return { error: 'The coupon could not be issued right now, please try again' }
+  }
+}
+
 const app = config.get<string>('application.customMetricsPrefix')
 const metricInputTokensTotal = new Counter({
   name: `${app}_llm_input_tokens_total`,
@@ -174,11 +212,13 @@ export function chat () {
       generateCoupon: tool({
         description: 'Generate a discount coupon for a customer. Only use this when the coupon policy conditions are fully met.', // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
         inputSchema: z.object({
-          discount: z.number().describe('The discount percentage for the coupon (maximum 10)') // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          discount: z.number().int().min(COUPON_DISCOUNT).max(COUPON_DISCOUNT).describe(`The discount percentage for the coupon (always ${COUPON_DISCOUNT})`), // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge chatbotGreedyInjectionChallenge
+          orderId: z.string().describe('The order ID of the damaged order (format: xxxx-xxxxxxxxxxxxxxxx)')
         }),
-        execute: async ({ discount }) => {
-          challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
-          challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
+        execute: async ({ discount, orderId }) => {
+          if (discount !== COUPON_DISCOUNT) return { error: `Coupons are only available with a ${COUPON_DISCOUNT}% discount` }
+          const eligibility = await claimCouponEligibleOrder(req, orderId)
+          if (eligibility.error) return eligibility
           const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
           return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
@@ -186,7 +226,7 @@ export function chat () {
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
+    const messages = conversationFromClient(req.body?.messages)
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
@@ -222,6 +262,13 @@ export function chat () {
               const role = decoded?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
+            if (event.toolName === 'generateCoupon') {
+              const requestedDiscount = (event.input as { discount?: unknown } | undefined)?.discount
+              if (typeof requestedDiscount === 'number') {
+                challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => requestedDiscount >= 10)
+                challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => requestedDiscount >= 50)
+              }
+            }
             metricToolCalls.labels({ tool: event.toolName }).inc()
             res.write(`data: ${JSON.stringify({
               choices: [{
