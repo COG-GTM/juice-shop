@@ -113,6 +113,16 @@ void describe('/file-upload', () => {
     })
   }
 
+  void it('POST file type YAML with !!js/function tag is rejected without executing code', async () => {
+    const payload = "toJSON: !!js/function 'function(){ globalThis.__yamlRce = true; return 1 }'"
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from(payload), 'complaint.yml')
+    assert.equal(res.status, 410)
+    assert.match(res.text, /unknown tag/)
+    assert.equal((globalThis as any).__yamlRce, undefined)
+  })
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
