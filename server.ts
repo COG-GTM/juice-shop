@@ -73,6 +73,8 @@ import * as payment from './routes/payment'
 import { placeOrder } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
+import * as feedback from './routes/feedback'
+import * as complaint from './routes/complaint'
 import * as recycles from './routes/recycles'
 import * as twoFactorAuth from './routes/2fa'
 import { applyCoupon } from './routes/coupon'
@@ -358,6 +360,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/BasketItems/:id', security.isAuthorized())
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.isFeedbackOwnerOrAdmin()))
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -377,8 +380,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     .get(security.denyAll())
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
-  app.post('/api/Complaints', security.isAuthorized())
+  app.get('/api/Complaints', security.isAuthorized(), security.appendUserId(), utils.asyncHandler(complaint.getComplaints()))
+  app.post('/api/Complaints', security.isAuthorized(), security.appendUserId())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
@@ -398,6 +401,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/basket/:id', security.isAuthorized())
   app.use('/rest/basket/:id/order', security.isAuthorized())
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
+  app.post('/api/Feedbacks', security.appendUserIdIfAuthenticated())
   app.post('/api/Feedbacks', verify.forgedFeedbackChallenge())
   /* Captcha verification before finale takes over */
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
@@ -440,7 +444,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.delete('/api/Cards/:id', security.appendUserId(), utils.asyncHandler(payment.delPaymentMethodById()))
   app.get('/api/Cards/:id', security.appendUserId(), utils.asyncHandler(payment.getPaymentMethodById()))
   /* PrivacyRequests: Only POST allowed for authenticated users */
-  app.post('/api/PrivacyRequests', security.isAuthorized())
+  app.post('/api/PrivacyRequests', security.isAuthorized(), security.appendUserId())
   app.get('/api/PrivacyRequests', security.denyAll())
   app.use('/api/PrivacyRequests/:id', security.denyAll())
 
