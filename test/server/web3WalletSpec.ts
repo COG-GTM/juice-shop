@@ -139,5 +139,21 @@ describe('web3Wallet', () => {
       expect(walletsConnected.has(address(2))).to.equal(false)
       expect(walletsConnected.has(address(1))).to.equal(true)
     })
+
+    it('does not evict pending wallets when a registration fails on a full set', async () => {
+      await contractExploitListener()(validRequest(), res)
+      providers[0].websocket.onerror(new Error('401'))
+      walletsConnected.clear()
+      for (let i = 0; i < MAX_WALLETS_CONNECTED; i++) {
+        rememberWallet(address(i), now)
+      }
+
+      await contractExploitListener()(({ body: { walletAddress: address(MAX_WALLETS_CONNECTED) } }) as any, res)
+
+      expect(res.status).to.have.been.calledWith(500)
+      expect(walletsConnected.size).to.equal(MAX_WALLETS_CONNECTED)
+      expect(walletsConnected.has(address(0))).to.equal(true)
+      expect(walletsConnected.has(address(MAX_WALLETS_CONNECTED))).to.equal(false)
+    })
   })
 })
