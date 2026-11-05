@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -127,6 +128,46 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+  })
+
+  void it('POST zip file with directory traversal payload does not write outside uploads/complaints', async (t) => {
+    if (!utils.isChallengeEnabled(challenges.fileWriteChallenge)) { t.skip(); return }
+    const legalFile = path.resolve('ftp/legal.md')
+    const original = fs.readFileSync(legalFile, 'utf8')
+    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.readFileSync(legalFile, 'utf8'), original)
+  })
+
+  void it('POST zip file extracts regular entries into uploads/complaints', async (t) => {
+    if (!utils.isChallengeEnabled(challenges.fileWriteChallenge)) { t.skip(); return }
+    const extracted = path.resolve('uploads/complaints/zipSlipTestReport.txt')
+    if (fs.existsSync(extracted)) fs.unlinkSync(extracted)
+    const file = path.resolve(__dirname, '../files/validComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.readFileSync(extracted, 'utf8'), 'Complaint attachment')
+    fs.unlinkSync(extracted)
+  })
+
+  void it('POST zip file whose entry exceeds the extraction limit leaves no file behind', async (t) => {
+    if (!utils.isChallengeEnabled(challenges.fileWriteChallenge)) { t.skip(); return }
+    const extracted = path.resolve('uploads/complaints/zipBombTestReport.txt')
+    if (fs.existsSync(extracted)) fs.unlinkSync(extracted)
+    const file = path.resolve(__dirname, '../files/oversizedComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    assert.equal(fs.existsSync(extracted), false)
   })
 
   void it('POST zip file with password protection', async () => {

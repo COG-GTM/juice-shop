@@ -24,25 +24,41 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
   }
 }
 
+const MAX_EXTRACTED_BYTES = 1024 * 1024
+
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
       const buffer = file.buffer
       const filename = file.originalname.toLowerCase()
-      const tempFile = path.join(os.tmpdir(), filename)
+      const tempFile = path.join(os.tmpdir(), path.basename(filename))
       fs.open(tempFile, 'w', function (err, fd) {
         if (err != null) { next(err) }
         fs.write(fd, buffer, 0, buffer.length, null, function (err) {
           if (err != null) { next(err) }
           fs.close(fd, function () {
+            let extractedBytes = 0
             fs.createReadStream(tempFile)
               .pipe(unzipper.Parse())
               .on('entry', function (entry: any) {
                 const fileName = entry.path
-                const absolutePath = path.resolve('uploads/complaints/' + fileName)
+                const complaintsDir = path.resolve('uploads/complaints')
+                const absolutePath = path.resolve(complaintsDir, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-                if (absolutePath.includes(path.resolve('.'))) {
-                  entry.pipe(fs.createWriteStream('uploads/complaints/' + fileName).on('error', function (err) { next(err) }))
+                if (entry.type === 'File' && absolutePath.startsWith(complaintsDir + path.sep)) {
+                  const output = fs.createWriteStream(absolutePath).on('error', function (err) { next(err) })
+                  const countBytes = function (chunk: Buffer) {
+                    extractedBytes += chunk.length
+                    if (extractedBytes > MAX_EXTRACTED_BYTES) {
+                      entry.removeListener('data', countBytes)
+                      entry.unpipe(output)
+                      output.destroy()
+                      fs.unlink(absolutePath, () => {})
+                      entry.autodrain()
+                    }
+                  }
+                  entry.on('data', countBytes)
+                  entry.pipe(output)
                 } else {
                   entry.autodrain()
                 }
