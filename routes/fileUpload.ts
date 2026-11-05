@@ -294,8 +294,26 @@ function containsDtd (data: string) {
 }
 
 const xmlToken = /<\?[\s\S]*?(?:\?>|$)|<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?(?:\]\]>|$)|<!ENTITY\s+(%\s+)?([^\s%>"']+)\s+(SYSTEM\s+|PUBLIC\s+(?:"[^"]*"|'[^']*')\s+)?("[^"]*"|'[^']*')[^>]*>?|<![a-z][^>"'[]*(?:(?:"[^"]*"?|'[^']*'?)[^>"'[]*)*(\[?)|(\])|<[a-z_:][^>"']*(?:(?:"[^"]*"?|'[^']*'?)[^>"']*)*>?|([&%])([^\s;&%#<>"'[\]]+);/gi
-const fileDisclosureTarget = /^file:\/\/\/?(?:etc\/passwd|[a-z]:\/windows\/system\.ini)$/i
-const devRandomTarget = /^file:\/\/\/?dev\/u?random$/i
+
+function localFilePath (systemId: string) {
+  const match = /^file:\/\/(?:localhost)?(\/[^?#]*)$/i.exec(systemId)
+  if (match == null) return null
+  try {
+    return path.posix.normalize(decodeURIComponent(match[1]))
+  } catch {
+    return null
+  }
+}
+
+function isFileDisclosureTarget (systemId: string) {
+  const file = localFilePath(systemId)
+  return file != null && (file === '/etc/passwd' || /^\/[a-z]:\/windows\/system\.ini$/i.test(file))
+}
+
+function isDevRandomTarget (systemId: string) {
+  const file = localFilePath(systemId)
+  return file === '/dev/random' || file === '/dev/urandom'
+}
 const maxParameterEntityDepth = 40
 
 function parseXmlWithoutEntities (data: string) {
@@ -464,8 +482,8 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
       const data = file.buffer.toString()
       if (containsDtd(data)) {
         const externalTargets = reachableExternalEntities(data)
-        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return externalTargets.some(target => fileDisclosureTarget.test(target)) })
-        if (externalTargets.some(target => devRandomTarget.test(target))) {
+        challengeUtils.solveIf(challenges.xxeFileDisclosureChallenge, () => { return externalTargets.some(isFileDisclosureTarget) })
+        if (externalTargets.some(isDevRandomTarget)) {
           challengeUtils.solveIf(challenges.xxeDosChallenge, () => { return true })
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
