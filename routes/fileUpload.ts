@@ -4,13 +4,14 @@
  */
 
 import os from 'node:os'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
-import { pipeline, Transform } from 'node:stream'
+import { pipeline, Transform, Writable } from 'node:stream'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -50,30 +51,45 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
           if (err != null) { next(err) }
           fs.close(fd, function () {
             let extractedBytes = 0
-            fs.createReadStream(tempFile)
-              .pipe(unzipper.Parse())
+            const source = fs.createReadStream(tempFile)
+            const parser = source.pipe(unzipper.Parse())
+            const abortExtraction = () => {
+              source.unpipe(parser)
+              source.destroy()
+              parser.destroy()
+            }
+            const createLimiter = () => new Transform({
+              transform (chunk: Buffer, _encoding, callback) {
+                extractedBytes += chunk.length
+                if (extractedBytes > MAX_EXTRACTED_BYTES) {
+                  callback(new Error('Extracted archive content exceeds size limit'))
+                } else {
+                  callback(null, chunk)
+                }
+              }
+            })
+            parser
               .on('entry', function (entry: any) {
                 const fileName = entry.path
                 const absolutePath = path.resolve(COMPLAINTS_DIR, fileName)
                 challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
                 const targetPath = resolveSafeZipEntryPath(fileName, entry.type)
                 if (targetPath === null) {
-                  entry.autodrain()
+                  const discard = new Writable({ write (_chunk, _encoding, callback) { callback() } })
+                  pipeline(entry, createLimiter(), discard, function (err) {
+                    if (err != null) abortExtraction()
+                  })
                   return
                 }
-                const limiter = new Transform({
-                  transform (chunk: Buffer, _encoding, callback) {
-                    extractedBytes += chunk.length
-                    if (extractedBytes > MAX_EXTRACTED_BYTES) {
-                      callback(new Error('Extracted archive content exceeds size limit'))
-                    } else {
-                      callback(null, chunk)
-                    }
-                  }
-                })
-                pipeline(entry, limiter, fs.createWriteStream(targetPath), function (err) {
+                const partialPath = path.join(COMPLAINTS_DIR, `.${crypto.randomUUID()}.part`)
+                pipeline(entry, createLimiter(), fs.createWriteStream(partialPath, { flags: 'wx' }), function (err) {
                   if (err != null) {
-                    fs.rm(targetPath, { force: true }, () => {})
+                    fs.rm(partialPath, { force: true }, () => {})
+                    abortExtraction()
+                  } else {
+                    fs.rename(partialPath, targetPath, function (err) {
+                      if (err != null) fs.rm(partialPath, { force: true }, () => {})
+                    })
                   }
                 })
               }).on('error', function (err: unknown) { next(err) })
