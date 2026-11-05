@@ -33,6 +33,10 @@ export const queryResultToJson = <T>(
   }
 }
 
+const MAX_DISCOUNT_PERCENT = 99
+
+export const capDiscount = (discount: number) => Number.isFinite(discount) ? Math.min(Math.max(discount, 0), MAX_DISCOUNT_PERCENT) : 0
+
 export const isUrl = (url: string) => {
   return startsWith(url, 'http')
 }
