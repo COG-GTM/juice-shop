@@ -89,6 +89,38 @@ void describe('/api/Complaints', () => {
     assert.ok(!res.body.data.some((complaint: { UserId: number }) => complaint.UserId === 3))
   })
 
+  void it('GET complaints honors attribute filters within the caller\'s own complaints', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
+    const jimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    await request(app).post('/api/Complaints').set(jimHeader).send({ message: 'Late delivery' })
+    await request(app).post('/api/Complaints').set(jimHeader).send({ message: 'Damaged item' })
+
+    const res = await request(app)
+      .get('/api/Complaints')
+      .query({ message: 'Late delivery' })
+      .set(jimHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length >= 1)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.message, 'Late delivery')
+      assert.equal(complaint.UserId, jimId)
+    }
+  })
+
+  void it('GET complaints ignores a UserId filter that targets another customer', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimId = security.decode(token).data.id
+    const res = await request(app)
+      .get('/api/Complaints')
+      .query({ UserId: 3 })
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 200)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimId)
+    }
+  })
+
   void it('GET complaints returns all complaints for an admin', async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const res = await request(app)
