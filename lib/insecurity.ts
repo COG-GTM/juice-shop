@@ -69,6 +69,7 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+const loginSessionLifetime = 6 * 60 * 60 * 1000
 const loginSessionExpiries = new Map<string, number>()
 function trackLoginSession (token: string) {
   const now = Date.now()
@@ -77,7 +78,8 @@ function trackLoginSession (token: string) {
   }
   const decoded = jws.decode(token)
   const payload = typeof decoded?.payload === 'string' ? JSON.parse(decoded.payload) : decoded?.payload
-  if (typeof payload?.exp === 'number' && payload.exp * 1000 > now) loginSessionExpiries.set(token, payload.exp * 1000)
+  const expiry = typeof payload?.exp === 'number' ? payload.exp * 1000 : now + loginSessionLifetime
+  if (expiry > now) loginSessionExpiries.set(token, expiry)
 }
 function isActiveLoginSession (token?: string) {
   const expiry = token ? loginSessionExpiries.get(utils.unquote(token)) : undefined
