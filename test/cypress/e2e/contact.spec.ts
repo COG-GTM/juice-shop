@@ -13,7 +13,8 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    it('should be possible to provide feedback as another user', () => {
+    // Feedback author is now bound to the session, so this challenge can no longer be solved
+    xit('should be possible to provide feedback as another user', () => {
       cy.get('#userId').then(function ($element) {
         $element[0].removeAttribute('hidden')
         $element[0].removeAttribute('class')

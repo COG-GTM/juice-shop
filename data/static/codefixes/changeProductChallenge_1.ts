@@ -6,6 +6,7 @@
   app.use('/api/BasketItems/:id', security.isAuthorized())
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedback.isFeedbackOwnerOrAdmin()))
   /* Users: Only POST is allowed in order to register a new user */
   app.get('/api/Users', security.isAuthorized())
   app.route('/api/Users/:id')
@@ -24,8 +25,8 @@
     .get(security.denyAll())
     .delete(security.denyAll())
   /* Complaints: POST and GET allowed when logged in only */
-  app.get('/api/Complaints', security.isAuthorized())
-  app.post('/api/Complaints', security.isAuthorized())
+  app.get('/api/Complaints', security.isAuthorized(), utils.asyncHandler(complaint.getComplaints()))
+  app.post('/api/Complaints', security.isAuthorized(), security.appendUserId())
   app.use('/api/Complaints/:id', security.denyAll())
   /* Recycles: POST and GET allowed when logged in only */
   app.get('/api/Recycles', recycles.blockRecycleItems())
@@ -65,7 +66,7 @@
   app.delete('/api/Cards/:id', security.appendUserId(), utils.asyncHandler(payment.delPaymentMethodById()))
   app.get('/api/Cards/:id', security.appendUserId(), utils.asyncHandler(payment.getPaymentMethodById()))
   /* PrivacyRequests: Only POST allowed for authenticated users */
-  app.post('/api/PrivacyRequests', security.isAuthorized())
+  app.post('/api/PrivacyRequests', security.isAuthorized(), security.appendUserId())
   app.get('/api/PrivacyRequests', security.denyAll())
   app.use('/api/PrivacyRequests/:id', security.denyAll())
 

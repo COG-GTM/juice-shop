@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -19,19 +20,32 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/api/PrivacyRequests', () => {
-  void it('POST new complaint', async () => {
+  void it('POST new privacy request', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
       .post('/api/PrivacyRequests')
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
       .send({
         UserId: 1,
         deletionRequested: false
       })
     assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 2)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.data.id, 'number')
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
+  })
+
+  void it('POST new privacy request with token of unknown user fails', async () => {
+    const res = await request(app)
+      .post('/api/PrivacyRequests')
+      .set(authHeader)
+      .send({
+        UserId: 1,
+        deletionRequested: true
+      })
+    assert.equal(res.status, 401)
   })
 
   void it('GET all privacy requests is forbidden via public API', async () => {
