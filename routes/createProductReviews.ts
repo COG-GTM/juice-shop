@@ -5,7 +5,9 @@
 
 import { type Request, type Response } from 'express'
 
+import * as challengeUtils from '../lib/challengeUtils'
 import { reviewsCollection } from '../data/mongodb'
+import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -15,6 +17,7 @@ export function createProductReviews () {
     if (!author) {
       return res.status(401).json({ status: 'error', message: 'Unauthorized' })
     }
+    challengeUtils.solveIf(challenges.forgedReviewChallenge, () => req.body.author !== undefined && req.body.author !== author)
 
     try {
       await reviewsCollection.insert({
