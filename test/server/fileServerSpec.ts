@@ -60,6 +60,18 @@ describe('fileServer', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  for (const file of ['..\\..\\data\\juiceshop.sqlite%00.md', '..\\..\\README.md', 'C:\\Windows\\win.ini%00.md', 'C:acquisitions.md', '..%00.md']) {
+    it(`should raise error for file name ${JSON.stringify(file)}`, () => {
+      req.params.file = file
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
+
   it('should raise error for disallowed file type', () => {
     req.params.file = 'nice.try'
 
