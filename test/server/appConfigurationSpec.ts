@@ -6,6 +6,7 @@
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
+import config from 'config'
 import { retrieveAppConfiguration } from '../../routes/appConfiguration'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -14,26 +15,65 @@ describe('appConfiguration', () => {
   let req: any
   let res: any
 
-  it('should return configuration object', () => {
+  function retrieveConfig () {
     req = {}
     res = { json: sinon.spy() }
-
     retrieveAppConfiguration()(req, res)
+    return res.json.firstCall.args[0].config
+  }
+
+  it('should return configuration object', () => {
+    const returnedConfig = retrieveConfig()
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     expect(res.json).to.have.been.calledOnce
-    const returnedConfig = res.json.firstCall.args[0].config
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     expect(returnedConfig.application).to.exist
   })
 
-  it('should not expose chatBot.llmApiUrl', () => {
-    req = {}
-    res = { json: sinon.spy() }
+  it('should return public UI settings needed by the frontend', () => {
+    const returnedConfig = retrieveConfig()
+    expect(returnedConfig.application.name).to.equal(config.get('application.name'))
+    expect(returnedConfig.application.domain).to.equal(config.get('application.domain'))
+    expect(returnedConfig.application.welcomeBanner).to.deep.equal(config.util.toObject(config.get('application.welcomeBanner')))
+    expect(returnedConfig.application.chatBot.name).to.equal(config.get('application.chatBot.name'))
+    expect(returnedConfig.application.googleOauth.clientId).to.equal(config.get('application.googleOauth.clientId'))
+    expect(returnedConfig.challenges.codingChallengesEnabled).to.equal(config.get('challenges.codingChallengesEnabled'))
+    expect(returnedConfig.hackingInstructor.isEnabled).to.equal(config.get('hackingInstructor.isEnabled'))
+    expect(returnedConfig.ctf.showFlagsInNotifications).to.equal(config.get('ctf.showFlagsInNotifications'))
+  })
 
-    retrieveAppConfiguration()(req, res)
-    const returnedConfig = res.json.firstCall.args[0].config
+  it('should not expose chatBot.llmApiUrl', () => {
+    const returnedConfig = retrieveConfig()
     // eslint-disable-next-line @typescript-eslint/no-unused-expressions
     expect(returnedConfig.application.chatBot).to.exist
     expect(returnedConfig.application.chatBot).to.not.have.property('llmApiUrl')
+  })
+
+  it('should not expose memories, products or server settings', () => {
+    const returnedConfig = retrieveConfig()
+    expect(returnedConfig).to.not.have.property('memories')
+    expect(returnedConfig).to.not.have.property('products')
+    expect(returnedConfig).to.not.have.property('server')
+  })
+
+  it('should not expose fields that are not explicitly allowlisted inside public sections', () => {
+    const returnedConfig = retrieveConfig()
+    expect(Object.keys(returnedConfig.application.social)).to.have.members(Object.keys(config.util.toObject(config.get('application.social'))))
+    expect(returnedConfig.challenges).to.not.have.property('xssBonusPayload')
+    expect(returnedConfig.challenges).to.not.have.property('csafHashValue')
+    expect(returnedConfig.ctf).to.not.have.property('countryMapping')
+    for (const redirect of returnedConfig.application.googleOauth.authorizedRedirects) {
+      expect(Object.keys(redirect)).to.satisfy((keys: string[]) => keys.every(key => ['uri', 'proxy'].includes(key)))
+    }
+  })
+
+  it('should not expose any security answers', () => {
+    const serializedConfig = JSON.stringify(retrieveConfig())
+    expect(serializedConfig).to.not.match(/SecurityAnswer/)
+    for (const memory of config.get<any[]>('memories')) {
+      for (const answer of [memory.geoStalkingMetaSecurityAnswer, memory.geoStalkingVisualSecurityAnswer]) {
+        if (answer) expect(serializedConfig).to.not.include(`"${answer}"`)
+      }
+    }
   })
 })

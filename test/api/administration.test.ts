@@ -38,4 +38,16 @@ void describe('/rest/admin/application-configuration', () => {
     assert.equal(typeof res.body.config, 'object')
     assert.ok(res.body.config !== null)
   })
+
+  void it('GET application configuration does not expose security answers or other private settings', async () => {
+    const res = await request(app)
+      .get('/rest/admin/application-configuration')
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.config.memories, undefined)
+    assert.equal(res.body.config.products, undefined)
+    assert.equal(res.body.config.server, undefined)
+    assert.equal(res.body.config.application.chatBot.llmApiUrl, undefined)
+    assert.doesNotMatch(res.text, /SecurityAnswer/)
+  })
 })
