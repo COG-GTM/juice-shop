@@ -44,6 +44,10 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   } else {
     privateKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
   }
+  const modulusLength = crypto.createPrivateKey(privateKey).asymmetricKeyDetails?.modulusLength ?? 0
+  if (modulusLength < 2048) {
+    throw new Error(`JWT signing key must be an RSA key of at least 2048 bits (got ${modulusLength})`)
+  }
   const publicKey = crypto.createPublicKey(privateKey).export({ type: 'pkcs1', format: 'pem' }).toString()
   return { privateKey, publicKey }
 }
@@ -94,7 +98,7 @@ export const isAuthorized = () => {
 export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
   next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
 }
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => {
   if (!token) return false
   try {
