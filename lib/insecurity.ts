@@ -63,18 +63,23 @@ const revokeToken = (token: string) => {
 }
 const sessionCutoffs = new Map<number, { at: number, keep?: string }>()
 const setSessionCutoff = (userId: number, keep?: string) => {
-  sessionCutoffs.set(userId, { at: Math.floor(Date.now() / 1000), keep })
+  const now = Date.now()
+  for (const [id, cutoff] of sessionCutoffs) {
+    if (cutoff.at + tokenLifetimeSeconds * 1000 <= now) sessionCutoffs.delete(id)
+  }
+  sessionCutoffs.set(userId, { at: now, keep })
 }
 const issuedBeforeSessionCutoff = (token: string) => {
   const payload = decode(token)
   const cutoff = sessionCutoffs.get(payload?.data?.id)
   if (!cutoff || token === cutoff.keep) return false
-  if (cutoff.at + tokenLifetimeSeconds <= Date.now() / 1000) {
+  if (cutoff.at + tokenLifetimeSeconds * 1000 <= Date.now()) {
     sessionCutoffs.delete(payload.data.id)
     return false
   }
+  if (typeof payload.iatMs === 'number') return payload.iatMs <= cutoff.at
   const issuedAt = typeof payload.iat === 'number' ? payload.iat : payload.exp - tokenLifetimeSeconds
-  return !(issuedAt >= cutoff.at)
+  return !(issuedAt > Math.floor(cutoff.at / 1000))
 }
 export const isRevoked = (token?: string | null) => {
   if (!token) return false
@@ -124,7 +129,7 @@ export const isAuthorized = () => {
   }
 }
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, jti: crypto.randomUUID(), ...user }, privateKey, { algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, jti: crypto.randomUUID(), iatMs: Date.now(), ...user }, privateKey, { algorithm: 'RS256' })
 export const verify = (token: string) => {
   if (!token || isRevoked(token) || isExpired(token)) return false
   try {
