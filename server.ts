@@ -718,7 +718,7 @@ const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
   uploadToDisk.single('image')(req, res, (error: unknown) => {
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
       metrics.countFileUploadError(memoryUploadMimeTypes.get(req) ?? 'unknown')
-      res.status(413).json({ status: 'error', message: 'File too large' })
+      res.status(413).json({ error: 'File too large' })
       return
     }
     next(error)
