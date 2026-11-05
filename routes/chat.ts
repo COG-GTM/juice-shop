@@ -39,12 +39,62 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+function userIdFromToken (req: Request): number | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
 }
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return userIdFromToken(req)
+}
+
+const MAX_CHAT_MESSAGES = 50
+const MAX_CHAT_MESSAGE_LENGTH = 4000
+const MAX_ASSISTANT_MESSAGE_LENGTH = 12000
+const MAX_CHAT_TOTAL_LENGTH = 32000
+const MAX_OUTPUT_TOKENS = 2048
+const MAX_CHAT_STEPS = 4
+const MAX_CHAT_REQUESTS_PER_USER = 30
+const MAX_CHAT_REQUESTS_PER_IP = 120
+const CHAT_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000
+
+const chatMessagesSchema = z.array(z.discriminatedUnion('role', [
+  z.object({ role: z.literal('user'), content: z.string().max(MAX_CHAT_MESSAGE_LENGTH) }),
+  z.object({ role: z.literal('assistant'), content: z.string().max(MAX_ASSISTANT_MESSAGE_LENGTH) })
+]))
+  .min(1)
+  .max(MAX_CHAT_MESSAGES)
+  .refine(messages => messages.reduce((total, { content }) => total + content.length, 0) <= MAX_CHAT_TOTAL_LENGTH, {
+    message: `total message content must not exceed ${MAX_CHAT_TOTAL_LENGTH} characters`
+  })
+
+type ChatMessage = z.infer<typeof chatMessagesSchema>[number]
+
+export function validateChatMessages (messages: unknown): { messages?: ChatMessage[], error?: string } {
+  const result = chatMessagesSchema.safeParse(messages)
+  if (!result.success) {
+    const issue = result.error.issues[0]
+    return { error: `invalid messages${issue.path.length > 0 ? ' at ' + issue.path.join('.') : ''}: ${issue.message}` }
+  }
+  return { messages: result.data }
+}
+
+export function chatRateLimitKey (req: Request): string {
+  const userId = userIdFromToken(req)
+  return userId ? `user:${userId}` : `ip:${chatClientIp(req)}`
+}
+
+// The app enables 'trust proxy' globally, so req.ip comes from the spoofable X-Forwarded-For header
+export function chatClientIp (req: Request): string {
+  return req.socket.remoteAddress ?? ''
+}
+
+export const chatRateLimits = [
+  { windowMs: CHAT_RATE_LIMIT_WINDOW_MS, max: MAX_CHAT_REQUESTS_PER_IP, keyGenerator: chatClientIp },
+  { windowMs: CHAT_RATE_LIMIT_WINDOW_MS, max: MAX_CHAT_REQUESTS_PER_USER, keyGenerator: chatRateLimitKey }
+]
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
   const userId = await getUserId(req)
@@ -185,8 +235,18 @@ export function chat () {
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge
 
+    if (!userIdFromToken(req)) {
+      res.status(401).json({ error: 'a logged-in user is required' })
+      return
+    }
+
+    const { messages, error: validationError } = validateChatMessages(req.body?.messages)
+    if (!messages) {
+      res.status(400).json({ error: validationError })
+      return
+    }
+
     const model = config.get<string>('application.chatBot.model')
-    const messages = req.body?.messages ?? []
     const userName = await getUserNameFromToken(req)
 
     res.setHeader('Content-Type', 'text/event-stream')
@@ -204,7 +264,8 @@ export function chat () {
         messages,
         tools: chatTools,
         maxRetries: config.get<number>('application.chatBot.llmMaxRetries'),
-        stopWhen: stepCountIs(10),
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
+        stopWhen: stepCountIs(MAX_CHAT_STEPS),
         onError: ({ error }) => {
           logger.warn('Chatbot stream error: ' + summarizeLlmError(error))
         }
