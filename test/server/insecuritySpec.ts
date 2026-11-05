@@ -9,6 +9,7 @@ import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
+import jws from 'jws'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +202,41 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT verification', () => {
+    const payload = { data: { email: 'admin@juice-sh.op', role: 'admin' } }
+    const tokenSignedWithFormerlyHardcodedKey = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+
+    it('accepts tokens issued by authorize', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects tokens signed with the formerly hard-coded private key', () => {
+      expect(security.verify(tokenSignedWithFormerlyHardcodedKey)).to.equal(false)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(jws.sign({ header: { alg: 'none', typ: 'JWT' }, payload, secret: '' }))).to.equal(false)
+    })
+
+    it('rejects tokens HMAC-signed with the public key', () => {
+      expect(security.verify(jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret: security.publicKey }))).to.equal(false)
+    })
+
+    it('isAuthorized rejects tokens HMAC-signed with the public key', () => {
+      const token = jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret: security.publicKey })
+      let error: any
+      security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
+    })
+
+    it('isAuthorized accepts tokens issued by authorize', () => {
+      const token = security.authorize(payload)
+      let error: any = 'not called'
+      security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as any, (err?: any) => { error = err })
+      expect(error).to.equal(undefined)
     })
   })
 })
