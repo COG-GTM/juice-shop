@@ -26,6 +26,21 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET memories does not expose sensitive user data', async () => {
+    const res = await request(app)
+      .get('/rest/memories')
+    assert.equal(res.status, 200)
+    for (const memory of res.body.data) {
+      if (memory.User) {
+        assert.ok(memory.User.username !== undefined)
+        for (const field of ['password', 'totpSecret', 'deluxeToken', 'email', 'role', 'lastLoginIp']) {
+          assert.equal(memory.User[field], undefined)
+        }
+      }
+    }
+    assert.ok(res.body.data.some((memory: { User?: unknown }) => memory.User))
+  })
+
   void it('GET memories via a valid authorization token', async () => {
     const { token } = await login(app, {
       email: 'jim@' + config.get<string>('application.domain'),
