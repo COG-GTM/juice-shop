@@ -194,6 +194,35 @@ void describe('/rest/user/change-password', () => {
       .expect(200)
   })
 
+  void it('POST password change refreshes the password hash cached for the current session', async () => {
+    const firstSecret = 'first-secret'
+    const secondSecret = 'second-secret'
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'cachedhash@be.rt',
+        password: firstSecret
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'cachedhash@be.rt', password: firstSecret })
+    const cachedHash = async () => (await request(app)
+      .get('/rest/user/whoami?fields=password')
+      .set('Cookie', 'token=' + token)
+      .expect(200)).body.user.password
+
+    assert.equal(await cachedHash(), security.hash(firstSecret))
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ current: firstSecret, new: secondSecret, repeat: secondSecret })
+      .expect(200)
+
+    assert.equal(await cachedHash(), security.hash(secondSecret))
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
