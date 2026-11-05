@@ -61,6 +61,7 @@ import customizeApplication from './lib/startup/customizeApplication'
 import validatePreconditions, { preconditionsReady } from './lib/startup/validatePreconditions'
 import registerWebsocketEvents from './lib/startup/registerWebsocketEvents'
 import restoreOverwrittenFilesWithOriginals from './lib/startup/restoreOverwrittenFilesWithOriginals'
+import publishJwtPublicKey from './lib/startup/publishJwtPublicKey'
 
 import datacreator from './data/datacreator'
 import locales from './data/static/locales.json'
@@ -165,6 +166,7 @@ app.set('view engine', 'hbs')
 
 void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
+void collectDurationPromise('publishJwtPublicKey', publishJwtPublicKey)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
