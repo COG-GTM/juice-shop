@@ -9,8 +9,16 @@ import * as security from '../lib/insecurity'
 
 export function getComplaints () {
   return async (req: Request, res: Response) => {
-    const where = security.isAdmin(req) ? {} : { UserId: req.body.UserId }
-    const complaints = await ComplaintModel.findAll({ where })
+    if (security.isAdmin(req)) {
+      res.status(200).json({ status: 'success', data: await ComplaintModel.findAll() })
+      return
+    }
+    const userId = security.authenticatedUsers.from(req)?.data?.id
+    if (userId === undefined) {
+      res.status(401).json({ status: 'error', message: 'Unknown user' })
+      return
+    }
+    const complaints = await ComplaintModel.findAll({ where: { UserId: userId } })
     res.status(200).json({ status: 'success', data: complaints })
   }
 }

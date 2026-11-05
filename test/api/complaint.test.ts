@@ -59,6 +59,13 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET complaints with token of unknown user fails', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + security.authorize() })
+    assert.equal(res.status, 401)
+  })
+
   void it('GET complaints only returns complaints of current user', async () => {
     const { token: bjoernToken } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const createRes = await request(app)
