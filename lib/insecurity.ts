@@ -41,6 +41,38 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const PASSWORD_HASH_PREFIX = 'scrypt'
+const PASSWORD_SALT_BYTES = 16
+const PASSWORD_KEY_LENGTH = 64
+const LEGACY_MD5_PATTERN = /^[a-f0-9]{32}$/
+
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(PASSWORD_SALT_BYTES).toString('hex')
+  const key = crypto.scryptSync(password, salt, PASSWORD_KEY_LENGTH).toString('hex')
+  return `${PASSWORD_HASH_PREFIX}$${salt}$${key}`
+}
+
+export const isLegacyPasswordHash = (storedHash?: string | null) => !!storedHash && LEGACY_MD5_PATTERN.test(storedHash)
+
+export const verifyPassword = (password: unknown, storedHash?: string | null) => {
+  if (typeof password !== 'string' || !storedHash) {
+    return false
+  }
+  if (isLegacyPasswordHash(storedHash)) {
+    return crypto.timingSafeEqual(Buffer.from(hash(password)), Buffer.from(storedHash))
+  }
+  const [prefix, salt, key] = storedHash.split('$')
+  if (prefix !== PASSWORD_HASH_PREFIX || !salt || !key) {
+    return false
+  }
+  const expected = Buffer.from(key, 'hex')
+  if (expected.length !== PASSWORD_KEY_LENGTH) {
+    return false
+  }
+  const actual = crypto.scryptSync(password, salt, PASSWORD_KEY_LENGTH)
+  return crypto.timingSafeEqual(actual, expected)
+}
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {

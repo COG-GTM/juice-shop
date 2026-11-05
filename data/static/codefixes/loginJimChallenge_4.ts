@@ -15,10 +15,18 @@ export function login () {
     if (req.body.email.match(/.*['-;].*/) || req.body.password.match(/.*['-;].*/)) {
       res.status(451).send(res.__('SQL Injection detected.'))
     }
-    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: true })
-      .then((authenticatedUser) => {
+    models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND deletedAt IS NULL`, { model: models.User, plain: true })
+      .then(async (authenticatedUser) => {
         const user = utils.queryResultToJson(authenticatedUser)
-        if (user.data?.id && user.data.totpSecret !== '') {
+        if (!user.data?.id || !security.verifyPassword(req.body.password, user.data.password)) {
+          res.status(401).send(res.__('Invalid email or password.'))
+          return
+        }
+        if (authenticatedUser && security.isLegacyPasswordHash(user.data.password)) {
+          await authenticatedUser.update({ password: req.body.password })
+          user.data.password = authenticatedUser.password
+        }
+        if (user.data.totpSecret !== '') {
           res.status(401).json({
             status: 'totp_token_required',
             data: {
@@ -28,10 +36,8 @@ export function login () {
               })
             }
           })
-        } else if (user.data?.id) {
-          afterLogin(user, res, next)
         } else {
-          res.status(401).send(res.__('Invalid email or password.'))
+          afterLogin(user, res, next)
         }
       }).catch((error: Error) => {
         next(error)
