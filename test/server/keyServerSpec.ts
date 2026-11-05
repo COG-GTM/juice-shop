@@ -33,11 +33,11 @@ describe('keyServer', () => {
   it('should serve the current JWT public key from memory', () => {
     req.params.file = 'jwt.pub'
     res.type = sinon.stub().returns(res)
-    res.send = sinon.spy()
+    res.end = sinon.spy()
 
     serveKeyFiles()(req, res, next)
 
-    expect(res.send).to.have.been.calledWith(publicKey)
+    expect(res.end).to.have.been.calledWith(publicKey)
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 

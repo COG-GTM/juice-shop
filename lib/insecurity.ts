@@ -35,8 +35,9 @@ const loadJwtKeyPair = () => {
   })
 }
 
-const { privateKey, publicKey } = loadJwtKeyPair()
-export { publicKey }
+const jwtKeyPair = loadJwtKeyPair()
+const privateKey = jwtKeyPair.privateKey
+export const publicKey = jwtKeyPair.publicKey.trim()
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ??
   (configuredPrivateKey ? crypto.createHmac('sha256', configuredPrivateKey).update('deluxeTokenSecret').digest('hex') : crypto.randomBytes(32).toString('hex'))
 
