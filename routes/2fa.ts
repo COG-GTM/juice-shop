@@ -13,19 +13,32 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
+const TMP_TOKEN_MAX_AGE_SECONDS = 5 * 60
+
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    if (!security.verifyRS256(tmpToken)) {
+      throw new Error('Invalid token signature')
+    }
+    const { userId, type, iat } = security.decode(tmpToken)
 
     if (type !== 'password_valid_needs_second_factor_token') {
       throw new Error('Invalid token type')
     }
 
+    if (typeof iat !== 'number' || Date.now() / 1000 - iat > TMP_TOKEN_MAX_AGE_SECONDS) {
+      throw new Error('Token expired')
+    }
+
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
+    }
+
+    if (!user.totpSecret) {
+      throw new Error('User has no 2fa setup')
     }
 
     const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
