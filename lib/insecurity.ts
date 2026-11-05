@@ -61,8 +61,24 @@ const revokeToken = (token: string) => {
   const exp = decode(token)?.exp
   revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + tokenLifetimeSeconds * 1000)
 }
+const sessionCutoffs = new Map<number, { at: number, keep?: string }>()
+const setSessionCutoff = (userId: number, keep?: string) => {
+  sessionCutoffs.set(userId, { at: Math.floor(Date.now() / 1000), keep })
+}
+const issuedBeforeSessionCutoff = (token: string) => {
+  const payload = decode(token)
+  const cutoff = sessionCutoffs.get(payload?.data?.id)
+  if (!cutoff || token === cutoff.keep) return false
+  if (cutoff.at + tokenLifetimeSeconds <= Date.now() / 1000) {
+    sessionCutoffs.delete(payload.data.id)
+    return false
+  }
+  const issuedAt = typeof payload.iat === 'number' ? payload.iat : payload.exp - tokenLifetimeSeconds
+  return !(issuedAt >= cutoff.at)
+}
 export const isRevoked = (token?: string | null) => {
   if (!token) return false
+  if (issuedBeforeSessionCutoff(utils.unquote(token))) return true
   const expiresAt = revokedTokens.get(utils.unquote(token))
   if (expiresAt === undefined) return false
   if (expiresAt <= Date.now()) {
@@ -184,8 +200,10 @@ export const authenticatedUsers: IAuthenticatedUsers = {
       }
     }
     this.idMap[userId] = keep
+    setSessionCutoff(userId, keep)
   },
   revokeAllFor: function (userId: number) {
+    setSessionCutoff(userId)
     for (const token of Object.keys(this.tokenMap)) {
       if (this.tokenMap[token]?.data?.id === userId) {
         revokeToken(token)
