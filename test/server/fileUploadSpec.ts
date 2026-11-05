@@ -90,6 +90,8 @@ describe('fileUpload', () => {
       '../../test-zip-slip.txt',
       '../../views/promotionVideo.pug',
       '../../views/userProfile.pug',
+      'uploads/../../../views/userProfile.pug',
+      '../../routes/userProfile.ts',
       '../../views/test.txt',
       '../../uploads/complaints/../../views/promotionVideo.pug',
       '../x',
