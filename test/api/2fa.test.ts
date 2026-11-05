@@ -147,6 +147,23 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should be rate limited per user after 5 failed codes regardless of client IP', async () => {
+    const verifyFrom = (ip: string, userId: number) => request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .set('X-Forwarded-For', ip)
+      .send({
+        tmpToken: security.authorize({ userId, type: 'password_valid_needs_second_factor_token' }),
+        totpToken: '000000'
+      })
+
+    for (let i = 1; i <= 5; i++) {
+      assert.equal((await verifyFrom(`10.0.0.${i}`, 9999)).status, 401)
+    }
+    assert.equal((await verifyFrom('10.0.0.6', 9999)).status, 429)
+    assert.equal((await verifyFrom('10.0.0.7', 9998)).status, 401)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
