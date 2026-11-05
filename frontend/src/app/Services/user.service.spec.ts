@@ -189,6 +189,21 @@ describe('UserService', () => {
         httpMock.verify()
     })
 
+    it('should fetch token info from Google via oauthTokenInfo', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res: any
+        service.oauthTokenInfo('a&b').subscribe((data) => (res = data))
+
+        const req = httpMock.expectOne('https://oauth2.googleapis.com/tokeninfo?access_token=a%26b')
+        req.flush({ aud: 'client' })
+
+        expect(req.request.method).toBe('GET')
+        expect(res).toEqual({ aud: 'client' })
+        httpMock.verify()
+    })
+
     it('should save last login ip via the rest api', () => {
         const service = TestBed.inject(UserService)
         const httpMock = TestBed.inject(HttpTestingController)
