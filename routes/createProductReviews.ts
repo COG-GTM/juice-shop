@@ -6,6 +6,7 @@
 import { type Request, type Response } from 'express'
 
 import { reviewsCollection } from '../data/mongodb'
+import { ProductModel } from '../models/product'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -23,6 +24,9 @@ export function createProductReviews () {
     const message = req.body?.message
     if (typeof message !== 'string' || message.trim().length === 0 || message.length > MAX_REVIEW_LENGTH) {
       return res.status(400).json({ status: 'error', message: `Review must be between 1 and ${MAX_REVIEW_LENGTH} characters` })
+    }
+    if (await ProductModel.findByPk(Number(req.params.id)) == null) {
+      return res.status(404).json({ status: 'error', message: 'Product not found' })
     }
 
     try {
