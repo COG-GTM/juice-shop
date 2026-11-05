@@ -3,6 +3,18 @@ describe('/rest/products/reviews', () => {
     cy.visit('/#/search')
   })
 
+  describe('challenge "NoSQL DoS"', () => {
+    it('should reject a command injected into the get route', () => {
+      cy.request({
+        url: `/rest/products/${encodeURIComponent('1||sleep(1000)//')}/reviews`,
+        failOnStatusCode: false
+      }).then((response) => {
+        expect(response.status).to.eq(400)
+        expect(response.duration).to.be.lessThan(1000)
+      })
+    })
+  })
+
   describe('challenge "NoSQL Exfiltration"', () => {
     it('should be possible to inject and get all the orders', () => {
       cy.task('isDocker').then((isDocker) => {
