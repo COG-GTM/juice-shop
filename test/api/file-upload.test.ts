@@ -103,6 +103,26 @@ void describe('/file-upload', () => {
     })
   }
 
+  if (utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
+    void it('POST file type YAML is parsed without JavaScript-specific types', async () => {
+      const yamlPayload = "toJSON: !!js/function 'function(){ return \"pw\" + \"ned\" }'"
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from(yamlPayload), 'rce.yml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('unknown tag'))
+      assert.ok(!res.text.includes('pwned'))
+    })
+
+    void it('POST file type YAML with plain content', async () => {
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from('complaint: juice too sour'), 'complaint.yaml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('juice too sour'))
+    })
+  }
+
   if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
     void it('POST file type YAML with Billion Laughs-style attack', async () => {
       const file = path.resolve(__dirname, '../files/yamlBomb.yml')
