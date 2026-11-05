@@ -67,7 +67,8 @@ async function couponEligibleOrder (req: Request, orderId: string): Promise<{ er
   const email = security.authenticatedUsers.get(utils.jwtFrom(req))?.data?.email
   if (!email) return { error: 'Customer not authenticated' }
   const order = await db.ordersCollection.findOne({ orderId })
-  if (!order || order.email !== email.replace(/[aeiou]/gi, '*')) return { error: 'No order with this ID found for the current customer' }
+  const isOwnOrder = order && order.email === email.replace(/[aeiou]/gi, '*') && orderId.startsWith(security.hash(email).slice(0, 4) + '-')
+  if (!isOwnOrder) return { error: 'No order with this ID found for the current customer' }
   if (!order.delivered) return { error: 'Coupons can only be issued for delivered orders' }
   return {}
 }
