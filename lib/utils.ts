@@ -281,7 +281,8 @@ const isTrustedProxy = (trustedProxies: net.BlockList, address: string) => {
 }
 
 // 'trust proxy' makes req.ip the client-chosen left-most X-Forwarded-For entry, so instead walk the chain back from
-// the socket peer and stop at the first address that was not appended by a trusted proxy. Without configuration all
+// the socket peer and stop at the first address that was not appended by a trusted proxy (or at the proxy itself when
+// it forwarded a malformed address, so rotating junk values cannot mint new keys). Without configuration all
 // private networks are trusted; RATE_LIMIT_TRUSTED_PROXIES (IPs, CIDRs and/or 'private') replaces that default.
 export const createClientIpForRateLimit = (trustedProxyEntries: string[] = []) => {
   const trustedProxies = trustedProxyList(trustedProxyEntries)
@@ -291,7 +292,9 @@ export const createClientIpForRateLimit = (trustedProxyEntries: string[] = []) =
       .split(',').map(hop => hop.trim()).filter(hop => hop !== '')
     let address = socket.remoteAddress ?? ''
     while (isTrustedProxy(trustedProxies, address) && hops.length > 0) {
-      address = hops.pop() ?? ''
+      const hop = hops.pop() ?? ''
+      if (net.isIP(hop) === 0) break
+      address = hop
     }
     address = unmapIPv4(address)
     return net.isIPv6(address) ? ipv6Subnet64(address) : address
