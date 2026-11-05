@@ -347,7 +347,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
-  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], security.restoreAuthenticatedUser())
+  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], rateLimit({ windowMs: 60 * 1000, max: 600, validate: false }), security.restoreAuthenticatedUser())
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
@@ -668,7 +668,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/video', getVideo())
 
   /* Routes for profile page */
-  app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
+  app.get('/profile', rateLimit({ windowMs: 60 * 1000, max: 600, validate: false }), security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
