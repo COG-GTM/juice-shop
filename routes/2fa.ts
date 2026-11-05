@@ -13,11 +13,23 @@ import { challenges } from '../data/datacache'
 import { generateSecret, verifySync } from 'otplib'
 import * as security from '../lib/insecurity'
 
+export function rateLimitKey (req: Request): string {
+  const { tmpToken } = req.body ?? {}
+  if (security.verifyRS256(tmpToken)) {
+    const { userId } = security.decode(tmpToken) ?? {}
+    if (userId !== undefined) return `user:${userId}`
+  }
+  return `ip:${req.socket.remoteAddress ?? ''}`
+}
+
 export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    if (!security.verifyRS256(tmpToken)) {
+      throw new Error('Invalid token signature')
+    }
+    const { userId, type } = security.decode(tmpToken)
 
     if (type !== 'password_valid_needs_second_factor_token') {
       throw new Error('Invalid token type')
@@ -26,6 +38,9 @@ export async function verify (req: Request, res: Response) {
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
+    }
+    if (!user.totpSecret) {
+      throw new Error('2FA is not enabled for this user')
     }
 
     const isValid = verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
@@ -112,7 +127,10 @@ export async function setup (req: Request, res: Response) {
       throw new Error('User has 2fa already setup')
     }
 
-    const { secret, type } = security.verify(setupToken) && security.decode(setupToken)
+    if (!security.verifyRS256(setupToken)) {
+      throw new Error('Invalid setupToken signature')
+    }
+    const { secret, type } = security.decode(setupToken)
     if (type !== 'totp_setup_secret') {
       throw new Error('SetupToken is of wrong type')
     }
