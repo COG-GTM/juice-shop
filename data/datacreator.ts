@@ -197,9 +197,13 @@ function resolveAdminCredentials (key: string) {
   if (!password) {
     password = crypto.randomBytes(18).toString('base64url')
     if (key === 'admin') {
-      fs.writeFileSync(generatedAdminPasswordFile, `${password}\n`, { mode: 0o600 })
-      fs.chmodSync(generatedAdminPasswordFile, 0o600)
-      logger.warn(`No ${passwordEnvName} set: generated random password for admin account was written to ${generatedAdminPasswordFile}`)
+      try {
+        fs.rmSync(generatedAdminPasswordFile, { force: true })
+        fs.writeFileSync(generatedAdminPasswordFile, `${password}\n`, { mode: 0o600, flag: 'wx' })
+        logger.warn(`No ${passwordEnvName} set: generated random password for admin account was written to ${generatedAdminPasswordFile}`)
+      } catch (err) {
+        logger.warn(`No ${passwordEnvName} set and generated admin password could not be written to ${generatedAdminPasswordFile} (${utils.getErrorMessage(err)}): set ${passwordEnvName} to log in as admin`)
+      }
     }
   }
   return { password, totpSecret: process.env[adminCredentialEnvName(key, 'TOTP_SECRET')] }
