@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
@@ -91,6 +91,73 @@ void describe('/rest/2fa/verify', () => {
         tmpToken: tmpTokenWurstbrot,
         totpToken
       })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an alg:none tmp token is used', async () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const tmpToken = `${encode({ typ: 'JWT', alg: 'none' })}.${encode({ userId: 10, type: 'password_valid_needs_second_factor_token', iat: Math.round(Date.now() / 1000) })}.`
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken, totpToken })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an HS256 tmp token signed with the public key is used', async () => {
+    const tmpToken = jwt.sign({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    }, security.publicKey, { algorithm: 'HS256' })
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken, totpToken })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail for a validly signed tmp token of a user without 2fa', async () => {
+    const tmpTokenAdmin = security.authorize({
+      userId: 1,
+      type: 'password_valid_needs_second_factor_token'
+    })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken: tmpTokenAdmin, totpToken: '123456' })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if the tmp token is older than 5 minutes', async () => {
+    const realNow = Date.now()
+    mock.method(Date, 'now', () => realNow - 6 * 60 * 1000)
+    let tmpTokenWurstbrot: string
+    try {
+      tmpTokenWurstbrot = security.authorize({
+        userId: 10,
+        type: 'password_valid_needs_second_factor_token'
+      })
+    } finally {
+      mock.restoreAll()
+    }
+
+    const totpToken = generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({ tmpToken: tmpTokenWurstbrot, totpToken })
 
     assert.equal(res.status, 401)
   })
