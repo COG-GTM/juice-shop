@@ -84,6 +84,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         UserId: loggedInUser.data.id,
         deletionRequested: true
       })
+      security.authenticatedUsers.revokeAllFor(loggedInUser.data.id)
 
       res.clearCookie('token')
 

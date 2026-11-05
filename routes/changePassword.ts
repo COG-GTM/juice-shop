@@ -9,12 +9,25 @@ import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 
+const pendingPasswordChanges = new Map<number, Promise<void>>()
+
+async function serializePerUser (userId: number, task: () => Promise<void>) {
+  const previous = pendingPasswordChanges.get(userId) ?? Promise.resolve()
+  const current = previous.then(task, task)
+  const settled = current.then(() => {}, () => {})
+  pendingPasswordChanges.set(userId, settled)
+  try {
+    await current
+  } finally {
+    if (pendingPasswordChanges.get(userId) === settled) pendingPasswordChanges.delete(userId)
+  }
+}
+
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
-    const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+    const currentPassword = typeof body?.current === 'string' ? body.current : ''
+    const newPassword = typeof body?.new === 'string' ? body.new : ''
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -25,35 +38,49 @@ export function changePassword () {
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+    if (token === null || !security.verify(token)) {
+      next(Object.assign(new Error('Blocked illegal activity by ' + connection.remoteAddress), { status: 401 }))
       return
     }
 
-    const loggedInUser = security.authenticatedUsers.get(token)
-    if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
+    const sessionUser = security.authenticatedUsers.get(token)
+    if (!sessionUser) {
+      next(Object.assign(new Error('Blocked illegal activity by ' + connection.remoteAddress), { status: 401 }))
       return
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
-      if (!user) {
-        res.status(404).send(res.__('User not found.'))
-        return
-      }
+      await serializePerUser(sessionUser.data.id, async () => {
+        const loggedInUser = security.authenticatedUsers.get(token)
+        if (!loggedInUser) {
+          next(Object.assign(new Error('Blocked illegal activity by ' + connection.remoteAddress), { status: 401 }))
+          return
+        }
 
-      await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
-      res.json({ user })
+        const user = await UserModel.findByPk(loggedInUser.data.id)
+        if (!user) {
+          res.status(404).send(res.__('User not found.'))
+          return
+        }
+
+        if (security.hash(currentPassword) !== user.password) {
+          challengeUtils.solveIf(
+            challenges.changePasswordBenderChallenge,
+            () => user.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
+          )
+          res.status(401).send(res.__('Current password is not correct.'))
+          return
+        }
+
+        await user.update({ password: newPassword })
+        if (typeof loggedInUser.data.setDataValue === 'function') {
+          loggedInUser.data.setDataValue('password', '')
+        } else {
+          loggedInUser.data.password = ''
+        }
+        security.authenticatedUsers.revokeOtherSessions(user.id, token)
+        res.json({ user: { id: user.id, email: user.email, username: user.username } })
+      })
     } catch (error) {
       next(error)
     }

@@ -170,6 +170,38 @@ void describe('/rest/2fa/setup', () => {
     assert.equal(statusRes.body.setup, true)
   })
 
+  void it('POST should accept the new password right after a password change in the same session', async () => {
+    const email = 'fooooo1b@bar.com'
+    const password = '123456'
+    const newPassword = '654321'
+    const secret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+
+    const changeRes = await request(app)
+      .post('/rest/user/change-password')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ current: password, new: newPassword, repeat: newPassword })
+    assert.equal(changeRes.status, 200)
+
+    const setupRes = await request(app)
+      .post('/rest/2fa/setup')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        password: newPassword,
+        setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret })
+      })
+    assert.equal(setupRes.status, 200)
+
+    const disableRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ password: newPassword })
+    assert.equal(disableRes.status, 200)
+  })
+
   void it('POST should fail if the password doesnt match', async () => {
     const email = 'fooooo2@bar.com'
     const password = '123456'
@@ -300,6 +332,26 @@ void describe('/rest/2fa/disable', () => {
     const statusRes2 = await getStatus(token)
     assert.equal(statusRes2.status, 200)
     assert.equal(statusRes2.body.setup, false)
+  })
+
+  void it('POST should revoke the other sessions of the user but keep the current one', async () => {
+    const email = 'fooooodisable3@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+    const { token: stolenToken } = await login(app, { email, password, totpSecret })
+    const { token: ownerToken } = await login(app, { email, password, totpSecret })
+    assert.notEqual(stolenToken, ownerToken)
+
+    const disableRes = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + ownerToken, 'content-type': 'application/json' })
+      .send({ password })
+    assert.equal(disableRes.status, 200)
+
+    assert.equal((await getStatus(stolenToken)).status, 401)
+    assert.equal((await getStatus(ownerToken)).status, 200)
   })
 
   void it('POST should not be possible to disable 2fa without the correct password', async () => {
