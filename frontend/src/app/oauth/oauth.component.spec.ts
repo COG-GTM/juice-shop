@@ -33,11 +33,14 @@ describe('OAuthComponent', () => {
     beforeEach(async () => {
         routeData = { params: '?alt=json&access_token=TEST&state=STATE' }
         sessionStorage.setItem('oauthState', 'STATE')
+        sessionStorage.setItem('oauthClientId', 'CLIENT')
         userService = {
+            oauthTokenInfo: vi.fn().mockName("UserService.oauthTokenInfo"),
             oauthLogin: vi.fn().mockName("UserService.oauthLogin"),
             login: vi.fn().mockName("UserService.login"),
             save: vi.fn().mockName("UserService.save")
         }
+        userService.oauthTokenInfo.mockReturnValue(of({ aud: 'CLIENT' }))
         userService.oauthLogin.mockReturnValue(of({ email: '' }))
         userService.login.mockReturnValue(of({}))
         userService.save.mockReturnValue(of({}))
@@ -126,6 +129,36 @@ describe('OAuthComponent', () => {
         expect(sessionStorage.getItem('bid')).toBe('1')
         localStorage.removeItem('token')
         sessionStorage.removeItem('bid')
+    })
+
+    it('rejects an access token that was issued to another client', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        userService.login.mockClear()
+        userService.oauthTokenInfo.mockReturnValue(of({ aud: 'OTHER_APP' }))
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(userService.oauthTokenInfo).toHaveBeenCalledWith('TEST')
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
+        expect(userService.login).not.toHaveBeenCalled()
+    })
+
+    it('rejects an access token when the token info lookup fails', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        userService.oauthTokenInfo.mockReturnValue(throwError(() => ({ error: 'invalid_token' })))
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
+    })
+
+    it('rejects an access token when no expected client id was stored', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        sessionStorage.removeItem('oauthClientId')
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
     })
 
     it('consumes the stored state so a callback URL cannot be replayed', () => {
