@@ -65,5 +65,8 @@ config/*.yml
 !config/oss.yml
 !config/defcon33.yml
 
+# Generated at startup from the active JWT signing key
+encryptionkeys/jwt.pub
+
 # System Files
 .DS_Store
