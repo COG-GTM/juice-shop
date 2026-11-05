@@ -6,3 +6,6 @@ services:
   app:
     image: bkimminich/juice-shop:latest
     build: ./
+    environment:
+      - JWT_PRIVATE_KEY
+      - DELUXE_TOKEN_SECRET
