@@ -533,8 +533,9 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
           res.status(503)
           next(new Error('Sorry, we are temporarily not available! Please try again later.'))
         } else {
+          const reason = err instanceof yaml.YAMLException ? String((err as { reason?: string }).reason) : errorMessage
           res.status(410)
-          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + errorMessage + ' (' + file.originalname + ')'))
+          next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + reason + ' (' + file.originalname + ')'))
         }
       }
     } else {
