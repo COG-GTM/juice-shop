@@ -12,6 +12,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
+import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 import { AboutComponent } from './about.component'
@@ -21,12 +22,17 @@ describe('AboutComponent', () => {
     let fixture: ComponentFixture<AboutComponent>
     let configurationService
     let translateService
+    let feedbackService
 
     beforeEach(async () => {
         configurationService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: {} }))
+        feedbackService = {
+            find: vi.fn().mockName("FeedbackService.find")
+        }
+        feedbackService.find.mockReturnValue(of([]))
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
         }
@@ -44,6 +50,7 @@ describe('AboutComponent', () => {
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
+                { provide: FeedbackService, useValue: feedbackService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -59,6 +66,18 @@ describe('AboutComponent', () => {
 
     it('should create', () => {
         expect(component).toBeTruthy()
+    })
+
+    it('should pass feedback comments to the gallery as untrusted plain data', () => {
+        const comment = '<iframe src="javascript:alert(`xss`)">'
+        feedbackService.find.mockReturnValue(of([{ comment, rating: 3 }]))
+        const addImage = vi.spyOn(component.galleryRef, 'addImage')
+        component.populateSlideshowFromFeedbacks()
+
+        expect(addImage).toHaveBeenCalledWith({
+            src: 'assets/public/images/carousel/1.jpg',
+            args: { comment, rating: 3 }
+        })
     })
 
     it('should set Mastodon link as obtained from configuration', () => {
