@@ -61,6 +61,19 @@ describe('insecurity', () => {
     })
   })
 
+  describe('normalizeCouponDiscount', () => {
+    it('keeps discounts between 0 and 99 and drops fractions', () => {
+      expect(security.normalizeCouponDiscount(10)).to.equal(10)
+      expect(security.normalizeCouponDiscount(12.9)).to.equal(12)
+      expect(security.normalizeCouponDiscount(100)).to.equal(security.MAX_COUPON_DISCOUNT)
+      expect(security.normalizeCouponDiscount(-5)).to.equal(0)
+    })
+
+    it('matches the discount signed into a generated coupon', () => {
+      expect(security.discountFromCoupon(security.generateCoupon(150))).to.equal(security.normalizeCouponDiscount(150))
+    })
+  })
+
   describe('couponSigningKeyIn', () => {
     let directory: string
 
