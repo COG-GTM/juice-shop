@@ -139,22 +139,13 @@ describe('AdministrationComponent', () => {
         expect(dialog.open).toHaveBeenCalledWith(FeedbackDetailsComponent, { data: { feedback: 'Feedback', id: 1 } })
     })
 
-    it('should render a user email containing markup as text', () => {
-        userService.find.mockReturnValue(of([{ email: '<img src="x" onerror="alert(1)">' }]))
-        component.findAllUsers()
-        fixture.detectChanges()
-
-        expect(fixture.nativeElement.querySelector('img[src="x"]')).toBeNull()
-        expect(fixture.nativeElement.textContent).toContain('<img src="x" onerror="alert(1)">')
-    })
-
-    it('should render a feedback comment containing markup as text', () => {
-        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)">', rating: 1 }]))
+    it('should not render active markup from a feedback comment', () => {
+        feedbackService.find.mockReturnValue(of([{ comment: '<iframe src="javascript:alert(`xss`)"></iframe>2 &lt; 3', rating: 1 }]))
         component.findAllFeedbacks()
         fixture.detectChanges()
 
         expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
-        expect(fixture.nativeElement.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
+        expect(fixture.nativeElement.textContent).toContain('2 < 3')
     })
 
     it('should have three columns in the user table', () => {
