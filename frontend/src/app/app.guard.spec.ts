@@ -33,6 +33,29 @@ describe('LoginGuard', () => {
         expect(guard.canActivate()).toBe(true)
     })
 
+    it('should close and clear the session for users with an expired token', () => {
+        const guard = TestBed.inject(LoginGuard)
+        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
+        const token = `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`
+        localStorage.setItem('token', token)
+        document.cookie = `token=${token}; path=/`
+
+        expect(guard.canActivate()).toBe(false)
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(document.cookie).not.toContain(`token=${token}`)
+    })
+
+    it('should keep a different token cookie when clearing an expired token', () => {
+        const guard = TestBed.inject(LoginGuard)
+        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
+        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
+        document.cookie = 'token=REFRESHED; path=/'
+
+        expect(guard.canActivate()).toBe(false)
+        expect(document.cookie).toContain('token=REFRESHED')
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+    })
+
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
@@ -72,6 +95,7 @@ describe('AdminGuard', () => {
     beforeEach(() => {
         loginGuard = {
             tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
+            clearExpiredToken: vi.fn().mockName("LoginGuard.clearExpiredToken"),
             forbidRoute: vi.fn().mockName("LoginGuard.forbidRoute")
         }
 
@@ -92,6 +116,14 @@ describe('AdminGuard', () => {
         const guard = TestBed.inject(AdminGuard)
 
         expect(guard).toBeTruthy()
+    })
+
+    it('should clear an expired token before checking the role', () => {
+        const guard = TestBed.inject(AdminGuard)
+
+        loginGuard.tokenDecode.mockReturnValue(null)
+        expect(guard.canActivate()).toBe(false)
+        expect(loginGuard.clearExpiredToken.mock.invocationCallOrder[0]).toBeLessThan(loginGuard.tokenDecode.mock.invocationCallOrder[0])
     })
 
     it('should open for admins', () => {
@@ -132,6 +164,7 @@ describe('AccountingGuard', () => {
     beforeEach(() => {
         loginGuard = {
             tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
+            clearExpiredToken: vi.fn().mockName("LoginGuard.clearExpiredToken"),
             forbidRoute: vi.fn().mockName("LoginGuard.forbidRoute")
         }
 
@@ -152,6 +185,14 @@ describe('AccountingGuard', () => {
         const guard = TestBed.inject(AccountingGuard)
 
         expect(guard).toBeTruthy()
+    })
+
+    it('should clear an expired token before checking the role', () => {
+        const guard = TestBed.inject(AccountingGuard)
+
+        loginGuard.tokenDecode.mockReturnValue(null)
+        expect(guard.canActivate()).toBe(false)
+        expect(loginGuard.clearExpiredToken.mock.invocationCallOrder[0]).toBeLessThan(loginGuard.tokenDecode.mock.invocationCallOrder[0])
     })
 
     it('should open for accountants', () => {
