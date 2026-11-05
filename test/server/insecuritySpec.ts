@@ -93,6 +93,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
     })
 
+    it('keeps only allowlisted user claims in the session map', () => {
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -108,6 +114,77 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isCrossSiteRequest', () => {
+    const requestWith = (headers: Record<string, string>, secure = false) => ({
+      headers: { host: 'shop.example', ...headers },
+      secure,
+      get: (name: string) => headers[name.toLowerCase()]
+    }) as unknown as Request
+
+    it('trusts Sec-Fetch-Site when present', () => {
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'same-origin' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'none' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'cross-site', origin: 'https://shop.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'same-site' }))).to.equal(true)
+    })
+
+    it('compares Origin or Referer with the Host header', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://attacker.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example.attacker.example/' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example:8443' }))).to.equal(true)
+    })
+
+    it('rejects plain-http origins on an HTTPS request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }, true))).to.equal(false)
+    })
+
+    it('rejects HTTPS origins on a plain-http request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example/profile' }))).to.equal(true)
+    })
+
+    it('rejects opaque or malformed origins', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'null' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example@attacker.example' }))).to.equal(true)
+    })
+
+    it('allows requests without any origin information', () => {
+      expect(security.isCrossSiteRequest(requestWith({}))).to.equal(false)
+    })
+  })
+
+  describe('authorize', () => {
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+
+    it('signs only allowlisted user claims', () => {
+      const token = security.authorize({
+        status: 'success',
+        data: { id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png', password: 'hash', totpSecret: 'SECRET', isActive: true }
+      })
+
+      expect(payloadOf(token).status).to.equal('success')
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png' })
+    })
+
+    it('leaves payloads without user data unchanged', () => {
+      const token = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+      expect(payloadOf(token).userId).to.equal(10)
+      expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('tokenCookieOptions', () => {
+    it('marks the token cookie SameSite=Lax and Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ sameSite: 'lax', secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ sameSite: 'lax', secure: false })
     })
   })
 
