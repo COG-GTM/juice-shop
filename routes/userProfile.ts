@@ -21,6 +21,18 @@ function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
 }
 
+export function profileImageCspSource (profileImage?: string | null) {
+  if (!profileImage || !/^https?:\/\//i.test(profileImage)) {
+    return ''
+  }
+  try {
+    const { origin } = new URL(profileImage)
+    return /^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/i.test(origin) ? origin : ''
+  } catch {
+    return ''
+  }
+}
+
 export function getUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     let template: string
@@ -85,7 +97,7 @@ export function getUserProfile () {
     try {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
-      const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
+      const CSP = `img-src ${["'self'", profileImageCspSource(user.profileImage)].filter(Boolean).join(' ')}; script-src 'self' 'unsafe-eval'`
 
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
         return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')

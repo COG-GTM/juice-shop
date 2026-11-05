@@ -192,10 +192,38 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'lax' })
         }
       }
     })
+  }
+  next()
+}
+
+export const isCrossSiteRequest = (req: Request) => {
+  const fetchSite = req.get('sec-fetch-site')
+  if (fetchSite !== undefined) {
+    return fetchSite !== 'same-origin' && fetchSite !== 'none'
+  }
+  const source = req.get('origin') ?? req.get('referer')
+  if (source === undefined) {
+    return false
+  }
+  try {
+    const sourceOrigin = new URL(source).origin
+    const host = req.get('host') ?? ''
+    const protocols = [req.protocol, req.get('x-forwarded-proto')?.split(',')[0].trim()]
+    return !protocols.some(protocol => protocol && sourceOrigin === new URL(`${protocol}://${host}`).origin)
+  } catch {
+    return true
+  }
+}
+
+export const denyCrossSiteRequests = () => (req: Request, res: Response, next: NextFunction) => {
+  if (isCrossSiteRequest(req)) {
+    res.status(403)
+    next(new Error('Blocked cross-site request by ' + req.socket.remoteAddress))
+    return
   }
   next()
 }
