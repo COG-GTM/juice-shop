@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request } from 'express'
+import { type Request, type Response } from 'express'
 import { rateLimit } from 'express-rate-limit'
 
 /* Number of reverse proxies in front of the server. Without any, req.ip is the socket address and cannot be spoofed via X-Forwarded-For */
@@ -12,12 +12,17 @@ export function trustedProxyHops (value = process.env.JUICE_SHOP_TRUSTED_PROXY_H
   return value !== undefined && value.trim() !== '' && Number.isInteger(hops) && hops > 0 ? hops : false
 }
 
-/* Caps failed attempts against a single account no matter how many client addresses they come from */
+export function markFailedAttempt (res: Response) {
+  res.locals.failedAccountAttempt = true
+}
+
+/* Caps failed attempts (as flagged via markFailedAttempt) against a single account no matter how many client addresses they come from */
 export function accountRateLimit (accountOf: (req: Request) => string | undefined, { windowMs = 15 * 60 * 1000, max = 10 } = {}) {
   return rateLimit({
     windowMs,
     max,
     skipSuccessfulRequests: true,
+    requestWasSuccessful: (_req: Request, res: Response) => res.locals.failedAccountAttempt !== true,
     keyGenerator: (req: Request) => `account:${accountOf(req) ?? '<none>'}`,
     validate: false
   })
