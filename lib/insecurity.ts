@@ -56,6 +56,18 @@ export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+export const verifyRS256 = (token: unknown): boolean => {
+  if (typeof token !== 'string') return false
+  const parts = token.split('.')
+  if (parts.length !== 3) return false
+  const [header, payload, signature] = parts
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString('utf8')).alg !== 'RS256') return false
+    return crypto.verify('RSA-SHA256', Buffer.from(`${header}.${payload}`), publicKey, Buffer.from(signature, 'base64url'))
+  } catch {
+    return false
+  }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
