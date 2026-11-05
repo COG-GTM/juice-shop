@@ -70,6 +70,14 @@ void describe('/api/Complaints', () => {
     assert.ok(res.body.data.length > 0)
     assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === benderId))
   })
+
+  void it('GET complaints works with only an Authorization header', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set('Authorization', benderAuthHeader.Authorization)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.every((complaint: { UserId: number }) => complaint.UserId === benderId))
+  })
 })
 
 void describe('/api/Complaints/:id', () => {
