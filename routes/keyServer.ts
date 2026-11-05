@@ -5,12 +5,16 @@
 
 import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
+import { publicKey, publicKeyFile } from '../lib/insecurity'
 
 export function serveKeyFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (!file.includes('/')) {
+    if (file === publicKeyFile) {
+      // res.end() with a string because serveIndexMiddleware rewrites the body passed to res.end()
+      res.type('text/plain').end(publicKey)
+    } else if (!file.includes('/')) {
       res.sendFile(path.resolve('encryptionkeys/', file))
     } else {
       res.status(403)
