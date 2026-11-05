@@ -54,8 +54,9 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const isAuthorized = () => {
   const verifyJwt = expressJwt(({ secret: publicKey }) as any)
   return (req: Request, res: Response, next: NextFunction) => {
-    if (isRevoked(utils.jwtFrom(req))) {
-      res.status(401).json({ status: 'error', message: 'Token has been revoked' })
+    const token = utils.jwtFrom(req)
+    if (isRevoked(token) || isExpired(token)) {
+      res.status(401).json({ status: 'error', message: 'Token has expired or been revoked' })
       return
     }
     verifyJwt(req, res, next)
@@ -235,7 +236,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = (authenticatedUsers.get(utils.jwtFrom(req)) as ResponseWithUser).data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
