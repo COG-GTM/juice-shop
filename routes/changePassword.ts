@@ -72,4 +72,5 @@ function revokeOtherSessions (userId: number, currentToken: string) {
     }
   }
   idMap[userId] = currentToken
+  security.revokeSessionsOf(userId, currentToken)
 }

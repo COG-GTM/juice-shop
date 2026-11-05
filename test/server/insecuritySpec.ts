@@ -232,6 +232,26 @@ describe('insecurity', () => {
       expect(security.verify(token)).to.equal(false)
     })
 
+    it('rejects older tokens of a user whose sessions were revoked even if they were never cached', () => {
+      const realNow = Date.now
+      const issuedEarlier = realNow() - 60 * 1000
+      Date.now = () => issuedEarlier
+      let uncached: string, current: string, otherUser: string
+      try {
+        uncached = security.authorize({ data: { id: 8 } })
+        current = security.authorize({ data: { id: 8 } })
+        otherUser = security.authorize({ data: { id: 9 } })
+      } finally {
+        Date.now = realNow
+      }
+      security.revokeSessionsOf(8, current)
+      expect(security.verify(uncached)).to.equal(false)
+      expect(security.isRevoked(uncached)).to.equal(true)
+      expect(security.verify(current)).to.equal(true)
+      expect(security.verify(otherUser)).to.equal(true)
+      expect(security.verify(security.authorize({ data: { id: 8 } }))).to.equal(true)
+    })
+
     it('rejects a malformed token instead of throwing', () => {
       expect(security.verify('not.a.jwt')).to.equal(false)
     })
