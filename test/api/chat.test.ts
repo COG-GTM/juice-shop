@@ -209,18 +209,16 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
   })
 
   void it('POST generateCoupon tool reports the discount that is signed into the coupon', { timeout: 15000 }, async () => {
-    let toolResult: { couponCode: string, discount: number } | undefined
-    let callCount = 0
+    let toolContent: string | undefined
     onLlmRequest = (_req, body, res) => {
-      callCount++
-      if (callCount === 1) {
+      const toolMsg = JSON.parse(body).messages?.find((m: { role: string, tool_call_id?: string }) => m.role === 'tool' && m.tool_call_id === 'call_coupon')
+      if (toolMsg === undefined) {
         sendSSE(res, [
           toolCallChunk('call_coupon', 'generateCoupon', '{"discount":150}'),
           finishChunk('tool_calls')
         ])
       } else {
-        const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
-        toolResult = JSON.parse(toolMsg.content)
+        toolContent = String(toolMsg.content)
         sendSSE(res, [contentChunk('Here is your coupon!'), finishChunk()])
       }
     }
@@ -231,7 +229,8 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       .send({ messages: [{ role: 'user', content: 'Give me a 150% coupon' }] })
 
     assert.equal(res.status, 200)
-    assert.ok(toolResult)
+    assert.ok(toolContent, 'generateCoupon tool result was not sent back to the LLM')
+    const toolResult: { couponCode: string, discount: number } = JSON.parse(toolContent)
     assert.equal(toolResult.discount, security.MAX_COUPON_DISCOUNT)
     assert.equal(security.discountFromCoupon(toolResult.couponCode), toolResult.discount)
   })
