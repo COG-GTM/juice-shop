@@ -12,7 +12,8 @@ export function serveKeyFiles () {
     const file = params.file
 
     if (file === publicKeyFile) {
-      res.type('text/plain').send(publicKey)
+      // res.end() with a string because serveIndexMiddleware rewrites the body passed to res.end()
+      res.type('text/plain').end(publicKey)
     } else if (!file.includes('/')) {
       res.sendFile(path.resolve('encryptionkeys/', file))
     } else {
