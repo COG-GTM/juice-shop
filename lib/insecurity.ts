@@ -7,7 +7,6 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -51,10 +50,50 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+const jwtVerifyOptions: jwt.VerifyOptions = { algorithms: ['RS256'] }
+
+class UnauthorizedError extends Error {
+  status = 401
+  constructor (public code: string, message: string) {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+const isCorsPreflightForAuthorization = (req: Request) => req.method === 'OPTIONS' && typeof req.headers['access-control-request-headers'] === 'string' && req.headers['access-control-request-headers'].includes('authorization')
+
+export const isAuthorized = () => (req: Request, res: Response, next: NextFunction) => {
+  if (isCorsPreflightForAuthorization(req)) {
+    next()
+    return
+  }
+  const token = utils.jwtFrom(req)
+  if (!token) {
+    next(new UnauthorizedError('credentials_required', 'No valid Authorization header was found'))
+    return
+  }
+  try {
+    (req as Request & { user?: unknown }).user = jwt.verify(token, publicKey, jwtVerifyOptions)
+    next()
+  } catch (error: unknown) {
+    next(new UnauthorizedError('invalid_token', utils.getErrorMessage(error)))
+  }
+}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(new UnauthorizedError('access_denied', 'Access denied'))
+}
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const verify = (token: string) => {
+  if (!token) {
+    return false
+  }
+  try {
+    jwt.verify(token, publicKey, jwtVerifyOptions)
+    return true
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -188,7 +227,7 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    jwt.verify(token, publicKey, jwtVerifyOptions, (err: jwt.VerifyErrors | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)

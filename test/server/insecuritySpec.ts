@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response, NextFunction } from 'express'
+import crypto from 'node:crypto'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +202,58 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('JWT verification', () => {
+    const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })
+    const unsignedToken = `${b64({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hs256Header = b64({ alg: 'HS256', typ: 'JWT' })
+    const hs256Signature = crypto.createHmac('sha256', security.publicKey).update(`${hs256Header}.${payload}`).digest('base64url')
+    const hs256Token = `${hs256Header}.${payload}.${hs256Signature}`
+
+    const runMiddleware = (middleware: (req: Request, res: Response, next: NextFunction) => void, token?: string) => {
+      const req = { method: 'GET', headers: token ? { authorization: `Bearer ${token}` } : {} } as unknown as Request
+      let error: any = 'next not called'
+      middleware(req, {} as unknown as Response, (err?: any) => { error = err })
+      return error
+    }
+
+    it('verify accepts RS256 tokens issued by authorize', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('verify rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('verify rejects tokens HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('isAuthorized passes RS256 tokens issued by authorize', () => {
+      expect(runMiddleware(security.isAuthorized(), security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(undefined)
+    })
+
+    it('isAuthorized rejects missing, unsigned and HMAC-signed tokens with 401', () => {
+      for (const token of [undefined, unsignedToken, hs256Token]) {
+        expect(runMiddleware(security.isAuthorized(), token)).to.have.property('status', 401)
+      }
+    })
+
+    it('denyAll rejects even valid RS256 tokens with 401', () => {
+      for (const token of [security.authorize({ data: { email: 'admin@juice-sh.op' } }), unsignedToken, hs256Token]) {
+        expect(runMiddleware(security.denyAll(), token)).to.have.property('status', 401)
+      }
+    })
+
+    it('updateAuthenticatedUsers does not store forged tokens', () => {
+      for (const token of [unsignedToken, hs256Token]) {
+        const req = { cookies: {}, headers: { authorization: `Bearer ${token}` } } as unknown as Request
+        security.updateAuthenticatedUsers()(req, { cookie: () => {} } as unknown as Response, () => {})
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      }
     })
   })
 })
