@@ -31,13 +31,9 @@ describe('OAuthComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            oauthLogin: vi.fn().mockName("UserService.oauthLogin"),
-            login: vi.fn().mockName("UserService.login"),
-            save: vi.fn().mockName("UserService.save")
+            oauthLogin: vi.fn().mockName("UserService.oauthLogin")
         }
-        userService.oauthLogin.mockReturnValue(of({ email: '' }))
-        userService.login.mockReturnValue(of({}))
-        userService.save.mockReturnValue(of({}))
+        userService.oauthLogin.mockReturnValue(of({ token: 'TOKEN', bid: 42 }))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -45,7 +41,8 @@ describe('OAuthComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule.withRoutes([
-                    { path: 'login', component: LoginComponent }
+                    { path: 'login', component: LoginComponent },
+                    { path: '2fa/enter', component: LoginComponent }
                 ]),
                 ReactiveFormsModule,
                 CookieModule.forRoot(),
@@ -77,32 +74,31 @@ describe('OAuthComponent', () => {
         expect(component).toBeTruthy()
     })
 
+    it('sends Google access token to server for verification', () => {
+        expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
+    })
+
+    it('stores authentication token and basket id issued by server after successful OAuth login', () => {
+        localStorage.removeItem('token')
+        sessionStorage.removeItem('bid')
+        userService.oauthLogin.mockReturnValue(of({ token: 'SERVER_TOKEN', bid: 7 }))
+        component.ngOnInit()
+        expect(localStorage.getItem('token')).toBe('SERVER_TOKEN')
+        expect(sessionStorage.getItem('bid')).toBe('7')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
+    })
+
     it('removes authentication token and basket id on failed OAuth login attempt', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
-        userService.oauthLogin.mockReturnValue(throwError({ error: 'Error' }))
+        userService.oauthLogin.mockReturnValue(throwError(() => ({ error: 'Error' })))
         component.ngOnInit()
         expect(localStorage.getItem('token')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
-    it('will create regular user account with base64 encoded reversed email as password', () => {
-        userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
+    it('forwards to second factor verification when server requires TOTP token', () => {
+        userService.oauthLogin.mockReturnValue(throwError(() => ({ error: { status: 'totp_token_required', data: { tmpToken: 'TMP' } } })))
         component.ngOnInit()
-        expect(userService.save).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', passwordRepeat: 'bW9jLnRzZXRAdHNldA==' })
-    })
-
-    it('logs in user even after failed account creation as account might already have existed from previous OAuth login', () => {
-        userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
-        userService.save.mockReturnValue(throwError({ error: 'Account already exists' }))
-        component.ngOnInit()
-        expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
-    })
-
-    it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
-        vi.spyOn(console, 'log').mockImplementation(() => {})
-        userService.login.mockReturnValue(throwError({ error: 'Error' }))
-        component.login({ email: '' })
-        expect(localStorage.getItem('token')).toBeNull()
-        expect(sessionStorage.getItem('bid')).toBeNull()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('TMP')
     })
 })
