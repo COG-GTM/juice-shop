@@ -250,6 +250,31 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 503)
     })
 
+    void it('POST XML with dev/random entity behind a non-local file URI authority is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file://dev/random">]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'remoteAuthority.xml')
+      assert.equal(res.status, 410)
+    })
+
+    void it('POST XML with dev/random entity behind a localhost authority and redundant path segments is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file://localhost/dev/../dev/./random">]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'normalizedDevRandom.xml')
+      assert.equal(res.status, 503)
+    })
+
+    void it('POST XML with non-normalized /etc/passwd path is rejected without disclosing the file', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/../etc/passwd">]><foo>&xxe;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'normalizedPasswd.xml')
+      assert.equal(res.status, 410)
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
+    })
+
     void it('POST malformed XML with dev/random entity is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo>&xxe;</bar>')
       const res = await request(app)
