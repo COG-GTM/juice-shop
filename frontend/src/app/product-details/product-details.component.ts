@@ -72,14 +72,23 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   addReview (textPut: HTMLTextAreaElement) {
     const review = { message: textPut.value, author: this.author }
 
-    textPut.value = ''
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
+        textPut.value = ''
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
+        this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        console.log(err)
+        if (err?.status === 401) {
+          localStorage.removeItem('token')
+          this.userService.isLoggedIn.next(false)
+          this.snackBarHelperService.open('UNAUTHORIZED_ACCESS_ERROR', 'errorBar')
+        } else {
+          this.snackBarHelperService.open(err?.error?.message ?? 'Error', 'errorBar')
+        }
+      }
     })
-    this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
   }
 
   editReview (review: Review) {
