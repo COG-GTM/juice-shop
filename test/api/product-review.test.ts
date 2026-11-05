@@ -56,11 +56,22 @@ void describe('/rest/products/:id/reviews', () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
-        message: 'Lorem Ipsum',
+        message: 'Review persistence check',
         author: 'Anonymous'
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.ok(reviews.body.data.some((review: { message: string }) => review.message === 'Review persistence check'))
+  })
+
+  void it('PUT product review rejects non-integer product id', async () => {
+    const res = await request(app)
+      .put('/rest/products/kaboom/reviews')
+      .send({ message: 'Lorem Ipsum', author: 'Anonymous' })
+    assert.equal(res.status, 400)
   })
 })
 
