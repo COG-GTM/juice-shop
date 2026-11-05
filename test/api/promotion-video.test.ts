@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -35,6 +37,26 @@ void describe('/promotion', () => {
       .get('/promotion')
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">'))
+  })
+
+  void it('GET promotion video page escapes markup injected into subtitles', async () => {
+    const subtitlesFile = path.resolve('frontend/dist/frontend/assets/public/videos/owasp_promo.vtt')
+    const original = fs.existsSync(subtitlesFile) ? fs.readFileSync(subtitlesFile) : null
+    fs.mkdirSync(path.dirname(subtitlesFile), { recursive: true })
+    fs.writeFileSync(subtitlesFile, 'WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nTom & Jerry</script><script>alert(`xss`)</script><!--')
+    try {
+      const res = await request(app)
+        .get('/promotion')
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('00:00:00.000 --> 00:00:01.000\nTom &amp; Jerry&lt;/script>&lt;script>alert(`xss`)&lt;/script>&lt;!--</script>'))
+      assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+    } finally {
+      if (original != null) {
+        fs.writeFileSync(subtitlesFile, original)
+      } else {
+        fs.rmSync(subtitlesFile)
+      }
+    }
   })
 })
 
