@@ -214,7 +214,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return capDiscount(discount)
   } else if (req.body.couponData) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]
@@ -223,10 +223,16 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
 
     if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
       challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
-      return campaign.discount
+      return capDiscount(campaign.discount)
     }
   }
   return 0
+}
+
+const MAX_DISCOUNT_PERCENT = 99
+
+function capDiscount (discount: number) {
+  return Number.isFinite(discount) ? Math.min(Math.max(discount, 0), MAX_DISCOUNT_PERCENT) : 0
 }
 
 const campaigns = {
