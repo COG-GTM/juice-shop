@@ -11,11 +11,13 @@ import { challenges } from '../data/datacache'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
-    const id = String(req.params.id).replace(/[^\w-]+/g, '')
-    const reflectedId = utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? utils.trunc(String(req.params.id), 60) : id
+    const rawId = String(req.params.id)
+    const id = rawId.replace(/[^\w-]+/g, '')
+    const reflectedId = utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? utils.trunc(rawId, 60) : id
 
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(reflectedId, '<iframe src="javascript:alert(`xss`)">') })
-    db.ordersCollection.find({ orderId: id }).then((order: any) => {
+    const orders = id === rawId ? db.ordersCollection.find({ orderId: id }) : Promise.resolve([])
+    orders.then((order: any) => {
       const result = utils.queryResultToJson(order)
       if (result.data[0] === undefined) {
         result.data[0] = { orderId: reflectedId }

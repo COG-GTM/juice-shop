@@ -32,6 +32,14 @@ void describe('/rest/track-order/:id', () => {
     assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
   })
 
+  void it('GET tracking results does not match an existing order for an id with characters outside the order id alphabet', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/5267-f9cd5882f54c75a3%21')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
+  })
+
   void it('GET tracking results reflects the orderId into the not-found placeholder for the Reflected XSS challenge', async () => {
     const res = await request(app)
       .get('/rest/track-order/%3Ciframe%20src%3D%22javascript%3Aalert(%60xss%60)%22%3E')
