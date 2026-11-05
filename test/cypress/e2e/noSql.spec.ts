@@ -68,6 +68,7 @@ describe('/rest/products/reviews', () => {
         })
         expect(response.status).to.equal(400)
       })
+      cy.expectChallengeSolved({ challenge: 'NoSQL Manipulation' })
     })
   })
 
@@ -89,8 +90,7 @@ describe('/rest/products/reviews', () => {
           },
           body: JSON.stringify({ id: reviewId, message: 'injected' })
         })
-        const result = await response.json()
-        expect(result.modified).to.equal(0)
+        expect(response.status).to.equal(403)
       })
     })
 
