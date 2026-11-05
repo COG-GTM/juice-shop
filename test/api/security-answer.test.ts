@@ -86,6 +86,28 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(resetRes.status, 200)
   })
 
+  void it('registration with a nonexistent security question is rejected without creating the user', async () => {
+    const userRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'registered.with.invalid.question@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 999999 },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(userRes.status, 400)
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'registered.with.invalid.question@te.st', password: '12345' })
+
+    assert.equal(loginRes.status, 401)
+  })
+
   void it('planting a security answer for a user without one does not allow resetting their password', async () => {
     const userRes = await request(app)
       .post('/api/Users')
