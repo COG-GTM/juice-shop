@@ -103,13 +103,11 @@ export function contractExploitListener () {
       res.status(400).json({ success: false, message: 'Invalid wallet address' })
       return
     }
-    const alreadyRegistered = walletsConnected.has(metamaskAddress.toLowerCase())
-    rememberWallet(metamaskAddress)
     try {
       await ensureExploitListener()
+      rememberWallet(metamaskAddress)
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
-      if (!alreadyRegistered) consumeWallet(metamaskAddress)
       res.status(500).json(utils.getErrorMessage(error))
     }
   }
