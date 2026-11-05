@@ -33,9 +33,11 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   if (env.JUICE_SHOP_JWT_PRIVATE_KEY) {
     privateKey = env.JUICE_SHOP_JWT_PRIVATE_KEY.replace(/\\n/g, '\n')
   } else if (env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE) {
-    const keyFile = fs.realpathSync(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE)
-    const publicKeyDir = fs.realpathSync(path.resolve('encryptionkeys'))
-    if (isPathInside(publicKeyDir, keyFile)) {
+    const requestedFile = path.resolve(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE)
+    const keyFile = fs.realpathSync(requestedFile)
+    const publicKeyDir = path.resolve('encryptionkeys')
+    const realPublicKeyDir = fs.realpathSync(publicKeyDir)
+    if ([publicKeyDir, realPublicKeyDir].some(dir => isPathInside(dir, requestedFile) || isPathInside(dir, keyFile))) {
       throw new Error('JUICE_SHOP_JWT_PRIVATE_KEY_FILE must not point into the publicly served encryptionkeys/ directory')
     }
     privateKey = fs.readFileSync(keyFile, 'utf8')
