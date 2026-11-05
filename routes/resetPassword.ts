@@ -34,25 +34,22 @@ function isLockedOut (key: string, now: number) {
   return attempts !== undefined && attempts.lockedUntil > now
 }
 
-function pruneExpiredAttempts (now: number) {
+function freeTrackingSlot (now: number) {
   for (const [key, attempts] of resetAttempts) {
     if (attempts.lockedUntil <= now && attempts.windowStart + LOCKOUT_DURATION_MS <= now) {
       resetAttempts.delete(key)
     }
   }
-}
-
-function evictOldestAttempts () {
-  for (const key of resetAttempts.keys()) {
+  for (const [key, attempts] of resetAttempts) {
     if (resetAttempts.size < MAX_TRACKED_ACCOUNTS) return
-    resetAttempts.delete(key)
+    if (attempts.lockedUntil <= now) resetAttempts.delete(key)
   }
 }
 
-function recordAttempt (key: string, now: number) {
+function reserveAttempt (key: string, now: number) {
   if (!resetAttempts.has(key) && resetAttempts.size >= MAX_TRACKED_ACCOUNTS) {
-    pruneExpiredAttempts(now)
-    evictOldestAttempts()
+    freeTrackingSlot(now)
+    if (resetAttempts.size >= MAX_TRACKED_ACCOUNTS) return undefined
   }
   let attempts = resetAttempts.get(key)
   if (attempts === undefined || attempts.windowStart + LOCKOUT_DURATION_MS <= now) {
@@ -63,6 +60,13 @@ function recordAttempt (key: string, now: number) {
   if (attempts.failures >= MAX_FAILED_ATTEMPTS) {
     attempts.lockedUntil = now + LOCKOUT_DURATION_MS
   }
+  return attempts
+}
+
+function releaseAttempt (key: string, attempts: ResetAttempts) {
+  if (resetAttempts.get(key) !== attempts) return
+  attempts.failures--
+  if (attempts.failures < MAX_FAILED_ATTEMPTS) attempts.lockedUntil = 0
 }
 
 export function clearResetAttempts () {
@@ -89,11 +93,12 @@ export function resetPassword () {
     }
     const key = attemptKey(email)
     const now = Date.now()
-    if (isLockedOut(key, now)) {
+    const attempts = isLockedOut(key, now) ? undefined : reserveAttempt(key, now)
+    if (attempts === undefined) {
       res.status(429).send(res.__('Too many failed attempts. Please try again later.'))
       return
     }
-    recordAttempt(key, now)
+    let answerChecked = false
     try {
       const data = await SecurityAnswerModel.findOne({
         include: [{
@@ -101,7 +106,9 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
+      const correct = (data != null) && security.hmac(answer) === data.answer
+      answerChecked = true
+      if (correct) {
         resetAttempts.delete(key)
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
@@ -113,6 +120,7 @@ export function resetPassword () {
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
+      if (!answerChecked) releaseAttempt(key, attempts)
       next(error)
     }
   }
