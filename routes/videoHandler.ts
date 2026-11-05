@@ -68,7 +68,7 @@ export const promotionVideo = () => {
       const pug = (await import('pug')).default
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + escapeSubtitlesForScriptTag(subs) + '</script>')
       res.send(compiledTemplate)
     })
   }
@@ -81,6 +81,11 @@ function getSubsFromFile () {
   const subtitles = config.get<string>('application.promotion.subtitles') ?? 'owasp_promo.vtt'
   const data = fs.readFileSync('frontend/dist/frontend/assets/public/videos/' + subtitles, 'utf8')
   return data.toString()
+}
+
+// WebVTT cue text decodes &amp; and &lt;, so subtitles render unchanged while no markup can end the <script> element
+function escapeSubtitlesForScriptTag (subs: string) {
+  return subs.replace(/&/g, '&amp;').replace(/</g, '&lt;')
 }
 
 function videoPath () {
