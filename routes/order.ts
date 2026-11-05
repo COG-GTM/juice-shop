@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -18,6 +19,7 @@ import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import * as db from '../data/mongodb'
 
 interface Product {
@@ -35,6 +37,10 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isSafeInteger(BasketItem.quantity) && BasketItem.quantity > 0))) {
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -67,19 +73,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -138,23 +136,52 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!(totalPrice > 0)) {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+            res.status(400).json({ error: res.__('Order total must be greater than zero.') })
+            return
+          }
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
+          const decrementedStock: typeof stockUpdates = []
+          let outOfStock = false
+          try {
+            for (const stockUpdate of stockUpdates) {
+              const stockResult = await decrementStock(stockUpdate)
+              if (stockResult === 'insufficient') {
+                outOfStock = true
+                throw new Error('We are out of stock! Sorry for the inconvenience.')
+              }
+              if (stockResult === 'decremented') {
+                decrementedStock.push(stockUpdate)
               }
             }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
+            if (req.body.UserId) {
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await debitWalletAndCreditBonus(req.body.UserId, totalPrice, totalPoints)) {
+                  throw new Error('Insufficient wallet balance.')
+                }
+              } else {
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+              }
+            }
+          } catch (error: unknown) {
+            const unrestoredProductIds = await restoreStock(decrementedStock)
+            if (unrestoredProductIds.length > 0) {
+              logger.error(`Checkout failed (${utils.getErrorMessage(error)}) and stock could not be restored for product(s) ${unrestoredProductIds.join(', ')}`)
+              next(new Error('Checkout failed and stock could not be restored.'))
               return
             }
+            if (outOfStock) {
+              fileWriter.removeAllListeners('finish')
+              fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+              doc.end()
+              res.status(400).json({ error: res.__('We are out of stock! Sorry for the inconvenience.') })
+              return
+            }
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -179,6 +206,33 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function decrementStock ({ ProductId, quantity }: { ProductId: number, quantity: number }) {
+  const [updatedRows] = await QuantityModel.update(
+    { quantity: literal(`quantity - ${quantity}`) },
+    { where: { ProductId, quantity: { [Op.gte]: quantity } } }
+  )
+  if (updatedRows === 1) {
+    return 'decremented'
+  }
+  return await QuantityModel.findOne({ where: { ProductId } }) == null ? 'untracked' : 'insufficient'
+}
+
+async function restoreStock (stockUpdates: Array<{ ProductId: number, quantity: number }>) {
+  const results = await Promise.allSettled(stockUpdates.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } })))
+  return stockUpdates.filter((_, i) => results[i].status === 'rejected').map(({ ProductId }) => ProductId)
+}
+
+async function debitWalletAndCreditBonus (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [debitedWallets] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return debitedWallets === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
