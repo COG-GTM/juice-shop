@@ -1,20 +1,13 @@
 describe('/#/track-order', () => {
   describe('challenge "reflectedXss"', () => {
-    // Cypress alert bug
-    xit('Order Id should be susceptible to reflected XSS attacks', () => {
+    it('Order Id payload should solve the challenge but be rendered as text', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
-          cy.on('uncaught:exception', (_err, _runnable) => {
-            return false
-          })
+          const payload = '<iframe src="javascript:alert(`xss`)">'
+          cy.visit('/#/track-result?id=' + encodeURIComponent(payload))
 
-          cy.visit('/#/track-result')
-          cy.visit('/#/track-result?id=<iframe src="javascript:alert(`xss`)">')
-          cy.reload()
-
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
+          cy.get('h1 code').should('have.text', 'iframesrcjavascriptalertxss')
+          cy.get('h1 iframe').should('not.exist')
 
           cy.expectChallengeSolved({ challenge: 'Reflected XSS' })
         }
