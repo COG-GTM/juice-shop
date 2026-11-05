@@ -147,8 +147,13 @@ export function placeOrder () {
           const decrementedStock: typeof stockUpdates = []
           try {
             for (const stockUpdate of stockUpdates) {
-              await QuantityModel.decrement({ quantity: stockUpdate.quantity }, { where: { ProductId: stockUpdate.ProductId } })
-              decrementedStock.push(stockUpdate)
+              const stockResult = await decrementStock(stockUpdate)
+              if (stockResult === 'insufficient') {
+                throw new Error(res.__('We are out of stock! Sorry for the inconvenience.'))
+              }
+              if (stockResult === 'decremented') {
+                decrementedStock.push(stockUpdate)
+              }
             }
             if (req.body.UserId) {
               if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
@@ -192,6 +197,17 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+async function decrementStock ({ ProductId, quantity }: { ProductId: number, quantity: number }) {
+  const [updatedRows] = await QuantityModel.update(
+    { quantity: literal(`quantity - ${quantity}`) },
+    { where: { ProductId, quantity: { [Op.gte]: quantity } } }
+  )
+  if (updatedRows === 1) {
+    return 'decremented'
+  }
+  return await QuantityModel.findOne({ where: { ProductId } }) == null ? 'untracked' : 'insufficient'
 }
 
 async function restoreStock (stockUpdates: Array<{ ProductId: number, quantity: number }>) {

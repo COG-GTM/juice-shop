@@ -188,8 +188,36 @@ void describe('/rest/basket/:id/checkout', () => {
     }
   })
 
+  void it('POST placing an order for more items than are in stock is rejected and restores stock', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 2 })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    const otherStockBefore = await QuantityModel.findOne({ where: { ProductId: 4 } })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    await QuantityModel.update({ quantity: 1 }, { where: { ProductId: 6 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: We are out of stock! Sorry for the inconvenience.'))
+
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      const otherStockAfter = await QuantityModel.findOne({ where: { ProductId: 4 } })
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      assert.equal(stockAfter?.quantity, 1)
+      assert.equal(otherStockAfter?.quantity, otherStockBefore?.quantity)
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+    } finally {
+      await QuantityModel.update({ quantity: stockBefore?.quantity }, { where: { ProductId: 6 } })
+      await item.destroy()
+    }
+  })
+
   void it('POST placing an underfunded wallet order leaves stock unchanged', async () => {
     const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 100000 })
+    const originalStock = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    await QuantityModel.update({ quantity: 100000 }, { where: { ProductId: 6 } })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
     try {
@@ -205,6 +233,7 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(walletAfter?.balance, walletBefore?.balance)
       assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
     } finally {
+      await QuantityModel.update({ quantity: originalStock?.quantity }, { where: { ProductId: 6 } })
       await item.destroy()
     }
   })
