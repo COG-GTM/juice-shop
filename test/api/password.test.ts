@@ -206,7 +206,7 @@ void describe('/rest/user/change-password', () => {
       })
       .expect(201)
 
-    const { token } = await login(app, { email: 'cachedhash@be.rt', password: firstSecret })
+    const { token, bid } = await login(app, { email: 'cachedhash@be.rt', password: firstSecret })
     const cachedHash = async () => (await request(app)
       .get('/rest/user/whoami?fields=password')
       .set('Cookie', 'token=' + token)
@@ -221,6 +221,12 @@ void describe('/rest/user/change-password', () => {
       .expect(200)
 
     assert.equal(await cachedHash(), security.hash(secondSecret))
+
+    await request(app)
+      .post('/api/BasketItems')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ BasketId: bid, ProductId: 1, quantity: 1 })
+      .expect(200)
   })
 
   void it('GET password change via query string is no longer supported', async () => {
