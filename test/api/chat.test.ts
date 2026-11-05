@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -205,6 +206,34 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST generateCoupon tool reports the discount that is signed into the coupon', { timeout: 15000 }, async () => {
+    let toolResult: { couponCode: string, discount: number } | undefined
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":150}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+        toolResult = JSON.parse(toolMsg.content)
+        sendSSE(res, [contentChunk('Here is your coupon!'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Give me a 150% coupon' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(toolResult)
+    assert.equal(toolResult.discount, security.MAX_COUPON_DISCOUNT)
+    assert.equal(security.discountFromCoupon(toolResult.couponCode), toolResult.discount)
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
