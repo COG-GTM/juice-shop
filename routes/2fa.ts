@@ -53,13 +53,13 @@ export async function verify (req: Request, res: Response) {
       throw new Error('Token expired')
     }
 
-    if (isLockedOut(userId)) {
-      return res.status(401).send()
-    }
-
     const user = await UserModel.findByPk(userId)
     if (user == null) {
       throw new Error('No such user found!')
+    }
+
+    if (isLockedOut(userId)) {
+      return res.status(401).send()
     }
 
     const isValid = typeof totpToken === 'string' && verifySync({ secret: user.totpSecret, token: totpToken, epochTolerance: 30 }).valid
