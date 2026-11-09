@@ -57,6 +57,19 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+export const verifyRS256 = (token: unknown) => {
+  if (typeof token !== 'string') return false
+  const parts = token.split('.')
+  if (parts.length !== 3 || !parts[2]) return false
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'))
+    if (header?.alg !== 'RS256') return false
+    return crypto.verify('RSA-SHA256', Buffer.from(`${parts[0]}.${parts[1]}`), publicKey, Buffer.from(parts[2], 'base64url'))
+  } catch {
+    return false
+  }
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)

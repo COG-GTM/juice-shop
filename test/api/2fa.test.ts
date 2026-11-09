@@ -94,6 +94,69 @@ void describe('/rest/2fa/verify', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST should fail if a forged alg:none tmp token is used', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ userId: 10, type: 'password_valid_needs_second_factor_token', iat: Math.round(Date.now() / 1000) })).toString('base64url')
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: `${header}.${payload}.`,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should fail if an expired tmp token is used', async () => {
+    const realNow = Date.now
+    Date.now = () => realNow() - 10 * 60 * 1000
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token'
+    })
+    Date.now = realNow
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST should lock out the account after 5 wrong codes regardless of X-Forwarded-For', async () => {
+    const email = 'fooooolockout@bar.com'
+    const password = '123456'
+    const totpSecret = 'GJ4HC3KHIFTXE3SPOEYVURT2MRYGI52T'
+    await register(app, { email, password, totpSecret })
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email, password })
+    const { tmpToken } = loginRes.body.data
+
+    for (let i = 0; i < 5; i++) {
+      const res = await request(app)
+        .post('/rest/2fa/verify')
+        .set({ ...jsonHeader, 'X-Forwarded-For': `10.0.0.${i}` })
+        .send({ tmpToken, totpToken: '000000' })
+      assert.equal(res.status, 401)
+    }
+
+    const res = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ ...jsonHeader, 'X-Forwarded-For': '10.0.0.99' })
+      .send({ tmpToken, totpToken: generateSync({ secret: totpSecret }) })
+
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/rest/2fa/status', () => {
