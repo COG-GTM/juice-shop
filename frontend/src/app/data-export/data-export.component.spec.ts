@@ -112,7 +112,7 @@ describe('DataExportComponent', () => {
 
     it('should render the exported user data as text instead of markup', () => {
         const exportDocument = window.document.implementation.createHTMLDocument()
-        const userData = '{ "message": "<img src=x onerror=alert(1)>" }'
+        const userData = '{\n  "message": "<img src=x onerror=alert(1)>"\n}'
         dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData }))
         vi.spyOn(window, 'open').mockReturnValue({ document: exportDocument } as any)
         component.save()
