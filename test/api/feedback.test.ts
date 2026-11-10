@@ -16,10 +16,13 @@ import * as utils from '../../lib/utils'
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
+let adminHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminHeader = { Authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Feedbacks', () => {
@@ -278,7 +281,14 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback', async () => {
+  void it('DELETE existing feedback is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('DELETE existing feedback as admin', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -298,7 +308,7 @@ void describe('/api/Feedbacks/:id', () => {
 
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set(adminHeader)
     assert.equal(res.status, 200)
   })
 })
