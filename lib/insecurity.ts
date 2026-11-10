@@ -22,7 +22,7 @@ import * as z85 from 'z85'
 
 export const generateSecret = () => crypto.randomBytes(32).toString('hex')
 export const secretOrRandom = (value?: string) => value !== undefined && value !== '' ? value : generateSecret()
-export const secretOrDerived = (value: string | undefined, key: string, purpose: string) => value !== undefined && value !== '' ? value : crypto.createHmac('sha256', key).update('juice-shop:' + purpose).digest('hex')
+export const secretOrDerived = (value: string | undefined, key: string, purpose: string) => value !== undefined && value !== '' ? value : crypto.createHmac('sha256', crypto.createPrivateKey(key).export({ type: 'pkcs8', format: 'der' })).update('juice-shop:' + purpose).digest('hex')
 
 export const isPathInside = (dir: string, file: string, pathLib: path.PlatformPath = path) => {
   const relative = pathLib.relative(dir, file)
