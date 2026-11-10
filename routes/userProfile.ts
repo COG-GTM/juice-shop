@@ -52,7 +52,7 @@ export function getUserProfile () {
       const fn = pug.compile(template)
 
       res.set({
-        'Content-Security-Policy': "img-src 'self' https: data:; script-src 'self'"
+        'Content-Security-Policy': "img-src 'self' http: https: data:; script-src 'self'"
       })
 
       res.send(fn({
