@@ -37,6 +37,11 @@ export function profileImageFileUpload () {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site profile image upload rejected'))
+      return
+    }
 
     const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
     try {
