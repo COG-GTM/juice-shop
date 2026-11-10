@@ -95,7 +95,7 @@ function isFileDisclosureTarget (systemId: string) {
 
 function isDevRandomTarget (systemId: string) {
   const file = localFilePath(systemId)
-  return file === '/dev/random' || file === '/dev/urandom'
+  return file === '/dev/random'
 }
 const maxParameterEntityDepth = 40
 
