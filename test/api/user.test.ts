@@ -15,11 +15,19 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
+let adminHeader: Record<string, string>
+let customerHeader: Record<string, string>
+
+const visibleUserAttributes = ['createdAt', 'deletedAt', 'email', 'id', 'isActive', 'role', 'updatedAt', 'username']
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
   authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+  const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminHeader = { Authorization: `Bearer ${adminToken}`, 'content-type': 'application/json' }
+  const { token: customerToken } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  customerHeader = { Authorization: `Bearer ${customerToken}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -30,16 +38,33 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
-    assert.equal(res.status, 200)
+  void it('GET all users is forbidden for customers', async () => {
+    const res = await request(app).get('/api/Users').set(customerHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
   })
 
-  void it('GET all users doesnt include passwords', async () => {
+  void it('GET all users is forbidden for tokens without admin role', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET all users as admin', async () => {
+    const res = await request(app).get('/api/Users').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 1)
+  })
+
+  void it('GET all users only returns non-sensitive attributes', async () => {
+    const res = await request(app).get('/api/Users').set(adminHeader)
     assert.equal(res.status, 200)
     for (const user of res.body.data) {
+      assert.deepEqual(Object.keys(user).filter((key) => !visibleUserAttributes.includes(key)), [])
       assert.equal(user.password, undefined)
+      assert.equal(user.totpSecret, undefined)
+      assert.equal(user.deluxeToken, undefined)
+      assert.equal(user.lastLoginIp, undefined)
     }
   })
 
@@ -74,7 +99,45 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'admin')
+    assert.equal(res.body.data.role, 'customer')
+
+    const { token } = await login(app, { email: 'horst2@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+  })
+
+  void it('POST new user keeps supplied username', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({ email: 'horst7@horstma.nn', password: 'hooooorst', username: 'Horst' })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.username, 'Horst')
+    assert.equal(res.body.data.role, 'customer')
+  })
+
+  void it('POST new user ignores privileged attributes', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'horst6@horstma.nn',
+        password: 'hooooorst',
+        id: 4711,
+        role: 'admin',
+        deluxeToken: 'forged',
+        totpSecret: 'JBSWY3DPEHPK3PXP',
+        isActive: false,
+        profileImage: '/etc/passwd'
+      })
+    assert.equal(res.status, 201)
+    assert.notEqual(res.body.data.id, 4711)
+    assert.equal(res.body.data.role, 'customer')
+    assert.equal(res.body.data.deluxeToken, '')
+    assert.equal(res.body.data.isActive, true)
+    assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+
+    const { token } = await login(app, { email: 'horst6@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
   })
 
   void it('POST new blank user', async () => {
@@ -127,7 +190,7 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.password, undefined)
   })
 
-  void it('POST new deluxe user', async () => {
+  void it('POST new deluxe user is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -142,10 +205,10 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'deluxe')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST new accounting user', async () => {
+  void it('POST new accounting user is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -160,10 +223,28 @@ void describe('/api/Users', () => {
     assert.equal(typeof res.body.data.createdAt, 'string')
     assert.equal(typeof res.body.data.updatedAt, 'string')
     assert.equal(res.body.data.password, undefined)
-    assert.equal(res.body.data.role, 'accounting')
+    assert.equal(res.body.data.role, 'customer')
   })
 
-  void it('POST user not belonging to customer, deluxe, accounting, admin is forbidden', async () => {
+  void it('self-registered accounting user cannot access accounting routes', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({ email: 'mallory.accounting@horstma.nn', password: 'hooooorst', role: 'accounting' })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'mallory.accounting@horstma.nn', password: 'hooooorst' })
+    assert.equal(security.decode(token).data.role, 'customer')
+    const headers = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+
+    const orders = await request(app).get('/rest/order-history/orders').set(headers)
+    assert.equal(orders.status, 403)
+
+    const delivery = await request(app).put('/rest/order-history/1/delivery-status').set(headers).send({ delivered: false })
+    assert.equal(delivery.status, 403)
+  })
+
+  void it('POST user with unknown role is registered as customer', async () => {
     const res = await request(app)
       .post('/api/Users')
       .set(jsonHeader)
@@ -172,11 +253,8 @@ void describe('/api/Users', () => {
         password: 'hooooorst',
         role: 'accountinguser'
       })
-    assert.equal(res.status, 400)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.message, 'Validation error: Validation isIn on role failed')
-    assert.equal(res.body.errors[0].field, 'role')
-    assert.equal(res.body.errors[0].message, 'Validation isIn on role failed')
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.role, 'customer')
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
@@ -214,9 +292,24 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET existing user by id', async () => {
-    const res = await request(app).get('/api/Users/1').set(authHeader)
+  void it('GET existing user by id is forbidden for customers', async () => {
+    const res = await request(app).get('/api/Users/1').set(customerHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET own user by id as customer', async () => {
+    const res = await request(app).get('/api/Users/2').set(customerHeader)
     assert.equal(res.status, 200)
+    assert.equal(res.body.data.email, 'jim@juice-sh.op')
+    assert.deepEqual(Object.keys(res.body.data).filter((key) => !visibleUserAttributes.includes(key)), [])
+  })
+
+  void it('GET existing user by id as admin only returns non-sensitive attributes', async () => {
+    const res = await request(app).get('/api/Users/1').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 1)
+    assert.deepEqual(Object.keys(res.body.data).filter((key) => !visibleUserAttributes.includes(key)), [])
   })
 
   void it('PUT update existing user is forbidden via API even when authenticated', async () => {
