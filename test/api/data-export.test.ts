@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -265,4 +266,118 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
+
+  void it('Export data escapes HTML from review messages', async () => {
+    const victim = await registerAndLogin(`victim-${randomUUID()}@juice-sh.op`)
+    const payload = "<img src=x onerror='alert(1)'> & more"
+
+    await request(app)
+      .put('/rest/products/1/reviews')
+      .set(victim.authHeader)
+      .send({ message: payload, author: victim.email })
+      .expect(201)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(victim.authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.reviews.some(({ message }: { message: string }) => message === payload))
+  })
+
+  void it('Export data escapes HTML from emails of users who liked a review', async () => {
+    const victim = await registerAndLogin(`victim-${randomUUID()}@juice-sh.op`)
+    const marker = randomUUID()
+    await request(app)
+      .put('/rest/products/2/reviews')
+      .set(victim.authHeader)
+      .send({ message: marker, author: victim.email })
+      .expect(201)
+    const reviews = await request(app).get('/rest/products/2/reviews')
+    const reviewId = reviews.body.data.find(({ message }: { message: string }) => message === marker)._id
+
+    const attacker = await registerAndLogin(`<img src=x onerror=alert(1)>${marker}`)
+    await request(app)
+      .post('/rest/products/reviews')
+      .set(attacker.authHeader)
+      .send({ id: reviewId })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(victim.authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.reviews.some(({ likedBy }: { likedBy: string[] }) => likedBy.includes(attacker.email)))
+  })
+
+  void it('Export data escapes HTML from memory captions', async () => {
+    const victim = await registerAndLogin(`victim-${randomUUID()}@juice-sh.op`)
+    const caption = '<img src=x onerror=alert(1)> & more'
+
+    await request(app)
+      .post('/rest/memories')
+      .set('Authorization', victim.authHeader.Authorization)
+      .attach('image', path.resolve(__dirname, '../files/validProfileImage.jpg'), 'Valid Image')
+      .field('caption', caption)
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(victim.authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.memories[0].caption, caption)
+  })
+
+  void it('Export data escapes HTML from usernames', async () => {
+    const credential = randomUUID()
+    const email = `victim-${randomUUID()}@juice-sh.op`
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: credential, passwordRepeat: credential })
+      .expect(201)
+    const { token } = await login(app, { email, password: credential })
+
+    await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${token}`)
+      .type('form')
+      .send({ username: '<<a|ascript>alert(1)</script> & <b>bold</b>' })
+      .redirects(0)
+      .expect(302)
+
+    const relogin = await login(app, { email, password: credential })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + relogin.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.username.includes('<'))
+  })
 })
+
+async function registerAndLogin (email: string) {
+  const credential = randomUUID()
+  const registration = await request(app)
+    .post('/api/Users')
+    .set({ 'content-type': 'application/json' })
+    .send({ email, password: credential, passwordRepeat: credential })
+    .expect(201)
+  const storedEmail: string = registration.body.data.email
+  const { token } = await login(app, { email: storedEmail, password: credential })
+  return { email: storedEmail, authHeader: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' } }
+}
