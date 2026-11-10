@@ -81,6 +81,7 @@ describe('fileUpload', () => {
       '../../ftp/zipslip-test.md',
       '../../ftp/x.md',
       '../../i18n/en.json',
+      '../../data/static/codefixes/x.info.yml',
       '../../frontend/dist/frontend/index.html',
       '../../frontend/dist/frontend/main.js',
       '../../build/routes/login.js',
