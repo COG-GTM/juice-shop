@@ -57,7 +57,7 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
-export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html).replace(/&amp;/g, '&')
+export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html, { textFilter: (text: string) => text.replace(/&amp;/g, '&') })
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
 export const sanitizeSecure = (html: string): string => {
   const sanitized = sanitizeHtml(html)

@@ -143,6 +143,10 @@ describe('insecurity', () => {
       expect(security.sanitizeSecure('Q&A &lt;script&gt;')).to.equal('Q&A &lt;script&gt;')
     })
 
+    it('keeps ampersands encoded in attribute values', () => {
+      expect(security.sanitizeHtml('<a href="&amp;#106;avascript:alert(1)">x</a>')).to.equal('<a href="&amp;#106;avascript:alert(1)">x</a>')
+    })
+
     it('encodes markup characters in text content', () => {
       expect(security.sanitizeHtml('<<a|ascript>alert(`xss`)</script>')).to.equal('&lt;alert(`xss`)')
     })
