@@ -106,20 +106,27 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+const MAX_YAML_OUTPUT_LENGTH = 100000
+const YAML_TOO_LARGE = 'YAML document expands beyond the allowed size'
+
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { yaml, data }
+        const sandbox = { yaml, data, outputBudget: MAX_YAML_OUTPUT_LENGTH, tooLarge: YAML_TOO_LARGE }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.safeLoad(data))', sandbox, { timeout: 2000 })
+        const yamlString = vm.runInContext(`JSON.stringify(yaml.safeLoad(data), (key, value) => {
+          outputBudget -= key.length + (typeof value === 'string' ? value.length : 1)
+          if (outputBudget < 0) throw new Error(tooLarge)
+          return value
+        })`, sandbox, { timeout: 2000 })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
+        if (utils.contains(errorMessage, YAML_TOO_LARGE) || utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
           if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
             challengeUtils.solve(challenges.yamlBombChallenge)
           }
