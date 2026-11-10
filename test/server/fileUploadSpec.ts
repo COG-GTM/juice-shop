@@ -119,5 +119,31 @@ describe('fileUpload', () => {
 
       expect(error?.message).to.contain('{"message":"hello"}')
     })
+
+    it('should stop expanding YAML alias bombs at the output size limit and solve "yamlBombChallenge"', () => {
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+      const levels = 'abcdefghi'.split('').map((name, i) => `${name}: &${name} [${Array(9).fill(i === 0 ? '"lol"' : `*${'abcdefghi'[i - 1]}`).join(',')}]`)
+      req.file = { originalname: 'bomb.yml', buffer: Buffer.from(levels.join('\n')) }
+      const statuses: number[] = []
+      res = { status: (s: number) => { statuses.push(s); return res }, end: () => {} }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error ??= err as Error })
+
+      expect(statuses[0]).to.equal(503)
+      expect(error?.message).to.contain('temporarily not available')
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should treat a long string repeated through aliases as exceeding the output size limit', () => {
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+      req.file = { originalname: 'complaint.yml', buffer: Buffer.from(`a: &a "${'x'.repeat(60000)}"\nb: [*a, *a]`) }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error ??= err as Error })
+
+      expect(error?.message).to.contain('temporarily not available')
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
   })
 })
