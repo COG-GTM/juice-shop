@@ -188,16 +188,22 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 403)
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order for a basket with a negative quantity is rejected without side effects', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
+    const itemsBefore = await BasketItemModel.count({ where: { BasketId: 2 } })
+    const walletBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
 
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: await usableCardId(authHeader) } })
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.orderConfirmation, undefined)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 2 } }), itemsBefore)
+    assert.equal((await request(app).get('/rest/wallet/balance').set(authHeader)).body.data, walletBefore)
+
+    await BasketItemModel.destroy({ where: { id: itemRes.body.data.id } })
   })
 
   void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {

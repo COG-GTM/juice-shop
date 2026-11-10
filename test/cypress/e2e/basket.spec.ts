@@ -33,17 +33,17 @@ describe('/#/basket', () => {
           })
       })
 
-      it('should be possible to place an order with a negative total amount', () => {
+      it('should reject placing an order with a negative quantity', () => {
         cy.window().then(async () => {
-          const response = await fetch(`${Cypress.config('baseUrl')}/api/Cards`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          const headers = { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-type': 'application/json' }
+          const cards = await (await fetch(`${Cypress.config('baseUrl')}/api/Cards`, { headers })).json()
+          const response = await fetch(`${Cypress.config('baseUrl')}/rest/basket/${sessionStorage.getItem('bid')}/checkout`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ orderDetails: { paymentId: cards.data[0].id } })
           })
-          const cards = await response.json()
-          window.sessionStorage.paymentId = cards.data[0].id
+          expect(response.status).to.equal(400)
         })
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Payback Time' })
       })
     })
 

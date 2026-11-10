@@ -47,6 +47,10 @@ export function placeOrder () {
             res.status(400).json({ status: 'error', error: 'Invalid payment method.' })
             return
           }
+          if (!(basket.Products ?? []).every(({ BasketItem }) => BasketItem == null || (Number.isInteger(BasketItem.quantity) && BasketItem.quantity > 0))) {
+            res.status(400).json({ status: 'error', error: 'Basket item quantities must be positive.' })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -150,6 +154,10 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!Number.isFinite(totalPrice) || totalPrice < 0) {
+            next(new Error('Order total must not be negative.'))
+            return
+          }
 
           if (req.body.UserId) {
             try {
@@ -218,7 +226,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return Math.min(Math.max(discount, 0), 100)
   } else if (req.body.couponData) {
     const [couponCode, clientDate] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
     const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
