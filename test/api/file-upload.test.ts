@@ -28,20 +28,33 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
-  void it('POST file too large for client validation but valid for API', async () => {
+  void it('POST file too large for client validation is rejected by API but solves "uploadSizeChallenge"', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForClient.pdf')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
-    assert.equal(res.status, 204)
+    assert.equal(res.status, 400)
+    assert.match(res.body.error, /File too large/)
+    assert.equal(challenges.uploadSizeChallenge.solved, true)
   })
 
-  void it('POST file with illegal type for client validation but valid for API', async () => {
+  void it('POST file with illegal type for client validation is rejected by API but solves "uploadTypeChallenge"', async () => {
     const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
-    assert.equal(res.status, 204)
+    assert.equal(res.status, 400)
+    assert.match(res.body.error, /File type not allowed/)
+    assert.equal(challenges.uploadTypeChallenge.solved, true)
+  })
+
+  void it('POST file with allowed extension but mismatching content is rejected by API', async () => {
+    const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file, 'disguised.pdf')
+    assert.equal(res.status, 400)
+    assert.match(res.body.error, /does not match/)
   })
 
   void it('POST file type XML deprecated for API', async () => {
@@ -52,12 +65,12 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 410)
   })
 
-  void it('POST large XML file near upload size limit', async () => {
+  void it('POST large XML file near upload size limit is rejected by API', async () => {
     const file = path.resolve(__dirname, '../files/maxSizeForServer.xml')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
-    assert.equal(res.status, 410)
+    assert.equal(res.status, 400)
   })
 
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {

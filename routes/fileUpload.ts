@@ -7,6 +7,7 @@ import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
 import path from 'node:path'
+import { isUtf8 } from 'node:buffer'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
 import unzipper from 'unzipper'
@@ -57,18 +58,56 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
   }
 }
 
+const MAX_UPLOAD_SIZE = 100000
+const ALLOWED_FILE_TYPES = ['pdf', 'xml', 'zip', 'yml', 'yaml']
+const ZIP_SIGNATURES = ['PK\x03\x04', 'PK\x05\x06', 'PK\x07\x08']
+
+function fileExtension (filename: string = '') {
+  return filename.substr(filename.lastIndexOf('.') + 1).toLowerCase()
+}
+
+function isText (buffer: Buffer) {
+  return !buffer.includes(0) && isUtf8(buffer)
+}
+
+function contentMatchesFileType (fileType: string, buffer?: Buffer) {
+  if (buffer == null) return false
+  switch (fileType) {
+    case 'pdf':
+      return buffer.subarray(0, 1024).includes('%PDF-')
+    case 'zip':
+      return ZIP_SIGNATURES.includes(buffer.subarray(0, 4).toString('latin1'))
+    case 'xml':
+      return isText(buffer) && buffer.toString('utf8').replace(/^\uFEFF/, '').trimStart().startsWith('<')
+    case 'yml':
+    case 'yaml':
+      return isText(buffer)
+    default:
+      return false
+  }
+}
+
 function checkUploadSize ({ file }: Request, res: Response, next: NextFunction) {
   if (file != null) {
-    challengeUtils.solveIf(challenges.uploadSizeChallenge, () => { return file?.size > 100000 })
+    challengeUtils.solveIf(challenges.uploadSizeChallenge, () => { return file?.size > MAX_UPLOAD_SIZE })
+    if (file.size > MAX_UPLOAD_SIZE) {
+      return res.status(400).json({ error: `File too large. Maximum allowed size is ${MAX_UPLOAD_SIZE / 1000} KB.` })
+    }
   }
   next()
 }
 
 function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
-  const fileType = file?.originalname.substr(file.originalname.lastIndexOf('.') + 1).toLowerCase()
+  const fileType = fileExtension(file?.originalname)
   challengeUtils.solveIf(challenges.uploadTypeChallenge, () => {
-    return !(fileType === 'pdf' || fileType === 'xml' || fileType === 'zip' || fileType === 'yml' || fileType === 'yaml')
+    return !ALLOWED_FILE_TYPES.includes(fileType)
   })
+  if (!ALLOWED_FILE_TYPES.includes(fileType)) {
+    return res.status(400).json({ error: `File type not allowed. Allowed types are: ${ALLOWED_FILE_TYPES.join(', ')}.` })
+  }
+  if (!contentMatchesFileType(fileType, file?.buffer)) {
+    return res.status(400).json({ error: `File content does not match its .${fileType} extension.` })
+  }
   next()
 }
 
