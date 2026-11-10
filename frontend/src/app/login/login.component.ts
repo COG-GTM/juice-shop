@@ -122,6 +122,7 @@ export class LoginComponent implements OnInit {
           return
         }
         endSession()
+        this.userService.logout().subscribe({ error: (err) => { console.log(err) } })
         sessionStorage.removeItem('bid')
         this.error = error
         this.userService.isLoggedIn.next(false)

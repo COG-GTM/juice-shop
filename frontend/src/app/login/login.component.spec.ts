@@ -38,9 +38,11 @@ describe('LoginComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            login: vi.fn().mockName("UserService.login")
+            login: vi.fn().mockName("UserService.login"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.login.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -145,6 +147,7 @@ describe('LoginComponent', () => {
         component.login()
         expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
+        expect(userService.logout).toHaveBeenCalled()
     })
 
     it('returns error message from server to client on failed login attempt', () => {
