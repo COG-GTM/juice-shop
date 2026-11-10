@@ -260,9 +260,16 @@ void describe('/rest/saveLoginIp', () => {
     assert.notEqual(isIP(res.body.lastLoginIp), 0)
   })
 
-  void it('GET last login IP ignores a spoofed True-Client-IP header', async () => {
-    const remoteIp = (await saveLoginIp()).body.lastLoginIp
+  void it('GET last login IP will be saved as True-Client-IP header value when it is a valid IP address', async () => {
     const res = await saveLoginIp({ 'true-client-ip': '1.2.3.4' })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.lastLoginIp, '1.2.3.4')
+  })
+
+  void it('GET last login IP falls back to remote IP when True-Client-IP is not a valid IP address', async () => {
+    const remoteIp = (await saveLoginIp()).body.lastLoginIp
+    const res = await saveLoginIp({ 'true-client-ip': '1.2.3.4, 5.6.7.8' })
 
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, remoteIp)
