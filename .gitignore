@@ -67,3 +67,6 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# JWT public key (published at startup from the runtime signing key)
+encryptionkeys/jwt.pub

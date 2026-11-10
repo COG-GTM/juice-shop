@@ -197,10 +197,31 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+
+    it('is not keyed with the formerly hardcoded secret', () => {
+      expect(security.hmac('admin123')).to.not.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('returns deterministic SHA-256 HMAC keyed differently from security answers', () => {
+      const token = security.deluxeToken('bender@juice-sh.op')
+      expect(token).to.match(/^[0-9a-f]{64}$/)
+      expect(token).to.equal(security.deluxeToken('bender@juice-sh.op'))
+      expect(token).to.not.equal(security.hmac('bender@juice-sh.op' + security.roles.deluxe))
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs tokens that verify against the exported public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('test@juice-sh.op')
     })
   })
 })
