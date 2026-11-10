@@ -90,8 +90,16 @@ export class DataExportComponent implements OnInit {
     const container = exportWindow.document.createElement('pre')
     container.style.whiteSpace = 'pre-wrap'
     container.style.wordBreak = 'break-all'
-    container.textContent = userData
+    container.textContent = this.formatUserData(userData)
     exportWindow.document.body.appendChild(container)
+  }
+
+  private formatUserData (userData: string) {
+    try {
+      return JSON.stringify(JSON.parse(userData), null, 2)
+    } catch {
+      return userData
+    }
   }
 
   resetForm () {
