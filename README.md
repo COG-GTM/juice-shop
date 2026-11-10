@@ -124,7 +124,7 @@ For a detailed introduction, full list of features and architecture overview ple
 
 Accounts with the `admin` or `accounting` role from `data/static/users.yml` are seeded with a random
 password and security answer (and, where they use 2FA, a random TOTP secret) on every start, so their documented credentials
-do not work on a default installation. Set the environment variable `JUICE_SHOP_DEMO_CREDENTIALS=enabled`
+do not work on a default installation. Wallet mnemonics quoted in seeded feedback are redacted the same way. Set the environment variable `JUICE_SHOP_DEMO_CREDENTIALS=enabled`
 to seed them with the documented credentials instead (e.g. for training sessions or when running the API
 and end-to-end tests).
 

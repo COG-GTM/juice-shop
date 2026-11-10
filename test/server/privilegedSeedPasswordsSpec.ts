@@ -4,7 +4,7 @@
  */
 
 import chai from 'chai'
-import { seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from '../../data/privilegedSeedPasswords'
+import { seedFeedbackCommentFor, seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from '../../data/privilegedSeedPasswords'
 const expect = chai.expect
 
 describe('privilegedSeedPasswords', () => {
@@ -88,5 +88,22 @@ describe('privilegedSeedPasswords', () => {
     expect(seedSecurityAnswerFor({ role: 'deluxe', answer: 'Zaya' })).to.equal('Zaya')
     process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'enabled'
     expect(seedSecurityAnswerFor({ role: 'admin', answer: 'West-2082' })).to.equal('West-2082')
+  })
+
+  it('redacts quoted wallet mnemonics from seeded feedback by default', () => {
+    const comment = 'Please send me the juicy chatbot NFT in my wallet at /juicy-nft : "purpose betray marriage blame crunch monitor spin slide donate sport lift clutch"'
+
+    expect(seedFeedbackCommentFor(comment)).to.equal('Please send me the juicy chatbot NFT in my wallet at /juicy-nft : "[redacted]"')
+  })
+
+  it('keeps feedback without a mnemonic unchanged', () => {
+    expect(seedFeedbackCommentFor('I love this shop! Best products in town! Highly recommended! "really"')).to.equal('I love this shop! Best products in town! Highly recommended! "really"')
+  })
+
+  it('keeps the wallet mnemonic in seeded feedback when demo credentials are enabled', () => {
+    process.env.JUICE_SHOP_DEMO_CREDENTIALS = 'enabled'
+    const comment = 'wallet: "purpose betray marriage blame crunch monitor spin slide donate sport lift clutch"'
+
+    expect(seedFeedbackCommentFor(comment)).to.equal(comment)
   })
 })

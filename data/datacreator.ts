@@ -30,7 +30,7 @@ import config from 'config'
 import * as utils from '../lib/utils'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
-import { seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from './privilegedSeedPasswords'
+import { seedFeedbackCommentFor, seedPasswordFor, seedSecurityAnswerFor, seedTotpSecretFor } from './privilegedSeedPasswords'
 import type { CreateOptions, CreationAttributes } from 'sequelize'
 import { ordersCollection, reviewsCollection } from './mongodb'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -210,7 +210,7 @@ async function createUsers () {
         if (seedPasswords[index].generated) logger.info(`Seeded ${role} account ${completeEmail} with random credentials (set JUICE_SHOP_DEMO_CREDENTIALS=enabled to use the documented demo credentials)`)
         const seedAnswer = seedAnswers[index]
         if (securityQuestion != null && seedAnswer != null) await createSecurityAnswer(user.id, securityQuestion.id, answerHashes[index] ?? seedAnswer, answerHashes[index] != null)
-        if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
+        if (feedback != null) await createFeedback(user.id, seedFeedbackCommentFor(feedback.comment), feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
         if (card != null) await createCards(user.id, card)

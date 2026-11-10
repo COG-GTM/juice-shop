@@ -37,3 +37,12 @@ export function seedSecurityAnswerFor ({ role, answer }: { role: StaticUser['rol
   }
   return crypto.randomBytes(24).toString('base64url')
 }
+
+const quotedMnemonic = /"(?:[a-z]+ ){11,23}[a-z]+"/g
+
+export function seedFeedbackCommentFor (comment: string): string {
+  if (demoCredentialsEnabled()) {
+    return comment
+  }
+  return comment.replace(quotedMnemonic, '"[redacted]"')
+}
