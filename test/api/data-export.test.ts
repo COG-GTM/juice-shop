@@ -316,6 +316,57 @@ void describe('/rest/user/data-export', () => {
     const parsedData = JSON.parse(res.body.userData)
     assert.ok(parsedData.reviews.some(({ likedBy }: { likedBy: string[] }) => likedBy.includes(attacker.email)))
   })
+
+  void it('Export data escapes HTML from memory captions', async () => {
+    const victim = await registerAndLogin(`victim-${randomUUID()}@juice-sh.op`)
+    const caption = '<img src=x onerror=alert(1)> & more'
+
+    await request(app)
+      .post('/rest/memories')
+      .set('Authorization', victim.authHeader.Authorization)
+      .attach('image', path.resolve(__dirname, '../files/validProfileImage.jpg'), 'Valid Image')
+      .field('caption', caption)
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set(victim.authHeader)
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.equal(parsedData.memories[0].caption, caption)
+  })
+
+  void it('Export data escapes HTML from usernames', async () => {
+    const credential = randomUUID()
+    const email = `victim-${randomUUID()}@juice-sh.op`
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, password: credential, passwordRepeat: credential })
+      .expect(201)
+    const { token } = await login(app, { email, password: credential })
+
+    await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${token}`)
+      .field('username', '<<a|ascript>alert(1)</script> & <b>bold</b>')
+      .redirects(0)
+      .expect(302)
+
+    const relogin = await login(app, { email, password: credential })
+    const res = await request(app)
+      .post('/rest/user/data-export')
+      .set({ Authorization: 'Bearer ' + relogin.token, 'content-type': 'application/json' })
+      .send({ format: '1' })
+
+    assert.equal(res.status, 200)
+    assert.ok(!/[<>&]/.test(res.body.userData))
+    const parsedData = JSON.parse(res.body.userData)
+    assert.ok(parsedData.username.length > 0)
+  })
 })
 
 async function registerAndLogin (email: string) {
