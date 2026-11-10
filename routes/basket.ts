@@ -22,15 +22,15 @@ export function retrieveBasket () {
         res.status(401).json({ status: 'error', message: 'Unauthorized' })
         return
       }
-      /* jshint eqeqeq:false */
-      challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
-        return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
-      })
       const basket = await BasketModel.findOne({ where: { id, UserId: userId }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       if (basket === null) {
         res.status(403).json({ status: 'error', message: 'Not allowed' })
         return
       }
+      /* jshint eqeqeq:false */
+      challengeUtils.solveIf(challenges.basketAccessChallenge, () => {
+        return user && id && id !== 'undefined' && id !== 'null' && id !== 'NaN' && user.bid && user?.bid != parseInt(id, 10) // eslint-disable-line eqeqeq
+      })
       if (((basket?.Products) != null) && basket.Products.length > 0) {
         for (let i = 0; i < basket.Products.length; i++) {
           basket.Products[i].name = req.__(basket.Products[i].name)
