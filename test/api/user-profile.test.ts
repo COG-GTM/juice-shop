@@ -145,4 +145,16 @@ void describe('/profile', () => {
     assert.equal((global as Record<string, unknown>).juiceShopSstiProbe, undefined)
     assert.ok(res.text.includes('- global.juiceShopSstiProbe = 1'))
   })
+
+  void it('GET user profile CSP header ignores directives injected via profileImage', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ profileImage: "https://a.png; script-src 'unsafe-inline' 'self'" })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self' https:; script-src 'self' 'unsafe-eval'")
+  })
 })
