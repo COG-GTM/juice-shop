@@ -175,6 +175,64 @@ describe('utils', () => {
     })
   })
 
+  describe('clientIpForRateLimit', () => {
+    it('uses the socket address of a directly connected client and ignores X-Forwarded-For', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4' }, socket: { remoteAddress: '203.0.113.7' } })).to.equal('203.0.113.7')
+    })
+
+    it('uses the address appended by a private-network proxy and ignores client-supplied entries', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4, 198.51.100.9' }, socket: { remoteAddress: '::ffff:10.0.0.2' } })).to.equal('198.51.100.9')
+    })
+
+    it('skips multiple private-network proxy hops', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '1.2.3.4, 198.51.100.9, 172.16.4.4' }, socket: { remoteAddress: '127.0.0.1' } })).to.equal('198.51.100.9')
+    })
+
+    it('falls back to the socket address when no X-Forwarded-For header is present', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '203.0.113.7' } })).to.equal('203.0.113.7')
+    })
+
+    it('groups IPv6 clients by their /64 subnet', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8:1:2:aaaa::1' } })).to.equal('2001:db8:1:2::/64')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8:1:2:bbbb:cccc:dddd:eeee' } })).to.equal('2001:db8:1:2::/64')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '2001:db8::7' } })).to.equal('2001:db8:0:0::/64')
+    })
+
+    it('does not trust a publicly addressed proxy unless it is configured', () => {
+      const request = { headers: { 'x-forwarded-for': '1.2.3.4, 203.0.113.7' }, socket: { remoteAddress: '198.51.100.10' } }
+      expect(utils.clientIpForRateLimit(request)).to.equal('198.51.100.10')
+      expect(utils.createClientIpForRateLimit(['198.51.100.10'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['198.51.100.0/24'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['198.51.100.0/24'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '::ffff:198.51.100.10' } })).to.equal('203.0.113.7')
+    })
+
+    it('accepts IPv4-mapped proxy addresses and CIDRs in the trusted proxy list', () => {
+      const request = { headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '::ffff:198.51.100.10' } }
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.10'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.0/120'])(request)).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['::ffff:198.51.100.10'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '198.51.100.10' } })).to.equal('203.0.113.7')
+    })
+
+    it('keys on the forwarding proxy when it forwarded a malformed address', () => {
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': 'junk-1' }, socket: { remoteAddress: '10.0.0.2' } })).to.equal('10.0.0.2')
+      expect(utils.clientIpForRateLimit({ headers: { 'x-forwarded-for': '198.51.100.9, junk-2' }, socket: { remoteAddress: '10.0.0.2' } })).to.equal('10.0.0.2')
+      expect(utils.createClientIpForRateLimit(['198.51.100.10'])({ headers: { 'x-forwarded-for': '1.2.3.4:5678' }, socket: { remoteAddress: '198.51.100.10' } })).to.equal('198.51.100.10')
+    })
+
+    it('trusts only the configured proxies once a trusted proxy list is given', () => {
+      const spoofed = { headers: { 'x-forwarded-for': '203.0.113.99' }, socket: { remoteAddress: '10.0.0.5' } }
+      expect(utils.createClientIpForRateLimit(['10.0.0.1'])(spoofed)).to.equal('10.0.0.5')
+      expect(utils.createClientIpForRateLimit(['10.0.0.1'])({ headers: { 'x-forwarded-for': '203.0.113.7' }, socket: { remoteAddress: '10.0.0.1' } })).to.equal('203.0.113.7')
+      expect(utils.createClientIpForRateLimit(['private', '198.51.100.10'])({ headers: { 'x-forwarded-for': '203.0.113.7, 198.51.100.10' }, socket: { remoteAddress: '10.0.0.1' } })).to.equal('203.0.113.7')
+    })
+
+    it('unwraps IPv4-mapped IPv6 addresses', () => {
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:203.0.113.7' } })).to.equal('203.0.113.7')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:c633:6407' } })).to.equal('198.51.100.7')
+      expect(utils.clientIpForRateLimit({ headers: {}, socket: { remoteAddress: '::ffff:cb00:7107' } })).to.equal('203.0.113.7')
+    })
+  })
+
   describe('endsWith', () => {
     it('accepts string ending with another string', () => {
       expect(utils.endsWith('Bla Blubb', 'Blubb')).to.equal(true)
