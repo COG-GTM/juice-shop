@@ -120,6 +120,16 @@ describe('DataExportComponent', () => {
         expect(exportDocument.querySelector('pre')?.textContent).toBe(userData)
     })
 
+    it('should show HTML-escaped JSON from the server with its original characters as text', () => {
+        const exportDocument = window.document.implementation.createHTMLDocument()
+        const userData = '{\n  "username": "\\u003cb\\u003eTom \\u0026 Jerry\\u003c/b\\u003e"\n}'
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: exportDocument } as any)
+        component.save()
+        expect(exportDocument.querySelectorAll('b').length).toBe(0)
+        expect(exportDocument.querySelector('pre')?.textContent).toBe('{\n  "username": "<b>Tom & Jerry</b>"\n}')
+    })
+
     it('should clear the form and display error if exporting data fails', () => {
         dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Error' }))
         vi.spyOn(component, 'resetFormError')
