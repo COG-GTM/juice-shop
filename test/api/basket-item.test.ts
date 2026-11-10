@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -170,6 +171,28 @@ void describe('/api/BasketItems/:id', () => {
       .get('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET own basket item with a stale cookie of another user after the token map was cleared', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 19, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const token = authHeader.Authorization.replace('Bearer ', '')
+    const user = security.authenticatedUsers.get(token)
+    delete security.authenticatedUsers.tokenMap[token]
+    try {
+      const res = await request(app)
+        .get('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+        .set('Cookie', 'token=' + otherUserAuthHeader.Authorization.replace('Bearer ', ''))
+      assert.equal(res.status, 200)
+      assert.equal(res.body.data.BasketId, 2)
+    } finally {
+      if (user) security.authenticatedUsers.put(token, user)
+    }
   })
 
   void it('PUT update newly created basket item', async () => {
