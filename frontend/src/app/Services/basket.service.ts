@@ -9,6 +9,7 @@ import { HttpClient } from '@angular/common/http'
 import { catchError, map } from 'rxjs/operators'
 import { type Observable, Subject, forkJoin, of } from 'rxjs'
 import { switchMap, tap } from 'rxjs/operators'
+import { isLoggedIn } from './auth-session'
 
 interface OrderDetail {
   paymentId: string
@@ -61,7 +62,7 @@ export class BasketService {
   }
 
   updateNumberOfCartItems () {
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn()) {
       this.find(parseInt(sessionStorage.getItem('bid'), 10)).subscribe({
         next: (basket) => {
           this.itemTotal.next(basket.Products.reduce((itemTotal, product) => itemTotal + product.BasketItem.quantity, 0))

@@ -11,6 +11,7 @@ import { TranslateModule } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
 import { MatCardModule } from '@angular/material/card'
+import { isLoggedIn } from '../Services/auth-session'
 
 library.add(faCartArrowDown)
 
@@ -28,7 +29,7 @@ export class BasketComponent {
   public bonus = 0
 
   checkout (): void {
-    if (localStorage.getItem('token') == null) {
+    if (!isLoggedIn()) {
       this.ngZone.run(async () => await this.router.navigate(['/login'], {
         queryParams: {
           redirectUrl: '/basket'
