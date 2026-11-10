@@ -106,7 +106,7 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
-const MAX_YAML_OUTPUT_LENGTH = 100000
+const MAX_YAML_ALIAS_EXPANSION = 100000
 const YAML_TOO_LARGE = 'YAML document expands beyond the allowed size'
 
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
@@ -115,10 +115,10 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { yaml, data, outputBudget: MAX_YAML_OUTPUT_LENGTH, tooLarge: YAML_TOO_LARGE }
+        const sandbox = { yaml, data, outputBudget: data.length + MAX_YAML_ALIAS_EXPANSION, tooLarge: YAML_TOO_LARGE }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext(`JSON.stringify(yaml.safeLoad(data), (key, value) => {
-          outputBudget -= key.length + (typeof value === 'string' ? value.length : 1)
+        const yamlString = vm.runInContext(`JSON.stringify(yaml.safeLoad(data), function (key, value) {
+          outputBudget -= (Array.isArray(this) ? 0 : key.length) + (typeof value === 'string' ? value.length : 1)
           if (outputBudget < 0) throw new Error(tooLarge)
           return value
         })`, sandbox, { timeout: 2000 })
