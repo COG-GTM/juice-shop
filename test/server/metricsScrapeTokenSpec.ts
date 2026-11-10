@@ -42,6 +42,10 @@ describe('metricsScrapeToken', () => {
       expect(loadMetricsScrapeToken({ METRICS_SCRAPE_TOKEN: 'short' })).to.equal(undefined)
     })
 
+    it('disables metrics when the token contains whitespace', () => {
+      expect(loadMetricsScrapeToken({ METRICS_SCRAPE_TOKEN: 'prometheus scrape token 0123456789abcdef' })).to.equal(undefined)
+    })
+
     it('disables metrics when the token file cannot be read', () => {
       expect(loadMetricsScrapeToken({ METRICS_SCRAPE_TOKEN_FILE: '/nonexistent/metrics-token' })).to.equal(undefined)
     })

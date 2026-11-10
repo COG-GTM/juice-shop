@@ -30,6 +30,10 @@ export function loadMetricsScrapeToken (env: NodeJS.ProcessEnv = process.env): s
     logger.warn(`METRICS_SCRAPE_TOKEN must be at least ${MIN_SCRAPE_TOKEN_LENGTH} characters, so /metrics is disabled`)
     return undefined
   }
+  if (/\s/.test(token)) {
+    logger.warn('METRICS_SCRAPE_TOKEN must not contain whitespace, so /metrics is disabled')
+    return undefined
+  }
   return token
 }
 
