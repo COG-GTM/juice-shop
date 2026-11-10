@@ -64,6 +64,12 @@ export class ComplaintComponent implements OnInit {
       this.saveComplaint()
       this.uploader.clearQueue()
     }
+    this.uploader.onErrorItem = (item, response, status) => {
+      if (status === 400) {
+        this.fileUploadError = { name: 'server', message: this.uploadErrorMessage(response) }
+        this.uploader.clearQueue()
+      }
+    }
     this.formSubmitService.attachEnterKeyHandler('complaint-form', 'submitButton', () => { this.save() })
   }
 
@@ -80,6 +86,14 @@ export class ComplaintComponent implements OnInit {
         console.log(err)
       }
     })
+  }
+
+  uploadErrorMessage (response: string) {
+    try {
+      return JSON.parse(response).error ?? response
+    } catch {
+      return response
+    }
   }
 
   save () {

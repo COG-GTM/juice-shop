@@ -141,4 +141,18 @@ describe('ComplaintComponent', () => {
         component.save()
         expect(component.uploader.queue[0].upload).toHaveBeenCalled()
     })
+
+    it('should show the server error and clear the queue when the upload is rejected', () => {
+        const item = new FileItem(component.uploader, new File([''], 'file.pdf', { type: 'application/pdf' }), { url: '' })
+        component.uploader.queue[0] = item
+        component.uploader.onErrorItem(item, JSON.stringify({ error: 'File content does not match its .pdf extension.' }), 400, {})
+        expect(component.fileUploadError).toEqual({ name: 'server', message: 'File content does not match its .pdf extension.' })
+        expect(component.uploader.queue.length).toBe(0)
+    })
+
+    it('should not treat deprecated interface responses as upload validation errors', () => {
+        const item = new FileItem(component.uploader, new File([''], 'file.xml', { type: 'application/xml' }), { url: '' })
+        component.uploader.onErrorItem(item, 'Gone', 410, {})
+        expect(component.fileUploadError).toBeUndefined()
+    })
 })
