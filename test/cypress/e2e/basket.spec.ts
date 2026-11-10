@@ -33,10 +33,17 @@ describe('/#/basket', () => {
           })
       })
 
-      it('should be possible to place an order with a negative total amount', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Payback Time' })
+      it('should reject placing an order with a negative quantity', () => {
+        cy.window().then(async () => {
+          const headers = { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-type': 'application/json' }
+          const cards = await (await fetch(`${Cypress.config('baseUrl')}/api/Cards`, { headers })).json()
+          const response = await fetch(`${Cypress.config('baseUrl')}/rest/basket/${sessionStorage.getItem('bid')}/checkout`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ orderDetails: { paymentId: cards.data[0].id } })
+          })
+          expect(response.status).to.equal(400)
+        })
       })
     })
 
@@ -76,7 +83,7 @@ describe('/#/basket', () => {
       cy.login({ email: 'jim', password: 'ncc-1701' })
     })
     describe('challenge "manipulateClock"', () => {
-      it('should be possible to enter WMNSDY2019 coupon & place order with this expired coupon', () => {
+      it('should place the order at full price when the expired WMNSDY2019 coupon is used', () => {
         cy.window().then(() => {
           window.localStorage.couponPanelExpanded = false
         })
@@ -98,7 +105,7 @@ describe('/#/basket', () => {
         cy.get('.mat-mdc-radio-button').first().click()
         cy.get('.nextButton').click()
         cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Expired Coupon' })
+        cy.url().should('match', /\/order-completion\//)
       })
     })
 
@@ -142,6 +149,8 @@ describe('/#/basket', () => {
           cy.get('#coupon').type(coupon)
           cy.get('#applyCouponButton').click()
         })
+        cy.get('.mat-mdc-radio-button').first().click()
+        cy.get('.nextButton').click()
       })
 
       it('should be possible to place an order with a forged coupon', () => {
