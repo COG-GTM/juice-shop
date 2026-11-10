@@ -324,6 +324,13 @@ describe('insecurity', () => {
       expect(security.secretOrDerived(undefined, security.loadJwtKeyPair({}).privateKey, 'deluxe-token')).to.not.equal(derived)
       expect(derived).to.not.equal(crypto.createHmac('sha256', privateKey).update('deluxe-token').digest('hex'))
     })
+
+    it('derives the same secret for differently encoded PEMs of the same signing key', () => {
+      const derived = security.secretOrDerived(undefined, privateKey, 'deluxe-token')
+      const pkcs8 = crypto.createPrivateKey(privateKey).export({ type: 'pkcs8', format: 'pem' }).toString()
+      expect(security.secretOrDerived(undefined, pkcs8, 'deluxe-token')).to.equal(derived)
+      expect(security.secretOrDerived(undefined, privateKey.replace(/\n/g, '\r\n'), 'deluxe-token')).to.equal(derived)
+    })
   })
 
   describe('verify', () => {
