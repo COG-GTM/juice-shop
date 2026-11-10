@@ -352,7 +352,8 @@ void describe('/rest/user/data-export', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', `token=${token}`)
-      .field('username', '<<a|ascript>alert(1)</script> & <b>bold</b>')
+      .type('form')
+      .send({ username: '<<a|ascript>alert(1)</script> & <b>bold</b>' })
       .redirects(0)
       .expect(302)
 
@@ -365,7 +366,7 @@ void describe('/rest/user/data-export', () => {
     assert.equal(res.status, 200)
     assert.ok(!/[<>&]/.test(res.body.userData))
     const parsedData = JSON.parse(res.body.userData)
-    assert.ok(parsedData.username.length > 0)
+    assert.ok(parsedData.username.includes('<'))
   })
 })
 
