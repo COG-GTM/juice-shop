@@ -36,7 +36,17 @@ void describe('HTTP', () => {
       .set('Origin', 'https://attacker.example')
       .set('Access-Control-Request-Method', 'POST')
       .set('Access-Control-Request-Headers', 'authorization,content-type')
+    assert.equal(res.status, 204)
     assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('preflight request from a trusted origin is granted CORS access', async () => {
+    const origin = config.get<string>('server.baseUrl')
+    const res = await request(app).options('/api/Users')
+      .set('Origin', origin)
+      .set('Access-Control-Request-Method', 'POST')
+    assert.equal(res.status, 204)
+    assert.equal(res.headers['access-control-allow-origin'], origin)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {

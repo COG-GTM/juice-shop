@@ -182,7 +182,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* CORS restricted to trusted origins (CORS_ALLOWED_ORIGINS) */
   const trustedOriginsCors = cors(corsOptions())
-  app.options('*', trustedOriginsCors)
+  app.options('*', trustedOriginsCors, (req: Request, res: Response) => { res.sendStatus(204) })
   app.use(trustedOriginsCors)
 
   /* Security middleware */
