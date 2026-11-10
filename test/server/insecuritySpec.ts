@@ -138,6 +138,11 @@ describe('insecurity', () => {
       expect(security.sanitizeHtml('<<script>Foo</script>iframe src="javascript:alert(`xss`)">')).to.equal('&lt;iframe src="javascript:alert(`xss`)"&gt;')
     })
 
+    it('keeps ampersands in text content unencoded', () => {
+      expect(security.sanitizeHtml('a&b@juice-sh.op')).to.equal('a&b@juice-sh.op')
+      expect(security.sanitizeSecure('Q&A &lt;script&gt;')).to.equal('Q&A &lt;script&gt;')
+    })
+
     it('encodes markup characters in text content', () => {
       expect(security.sanitizeHtml('<<a|ascript>alert(`xss`)</script>')).to.equal('&lt;alert(`xss`)')
     })
