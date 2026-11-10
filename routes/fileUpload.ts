@@ -63,7 +63,8 @@ const ALLOWED_FILE_TYPES = ['pdf', 'xml', 'zip', 'yml', 'yaml']
 const ZIP_SIGNATURES = ['PK\x03\x04', 'PK\x05\x06', 'PK\x07\x08']
 
 function fileExtension (filename: string = '') {
-  return filename.substr(filename.lastIndexOf('.') + 1).toLowerCase()
+  const dotIndex = filename.lastIndexOf('.')
+  return dotIndex === -1 ? '' : filename.substring(dotIndex + 1).toLowerCase()
 }
 
 function isText (buffer: Buffer) {

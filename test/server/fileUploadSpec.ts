@@ -76,6 +76,17 @@ describe('fileUpload', () => {
     expect(next.called).to.equal(false)
   })
 
+  it('should solve "uploadTypeChallenge" and reject a file named like an allowed extension but without a dot', () => {
+    challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
+    req.file.originalname = 'pdf'
+
+    checkFileType(req, res, next)
+
+    expect(challenges.uploadTypeChallenge.solved).to.equal(true)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(next.called).to.equal(false)
+  })
+
   it('should not solve "uploadTypeChallenge" when file type is PDF', () => {
     challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
     req.file.originalname = 'hack.pdf'
