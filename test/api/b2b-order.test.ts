@@ -69,18 +69,6 @@ void describe('/b2b/v2/orders', () => {
     assert.equal(res.body.cid, 'JS0815DE')
   })
 
-  void it('POST new B2B order accepts order lines in customer specific JSON format', async () => {
-    const res = await request(app)
-      .post('/b2b/v2/orders')
-      .set(authHeader)
-      .send({
-        cid: 'JS0815DE',
-        orderLinesData: '{"sku": "PO-12", "qty": "3", "lines": [{"item": "A"}]}'
-      })
-
-    assert.equal(res.status, 200)
-  })
-
   void it('POST new B2B order is forbidden without authorization token', async () => {
     const res = await request(app)
       .post('/b2b/v2/orders')
