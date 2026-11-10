@@ -28,6 +28,7 @@ import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { CookieService } from 'ngy-cookie'
 
 describe('ProductDetailsComponent', () => {
     let component: ProductDetailsComponent
@@ -35,6 +36,7 @@ describe('ProductDetailsComponent', () => {
     let userService: any
     let productReviewService: any
     let dialog: any
+    let cookieService: any
     let dialogRefMock
 
     beforeEach(async () => {
@@ -49,6 +51,9 @@ describe('ProductDetailsComponent', () => {
         }
         productReviewService.get.mockReturnValue(of([]))
         productReviewService.create.mockReturnValue(of({}))
+        cookieService = {
+            remove: vi.fn().mockName("CookieService.remove")
+        }
         dialog = {
             open: vi.fn().mockName("Dialog.open")
         }
@@ -75,6 +80,7 @@ describe('ProductDetailsComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: ProductReviewService, useValue: productReviewService },
                 { provide: MatDialog, useValue: dialog },
+                { provide: CookieService, useValue: cookieService },
                 { provide: MAT_DIALOG_DATA, useValue: { productData: {} } },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting(),
@@ -169,6 +175,7 @@ describe('ProductDetailsComponent', () => {
         textArea.value = 'Great product!'
         component.addReview(textArea)
         expect(localStorage.getItem('token')).toBeNull()
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
         expect(snackBarHelper.open).toHaveBeenCalledWith('UNAUTHORIZED_ACCESS_ERROR', 'errorBar')
         expect(snackBarHelper.open).not.toHaveBeenCalledWith('CONFIRM_REVIEW_SAVED')
     })
