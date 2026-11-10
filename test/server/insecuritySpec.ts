@@ -134,8 +134,12 @@ describe('insecurity', () => {
       expect(security.sanitizeHtml('Sani<iframe src="alert("IFrameXSS")"></iframe>tizedIFrame')).to.equal('SanitizedIFrame')
     })
 
-    it('can be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeHtml('<<script>Foo</script>iframe src="javascript:alert(`xss`)">')).to.equal('<iframe src="javascript:alert(`xss`)">')
+    it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
+      expect(security.sanitizeHtml('<<script>Foo</script>iframe src="javascript:alert(`xss`)">')).to.equal('&lt;iframe src="javascript:alert(`xss`)"&gt;')
+    })
+
+    it('encodes markup characters in text content', () => {
+      expect(security.sanitizeHtml('<<a|ascript>alert(`xss`)</script>')).to.equal('&lt;alert(`xss`)')
     })
   })
 
@@ -177,7 +181,7 @@ describe('insecurity', () => {
     })
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('Bla&lt;iframe src="javascript:alert(`xss`)"&gt;Blubb')
     })
   })
 

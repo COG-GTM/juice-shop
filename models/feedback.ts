@@ -16,6 +16,8 @@ import {
 } from 'sequelize'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+// @ts-expect-error FIXME no typescript definitions for the npm alias of sanitize-html 1.4.2
+import sanitizeHtmlLegacy from 'sanitize-html-legacy'
 
 class Feedback extends Model<
 InferAttributes<Feedback>,
@@ -43,7 +45,7 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
           if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
             challengeUtils.solveIf(challenges.persistedXssFeedbackChallenge, () => {
               return utils.contains(
-                security.sanitizeHtml(comment),
+                sanitizeHtmlLegacy(comment),
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
