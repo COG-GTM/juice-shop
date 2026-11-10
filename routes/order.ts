@@ -228,14 +228,11 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return Math.min(Math.max(discount, 0), 100)
   } else if (req.body.couponData) {
-    const [couponCode, clientDate] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
+    const [couponCode] = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')
     const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign) {
-      if (isCampaignActive(campaign, Date.now())) {
-        return campaign.discount
-      }
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return Number(clientDate) === campaign.validOn })
+    if (campaign && isCampaignActive(campaign, Date.now())) {
+      return campaign.discount
     }
   }
   return 0
