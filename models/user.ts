@@ -57,17 +57,20 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       email: {
         type: DataTypes.STRING,
         unique: true,
-        set (email: string) {
-          if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
-            challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
-              return utils.contains(
-                email,
-                '<iframe src="javascript:alert(`xss`)">'
-              )
-            })
-          } else {
-            email = security.sanitizeSecure(email)
+        validate: {
+          isEmailAddress (email: string) {
+            if (/[\s<>"'`]/.test(email.trim()) || security.sanitizeSecure(email) !== email) {
+              throw new Error('Invalid email address')
+            }
           }
+        },
+        set (email: string) {
+          challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
+            return utils.contains(
+              email,
+              '<iframe src="javascript:alert(`xss`)">'
+            )
+          })
           this.setDataValue('email', email)
         }
       }, // vuln-code-snippet hide-end

@@ -3,7 +3,8 @@ describe('/#/register', () => {
     cy.visit('/#/register')
   })
 
-  describe('challenge "persistedXssUser"', () => {
+  // Not solvable anymore: emails are always sanitized and validated server-side and rendered as text
+  xdescribe('challenge "persistedXssUser"', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
