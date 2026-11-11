@@ -691,6 +691,7 @@ const mimeTypeMap: any = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg'
 }
+const memoryUploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
 const uploadToDisk = multer({
   storage: multer.diskStorage({
     destination: (req: Request, file: any, cb: any) => {
@@ -699,7 +700,7 @@ const uploadToDisk = multer({
       if (isValid) {
         error = null
       }
-      cb(error, path.resolve('frontend/dist/frontend/assets/public/images/uploads/'))
+      cb(error, memoryUploadsDir)
     },
     filename: (req: Request, file: any, cb: any) => {
       const name = security.sanitizeFilename(file.originalname)
@@ -725,8 +726,11 @@ const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
 
 const removeUploadedFileOnError = (req: Request, res: Response, next: NextFunction) => {
   res.on('finish', () => {
-    if (res.statusCode >= 400 && req.file?.path) {
-      fs.unlink(req.file.path, () => {})
+    if (res.statusCode >= 400 && req.file?.filename) {
+      const uploadedFilePath = path.resolve(memoryUploadsDir, path.basename(req.file.filename))
+      if (uploadedFilePath.startsWith(memoryUploadsDir + path.sep)) {
+        fs.unlink(uploadedFilePath, () => {})
+      }
     }
   })
   next()
