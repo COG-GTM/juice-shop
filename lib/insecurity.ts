@@ -185,6 +185,28 @@ export const appendUserId = () => {
   }
 }
 
+const csrfSecret = crypto.randomBytes(32)
+
+export const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfSecret).update(sessionToken).digest('hex')
+
+export const verifyCsrfToken = () => (req: Request, res: Response, next: NextFunction) => {
+  const sessionToken = req.cookies?.token
+  if (!sessionToken) {
+    next()
+    return
+  }
+  const submittedToken = req.body?._csrf
+  if (typeof sessionToken === 'string' && typeof submittedToken === 'string') {
+    const expected = Buffer.from(csrfTokenFor(sessionToken))
+    const actual = Buffer.from(submittedToken)
+    if (expected.length === actual.length && crypto.timingSafeEqual(expected, actual)) {
+      next()
+      return
+    }
+  }
+  res.status(403).json({ status: 'error', message: 'Invalid or missing CSRF token' })
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
@@ -192,7 +214,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, { sameSite: 'lax' })
         }
       }
     })

@@ -6,7 +6,9 @@ describe('/dataerasure', () => {
   describe('challenge "lfr"', () => {
     it('should be possible to perform local file read attack using the browser', () => {
       cy.window().then(async () => {
-        const params = 'layout=../package.json'
+        const form = await (await fetch(`${Cypress.config('baseUrl')}/dataerasure`)).text()
+        const csrfToken = /name="_csrf" value="([^"]+)"/.exec(form)?.[1] ?? ''
+        const params = `layout=../package.json&_csrf=${csrfToken}`
 
         const response = await fetch(`${Cypress.config('baseUrl')}/dataerasure`, {
           method: 'POST',

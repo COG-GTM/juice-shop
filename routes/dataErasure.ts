@@ -49,6 +49,7 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']
       res.render('dataErasureForm', {
         userEmail: email,
+        csrfToken: security.csrfTokenFor(req.cookies.token),
         securityQuestion: question.question,
         _title_: entities.encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
@@ -71,7 +72,7 @@ interface DataErasureRequestParams {
   securityAnswer: string
 }
 
-router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
+router.post('/', security.verifyCsrfToken(), (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {
