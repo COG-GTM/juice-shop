@@ -16,8 +16,17 @@ interface codeFix {
 type cache = Record<string, codeFix>
 
 const CodeFixes: cache = {}
+let knownKeys: Set<string> | undefined
+
+const isKnownKey = (key: unknown): key is string => {
+  knownKeys ??= new Set(fs.readdirSync(FixesDir).filter(file => file.includes('_')).map(file => file.split('_')[0]))
+  return typeof key === 'string' && knownKeys.has(key)
+}
 
 export const readFixes = (key: string) => {
+  if (!isKnownKey(key)) {
+    return { fixes: [], correct: -1 }
+  }
   if (CodeFixes[key]) {
     return CodeFixes[key]
   }

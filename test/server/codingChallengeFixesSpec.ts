@@ -31,6 +31,14 @@ describe('codingChallengeFixes', () => {
     }
   })
 
+  it('should return no fixes for unknown or partial challenge keys', () => {
+    for (const key of ['doesNotExistChallenge', 'resetPasswordBenderChallenge_1', '', 'x'.repeat(10000)]) {
+      const fixes = readFixes(key)
+      expect(fixes.fixes).to.deep.equal([])
+      expect(fixes.correct).to.equal(-1)
+    }
+  })
+
   it('should have an info YAML file for each coding challenge', async () => {
     for (const challenge of codingChallenges) {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
