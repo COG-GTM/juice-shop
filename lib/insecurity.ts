@@ -97,7 +97,7 @@ export const userEmailFrom = ({ headers }: any) => {
 }
 
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
+  const coupon = utils.toMMMYY(date) + '-' + String(discount).padStart(2, '0')
   return z85.encode(coupon)
 }
 
