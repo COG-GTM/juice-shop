@@ -105,9 +105,38 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: { authorization: 'Bearer 11111' } } as unknown as Request)).to.deep.equal({ data: { id: 1 } })
     })
 
+    it('strips sensitive user fields when storing a session', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer', deluxeToken: 'abc', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel, bid: 3 })
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer', deluxeToken: 'abc' }, bid: 3 })
+    })
+
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    it('does not sign password hash or TOTP secret into the token', () => {
+      const token = security.authorize({ status: 'success', data: { id: 1, email: 'admin@juice-sh.op', role: 'admin', password: 'hash', totpSecret: 'SECRET' } })
+      const payload = security.decode(token)
+
+      expect(payload.data).to.deep.equal({ id: 1, email: 'admin@juice-sh.op', role: 'admin' })
+      expect(payload.status).to.equal('success')
+    })
+
+    it('leaves payloads without user data untouched', () => {
+      const payload = security.decode(security.authorize({ userId: 1, type: 'password_valid_needs_second_factor_token' }))
+
+      expect(payload.userId).to.equal(1)
+      expect(payload.type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('safeUser', () => {
+    it('keeps only public user fields', () => {
+      expect(security.safeUser({ id: 1, email: 'a@b.c', password: 'hash', totpSecret: 'SECRET', deluxeToken: 'abc' })).to.deep.equal({ id: 1, email: 'a@b.c' })
     })
   })
 

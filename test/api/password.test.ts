@@ -116,6 +116,10 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+    assert.equal(res.body.user.email, 'jim@' + config.get<string>('application.domain'))
+    assert.equal(res.body.user.password, undefined)
+    assert.equal(res.body.user.totpSecret, undefined)
+    assert.equal(res.body.user.deluxeToken, undefined)
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {

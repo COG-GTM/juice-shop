@@ -53,7 +53,24 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+export const publicUserFields = ['id', 'username', 'email', 'role', 'lastLoginIp', 'profileImage', 'isActive', 'createdAt', 'updatedAt', 'deletedAt'] as const
+const sessionUserFields: readonly string[] = [...publicUserFields, 'deluxeToken']
+
+export const safeUser = (user: any, fields: readonly string[] = publicUserFields): Record<string, unknown> => {
+  const projected: Record<string, unknown> = {}
+  if (user == null) return projected
+  for (const field of fields) {
+    if (user[field] !== undefined) projected[field] = user[field]
+  }
+  return projected
+}
+
+const withSessionUser = <T>(payload: T): T => {
+  const data = (payload as { data?: unknown })?.data
+  return data != null && typeof data === 'object' ? { ...payload, data: safeUser(data, sessionUserFields) } : payload
+}
+
+export const authorize = (user = {}) => jwt.sign(withSessionUser(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -73,7 +90,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap[token] = user
+    this.tokenMap[token] = withSessionUser(user)
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
