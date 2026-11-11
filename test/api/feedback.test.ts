@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
@@ -14,12 +15,14 @@ import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 
 let app: Express
+let sequelize: Sequelize
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
 
 void describe('/api/Feedbacks', () => {
@@ -234,6 +237,54 @@ void describe('/api/Feedbacks', () => {
         captcha: 42
       })
     assert.equal(res.status, 401)
+  })
+
+  void it('POST feedback cannot reuse an already consumed CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const payload = { rating: 3, comment: 'Replay', captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer }
+    const first = await request(app).post('/api/Feedbacks').set(jsonHeader).send(payload)
+    assert.equal(first.status, 201)
+
+    const replay = await request(app).post('/api/Feedbacks').set(jsonHeader).send(payload)
+    assert.equal(replay.status, 401)
+  })
+
+  void it('POST feedback cannot retry a CAPTCHA after a wrong answer', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const wrong = await request(app).post('/api/Feedbacks').set(jsonHeader)
+      .send({ rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer + 1 })
+    assert.equal(wrong.status, 401)
+
+    const retry = await request(app).post('/api/Feedbacks').set(jsonHeader)
+      .send({ rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+    assert.equal(retry.status, 401)
+  })
+
+  void it('POST feedback cannot be created with an expired CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    await sequelize.query('UPDATE Captchas SET createdAt = ? WHERE captchaId = ?', {
+      replacements: [new Date(Date.now() - 10 * 60 * 1000), captchaRes.body.captchaId]
+    })
+
+    const res = await request(app).post('/api/Feedbacks').set(jsonHeader)
+      .send({ rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET captcha returns unguessable, non-sequential ids', async () => {
+    const first = await request(app).get('/rest/captcha')
+    const second = await request(app).get('/rest/captcha')
+    assert.match(first.body.captchaId, /^[0-9a-f-]{36}$/)
+    assert.notEqual(first.body.captchaId, second.body.captchaId)
   })
 })
 

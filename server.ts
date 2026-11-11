@@ -169,7 +169,6 @@ void collectDurationPromise('validateConfig', validateConfig)({})
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
-  app.locals.captchaId = 0
   app.locals.captchaReqId = 1
   app.locals.captchaBypassReqTimes = []
   app.locals.abused_ssti_bug = false

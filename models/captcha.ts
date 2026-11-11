@@ -5,6 +5,7 @@
 
 import {
   Model,
+  type CreationOptional,
   type InferAttributes,
   type InferCreationAttributes,
   DataTypes,
@@ -15,19 +16,22 @@ class Captcha extends Model<
 InferAttributes<Captcha>,
 InferCreationAttributes<Captcha>
 > {
-  declare captchaId: number
+  declare captchaId: string
   declare captcha: string
   declare answer: string
+  declare createdAt: CreationOptional<Date>
 }
 
 const CaptchaModelInit = (sequelize: Sequelize) => {
   Captcha.init(
     {
       captchaId: {
-        type: DataTypes.INTEGER
+        type: DataTypes.STRING,
+        unique: true
       },
       captcha: DataTypes.STRING,
-      answer: DataTypes.STRING
+      answer: DataTypes.STRING,
+      createdAt: DataTypes.DATE
     },
     {
       tableName: 'Captchas',
