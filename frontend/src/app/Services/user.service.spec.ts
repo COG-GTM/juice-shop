@@ -204,6 +204,20 @@ describe('UserService', () => {
         httpMock.verify()
     })
 
+    it('should revoke the given token via the logout endpoint', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.logout('session-token').subscribe()
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/logout')
+        req.flush(null)
+
+        expect(req.request.method).toBe('POST')
+        expect(req.request.headers.get('Authorization')).toBe('Bearer session-token')
+        httpMock.verify()
+    })
+
     // Added: error handling tests to UserService spec to cover error wording convention
     it('should handle error when login fails', () => {
         const service = TestBed.inject(UserService)

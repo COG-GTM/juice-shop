@@ -91,7 +91,11 @@ export class SidenavComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    const token = localStorage.getItem('token')
+    this.userService.saveLastLoginIp().subscribe({
+      next: () => { this.revokeSession(token) },
+      error: (err) => { console.log(err); this.revokeSession(token) }
+    })
     localStorage.removeItem('token')
     this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
@@ -99,6 +103,12 @@ export class SidenavComponent implements OnInit {
     sessionStorage.removeItem('guestBasket')
     this.userService.isLoggedIn.next(false)
     this.ngZone.run(async () => await this.router.navigate(['/']))
+  }
+
+  private revokeSession (token: string | null) {
+    if (token) {
+      this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    }
   }
 
   goToProfilePage () {

@@ -38,6 +38,11 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
+  revokedTokens: Record<string, number>
+  revoke: (token?: string) => void
+  revokeAllOf: (userId: number, exceptToken?: string) => void
+  isRevoked: (token?: string) => boolean
+  prune: () => void
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -51,11 +56,44 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+const tokenLifetimeInMinutes = 6 * 60
+
+export const isAuthorized = () => {
+  const verifyJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    verifyJwt(req, res, (err?: any) => {
+      if (err) {
+        next(err)
+        return
+      }
+      const token = utils.jwtFrom(req)
+      if (isExpired(token) || authenticatedUsers.isRevoked(token)) {
+        res.status(401).json({ status: 'error', message: 'Invalid or expired token' })
+        return
+      }
+      next()
+    })
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresInMinutes: tokenLifetimeInMinutes, algorithm: 'RS256' } as jwt.SignOptions)
+export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) && !isExpired(token) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+const expiryOf = (token?: string): number | undefined => {
+  try {
+    const payload = token ? decode(token) : undefined
+    const exp = typeof payload === 'string' ? JSON.parse(payload)?.exp : payload?.exp
+    return typeof exp === 'number' ? exp : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const isExpired = (token?: string) => {
+  const exp = expiryOf(token)
+  return exp === undefined || Date.now() / 1000 >= exp
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -72,12 +110,26 @@ export const sanitizeSecure = (html: string): string => {
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
+  revokedTokens: {},
   put: function (token: string, user: ResponseWithUser) {
+    this.prune()
+    if (this.isRevoked(token) || isExpired(token)) {
+      return
+    }
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    if (!token) {
+      return undefined
+    }
+    token = utils.unquote(token)
+    const user = this.tokenMap[token]
+    if (user && (this.isRevoked(token) || isExpired(token))) {
+      this.revoke(token)
+      return undefined
+    }
+    return user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -89,6 +141,45 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
     this.put(token, user)
+  },
+  revoke: function (token?: string) {
+    if (!token) {
+      return
+    }
+    token = utils.unquote(token)
+    const user = this.tokenMap[token]
+    if (user?.data && this.idMap[user.data.id] === token) {
+      delete this.idMap[user.data.id]
+    }
+    delete this.tokenMap[token]
+    const exp = expiryOf(token)
+    if (exp !== undefined && Date.now() / 1000 < exp) {
+      this.revokedTokens[token] = exp
+    }
+  },
+  revokeAllOf: function (userId: number, exceptToken?: string) {
+    const keep = exceptToken ? utils.unquote(exceptToken) : undefined
+    for (const [token, user] of Object.entries(this.tokenMap)) {
+      if (user?.data?.id === userId && token !== keep) {
+        this.revoke(token)
+      }
+    }
+  },
+  isRevoked: function (token?: string) {
+    return token ? this.revokedTokens[utils.unquote(token)] !== undefined : false
+  },
+  prune: function () {
+    const now = Date.now() / 1000
+    for (const [token, exp] of Object.entries(this.revokedTokens)) {
+      if (now >= exp) {
+        delete this.revokedTokens[token]
+      }
+    }
+    for (const token of Object.keys(this.tokenMap)) {
+      if (isExpired(token)) {
+        this.revoke(token)
+      }
+    }
   }
 }
 
@@ -177,7 +268,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      req.body.UserId = authenticatedUsers.tokenMap[utils.jwtFrom(req)].data.id
+      req.body.UserId = authenticatedUsers.get(utils.jwtFrom(req))!.data.id
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
@@ -189,7 +280,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isExpired(token) && !authenticatedUsers.isRevoked(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)
