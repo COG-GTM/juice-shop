@@ -599,6 +599,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       max: 10,
       skipSuccessfulRequests: true,
       keyGenerator ({ body }: { body: any }) { return crypto.createHash('sha256').update(String(body?.email ?? '')).digest('hex') },
+      requestWasSuccessful (req: Request, res: Response) {
+        // a JSON 401 is the totp_token_required prompt after a correct password
+        return res.statusCode < 400 || (res.statusCode === 401 && String(res.getHeader('content-type')).includes('application/json'))
+      },
       validate: false
     }),
     login()

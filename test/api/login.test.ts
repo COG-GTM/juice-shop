@@ -307,4 +307,14 @@ void describe('/rest/saveLoginIp', () => {
       .expect(200)
   })
 
+  void it('POST login does not count correct passwords of 2FA users as failed attempts', async () => {
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/rest/user/login')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: 'wurstbrot@' + config.get<string>('application.domain'), password: 'EinBelegtesBrotMitSchinkenSCHINKEN!' })
+      assert.equal(res.status, 401)
+      assert.equal(res.body.status, 'totp_token_required')
+    }
+  })
 })
