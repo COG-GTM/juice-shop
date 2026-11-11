@@ -140,6 +140,51 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(res.body.error, 'Insuffienct funds in Wallet')
   })
 
+  void it('POST upgrade deluxe membership without a supported payment mode fails', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    for (const body of [{}, { paymentMode: 'free' }, { paymentMode: null }]) {
+      const res = await request(app)
+        .post('/rest/deluxe-membership')
+        .set(authHeader)
+        .send(body)
+
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid payment mode')
+    }
+
+    const statusRes = await request(app)
+      .get('/rest/deluxe-membership')
+      .set(authHeader)
+    assert.equal(statusRes.status, 200)
+  })
+
+  void it('POST upgrade deluxe membership with a foreign card fails', async () => {
+    const bender = await login(app, {
+      email: `bender@${config.get<string>('application.domain')}`,
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const benderCards = await request(app)
+      .get('/api/Cards')
+      .set({ Authorization: 'Bearer ' + bender.token })
+
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ paymentMode: 'card', paymentId: benderCards.body.data[0].id })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid Card')
+  })
+
   void it('POST deluxe membership status with wrong card id throws error', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,

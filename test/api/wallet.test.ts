@@ -73,4 +73,33 @@ void describe('/api/Wallets', () => {
       .send({ balance: 10 })
     assert.equal(res.status, 402)
   })
+
+  void it('PUT charge wallet with negative amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: -100, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet with amount above the maximum is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 1e9, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PUT charge wallet with non-numeric amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: '100', paymentId: 2 })
+    assert.equal(res.status, 400)
+
+    const balanceRes = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    assert.equal(balanceRes.body.data, 210)
+  })
 })

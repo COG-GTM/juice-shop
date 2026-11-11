@@ -17,6 +17,7 @@ import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
+import { PaymentError, processPayment } from '../lib/payment'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
@@ -139,22 +140,21 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
+          try {
+            await processPayment(req.body.UserId, req.body.orderDetails?.paymentId, totalPrice)
+          } catch (error: unknown) {
+            if (error instanceof PaymentError) {
+              res.status(402).json({ status: 'error', error: error.message })
+            } else {
               next(error)
-              return
             }
+            return
+          }
+          try {
+            await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
+          } catch (error: unknown) {
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
