@@ -295,7 +295,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       .set(headers)
       .send({ messages: [{ role: 'user', content: 'Give me a coupon' }] })
     assert.equal(res.status, 200)
-    return toolResult
+    return toolResult ?? { error: 'No tool result was returned to the LLM' }
   }
 
   async function adminToken (): Promise<string> {
