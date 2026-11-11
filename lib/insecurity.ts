@@ -132,7 +132,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     return user
   },
   tokenOf: function (user: UserModel) {
-    return user ? this.idMap[user.id] : undefined
+    const token = user ? this.idMap[user.id] : undefined
+    return token && this.get(token) ? token : undefined
   },
   from: function (req: Request) {
     const token = utils.jwtFrom(req)

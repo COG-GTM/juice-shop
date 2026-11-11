@@ -111,6 +111,17 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.tokenOf({ id: 1 } as unknown as UserModel)).to.equal(token)
     })
 
+    it('returns no token for a user whose session has expired', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
+      const clock = sinon.useFakeTimers(Date.now() + 7 * 60 * 60 * 1000)
+      try {
+        expect(security.authenticatedUsers.tokenOf({ id: 1 } as unknown as UserModel)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
     it('returns user by associated token from request', () => {
       const token = security.authorize({ data: { id: 1 } })
       security.authenticatedUsers.put(token, user)
