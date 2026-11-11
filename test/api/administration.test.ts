@@ -38,4 +38,13 @@ void describe('/rest/admin/application-configuration', () => {
     assert.equal(typeof res.body.config, 'object')
     assert.ok(res.body.config !== null)
   })
+
+  void it('GET application configuration does not expose security answers', async () => {
+    const res = await request(app)
+      .get('/rest/admin/application-configuration')
+
+    assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.config.memories))
+    assert.doesNotMatch(JSON.stringify(res.body.config), /SecurityAnswer/i)
+  })
 })

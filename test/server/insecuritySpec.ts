@@ -111,6 +111,46 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const run = (middleware: any, req: any) => {
+      let nextCalled = false
+      let statusCode: number | undefined
+      const res = { status: (code: number) => { statusCode = code; return res }, json: () => res }
+      middleware(req, res, () => { nextCalled = true })
+      return { nextCalled, statusCode }
+    }
+    const bearer = (token: string) => ({ headers: { authorization: `Bearer ${token}` }, params: {} })
+
+    it('passes admin token', () => {
+      expect(run(security.isAdmin(), bearer(security.authorize({ data: { id: 1, role: 'admin' } }))).nextCalled).to.equal(true)
+    })
+
+    it('rejects customer token with 403', () => {
+      expect(run(security.isAdmin(), bearer(security.authorize({ data: { id: 2, role: 'customer' } })))).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+
+    it('rejects unsigned token claiming admin role', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, role: 'admin' } })).toString('base64url')
+      expect(run(security.isAdmin(), bearer(`${header}.${payload}.`)).nextCalled).to.equal(false)
+    })
+
+    it('rejects missing token', () => {
+      expect(run(security.isAdmin(), { headers: {}, params: {} }).nextCalled).to.equal(false)
+    })
+
+    it('isSelfOrAdmin allows own id and rejects other ids for customers', () => {
+      const req = bearer(security.authorize({ data: { id: 2, role: 'customer' } }))
+      expect(run(security.isSelfOrAdmin(), { ...req, params: { id: '2' } }).nextCalled).to.equal(true)
+      expect(run(security.isSelfOrAdmin(), { ...req, params: { id: '1' } }).nextCalled).to.equal(false)
+    })
+
+    it('isSelfOrAdmin allows admin to read any id', () => {
+      const req = bearer(security.authorize({ data: { id: 1, role: 'admin' } }))
+      expect(run(security.isSelfOrAdmin(), { ...req, params: { id: '2' } }).nextCalled).to.equal(true)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
