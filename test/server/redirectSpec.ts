@@ -77,6 +77,16 @@ describe('redirect', () => {
     expect(challenges.redirectCryptoCurrencyChallenge.solved).to.equal(true)
   })
 
+  it('redirecting to a differently-cased allowlisted URL should not solve "redirectChallenge"', () => {
+    req.query.to = 'HTTPS://GITHUB.COM/juice-shop/juice-shop'
+    challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+
+    performRedirect()(req, res, next)
+
+    expect(res.redirect).to.have.been.calledWith('HTTPS://GITHUB.COM/juice-shop/juice-shop')
+    expect(challenges.redirectChallenge.solved).to.equal(false)
+  })
+
   describe('should reject URLs that merely contain an allowlisted URL', () => {
     for (const url of [
       'http://kimminich.de?to=https://github.com/juice-shop/juice-shop',
