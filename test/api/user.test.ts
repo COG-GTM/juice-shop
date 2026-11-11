@@ -6,6 +6,7 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import jws from 'jws'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -23,6 +24,27 @@ before(async () => {
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
+
+const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+const unsignedTokenHeader = { Authorization: `Bearer ${jws.sign({ header: { alg: 'none', typ: 'JWT' }, payload: forgedPayload, secret: '' })}` }
+const hmacForgedTokenHeader = { Authorization: `Bearer ${jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload: forgedPayload, secret: security.publicKey })}` }
+
+void describe('/api/Users with forged tokens', () => {
+  void it('GET is rejected for an unsigned token with algorithm "none"', async () => {
+    const res = await request(app).get('/api/Users').set(unsignedTokenHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET is rejected for a token HMAC-signed with the public RSA key', async () => {
+    const res = await request(app).get('/api/Users').set(hmacForgedTokenHeader)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET is accepted for a token signed with the private RSA key', async () => {
+    const res = await request(app).get('/api/Users').set(authHeader)
+    assert.equal(res.status, 200)
+  })
+})
 
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {

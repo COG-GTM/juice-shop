@@ -6,12 +6,35 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('verify', () => {
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }
+
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('rejects an unsigned token with algorithm "none"', () => {
+      const token = jws.sign({ header: { alg: 'none', typ: 'JWT' }, payload, secret: '' })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const token = jws.sign({ header: { alg: 'HS256', typ: 'JWT' }, payload, secret: security.publicKey })
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects malformed tokens', () => {
+      expect(security.verify('not.a.token')).to.equal(false)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
