@@ -180,6 +180,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .put('/rest/basket/2/coupon/' + encodeURIComponent(security.generateCoupon(150000)))
       .set(authHeader)
     assert.equal(couponRes.status, 200)
+    assert.equal(couponRes.body.discount, 100)
 
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
