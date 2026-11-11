@@ -77,12 +77,49 @@ describe('redirect', () => {
     expect(challenges.redirectCryptoCurrencyChallenge.solved).to.equal(true)
   })
 
-  it('tricking the allowlist should solve "redirectChallenge"', () => {
-    req.query.to = 'http://kimminich.de?to=https://github.com/juice-shop/juice-shop'
+  it('redirecting to a differently-cased allowlisted URL should not solve "redirectChallenge"', () => {
+    req.query.to = 'HTTPS://GITHUB.COM/juice-shop/juice-shop'
     challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
 
     performRedirect()(req, res, next)
 
-    expect(challenges.redirectChallenge.solved).to.equal(true)
+    expect(res.redirect).to.have.been.calledWith('HTTPS://GITHUB.COM/juice-shop/juice-shop')
+    expect(challenges.redirectChallenge.solved).to.equal(false)
+  })
+
+  describe('should reject URLs that merely contain an allowlisted URL', () => {
+    for (const url of [
+      'http://kimminich.de?to=https://github.com/juice-shop/juice-shop',
+      'https://evil.example/?x=https://github.com/juice-shop/juice-shop',
+      'https://evil.example/https://github.com/juice-shop/juice-shop',
+      'https://github.com/juice-shop/juice-shop@evil.example',
+      'https://github.com/juice-shop/juice-shop.evil.example',
+      'https://github.com/juice-shop/juice-shop/../../evil',
+      '/score-board?satisfyIndexOf=https://github.com/juice-shop/juice-shop',
+      '//evil.example/https://github.com/juice-shop/juice-shop'
+    ]) {
+      it(url, () => {
+        req.query.to = url
+        challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+
+        performRedirect()(req, res, next)
+
+        expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+        expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+        expect(challenges.redirectChallenge.solved).to.equal(false)
+      })
+    }
+  })
+
+  it('should raise error for missing or non-string target', () => {
+    for (const to of [undefined, ['https://github.com/juice-shop/juice-shop']]) {
+      req.query.to = to
+      next.resetHistory()
+
+      performRedirect()(req, res, next)
+
+      expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    }
   })
 })

@@ -885,18 +885,36 @@
 		]
 	},
 	"redirectChallenge_1.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			13,
+			14,
+			15,
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"redirectChallenge_2.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			13,
+			14,
+			15,
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"redirectChallenge_3.ts": {
-		"added": [],
+		"added": [
+			13,
+			14,
+			15,
+			16
+		],
 		"removed": [
-			18,
-			19,
+			16,
 			20,
 			21,
 			22,
@@ -907,12 +925,20 @@
 			27,
 			28,
 			29,
-			30
+			30,
+			31
 		]
 	},
 	"redirectChallenge_4_correct.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			13,
+			14,
+			15,
+			16
+		],
+		"removed": [
+			16
+		]
 	},
 	"redirectCryptoCurrencyChallenge_1.ts": {
 		"added": [],
