@@ -54,7 +54,7 @@ async function getVerifiedUserId (req: Request): Promise<number | undefined> {
   if (!token || jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
   const decoded = security.decode(token) as { exp?: number, data?: { id?: number } } | undefined
   if (decoded?.exp && decoded.exp * 1000 < Date.now()) return undefined
-  return decoded.data?.id
+  return decoded?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -193,10 +193,8 @@ export function chat () {
 
           const userId = await getVerifiedUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
-          const user = await UserModel.findByPk(userId, { attributes: ['email'] })
-          if (!user?.email) return { error: 'Customer not found' }
 
-          const order = await db.ordersCollection.findOne({ orderId, email: user.email.replace(/[aeiou]/gi, '*'), delivered: true })
+          const order = await db.ordersCollection.findOne({ orderId, UserId: userId, delivered: true })
           if (!order) return { error: 'No delivered order with this ID found for the current customer.' }
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line

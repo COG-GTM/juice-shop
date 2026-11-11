@@ -345,6 +345,18 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(result.error)
   })
 
+  void it('POST generateCoupon rejects orders of customers with the same masked email', { timeout: 15000 }, async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'edmin@juice-sh.op', password: 'edmin123' })
+      .expect(201)
+    const auth = await login(app, { email: 'edmin@juice-sh.op', password: 'edmin123' })
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, auth.token)
+    assert.equal(result.couponCode, undefined)
+    assert.ok(result.error)
+  })
+
   void it('POST generateCoupon rejects undelivered orders', { timeout: 15000 }, async () => {
     const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(false) }, await adminToken())
     assert.equal(result.couponCode, undefined)
