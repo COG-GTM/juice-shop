@@ -32,8 +32,8 @@ describe('contractListener', () => {
     const createProvider = sinon.stub().resolves(provider)
     const ensure = createContractListener({ name: 'test', address, abi, event: 'Ping', onEvent: () => {}, createProvider })
 
-    await Promise.all([ensure(), ensure(), ensure()])
-    await ensure()
+    expect(await Promise.all([ensure(), ensure(), ensure()])).to.deep.equal([true, true, true])
+    expect(await ensure()).to.equal(true)
 
     expect(createProvider.callCount).to.equal(1)
   })
@@ -47,16 +47,16 @@ describe('contractListener', () => {
     const clock = sinon.useFakeTimers({ now: 1000000, toFake: ['Date'] })
     try {
       const ensure = createContractListener({ name: 'test', address, abi, event: 'Ping', onEvent: () => {}, createProvider, retryDelayMs: 30000 })
-      await ensure()
+      expect(await ensure()).to.equal(true)
 
       first.websocket.onerror(new Error('boom'))
       expect(first.destroy.callCount).to.equal(1)
 
-      for (let i = 0; i < 100; i++) await ensure()
+      for (let i = 0; i < 100; i++) expect(await ensure()).to.equal(false)
       expect(createProvider.callCount).to.equal(1)
 
       clock.tick(30001)
-      await ensure()
+      expect(await ensure()).to.equal(true)
       expect(createProvider.callCount).to.equal(2)
     } finally {
       clock.restore()

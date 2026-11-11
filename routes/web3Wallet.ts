@@ -36,7 +36,10 @@ export function contractExploitListener () {
     }
     addBounded(walletsConnected, getAddress(metamaskAddress), MAX_TRACKED_WALLETS)
     try {
-      await ensureListening()
+      if (!await ensureListening()) {
+        res.status(503).json({ success: false, message: 'Event Listener unavailable, please retry later' })
+        return
+      }
       res.status(200).json({ success: true, message: 'Event Listener Created' })
     } catch (error) {
       res.status(500).json(utils.getErrorMessage(error))

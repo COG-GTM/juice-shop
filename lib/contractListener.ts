@@ -56,15 +56,19 @@ export function createContractListener ({ name, address, abi, event, onEvent, re
     })
   }
 
-  return async function ensureListening (): Promise<void> {
-    if (active) return await active
+  return async function ensureListening (): Promise<boolean> {
+    if (active) {
+      await active
+      return active !== null
+    }
     const now = Date.now()
-    if (now - lastAttempt < retryDelayMs) return
+    if (now - lastAttempt < retryDelayMs) return false
     lastAttempt = now
     const attempt = start()
     active = attempt
     try {
       await attempt
+      return active === attempt
     } catch (error) {
       if (active === attempt) {
         reset(provider)
