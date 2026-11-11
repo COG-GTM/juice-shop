@@ -76,6 +76,13 @@ void describe('/metrics', () => {
     assert.ok(res.headers['content-type']?.includes('text/plain'))
   })
 
+  void it('GET metrics accepts the bearer scheme case-insensitively', async () => {
+    await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', `bearer ${process.env.METRICS_SCRAPE_TOKEN}`)
+      .expect(200)
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
