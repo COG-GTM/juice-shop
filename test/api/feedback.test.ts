@@ -326,7 +326,7 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(replayRes.status, 401)
   })
 
-  void it('POST with wrong CAPTCHA answer invalidates that CAPTCHA', async () => {
+  void it('POST with wrong CAPTCHA answer does not consume that CAPTCHA', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
@@ -341,6 +341,6 @@ void describe('/api/Feedbacks/:id', () => {
       .post('/api/Feedbacks')
       .set(jsonHeader)
       .send({ comment: 'Guessing', rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
-    assert.equal(retryRes.status, 401)
+    assert.equal(retryRes.status, 201)
   })
 })
