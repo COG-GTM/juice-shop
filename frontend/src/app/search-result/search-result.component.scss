@@ -20,6 +20,16 @@
 
 }
 
+.sort-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: $space-m;
+}
+
+.sort-field {
+  min-width: 220px;
+}
+
 .product {
   display: flex;
   flex-direction: column;
