@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -120,6 +120,64 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.status, 'success')
+  })
+
+  void it('POST upgrade deluxe membership with wallet payment deducts the membership fee', async () => {
+    const { token } = await login(app, {
+      email: `morty@${config.get<string>('application.domain')}`,
+      password: 'focusOnScienceMorty!focusOnScience'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const before = await request(app).get('/rest/wallet/balance').set(authHeader)
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'wallet' })
+    const after = await request(app).get('/rest/wallet/balance').set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(after.body.data, before.body.data - 49)
+  })
+
+  void it('POST upgrade deluxe membership fails for unknown payment mode', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    for (const body of [{ paymentMode: 'free' }, { paymentMode: null }, {}]) {
+      const res = await request(app)
+        .post('/rest/deluxe-membership')
+        .set(authHeader)
+        .send(body)
+
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid payment mode')
+    }
+
+    const status = await request(app)
+      .get('/rest/deluxe-membership')
+      .set(authHeader)
+    assert.equal(status.status, 200)
+    assert.equal(status.body.data.membershipCost, 49)
+  })
+
+  void it('POST upgrade deluxe membership fails for new customers with empty wallet', async () => {
+    const email = `deluxe.empty.wallet@${config.get<string>('application.domain')}`
+    const password = 'EmptyWallet123!'
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set(authHeader)
+      .send({ paymentMode: 'wallet' })
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Insuffienct funds in Wallet')
   })
 
   void it('POST upgrade deluxe membership fails for customers with insufficient wallet balance', async () => {
