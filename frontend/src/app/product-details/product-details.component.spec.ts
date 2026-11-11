@@ -100,13 +100,13 @@ describe('ProductDetailsComponent', () => {
         textArea.value = 'Great product!'
         const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
         buttonDe.triggerEventHandler('click', null)
-        const reviewObject = { message: 'Great product!', author: 'Anonymous' }
+        const reviewObject = { message: 'Great product!' }
         expect(vi.mocked(productReviewService.create).mock.calls.length).toBe(1)
         expect(vi.mocked(productReviewService.create).mock.calls[0][0]).toBe(42)
         expect(vi.mocked(productReviewService.create).mock.calls[0][1]).toEqual(reviewObject)
     })
 
-    it('should post review with user email as author', () => {
+    it('should not send an author when posting a review as a logged-in user', () => {
         component.data = { productData: { id: 42 } as Product }
         userService.whoAmI.mockReturnValue(of({ email: 'horst@juice-sh.op' }))
         component.ngOnInit()
@@ -114,7 +114,7 @@ describe('ProductDetailsComponent', () => {
         textArea.value = 'Great product!'
         const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
         buttonDe.triggerEventHandler('click', null)
-        const reviewObject = { message: 'Great product!', author: 'horst@juice-sh.op' }
+        const reviewObject = { message: 'Great product!' }
         expect(vi.mocked(productReviewService.create).mock.calls.length).toBe(1)
         expect(vi.mocked(productReviewService.create).mock.calls[0][0]).toBe(42)
         expect(vi.mocked(productReviewService.create).mock.calls[0][1]).toEqual(reviewObject)

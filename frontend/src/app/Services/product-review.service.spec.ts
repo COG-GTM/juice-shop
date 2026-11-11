@@ -41,11 +41,11 @@ describe('ProductReviewService', () => {
         const httpMock = TestBed.inject(HttpTestingController)
 
         let res: any
-        service.create(42, { message: 'A', author: 'B' }).subscribe((data: any) => (res = data))
+        service.create(42, { message: 'A' }).subscribe((data: any) => (res = data))
         const req = httpMock.expectOne('http://localhost:3000/rest/products/42/reviews')
         req.flush({ data: 'apiResponse' })
         expect(req.request.method).toBe('PUT')
-        expect(req.request.body).toEqual({ message: 'A', author: 'B' })
+        expect(req.request.body).toEqual({ message: 'A' })
         expect(res).toBe('apiResponse')
         httpMock.verify()
     })
@@ -85,7 +85,7 @@ describe('ProductReviewService', () => {
         const httpMock = TestBed.inject(HttpTestingController)
 
         let capturedError: any
-        service.create(42, { message: 'A', author: 'B' }).subscribe({ next: () => { }, error: (e) => { capturedError = e } })
+        service.create(42, { message: 'A' }).subscribe({ next: () => { }, error: (e) => { capturedError = e } })
         const req = httpMock.expectOne('http://localhost:3000/rest/products/42/reviews')
         req.flush(null, { status: 400, statusText: 'Bad Request' })
         expect(capturedError).toBeTruthy()

@@ -49,14 +49,50 @@ void describe('/rest/products/:id/reviews', () => {
   })
 
   void it('PUT single product review can be created', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message: 'Lorem Ipsum'
+      })
+    assert.equal(res.status, 201)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
+  void it('PUT product review without authentication is rejected', async () => {
     const res = await request(app)
       .put('/rest/products/1/reviews')
       .send({
         message: 'Lorem Ipsum',
-        author: 'Anonymous'
+        author: 'admin@juice-sh.op'
       })
-    assert.equal(res.status, 201)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT product review ignores author from request body and uses logged-in user', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const message = `Forged author attempt ${Date.now()}`
+    const putRes = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        message,
+        author: 'admin@juice-sh.op'
+      })
+    assert.equal(putRes.status, 201)
+
+    const getRes = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = getRes.body.data.find((r: { message: string }) => r.message === message)
+    assert.ok(review)
+    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
   })
 })
 
@@ -124,7 +160,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 2)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
