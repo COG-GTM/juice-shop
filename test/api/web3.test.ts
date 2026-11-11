@@ -10,11 +10,15 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+let wallet: { privateKey: string, publicKey: string, address: string }
 
 const skipReason = process.env.ALCHEMY_API_KEY ? undefined : 'ALCHEMY_API_KEY not set'
 
 before(async () => {
   if (!process.env.ALCHEMY_API_KEY) return
+  const { HDNodeWallet, Mnemonic, randomBytes } = await import('ethers')
+  process.env.NFT_WALLET_MNEMONIC = Mnemonic.fromEntropy(randomBytes(16)).phrase
+  wallet = HDNodeWallet.fromPhrase(process.env.NFT_WALLET_MNEMONIC)
   const result = await createTestApp()
   app = result.app
 }, { timeout: 60000 })
@@ -45,7 +49,7 @@ void describe('/submitKey', { skip: skipReason }, () => {
   void it('POST public wallet key in request body gets rejected as such', async () => {
     const res = await request(app)
       .post('/rest/web3/submitKey')
-      .send({ privateKey: '0x02c7a2a93289c9fbda5990bac6596993e9bb0a8d3f178175a80b7cfd983983f506' })
+      .send({ privateKey: wallet.publicKey })
 
     assert.equal(res.status, 401)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -56,7 +60,7 @@ void describe('/submitKey', { skip: skipReason }, () => {
   void it('POST wallet address in request body gets rejected as such', async () => {
     const res = await request(app)
       .post('/rest/web3/submitKey')
-      .send({ privateKey: '0x8343d2eb2B13A2495De435a1b15e85b98115Ce05' })
+      .send({ privateKey: wallet.address })
 
     assert.equal(res.status, 401)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -67,7 +71,7 @@ void describe('/submitKey', { skip: skipReason }, () => {
   void it('POST private key in request body gets accepted', async () => {
     const res = await request(app)
       .post('/rest/web3/submitKey')
-      .send({ privateKey: '0x5bcc3e9d38baa06e7bfaab80ae5957bbe8ef059e640311d7d6d465e6bc948e3e' })
+      .send({ privateKey: wallet.privateKey })
 
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -84,6 +88,24 @@ void describe('/nftUnlocked', { skip: skipReason }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.status, 'boolean')
+    assert.equal(res.body.address, wallet.address)
+  })
+})
+
+void describe('NFT wallet seed phrase', { skip: skipReason }, () => {
+  void it('leaked in seeded feedback derives the accepted private key', async () => {
+    const feedbacks = await request(app).get('/api/Feedbacks')
+    const comment: string = feedbacks.body.data.find((f: { comment: string }) => f.comment.includes('/juicy-nft')).comment
+    const phrase = comment.match(/"(.+)"/)?.[1] ?? ''
+    assert.equal(phrase, process.env.NFT_WALLET_MNEMONIC)
+
+    const { HDNodeWallet } = await import('ethers')
+    const res = await request(app)
+      .post('/rest/web3/submitKey')
+      .send({ privateKey: HDNodeWallet.fromPhrase(phrase).privateKey })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.success, true)
   })
 })
 
