@@ -164,6 +164,19 @@ export const isAccounting = () => {
   }
 }
 
+export const isAdminOrHintUnlock = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const body = req.body
+    const isHintUnlock = body !== null && typeof body === 'object' && !Array.isArray(body) && Object.keys(body).length === 1 && body.unlocked === true
+    if (decodedToken?.data?.role === roles.admin || isHintUnlock) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
 export const isDeluxe = (req: Request) => {
   const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
   return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
