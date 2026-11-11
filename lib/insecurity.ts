@@ -96,28 +96,37 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+const couponSecret = process.env.COUPON_SECRET ?? crypto.randomBytes(32).toString('hex')
+const couponMacLength = 8
+const couponPattern = /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-([0-9]{2})$/
+
+const couponMac = (payload: string) => crypto.createHmac('sha256', couponSecret).update(payload).digest().subarray(0, couponMacLength)
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  if (!Number.isInteger(discount) || discount < 1 || discount > 99) {
+    throw new RangeError('Coupon discount must be an integer between 1 and 99.')
+  }
+  const payload = utils.toMMMYY(date) + '-' + String(discount).padStart(2, '0')
+  return z85.encode(Buffer.concat([Buffer.from(payload), couponMac(payload)]))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (!decoded || decoded.length <= couponMacLength) {
+    return undefined
   }
-}
-
-function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  const payload = Buffer.from(decoded.subarray(0, decoded.length - couponMacLength)).toString()
+  const mac = Buffer.from(decoded.subarray(decoded.length - couponMacLength))
+  if (!crypto.timingSafeEqual(mac, couponMac(payload))) {
+    return undefined
+  }
+  const match = couponPattern.exec(payload)
+  if (match && utils.toMMMYY(new Date()) === payload.split('-')[0]) {
+    return parseInt(match[2], 10)
+  }
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge

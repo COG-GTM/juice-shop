@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -16,7 +18,11 @@ let authHeader: { Authorization: string, 'content-type': string }
 
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
-const forgedCoupon = security.generateCoupon(99)
+const maxCoupon = security.generateCoupon(99)
+const couponWithPercentSign = Array.from({ length: 99 }, (_, i) => security.generateCoupon(i + 1)).find(coupon => coupon.includes('%'))
+const currentMonth = Buffer.from(z85.decode(validCoupon)).subarray(0, 5).toString()
+const unsignedCoupon = z85.encode(`${currentMonth}-99`)
+const forgedSignatureCoupon = z85.encode(Buffer.concat([Buffer.from(`${currentMonth}-99`), Buffer.alloc(8)]))
 
 before(
   async () => {
@@ -148,9 +154,9 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing an order for a basket with 99% discount is possible', async () => {
+  void it('POST placing an order for a basket with a server-issued 99% coupon is possible', async () => {
     const couponRes = await request(app)
-      .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(maxCoupon))
       .set(authHeader)
     assert.equal(couponRes.status, 200)
     assert.ok(couponRes.headers['content-type']?.includes('application/json'))
@@ -159,6 +165,37 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order with an expired campaign coupon grants no discount', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const couponData = Buffer.from(`WMNSDY2019-${new Date('Mar 08, 2019 00:00:00 GMT+0100').getTime()}`).toString('base64')
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ couponData })
+    assert.equal(res.status, 200)
+
+    const orderRes = await request(app).get('/rest/track-order/' + res.body.orderConfirmation)
+    assert.equal(orderRes.status, 200)
+    assert.equal(orderRes.body.data[0].promotionalAmount, '0')
+  })
+
+  void it('POST placing an order with a negative total via wallet does not credit the wallet', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 2, quantity: -100 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app)
+      .post('/rest/basket/2/checkout')
+      .set(authHeader)
+      .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Insufficient wallet balance.'))
   })
 })
 
@@ -172,6 +209,13 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.body.discount, 15)
   })
 
+  void it('PUT apply valid coupon containing a percent sign', { skip: couponWithPercentSign === undefined }, async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(couponWithPercentSign ?? ''))
+      .set(authHeader)
+    assert.equal(res.status, 200)
+  })
+
   void it('PUT apply invalid coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/xxxxxxxxxx')
@@ -182,6 +226,20 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply unsigned coupon is not accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply coupon with forged signature is not accepted', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(forgedSignatureCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })
