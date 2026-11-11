@@ -137,20 +137,47 @@ void describe('/api/BasketItems/:id', () => {
     assert.deepEqual(res.body.errors, [{ field: 'BasketId', message: '`BasketId` cannot be updated due `noUpdate` constraint' }])
   })
 
-  void it('PUT update basket ID of basket item without basket ID', async () => {
+  void it('POST new basket item without basket ID is added to own basket', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
-      .send({ ProductId: 8, quantity: 8 })
+      .send({ ProductId: 7, quantity: 1 })
     assert.equal(createRes.status, 200)
-    assert.equal(createRes.body.data.BasketId, undefined)
+    assert.equal(createRes.body.data.BasketId, 2)
 
     const res = await request(app)
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
-    assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST new basket item into basket of another user is forbidden', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 1, ProductId: 8, quantity: 1 })
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST new basket item with duplicate BasketId keys targeting another basket is forbidden', async () => {
+    for (const body of [
+      '{"ProductId":8,"BasketId":2,"quantity":1,"BasketId":1}',
+      '{"ProductId":8,"BasketId":"2","quantity":1,"BasketId":"1"}',
+      '{"ProductId":8,"BasketId":1,"quantity":1,"BasketId":2}',
+      '{"ProductId":8,"BasketId":"undefined","quantity":1,"BasketId":1}',
+      '{"ProductId":8,"BasketId":null,"quantity":1,"BasketId":1}',
+      '{"ProductId":8,"BasketId":0,"quantity":1,"BasketId":1}'
+    ]) {
+      const res = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send(body)
+      assert.equal(res.status, 401, body)
+    }
+
+    const items = await request(app).get('/api/BasketItems').set(authHeader)
+    assert.equal(items.body.data.filter((item: { BasketId: number, ProductId: number }) => item.BasketId === 1 && item.ProductId === 8).length, 0)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {

@@ -40,23 +40,20 @@ describe('/#/basket', () => {
       })
     })
 
-    describe('challenge "basketAccessChallenge"', () => {
-      it('should access basket with id from session storage instead of the one associated to logged-in user', () => {
-        cy.window().then(() => {
-          window.sessionStorage.bid = 3
-        })
-
-        cy.visit('/#/basket')
-
-        // TODO Verify functionally that it's not the basket of the admin
-        cy.expectChallengeSolved({ challenge: 'View Basket' })
-      })
-    })
-
-    describe('challenge "basketManipulateChallenge"', () => {
-      it('should manipulate basket of other user instead of the one associated to logged-in user', () => {
+    describe('basket ownership', () => {
+      it('should not be possible to view the basket of another user', () => {
         cy.window().then(async () => {
-          await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
+          const response = await fetch(`${Cypress.config('baseUrl')}/rest/basket/3`, {
+            cache: 'no-cache',
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          })
+          expect(response.status).to.equal(403)
+        })
+      })
+
+      it('should not be possible to add items to the basket of another user with duplicate BasketId keys', () => {
+        cy.window().then(async () => {
+          const response = await fetch(`${Cypress.config('baseUrl')}/api/BasketItems/`, {
             method: 'POST',
             cache: 'no-cache',
             headers: {
@@ -65,8 +62,8 @@ describe('/#/basket', () => {
             },
             body: '{ "ProductId": 14,"BasketId":"1","quantity":1,"BasketId":"2" }'
           })
+          expect(response.status).to.equal(401)
         })
-        cy.expectChallengeSolved({ challenge: 'Manipulate Basket' })
       })
     })
   })

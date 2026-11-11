@@ -6,11 +6,16 @@
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
+import { ownedBasketId } from './basket'
 
 export function applyCoupon () {
-  return async ({ params }: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const id = params.id
+      const { params } = req
+      const id = await ownedBasketId(req, params.id)
+      if (id == null) {
+        return res.status(403).json({ error: 'Basket does not belong to the authenticated user.' })
+      }
       let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
