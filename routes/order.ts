@@ -35,6 +35,10 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isInteger(BasketItem.quantity) && BasketItem.quantity >= 1))) {
+            next(new Error('Basket contains an item with an invalid quantity.'))
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -137,6 +141,12 @@ export function placeOrder () {
           doc.moveDown()
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
+          if (totalPrice < 0) {
+            fileWriter.removeAllListeners('finish')
+            doc.end()
+            next(new Error('Order total must not be negative.'))
+            return
+          }
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           if (req.body.UserId) {
@@ -185,7 +195,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   const discount = security.discountFromCoupon(basket.coupon ?? undefined)
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
-    return discount
+    return Math.min(discount, 100)
   } else if (req.body.couponData) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]

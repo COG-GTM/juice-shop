@@ -23,7 +23,7 @@ export function applyCoupon () {
 
       await basket.update({ coupon: coupon?.toString() })
       if (discount) {
-        return res.json({ discount })
+        return res.json({ discount: Math.min(discount, 100) })
       } else {
         return res.status(404).send('Invalid coupon.')
       }
