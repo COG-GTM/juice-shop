@@ -117,7 +117,7 @@ function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, em
     }
 
     challengeUtils.solveIf(challenge, () => {
-      return hasAlgorithm(token, algorithm) && isSignedWith(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
+      return hasAlgorithm(token, algorithm) && isSignedWith(token, algorithm) && isNotExpired(decoded) && hasEmail(decoded as { data: { email: string } }, email)
     })
   }
 }
@@ -133,6 +133,10 @@ function isSignedWith (token: string, algorithm: string) {
   } catch {
     return false
   }
+}
+
+function isNotExpired (payload: { exp?: unknown }) {
+  return typeof payload.exp !== 'number' || Date.now() / 1000 < payload.exp
 }
 
 function hasEmail (token: { data: { email: string } }, email: string | RegExp) {

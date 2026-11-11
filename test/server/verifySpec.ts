@@ -288,6 +288,16 @@ describe('verify', () => {
       expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
     })
 
+    it('"jwtUnsignedChallenge" is not solved via expired unsigned token with email jwtn3d@juice-sh.op in the payload', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'jwtn3d@juice-sh.op' }, iat: 1508639612, exp: 1508639613 })).toString('base64url')
+      req.headers = { authorization: `Bearer ${header}.${payload}.` }
+
+      verify.jwtChallenges()(req, res, next)
+
+      expect(challenges.jwtUnsignedChallenge.solved).to.equal(false)
+    })
+
     if (!isWindows()) { // The "jwtForgedChallenge" is disabled on Windows due to an incompatibility
       it('"jwtForgedChallenge" is solved when forged token HMAC-signed with public RSA-key has email rsa_lord@juice-sh.op in the payload', () => {
         /*
