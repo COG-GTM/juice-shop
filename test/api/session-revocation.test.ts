@@ -100,4 +100,41 @@ void describe('session revocation', () => {
       .set({ Authorization: 'Bearer ' + cookieToken })
       .expect(401)
   })
+
+  void it('logout revokes a same-user token passed in the body but ignores foreign ones', async () => {
+    await register(app, { email: 'revoke.body@juice-sh.op', password: 'somePassword1' })
+    await register(app, { email: 'revoke.foreign@juice-sh.op', password: 'somePassword1' })
+    const { token } = await login(app, { email: 'revoke.body@juice-sh.op', password: 'somePassword1' })
+    const { token: profileToken } = await login(app, { email: 'revoke.body@juice-sh.op', password: 'somePassword1' })
+    const { token: foreignToken } = await login(app, { email: 'revoke.foreign@juice-sh.op', password: 'somePassword1' })
+
+    await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: 'Bearer ' + token })
+      .send({ token: profileToken })
+      .expect(204)
+
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + profileToken })
+      .expect(401)
+
+    await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: 'Bearer ' + profileToken })
+      .send({ token: foreignToken })
+      .expect(204)
+
+    const { token: freshToken } = await login(app, { email: 'revoke.body@juice-sh.op', password: 'somePassword1' })
+    await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: 'Bearer ' + freshToken })
+      .send({ token: foreignToken })
+      .expect(204)
+
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + foreignToken })
+      .expect(200)
+  })
 })

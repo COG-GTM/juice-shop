@@ -72,8 +72,8 @@ export class UserService {
     return this.http.get(this.hostServer + '/rest/saveLoginIp').pipe(map((response: any) => response), catchError((err) => { throw err }))
   }
 
-  logout (token: string) {
-    return this.http.post(this.hostServer + '/rest/user/logout', {}, { headers: { Authorization: `Bearer ${token}` } }).pipe(catchError((err) => { throw err }))
+  logout (token: string, cookieToken?: string) {
+    return this.http.post(this.hostServer + '/rest/user/logout', cookieToken ? { token: cookieToken } : {}, { headers: { Authorization: `Bearer ${token}` } }).pipe(catchError((err) => { throw err }))
   }
 
   deluxeStatus () {

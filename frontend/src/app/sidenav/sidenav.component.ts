@@ -92,9 +92,10 @@ export class SidenavComponent implements OnInit {
 
   logout () {
     const token = localStorage.getItem('token')
+    const cookieToken = this.cookieService.get('token')
     this.userService.saveLastLoginIp().subscribe({
-      next: () => { this.revokeSession(token) },
-      error: (err) => { console.log(err); this.revokeSession(token) }
+      next: () => { this.revokeSession(token, cookieToken) },
+      error: (err) => { console.log(err); this.revokeSession(token, cookieToken) }
     })
     localStorage.removeItem('token')
     this.cookieService.remove('token')
@@ -105,9 +106,9 @@ export class SidenavComponent implements OnInit {
     this.ngZone.run(async () => await this.router.navigate(['/']))
   }
 
-  private revokeSession (token: string | null) {
+  private revokeSession (token: string | null, cookieToken?: string) {
     if (token) {
-      this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+      this.userService.logout(token, cookieToken !== token ? cookieToken : undefined).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     }
   }
 

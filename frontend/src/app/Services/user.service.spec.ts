@@ -215,6 +215,20 @@ describe('UserService', () => {
 
         expect(req.request.method).toBe('POST')
         expect(req.request.headers.get('Authorization')).toBe('Bearer session-token')
+        expect(req.request.body).toEqual({})
+        httpMock.verify()
+    })
+
+    it('should send an additional cookie token to the logout endpoint', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.logout('session-token', 'profile-token').subscribe()
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/logout')
+        req.flush(null)
+
+        expect(req.request.body).toEqual({ token: 'profile-token' })
         httpMock.verify()
     })
 

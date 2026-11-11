@@ -200,7 +200,14 @@ describe('SidenavComponent', () => {
     it('should revoke the session token on the server', () => {
         localStorage.setItem('token', 'session-token')
         component.logout()
-        expect(userService.logout).toHaveBeenCalledWith('session-token')
+        expect(userService.logout).toHaveBeenCalledWith('session-token', undefined)
+    })
+
+    it('should also revoke a differing cookie token on the server', () => {
+        localStorage.setItem('token', 'session-token')
+        cookieService.get.mockImplementation((name: string) => name === 'token' ? 'profile-token' : undefined)
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('session-token', 'profile-token')
     })
 
     it('should forward to main page', async () => {
