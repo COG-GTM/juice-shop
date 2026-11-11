@@ -82,4 +82,16 @@ void describe('WebSocket', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
   })
+
+  for (const event of ['verifyLocalXssChallenge', 'verifySvgInjectionChallenge', 'verifyCloseNotificationsChallenge', 'notification received']) {
+    void it(`server survives non-string payloads for '${event}'`, async () => {
+      for (const payload of [123, true, {}, { includes: 1, match: 1 }, ['a', 'b'], null]) {
+        socket.emit(event, payload)
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+      assert.equal(res.status, 200)
+      assert.ok(socket.connected)
+    })
+  }
 })
