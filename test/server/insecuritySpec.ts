@@ -192,6 +192,16 @@ describe('insecurity', () => {
       }
     })
 
+    it('rejects a revoked token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.revoke(token)
+      try {
+        expect(security.verify(token)).to.equal(false)
+      } finally {
+        security.authenticatedUsers.revokedTokens = {}
+      }
+    })
+
     it('rejects a validly signed token without expiry', () => {
       const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
       expect((jws.verify as (token: string, key: string) => boolean)(token, security.publicKey)).to.equal(true)
