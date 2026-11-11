@@ -25,6 +25,7 @@ import { WalletModel } from '../models/wallet'
 import { type Product } from './types'
 import logger from '../lib/logger'
 import { getCodeChallenges } from '../lib/codingChallenges'
+import { getNftWalletMnemonic } from '../lib/nftWallet'
 import type { Memory as MemoryConfig, Product as ProductConfig } from '../lib/config.types'
 import config from 'config'
 import * as utils from '../lib/utils'
@@ -201,7 +202,7 @@ async function createUsers () {
         })
         datacache.users[key] = user
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
-        if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
+        if (feedback != null) await createFeedback(user.id, feedback.comment.replace('{{nftWalletMnemonic}}', await getNftWalletMnemonic()), feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
         if (card != null) await createCards(user.id, card)
