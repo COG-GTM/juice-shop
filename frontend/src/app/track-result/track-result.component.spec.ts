@@ -11,7 +11,7 @@ import { MatTableModule } from '@angular/material/table'
 import { MatCardModule } from '@angular/material/card'
 import { RouterTestingModule } from '@angular/router/testing'
 import { TrackOrderService } from '../Services/track-order.service'
-import { of } from 'rxjs'
+import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('TrackResultComponent', () => {
@@ -53,6 +53,17 @@ describe('TrackResultComponent', () => {
     it('should render order number as text instead of HTML', () => {
         component.orderId = '<img src=x onerror=alert(1)>'
         trackOrderService.find.mockReturnValue(of({ data: [{ orderId: component.orderId }] }))
+        component.ngOnInit()
+        fixture.detectChanges()
+
+        const code: HTMLElement = fixture.nativeElement.querySelector('h1 code')
+        expect(code.textContent).toBe('<img src=x onerror=alert(1)>')
+        expect(code.querySelector('img')).toBeNull()
+    })
+
+    it('should show the requested order number as text when the lookup fails', () => {
+        component.orderId = '<img src=x onerror=alert(1)>'
+        trackOrderService.find.mockReturnValue(throwError(() => new Error('Wrong Param')))
         component.ngOnInit()
         fixture.detectChanges()
 
