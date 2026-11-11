@@ -13,7 +13,8 @@ describe('/#/contact', () => {
       solveNextCaptcha()
     })
 
-    it('should be possible to provide feedback as another user', () => {
+    it('should solve the challenge but store the feedback under the logged-in user', () => {
+      cy.intercept('POST', '/api/Feedbacks').as('postFeedback')
       cy.get('#userId').then(function ($element) {
         $element[0].removeAttribute('hidden')
         $element[0].removeAttribute('class')
@@ -24,19 +25,7 @@ describe('/#/contact', () => {
       cy.get('#comment').type('Picard stinks!')
       cy.get('#submitButton').should('not.be.disabled').click()
 
-      cy.visit('/#/administration')
-
-      cy.get(
-        '.customer-table > .mat-mdc-table > :nth-child(8) > .cdk-column-user'
-      ).then(($val) => {
-        if ($val.text() !== ' 2') {
-          cy.get(
-            '.customer-table > .mat-mdc-table > :nth-child(9) > .cdk-column-user'
-          ).should('contain.text', '2')
-        } else {
-          expect($val.text()).contain('2')
-        }
-      })
+      cy.wait('@postFeedback').its('response.body.data.UserId').should('equal', 1)
 
       cy.expectChallengeSolved({ challenge: 'Forged Feedback' })
     })
