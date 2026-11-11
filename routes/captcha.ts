@@ -4,7 +4,12 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { CaptchaModel } from '../models/captcha'
+
+const CAPTCHA_TTL_MS = 5 * 60 * 1000
+
+const expiryCutoff = () => new Date(Date.now() - CAPTCHA_TTL_MS)
 
 export function captchas () {
   return async (req: Request, res: Response) => {
@@ -26,6 +31,7 @@ export function captchas () {
       captcha: expression,
       answer
     }
+    await CaptchaModel.destroy({ where: { createdAt: { [Op.lt]: expiryCutoff() } } })
     const captchaInstance = CaptchaModel.build(captcha)
     await captchaInstance.save()
     res.json(captcha)
@@ -34,8 +40,9 @@ export function captchas () {
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
+    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId, createdAt: { [Op.gte]: expiryCutoff() } } })
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId: captcha.captchaId } }) > 0
+    if (consumed && req.body.captcha === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
