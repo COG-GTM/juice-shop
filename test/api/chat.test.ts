@@ -8,7 +8,9 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login, register } from './helpers/auth'
 
 const MOCK_LLM_PORT = 43210
 
@@ -72,12 +74,46 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   res.end()
 }
 
+function unsignedToken (payload: object): string {
+  const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  return `${encode({ typ: 'JWT', alg: 'none' })}.${encode(payload)}.`
+}
+
+function getOrderByIdHandler (orderId: string, onToolResult: (content: string) => void) {
+  let callCount = 0
+  return (_req: http.IncomingMessage, body: string, res: http.ServerResponse) => {
+    callCount++
+    if (callCount === 1) {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    } else {
+      const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+      onToolResult(toolMsg?.content ?? '')
+      sendSSE(res, [contentChunk('Done'), finishChunk()])
+    }
+  }
+}
+
+async function firstAdminOrderId (): Promise<string> {
+  const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+  const res = await request(app)
+    .get('/rest/order-history')
+    .set({ Authorization: 'Bearer ' + token })
+  return res.body.data[0].orderId
+}
+
 before(async () => {
   await new Promise<void>((resolve) => {
     mockServer = http.createServer((req, res) => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
+        if (req.method !== 'POST') {
+          res.end()
+          return
+        }
         onLlmRequest(req, body, res)
       })
     })
@@ -265,5 +301,66 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void it('POST ignores unsigned alg:none token when identifying the customer', { timeout: 15000 }, async () => {
+    let systemPrompt = ''
+    onLlmRequest = (_req, body, res) => {
+      systemPrompt = JSON.parse(body).messages[0].content
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + unsignedToken({ data: { id: 1 } }) })
+      .send({ messages: [{ role: 'user', content: 'What is my name?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(!systemPrompt.includes('The customer you are currently chatting with'))
+  })
+
+  void it('POST getOrderById rejects unsigned alg:none token', { timeout: 30000 }, async () => {
+    const orderId = await firstAdminOrderId()
+    let toolResult = ''
+    onLlmRequest = getOrderByIdHandler(orderId, (content) => { toolResult = content })
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + unsignedToken({ data: { id: 1 } }) })
+      .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
+  })
+
+  void it('POST getOrderById returns order to its owner', { timeout: 30000 }, async () => {
+    const orderId = await firstAdminOrderId()
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    let toolResult = ''
+    onLlmRequest = getOrderByIdHandler(orderId, (content) => { toolResult = content })
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + token })
+      .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+    assert.ok(toolResult.includes(orderId))
+    assert.ok(toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById rejects user whose email masks to the same value as the owner', { timeout: 30000 }, async () => {
+    const orderId = await firstAdminOrderId()
+    const collidingEmail = 'odmun@' + config.get<string>('application.domain')
+    await register(app, { email: collidingEmail, password: 'collision123' })
+    const { token } = await login(app, { email: collidingEmail, password: 'collision123' })
+    let toolResult = ''
+    onLlmRequest = getOrderByIdHandler(orderId, (content) => { toolResult = content })
+
+    await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: 'Bearer ' + token })
+      .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+    assert.ok(toolResult.includes('Order does not belong to the current customer'))
+    assert.ok(!toolResult.includes('Apple Juice'))
   })
 })
