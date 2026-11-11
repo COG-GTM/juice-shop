@@ -7,8 +7,9 @@
         execute: async ({ discount, orderId, authenticatedUser }) => {
           const order = await db.ordersCollection.findOne({ orderId, email: authenticatedUser?.email, status: OrderStatus.DAMAGED })
           if (!order) return { error: 'No verified damaged order found for this order ID.' }
-          const couponCode = security.generateCoupon(discount)
-          return { couponCode, discount }
+          const cappedDiscount = Math.max(0, Math.min(Math.trunc(discount), MAX_CHATBOT_COUPON_DISCOUNT))
+          const couponCode = security.generateCoupon(cappedDiscount)
+          return { couponCode, discount: cappedDiscount }
         }
       }),
 

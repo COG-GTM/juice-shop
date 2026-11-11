@@ -197,7 +197,8 @@
 			51,
 			52,
 			53,
-			54
+			54,
+			55
 		]
 	},
 	"chatbotGreedyInjectionChallenge_2_correct.ts": {
@@ -330,7 +331,8 @@
 			52,
 			53,
 			54,
-			55
+			55,
+			56
 		]
 	},
 	"chatbotGreedyInjectionChallenge_3.ts": {
@@ -469,7 +471,8 @@
 			58,
 			59,
 			60,
-			61
+			61,
+			62
 		]
 	},
 	"chatbotGreedyInjectionChallenge_4.ts": {
@@ -604,32 +607,28 @@
 			52,
 			53,
 			54,
-			55
+			55,
+			56
 		]
 	},
 	"chatbotPromptInjectionChallenge_1.ts": {
 		"added": [
-			1,
-			7
+			1
 		],
 		"removed": [
-			1,
-			6,
-			7
+			1
 		]
 	},
 	"chatbotPromptInjectionChallenge_2_correct.ts": {
 		"added": [
 			1,
-			6,
-			7
+			6
 		],
 		"removed": [
 			1,
 			3,
 			5,
 			6,
-			7,
 			7,
 			10,
 			11,
@@ -648,37 +647,34 @@
 			24,
 			25,
 			26,
-			27
+			27,
+			28,
+			29,
+			30
 		]
 	},
 	"chatbotPromptInjectionChallenge_3.ts": {
 		"added": [
-			1,
-			7
+			1
 		],
 		"removed": [
 			1,
 			3,
 			5,
-			6,
-			6,
-			7
+			6
 		]
 	},
 	"chatbotPromptInjectionChallenge_4.ts": {
 		"added": [
 			1,
-			6,
-			7
+			6
 		],
 		"removed": [
 			1,
 			5,
 			6,
 			7,
-			10,
-			11,
-			12
+			10
 		]
 	},
 	"dbSchemaChallenge_1.ts": {
