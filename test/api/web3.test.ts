@@ -88,6 +88,24 @@ void describe('/nftUnlocked', { skip: skipReason }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.status, 'boolean')
+    assert.equal(res.body.address, wallet.address)
+  })
+})
+
+void describe('NFT wallet seed phrase', { skip: skipReason }, () => {
+  void it('leaked in seeded feedback derives the accepted private key', async () => {
+    const feedbacks = await request(app).get('/api/Feedbacks')
+    const comment: string = feedbacks.body.data.find((f: { comment: string }) => f.comment.includes('/juicy-nft')).comment
+    const phrase = comment.match(/"(.+)"/)?.[1] ?? ''
+    assert.equal(phrase, process.env.NFT_WALLET_MNEMONIC)
+
+    const { HDNodeWallet } = await import('ethers')
+    const res = await request(app)
+      .post('/rest/web3/submitKey')
+      .send({ privateKey: HDNodeWallet.fromPhrase(phrase).privateKey })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.success, true)
   })
 })
 
