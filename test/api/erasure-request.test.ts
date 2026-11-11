@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -28,6 +29,7 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('bjoern@owasp.org'))
     assert.ok(res.text.includes('Name of your favorite pet?'))
+    assert.ok(res.text.includes(`name="_csrf" value="${security.csrfTokenFor(token)}"`))
   })
 
   void it('GET erasure form rendering fails for users without assigned security answer', async () => {
@@ -55,7 +57,8 @@ void describe('/dataerasure', () => {
     const res = await request(app)
       .post('/dataerasure/')
       .set({ Cookie: 'token=' + token })
-      .field('email', 'bjoern.kimminich@gmail.com')
+      .type('form')
+      .send({ email: 'bjoern.kimminich@gmail.com', _csrf: security.csrfTokenFor(token) })
 
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('text/html'))
@@ -82,7 +85,7 @@ void describe('/dataerasure', () => {
     const res = await request(app)
       .post('/dataerasure/')
       .set({ Cookie: 'token=' + token })
-      .send({ layout: null })
+      .send({ layout: null, _csrf: security.csrfTokenFor(token) })
 
     assert.equal(res.status, 200)
   })
@@ -93,7 +96,7 @@ void describe('/dataerasure', () => {
     const res = await request(app)
       .post('/dataerasure/')
       .set({ Cookie: 'token=' + token })
-      .send({ layout: '../this/file/does/not/exist' })
+      .send({ layout: '../this/file/does/not/exist', _csrf: security.csrfTokenFor(token) })
 
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('no such file or directory'))
@@ -105,10 +108,35 @@ void describe('/dataerasure', () => {
     const res = await request(app)
       .post('/dataerasure/')
       .set({ Cookie: 'token=' + token })
-      .send({ layout: '../package.json' })
+      .send({ layout: '../package.json', _csrf: security.csrfTokenFor(token) })
 
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('juice-shop'))
     assert.ok(res.text.includes('......'))
+  })
+
+  void it('POST erasure request without CSRF token is rejected', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send({ email: 'bjoern.kimminich@gmail.com' })
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST erasure request with CSRF token of another session is rejected', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const { token: otherToken } = await login(app, { email: 'bjoern@owasp.org', password: 'kitten lesser pooch karate buffoon indoors' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send({ email: 'bjoern.kimminich@gmail.com', _csrf: security.csrfTokenFor(otherToken) })
+
+    assert.equal(res.status, 403)
   })
 })

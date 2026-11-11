@@ -69,6 +69,7 @@ export function getUserProfile () {
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
+    template = template.replace(/_csrfToken_/g, security.csrfTokenFor(req.cookies.token))
     if (username) {
       template = template.replace(/_username_/g, username)
     }

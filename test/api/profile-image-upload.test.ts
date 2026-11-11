@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -31,6 +32,7 @@ void describe('/profile/image/file', () => {
     const res = await request(app)
       .post('/profile/image/file')
       .set('Cookie', `token=${token}`)
+      .field('_csrf', security.csrfTokenFor(token))
       .attach('file', file)
       .redirects(0)
 
@@ -48,6 +50,7 @@ void describe('/profile/image/file', () => {
     const res = await request(app)
       .post('/profile/image/file')
       .set('Cookie', `token=${token}`)
+      .field('_csrf', security.csrfTokenFor(token))
       .attach('file', file)
 
     assert.equal(res.status, 415)
@@ -70,6 +73,21 @@ void describe('/profile/image/file', () => {
 })
 
 void describe('/profile/image/url', () => {
+  void it('POST profile image URL without CSRF token is rejected', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'https://attacker.example/image.png')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
   void it('POST profile image URL valid for image available online', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
@@ -79,6 +97,7 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
+      .field('_csrf', security.csrfTokenFor(token))
       .field('imageUrl', 'cataas.com/cat')
       .redirects(0)
 
@@ -94,6 +113,7 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
+      .field('_csrf', security.csrfTokenFor(token))
       .field('imageUrl', 'https://notanimage.here/100/100')
       .redirects(0)
 
@@ -121,6 +141,7 @@ void describe('/profile/image/url', () => {
     const res = await request(app)
       .post('/profile/image/file')
       .set('Cookie', `token=${token}`)
+      .field('_csrf', security.csrfTokenFor(token))
       .set('Content-Length', '42')
       .attach('file', file)
       .redirects(0)
