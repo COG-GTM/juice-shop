@@ -6,10 +6,13 @@ export const redirectAllowlist = new Set([
   'http://leanpub.com/juice-shop'
 ])
 
-export const isRedirectAllowed = (url: string) => {
-  let allowed = false
+export const isRedirectAllowed = (url: unknown) => {
+  if (typeof url !== 'string' || !URL.canParse(url)) return false
+  const target = new URL(url)
+  if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) return false
   for (const allowedUrl of redirectAllowlist) {
-    allowed = allowed || url.includes(allowedUrl)
+    const allowed = new URL(allowedUrl)
+    if (target.origin === allowed.origin && target.pathname === allowed.pathname) return true
   }
-  return allowed
+  return false
 }
