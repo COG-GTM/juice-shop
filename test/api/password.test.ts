@@ -38,6 +38,25 @@ void describe('/rest/user/change-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET password change for user with empty password and matching empty current password', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'empty@pass.word',
+        password: ''
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'empty@pass.word', password: '' })
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=&new=foo&repeat=foo')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 200)
+  })
+
   void it('GET password change with passing wrong current password', async () => {
     const { token } = await login(app, {
       email: 'bjoern@' + config.get<string>('application.domain'),
