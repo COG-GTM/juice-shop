@@ -70,44 +70,78 @@ void describe('/profile/image/file', () => {
 })
 
 void describe('/profile/image/url', () => {
-  void it('POST profile image URL valid for image available online', async () => {
+  async function postImageUrl (imageUrl: string) {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
       password: 'ncc-1701'
     })
 
-    const res = await request(app)
+    return await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'cataas.com/cat')
+      .type('form')
+      .send({ imageUrl })
       .redirects(0)
+  }
 
-    assert.equal(res.status, 302)
+  for (const imageUrl of [
+    'cataas.com/cat',
+    'http://cataas.com/cat',
+    'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    'https://127.0.0.1/rest/admin/application-version',
+    'https://169.254.169.254/latest/meta-data/',
+    'https://[::1]/',
+    'https://[::ffff:127.0.0.1]/',
+    'https://10.0.0.5/_cat/indices',
+    'https://localhost:3000/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3',
+    `https://example.com/${'a'.repeat(2048)}`
+  ]) {
+    void it(`POST profile image URL rejects ${imageUrl.substring(0, 60)}`, async () => {
+      const res = await postImageUrl(imageUrl)
+
+      assert.equal(res.status, 400)
+      assert.ok(res.text.includes('Image URL must be a public https:// address'))
+    })
+  }
+
+  void it('POST profile image URL rejects hostnames resolving to loopback addresses', async () => {
+    const res = await postImageUrl('https://localhost/image.png')
+
+    assert.equal(res.status, 422)
+    assert.ok(res.text.includes('Could not retrieve a valid image from the given URL'))
   })
 
-  void it('POST profile image URL redirects even for invalid image URL', async () => {
+  void it('POST profile image URL does not store an invalid image URL in the profile page CSP', async () => {
     const { token } = await login(app, {
       email: `jim@${config.get<string>('application.domain')}`,
       password: 'ncc-1701'
     })
+    const imageUrl = "https://notanimage.invalid/x.png; script-src 'self' 'unsafe-inline'"
 
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'https://notanimage.here/100/100')
+      .type('form')
+      .send({ imageUrl })
       .redirects(0)
+    assert.equal(res.status, 422)
 
-    assert.equal(res.status, 302)
+    const profile = await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${token}`)
+    assert.equal(profile.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
   })
 
-  void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
+  void it('POST profile image URL forbidden for anonymous user before any URL processing', async () => {
+    const started = Date.now()
     const res = await request(app)
       .post('/profile/image/url')
-      .field('imageUrl', 'cataas.com/cat')
+      .type('form')
+      .send({ imageUrl: 'a'.repeat(100000) })
 
     assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(Date.now() - started < 2000)
   })
 
   void it('POST valid image with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
