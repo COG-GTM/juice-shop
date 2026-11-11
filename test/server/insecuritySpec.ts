@@ -6,9 +6,11 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +203,54 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('isAdmin', () => {
+    function invoke (authorization?: string) {
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = { status: sinon.stub().returnsThis(), json: sinon.stub() }
+      const next = sinon.spy()
+      security.isAdmin()(req, res as unknown as Response, next)
+      return { res, next }
+    }
+
+    it('rejects requests without a token with 401', () => {
+      const { res, next } = invoke()
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects tokens of non-admin users with 403', () => {
+      const { res, next } = invoke(`Bearer ${security.authorize({ data: { role: security.roles.customer } })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('accepts tokens of admin users', () => {
+      const { next } = invoke(`Bearer ${security.authorize({ data: { role: security.roles.admin } })}`)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('rejects admin tokens older than six hours with 401', () => {
+      const clock = sinon.useFakeTimers(Date.now() - 6 * 60 * 60 * 1000 - 1000)
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      clock.restore()
+      const { res, next } = invoke(`Bearer ${token}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects unsigned admin tokens with 401', () => {
+      const { res, next } = invoke(`Bearer ${jws.sign({ header: { alg: 'none' }, payload: { data: { role: 'admin' } } })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
+    it('rejects admin tokens HMAC-signed with the public key with 401', () => {
+      const { res, next } = invoke(`Bearer ${jws.sign({ header: { alg: 'HS256' }, payload: { data: { role: 'admin' } }, secret: security.publicKey })}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
     })
   })
 })
