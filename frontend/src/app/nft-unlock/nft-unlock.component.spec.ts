@@ -56,10 +56,11 @@ describe('NFTUnlockComponent', () => {
     })
 
     it('should check NFT unlock status on init', () => {
-        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true }))
+        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true, address: '0xabc123' }))
         component.ngOnInit()
         expect(keysServiceSpy.nftUnlocked).toHaveBeenCalled()
         expect(component.successResponse).toBe(true)
+        expect(component.walletAddress).toBe('0xabc123')
     })
 
     it('should handle error when checking NFT status on init', () => {
