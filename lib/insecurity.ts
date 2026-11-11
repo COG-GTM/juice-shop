@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Request, type Response, type NextFunction, type CookieOptions } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -185,6 +185,24 @@ export const appendUserId = () => {
   }
 }
 
+export const tokenCookieOptions: CookieOptions = { sameSite: 'lax' }
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
+}
+
+export const isSameOriginRequest = (req: Request) => {
+  const source = req.headers.origin ?? req.headers.referer
+  if (source === undefined) return true
+  const forwardedHost = req.get('X-Forwarded-Host')?.split(',')[0].trim()
+  const host = forwardedHost ?? req.headers.host
+  return host !== undefined && hostOf(source) === host
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
@@ -192,7 +210,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          res.cookie('token', token, tokenCookieOptions)
         }
       }
     })
