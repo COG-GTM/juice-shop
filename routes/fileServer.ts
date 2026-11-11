@@ -27,7 +27,7 @@ export function servePublicFiles () {
     const filePath = path.resolve(ftpFolder, file)
     const fileName = path.basename(filePath)
 
-    if (file && !containsEncodedOrControlCharacters(file) && path.dirname(filePath) === ftpFolder && isAllowlistedFile(fileName)) {
+    if (file && !containsEncodedOrControlCharacters(file) && filePath.startsWith(ftpFolder + path.sep) && isAllowlistedFile(fileName)) {
       challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return fileName.toLowerCase() === 'acquisitions.md' })
 
       res.sendFile(filePath)
