@@ -185,6 +185,20 @@ export const appendUserId = () => {
   }
 }
 
+export const appendUserIdIfAuthenticated = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.body) {
+      const userId = authenticatedUsers.from(req)?.data?.id
+      if (userId !== undefined) {
+        req.body.UserId = userId
+      } else {
+        delete req.body.UserId
+      }
+    }
+    next()
+  }
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
