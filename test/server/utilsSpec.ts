@@ -165,6 +165,26 @@ describe('utils', () => {
     }
   })
 
+  describe('httpUrlOrigin', () => {
+    it('returns the origin of absolute http(s) URLs', () => {
+      expect(utils.httpUrlOrigin('https://www.gravatar.com/avatar/abc.png')).to.equal('https://www.gravatar.com')
+      expect(utils.httpUrlOrigin('http://localhost:3000/x.png')).to.equal('http://localhost:3000')
+    })
+
+    it('drops anything after the origin, including injected CSP directives', () => {
+      expect(utils.httpUrlOrigin("https://a.com/x.png; script-src 'unsafe-inline'")).to.equal('https://a.com')
+      expect(utils.httpUrlOrigin("https://a.png; script-src 'unsafe-inline'")).to.equal(null)
+    })
+
+    it('returns null for relative, non-http or malformed values', () => {
+      expect(utils.httpUrlOrigin('/assets/public/images/uploads/default.svg')).to.equal(null)
+      expect(utils.httpUrlOrigin('cataas.com/cat')).to.equal(null)
+      expect(utils.httpUrlOrigin('javascript:alert(1)')).to.equal(null)
+      expect(utils.httpUrlOrigin("http://a;script-src'unsafe-inline'/")).to.equal(null)
+      expect(utils.httpUrlOrigin(undefined)).to.equal(null)
+    })
+  })
+
   describe('startsWith', () => {
     it('accepts string starting with another string', () => {
       expect(utils.startsWith('Bla Blubb', 'Bla')).to.equal(true)
