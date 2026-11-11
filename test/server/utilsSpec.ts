@@ -74,6 +74,16 @@ describe('utils', () => {
       expect(utils.matchesEtcPasswdFile('Bla Blubb')).to.equal(false)
     })
 
+    it('evaluates long colon-free word runs in linear time', () => {
+      const start = Date.now()
+      expect(utils.matchesEtcPasswdFile('a'.repeat(200000))).to.equal(false)
+      expect(Date.now() - start).to.be.below(1000)
+    })
+
+    it('passes on passwd entry embedded in XML markup', () => {
+      expect(utils.matchesEtcPasswdFile('<trades><metadata><name>root:x:0:0:root:/root:/bin/bash</name>')).to.equal(true)
+    })
+
     it('passes on Arch Linux passwd file content', () => {
       expect(utils.matchesEtcPasswdFile('test:x:0:0:test:/test:/usr/bin/zsh\n' +
           'bin:x:1:1::/:/usr/bin/nologin\n' +
