@@ -89,17 +89,39 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change for Bender without current password is rejected and leaves password unchanged', async () => {
+    const credentials = {
+      email: 'bender@' + config.get<string>('application.domain'),
+      password: 'OhG0dPlease1nsertLiquor!'
+    }
+    const { token } = await login(app, credentials)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+
+    await login(app, credentials)
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: credentials.email, password: 'slurmCl4ssic' })
+      .expect(401)
+  })
+
+  void it('GET password change with empty current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
     })
 
     const res = await request(app)
-      .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
+      .get('/rest/user/change-password?current=&new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
   })
 })
 
