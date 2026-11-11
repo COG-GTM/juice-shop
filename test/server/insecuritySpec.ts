@@ -175,6 +175,15 @@ describe('insecurity', () => {
 
       expect(exp - iat).to.equal(6 * 60 * 60)
     })
+
+    it('issues distinct tokens for identical payloads within the same second', () => {
+      const clock = sinon.useFakeTimers(Date.now())
+      try {
+        expect(security.authorize({ data: { id: 1 } })).to.not.equal(security.authorize({ data: { id: 1 } }))
+      } finally {
+        clock.restore()
+      }
+    })
   })
 
   describe('verify', () => {
