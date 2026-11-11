@@ -51,4 +51,59 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders a nested-tag username without a script tag', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '<<a|ascript>alert(`xss`)</script>')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('<script>alert(`xss`)</script>'))
+  })
+
+  void it('GET user profile escapes HTML and template syntax in the username', async () => {
+    const { UserModel } = await import('../../models/user')
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ username: 'a&b #{7*7}' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('a&amp;b #{7*7}'))
+    assert.ok(!res.text.includes('a&b 49'))
+  })
+
+  void it('GET user profile CSP does not include directives injected via the profile image', async () => {
+    const { UserModel } = await import('../../models/user')
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ profileImage: "https://a.com/x.png; script-src 'unsafe-inline' 'self'" })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self' https://a.com; script-src 'self' 'unsafe-eval'")
+  })
+
+  void it('GET user profile CSP only allows self for relative profile images', async () => {
+    const { UserModel } = await import('../../models/user')
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    await user?.update({ profileImage: '/assets/public/images/uploads/default.svg' })
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
+  })
 })

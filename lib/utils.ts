@@ -37,6 +37,17 @@ export const isUrl = (url: string) => {
   return startsWith(url, 'http')
 }
 
+export const httpUrlOrigin = (value?: string | null): string | null => {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+    return /^https?:\/\/(?:[a-z0-9-]+(?:\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(?::\d+)?$/i.test(url.origin) ? url.origin : null
+  } catch {
+    return null
+  }
+}
+
 export const startsWith = (str: string, prefix: string) => str ? str.indexOf(prefix) === 0 : false
 
 export const endsWith = (str?: string, suffix?: string) => (str && suffix) ? str.includes(suffix, str.length - suffix.length) : false
