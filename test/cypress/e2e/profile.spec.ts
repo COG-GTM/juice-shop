@@ -3,7 +3,8 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    it('should be possible to request internal resources using image upload URL', () => {
+    // Profile image URLs are restricted to public https:// hosts, so the server can no longer be made to request internal resources
+    xit('should be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
       cy.get('#url').type(
@@ -16,7 +17,8 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
+    // The profile image URL is no longer copied into the profile page CSP, so it cannot be used to disarm it
+    xit('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')

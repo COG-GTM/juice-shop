@@ -193,6 +193,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
   }))
 
+  app.use('/assets/public/images/uploads', (req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+    next()
+  })
+
   /* Hiring header */
   app.use((req: Request, res: Response, next: NextFunction) => {
     res.append('X-Recruiting', config.get('application.securityTxt.hiring'))
