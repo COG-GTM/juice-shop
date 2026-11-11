@@ -82,4 +82,23 @@ void describe('WebSocket', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
   })
+
+  void it('server survives non-string payloads for challenge verification events', async () => {
+    socket.emit('verifySvgInjectionChallenge', {})
+    socket.emit('verifySvgInjectionChallenge', 123)
+    socket.emit('verifyLocalXssChallenge', 123)
+    socket.emit('verifyLocalXssChallenge', { includes: 'x' })
+    socket.emit('verifyLocalXssChallenge', ['<iframe src="javascript:alert(`xss`)">'])
+    socket.emit('verifyCloseNotificationsChallenge', { length: 2 })
+    socket.emit('notification received', { flag: 'x' })
+
+    await new Promise<void>((resolve, reject) => {
+      const probe = ioClient(`http://localhost:${serverPort}`, { reconnection: false, forceNew: true })
+      probe.on('connect', () => {
+        probe.disconnect()
+        resolve()
+      })
+      probe.on('connect_error', reject)
+    })
+  })
 })
