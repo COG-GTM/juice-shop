@@ -123,6 +123,40 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST concurrent likes of the same review by one user only count once', async () => {
+    const { token } = await login(app, {
+      email: 'mc.safesearch@juice-sh.op',
+      password: 'Mr. N00dles'
+    })
+    const before = await request(app).get('/rest/products/2/reviews')
+    const review = before.body.data[0]
+
+    const responses = await Promise.all(Array.from({ length: 10 }, async () => await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: review._id })))
+
+    assert.equal(responses.filter(r => r.status === 200).length, 1)
+    assert.equal(responses.filter(r => r.status === 403).length, 9)
+
+    const after = await request(app).get('/rest/products/2/reviews')
+    const updated = after.body.data.find((r: { _id: string }) => r._id === review._id)
+    assert.equal(updated.likesCount, review.likesCount + 1)
+    assert.equal(updated.likedBy.filter((email: string) => email === 'mc.safesearch@juice-sh.op').length, 1)
+  })
+
+  void it('POST like with non-string review id is rejected', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: { $ne: -1 } })
+    assert.equal(res.status, 400)
+  })
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 

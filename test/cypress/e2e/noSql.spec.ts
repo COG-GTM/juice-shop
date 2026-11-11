@@ -120,45 +120,29 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'mc.safesearch', password: 'Mr. N00dles' })
     })
 
-    it('should be possible to like reviews multiple times', () => {
+    it('should not be possible to like reviews multiple times', () => {
       cy.visit('/')
-      cy.window().then(async () => {
-        async function sendPostRequest (reviewId: string) {
-          const anotherResponse = await fetch(
+      cy.request('/rest/products/1/reviews').then((response) => {
+        const review = response.body.data[0]
+        cy.window().then(async () => {
+          const token = localStorage.getItem('token')
+          const statuses = await Promise.all([1, 2, 3].map(async () => (await fetch(
             `${Cypress.config('baseUrl')}/rest/products/reviews`,
             {
               method: 'POST',
-              headers: {
-                'Content-type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`
-              },
-              body: JSON.stringify({ id: reviewId })
+              headers: { 'Content-type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ id: review._id })
             }
-          )
-          if (anotherResponse.status === 200) {
-            console.log('Success')
-          }
-        }
-
-        const response = await fetch(
-          `${Cypress.config('baseUrl')}/rest/products/1/reviews`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-type': 'text/plain'
-            }
-          }
-        )
-        if (response.status === 200) {
-          const responseJson = await response.json()
-          const reviewId = responseJson.data[0]._id
-
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-        }
+          )).status))
+          expect(statuses.filter(status => status === 200)).to.have.length(1)
+          expect(statuses.filter(status => status === 403)).to.have.length(2)
+        })
+        cy.request('/rest/products/1/reviews').then((after) => {
+          const updated = after.body.data.find((r: { _id: string }) => r._id === review._id)
+          expect(updated.likesCount).to.eq(review.likesCount + 1)
+        })
+        cy.request('/api/Challenges/?name=Multiple Likes').its('body.data.0.solved').should('eq', false)
       })
-      cy.expectChallengeSolved({ challenge: 'Multiple Likes' })
     })
   })
 })
