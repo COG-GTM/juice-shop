@@ -185,6 +185,25 @@ export const appendUserId = () => {
   }
 }
 
+export const isAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (authenticatedUsers.from(req)?.data?.role === roles.admin) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const appendUserIdIfAuthenticated = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.body) {
+      req.body.UserId = authenticatedUsers.from(req)?.data?.id ?? null
+    }
+    next()
+  }
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {

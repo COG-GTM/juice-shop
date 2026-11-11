@@ -111,6 +111,46 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isAdmin', () => {
+    const run = (token?: string) => {
+      const req = { headers: token ? { authorization: 'Bearer ' + token } : {} } as unknown as Request
+      let status: number | undefined
+      let nextCalled = false
+      const res: any = { status: (s: number) => { status = s; return res }, json: () => res }
+      security.isAdmin()(req, res, () => { nextCalled = true })
+      return { status, nextCalled }
+    }
+
+    it('calls next for a known admin token', () => {
+      security.authenticatedUsers.put('adminTokenSpec', { data: { id: 1, role: 'admin' } } as any)
+      expect(run('adminTokenSpec')).to.deep.equal({ status: undefined, nextCalled: true })
+    })
+
+    it('responds with 403 for a customer token', () => {
+      security.authenticatedUsers.put('customerTokenSpec', { data: { id: 2, role: 'customer' } } as any)
+      expect(run('customerTokenSpec')).to.deep.equal({ status: 403, nextCalled: false })
+    })
+
+    it('responds with 403 without token', () => {
+      expect(run()).to.deep.equal({ status: 403, nextCalled: false })
+    })
+  })
+
+  describe('appendUserIdIfAuthenticated', () => {
+    it('overwrites UserId from body with id of the authenticated user', () => {
+      security.authenticatedUsers.put('userTokenSpec', { data: { id: 42 } } as any)
+      const req = { headers: { authorization: 'Bearer userTokenSpec' }, body: { UserId: 1 } } as unknown as Request
+      security.appendUserIdIfAuthenticated()(req, {} as any, () => {})
+      expect(req.body.UserId).to.equal(42)
+    })
+
+    it('clears UserId from body for anonymous requests', () => {
+      const req = { headers: {}, body: { UserId: 1 } } as unknown as Request
+      security.appendUserIdIfAuthenticated()(req, {} as any, () => {})
+      expect(req.body.UserId).to.equal(null)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')
