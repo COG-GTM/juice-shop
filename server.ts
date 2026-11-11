@@ -356,6 +356,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* BasketItems: API only accessible for authenticated users */
   app.use('/api/BasketItems', security.isAuthorized())
   app.use('/api/BasketItems/:id', security.isAuthorized())
+  app.use('/api/BasketItems/:id', utils.asyncHandler(basketItems.ensureBasketItemOwnership())) // vuln-code-snippet hide-line
   /* Feedbacks: GET allowed for feedback carousel, POST allowed in order to provide feedback without being logged in */
   app.use('/api/Feedbacks/:id', security.isAuthorized())
   /* Users: Only POST is allowed in order to register a new user */
@@ -516,6 +517,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
 
+    if (name === 'BasketItem') {
+      resource.list.fetch.after(async (req: Request, res: Response, context: { instance: BasketItemModel[], continue: any }) => {
+        const basketIds = await security.ownedBasketIds(req)
+        context.instance = context.instance.filter(({ BasketId }) => basketIds.includes(BasketId))
+        return context.continue
+      })
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
@@ -599,9 +608,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/user/whoami', security.updateAuthenticatedUsers(), utils.asyncHandler(retrieveLoggedInUser()))
   app.get('/rest/user/authentication-details', utils.asyncHandler(authenticatedUsers()))
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
-  app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
+  app.get('/rest/basket/:id', utils.asyncHandler(security.ensureBasketOwnership()), utils.asyncHandler(retrieveBasket()))
   app.post('/rest/basket/:id/checkout', placeOrder())
-  app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
+  app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(security.ensureBasketOwnership()), utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
   app.get('/rest/repeat-notification', utils.asyncHandler(repeatNotification()))

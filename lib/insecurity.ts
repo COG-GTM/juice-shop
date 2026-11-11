@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
+import { BasketModel } from '../models/basket'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
@@ -181,6 +182,39 @@ export const appendUserId = () => {
       next()
     } catch (error: unknown) {
       res.status(401).json({ status: 'error', message: utils.getErrorMessage(error) })
+    }
+  }
+}
+
+const toBasketId = (basketId: unknown) => {
+  if (typeof basketId === 'number') return basketId
+  if (typeof basketId === 'string' && /^\d+$/.test(basketId)) return Number(basketId)
+  return NaN
+}
+
+export const ownedBasketIds = async (req: Request) => {
+  const userId = authenticatedUsers.from(req)?.data?.id
+  if (userId === undefined || userId === null) return []
+  const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+  return baskets.map(({ id }) => id)
+}
+
+export const isBasketOwner = async (req: Request, basketId: unknown) => {
+  const id = toBasketId(basketId)
+  if (!Number.isSafeInteger(id) || id <= 0) return false
+  return (await ownedBasketIds(req)).includes(id)
+}
+
+export const ensureBasketOwnership = () => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (await isBasketOwner(req, req.params.id)) {
+        next()
+      } else {
+        res.status(403).json({ status: 'error', message: 'Access to this basket is not allowed.' })
+      }
+    } catch (error) {
+      next(error)
     }
   }
 }
