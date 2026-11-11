@@ -220,4 +220,85 @@ describe('SearchResultComponent', () => {
         component.filterTable()
         expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
     })
+
+    describe('sorting', () => {
+        const products = [
+            { id: 1, name: 'Banana Juice', price: 1.99, deluxePrice: 1.99, description: '' },
+            { id: 2, name: 'Apple Pomace', price: 0.89, deluxePrice: 0.89, description: '' },
+            { id: 3, name: 'Carrot Juice', price: 2.99, deluxePrice: 0.5, description: '' },
+            { id: 4, name: 'Apple Juice', price: 1.99, deluxePrice: 1.99, description: '' }
+        ]
+        const ids = () => component.dataSource.filteredData.map((product) => product.id)
+
+        beforeEach(() => {
+            productService.search.mockReturnValue(of(products.map((product) => ({ ...product }))))
+            component.ngAfterViewInit()
+            fixture.detectChanges()
+        })
+
+        it('should default to relevance and keep the API order', () => {
+            expect(component.sortOption).toBe('relevance')
+            expect(ids()).toEqual([1, 2, 3, 4])
+        })
+
+        it('should render the sort dropdown above the product grid', () => {
+            const sortBar: HTMLElement = fixture.nativeElement.querySelector('.sort-bar')
+            expect(sortBar.querySelector('mat-select#sortBy')).toBeTruthy()
+            expect(sortBar.nextElementSibling?.classList).toContain('products-grid')
+        })
+
+        it('should show the selected sort option in the dropdown trigger', () => {
+            expect(component.selectedSortLabel).toBe('LABEL_SORT_RELEVANCE')
+            expect(fixture.nativeElement.querySelector('#sortBy mat-select-trigger, #sortBy .mat-mdc-select-value-text')).toBeTruthy()
+            component.sortProducts('nameAsc')
+            expect(component.selectedSortLabel).toBe('LABEL_SORT_NAME_A_TO_Z')
+        })
+
+        it('should sort by price from low to high', () => {
+            component.sortProducts('priceAsc')
+            expect(ids()).toEqual([2, 1, 4, 3])
+        })
+
+        it('should sort by price from high to low', () => {
+            component.sortProducts('priceDesc')
+            expect(ids()).toEqual([3, 1, 4, 2])
+        })
+
+        it('should sort by name from A to Z', () => {
+            component.sortProducts('nameAsc')
+            expect(ids()).toEqual([4, 2, 1, 3])
+        })
+
+        it('should restore the API order when switching back to relevance', () => {
+            component.sortProducts('nameAsc')
+            component.sortProducts('relevance')
+            expect(ids()).toEqual([1, 2, 3, 4])
+        })
+
+        it('should sort deluxe members by deluxe price', () => {
+            deluxeGuard.isDeluxe.mockReturnValue(true)
+            component.sortProducts('priceAsc')
+            expect(ids()).toEqual([3, 2, 1, 4])
+        })
+
+        it('should keep the selected order when filtering by a search query', () => {
+            component.sortProducts('priceDesc')
+            activatedRoute.setQueryParameter('juice')
+            component.filterTable()
+            expect(ids()).toEqual([3, 1, 4])
+        })
+
+        it('should sort search results', () => {
+            activatedRoute.setQueryParameter('apple')
+            component.filterTable()
+            component.sortProducts('nameAsc')
+            expect(ids()).toEqual([4, 2])
+        })
+
+        it('should go back to the first page when the sort order changes', () => {
+            vi.spyOn(component.paginator, 'firstPage')
+            component.sortProducts('priceAsc')
+            expect(component.paginator.firstPage).toHaveBeenCalled()
+        })
+    })
 })

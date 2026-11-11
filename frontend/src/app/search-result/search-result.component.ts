@@ -20,17 +20,21 @@ import { ProductTableEntry } from '../Models/product.model'
 import { QuantityService } from '../Services/quantity.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatButtonModule } from '@angular/material/button'
+import { MatFormFieldModule } from '@angular/material/form-field'
+import { MatSelectModule } from '@angular/material/select'
 import { MatCardModule, MatCardTitle, MatCardContent } from '@angular/material/card'
 import { AsyncPipe } from '@angular/common'
 import { ProductComponent } from '../product/product.component'
 
 library.add(faEye, faCartPlus)
 
+export type ProductSortOption = 'relevance' | 'priceAsc' | 'priceDesc' | 'nameAsc'
+
 @Component({
   selector: 'app-search-result',
   templateUrl: './search-result.component.html',
   styleUrls: ['./search-result.component.scss'],
-  imports: [MatCardModule, TranslateModule, MatButtonModule, MatCardTitle, MatCardContent, MatPaginator, AsyncPipe, ProductComponent]
+  imports: [MatCardModule, TranslateModule, MatButtonModule, MatFormFieldModule, MatSelectModule, MatCardTitle, MatCardContent, MatPaginator, AsyncPipe, ProductComponent]
 })
 export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private readonly deluxeGuard = inject(DeluxeGuard)
@@ -56,6 +60,13 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private gridDataSourceSubscription?: Subscription
   private resizeObserver?: ResizeObserver
   public emptyState = false
+  public sortOption: ProductSortOption = 'relevance'
+  public readonly sortOptions: { value: ProductSortOption, label: string }[] = [
+    { value: 'relevance', label: 'LABEL_SORT_RELEVANCE' },
+    { value: 'priceAsc', label: 'LABEL_SORT_PRICE_LOW_TO_HIGH' },
+    { value: 'priceDesc', label: 'LABEL_SORT_PRICE_HIGH_TO_LOW' },
+    { value: 'nameAsc', label: 'LABEL_SORT_NAME_A_TO_Z' }
+  ]
 
   // vuln-code-snippet start restfulXssChallenge
   ngAfterViewInit () {
@@ -158,6 +169,36 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
     }
   }
   // vuln-code-snippet end localXssChallenge xssBonusChallenge
+
+  get selectedSortLabel (): string {
+    return this.sortOptions.find((option) => option.value === this.sortOption)?.label ?? ''
+  }
+
+  sortProducts (option: ProductSortOption) {
+    this.sortOption = option
+    if (!this.dataSource) return
+    const relevanceRank = new Map((this.tableData ?? []).map((product, index) => [product.id, index]))
+    const byRelevance = (a: ProductTableEntry, b: ProductTableEntry) =>
+      (relevanceRank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (relevanceRank.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+    const compare = (a: ProductTableEntry, b: ProductTableEntry): number => {
+      switch (option) {
+        case 'priceAsc':
+          return this.displayedPrice(a) - this.displayedPrice(b)
+        case 'priceDesc':
+          return this.displayedPrice(b) - this.displayedPrice(a)
+        case 'nameAsc':
+          return a.name.localeCompare(b.name)
+        default:
+          return 0
+      }
+    }
+    this.dataSource.data = [...this.dataSource.data].sort((a, b) => compare(a, b) || byRelevance(a, b))
+    this.paginator.firstPage()
+  }
+
+  private displayedPrice (product: ProductTableEntry): number {
+    return this.isDeluxe() ? product.deluxePrice : product.price
+  }
 
   private setupResponsivePageSize () {
     const grid = this.elRef.nativeElement.querySelector('.products-grid')

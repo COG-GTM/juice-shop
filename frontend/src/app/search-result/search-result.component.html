@@ -16,6 +16,18 @@
     <div id="search-result-heading"></div>
   </div>
 
+  <div class="sort-bar">
+    <mat-form-field appearance="outline" color="tertiary" class="sort-field" subscriptSizing="dynamic">
+      <mat-label>{{ "LABEL_SORT_BY" | translate }}</mat-label>
+      <mat-select id="sortBy" [value]="sortOption" (selectionChange)="sortProducts($event.value)">
+        <mat-select-trigger>{{ selectedSortLabel | translate }}</mat-select-trigger>
+        @for (option of sortOptions; track option.value) {
+          <mat-option [value]="option.value" class="mat-body-medium">{{ option.label | translate }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
   @if (!emptyState) {
     <div class="products-grid">
       @for (item of gridDataSource | async; track item.id) {
