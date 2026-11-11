@@ -69,6 +69,7 @@ void describe('/rest/memories', () => {
       .attach('image', Buffer.alloc(5 * 1024 * 1024 + 1), { filename: 'oversized.png', contentType: 'image/png' })
       .field('caption', 'Oversized Image')
     assert.equal(res.status, 413)
+    assert.equal(res.body.error, 'File too large')
     assert.deepEqual(fs.readdirSync(uploadsDir), before)
   })
 
