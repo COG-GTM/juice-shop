@@ -52,10 +52,12 @@ export const verifyImageCaptcha = () => async (req: Request, res: Response, next
       order: [['createdAt', 'DESC']]
     })
     const captcha = captchas[0]
+    let consumed = 0
     if (captcha) {
+      consumed = await ImageCaptchaModel.destroy({ where: { id: captcha.id } })
       await ImageCaptchaModel.destroy({ where: { UserId } })
     }
-    if (captcha && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
+    if (consumed === 1 && typeof req.body.answer === 'string' && req.body.answer === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))

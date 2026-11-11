@@ -84,6 +84,19 @@ void describe('/rest/user/data-export', () => {
     assert.equal(secondRes.status, 401)
   })
 
+  void it('Export data with one CAPTCHA answer succeeds only once for concurrent requests', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const answer = await requestCaptchaAnswer(token, authHeader)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/user/data-export')
+      .set(authHeader)
+      .send({ answer, format: 1 })))
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+  })
+
   void it('Export data after a wrong CAPTCHA answer requires a new CAPTCHA', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
