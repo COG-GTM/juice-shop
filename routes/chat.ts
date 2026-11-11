@@ -8,6 +8,7 @@ import config from 'config'
 import { stepCountIs, streamText, tool } from 'ai'
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import { z } from 'zod'
+import jws from 'jws'
 import { Op } from 'sequelize'
 import { ProductModel } from '../models/product'
 import { UserModel } from '../models/user'
@@ -39,11 +40,24 @@ function summarizeLlmError (error: unknown): string {
 const botName = config.get<string>('application.chatBot.name')
 const appName = config.get<string>('application.name')
 
-async function getUserId (req: Request): Promise<number | undefined> {
+interface TokenPayload { data?: { id?: number, role?: string }, exp?: number }
+
+function verifiedTokenPayload (req: Request): TokenPayload | undefined {
   const token = utils.jwtFrom(req)
   if (!token) return undefined
-  const decoded = security.decode(token) as { data?: { id?: number } } | undefined
-  return decoded?.data?.id
+  try {
+    const decoded = jws.decode(token)
+    if (decoded?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+    const payload = decoded.payload as TokenPayload | undefined
+    if (payload?.exp && payload.exp * 1000 <= Date.now()) return undefined
+    return payload
+  } catch {
+    return undefined
+  }
+}
+
+async function getUserId (req: Request): Promise<number | undefined> {
+  return verifiedTokenPayload(req)?.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -217,9 +231,7 @@ export function chat () {
             break
           case 'tool-call':
             challengeUtils.solveIf(challenges.aiDebuggingChallenge, () => {
-              const token = utils.jwtFrom(req)
-              const decoded = token ? security.decode(token) as { data?: { role?: string } } : undefined
-              const role = decoded?.data?.role
+              const role = verifiedTokenPayload(req)?.data?.role
               return req.cookies.show_tool_calls === 'true' && role !== roles.admin
             })
             metricToolCalls.labels({ tool: event.toolName }).inc()
