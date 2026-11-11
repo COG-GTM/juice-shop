@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import jws from 'jws'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -83,10 +85,19 @@ describe('insecurity', () => {
   })
 
   describe('authenticatedUsers', () => {
-    it('returns user by associated token', () => {
-      security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
+    const user = { data: { id: 1 } as unknown as UserModel }
 
-      expect(security.authenticatedUsers.get('11111')).to.deep.equal({ data: { id: 1 } })
+    afterEach(() => {
+      security.authenticatedUsers.tokenMap = {}
+      security.authenticatedUsers.idMap = {}
+      security.authenticatedUsers.revokedTokens = {}
+    })
+
+    it('returns user by associated token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
+
+      expect(security.authenticatedUsers.get(token)).to.deep.equal(user)
     })
 
     it('returns undefined if no token is passed in', () => {
@@ -94,20 +105,127 @@ describe('insecurity', () => {
     })
 
     it('returns token by associated user', () => {
-      security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
 
-      expect(security.authenticatedUsers.tokenOf({ id: 1 } as unknown as UserModel)).to.equal('11111')
+      expect(security.authenticatedUsers.tokenOf({ id: 1 } as unknown as UserModel)).to.equal(token)
+    })
+
+    it('returns no token for a user whose session has expired', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
+      const clock = sinon.useFakeTimers(Date.now() + 7 * 60 * 60 * 1000)
+      try {
+        expect(security.authenticatedUsers.tokenOf({ id: 1 } as unknown as UserModel)).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
     })
 
     it('returns user by associated token from request', () => {
-      security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
 
-      expect(security.authenticatedUsers.from({ headers: { authorization: 'Bearer 11111' } } as unknown as Request)).to.deep.equal({ data: { id: 1 } })
+      expect(security.authenticatedUsers.from({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)).to.deep.equal(user)
     })
 
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+
+    it('does not store tokens without an expiry', () => {
+      security.authenticatedUsers.put('11111', user)
+
+      expect(security.authenticatedUsers.get('11111')).to.equal(undefined)
+    })
+
+    it('evicts and rejects expired tokens', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
+      const clock = sinon.useFakeTimers(Date.now() + 7 * 60 * 60 * 1000)
+      try {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.tokenMap[token]).to.equal(undefined)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects a revoked token and does not let it be stored again', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.put(token, user)
+      security.authenticatedUsers.revoke(token)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(security.authenticatedUsers.isRevoked(token)).to.equal(true)
+      security.authenticatedUsers.put(token, user)
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+
+    it('revokes all tokens of a user except the given one', () => {
+      const current = security.authorize({ data: { id: 1, n: 1 } })
+      const other = security.authorize({ data: { id: 1, n: 2 } })
+      const foreign = security.authorize({ data: { id: 2 } })
+      security.authenticatedUsers.put(current, user)
+      security.authenticatedUsers.put(other, user)
+      security.authenticatedUsers.put(foreign, { data: { id: 2 } as unknown as UserModel })
+
+      security.authenticatedUsers.revokeAllOf(1, current)
+
+      expect(security.authenticatedUsers.get(current)).to.deep.equal(user)
+      expect(security.authenticatedUsers.get(other)).to.equal(undefined)
+      expect(security.authenticatedUsers.get(foreign)).to.not.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues tokens that expire', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      const { iat, exp } = security.decode(token)
+
+      expect(exp - iat).to.equal(6 * 60 * 60)
+    })
+
+    it('issues distinct tokens for identical payloads within the same second', () => {
+      const clock = sinon.useFakeTimers(Date.now())
+      try {
+        expect(security.authorize({ data: { id: 1 } })).to.not.equal(security.authorize({ data: { id: 1 } }))
+      } finally {
+        clock.restore()
+      }
+    })
+  })
+
+  describe('verify', () => {
+    it('accepts a freshly issued token', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 } }))).to.equal(true)
+    })
+
+    it('rejects an expired token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      const clock = sinon.useFakeTimers(Date.now() + 7 * 60 * 60 * 1000)
+      try {
+        expect(security.verify(token)).to.equal(false)
+      } finally {
+        clock.restore()
+      }
+    })
+
+    it('rejects a revoked token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.authenticatedUsers.revoke(token)
+      try {
+        expect(security.verify(token)).to.equal(false)
+      } finally {
+        security.authenticatedUsers.revokedTokens = {}
+      }
+    })
+
+    it('rejects a validly signed token without expiry', () => {
+      const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+      expect((jws.verify as (token: string, key: string) => boolean)(token, security.publicKey)).to.equal(true)
+      expect(security.verify(token)).to.equal(false)
     })
   })
 

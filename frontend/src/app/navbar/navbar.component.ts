@@ -236,7 +236,12 @@ export class NavbarComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    const token = localStorage.getItem('token')
+    const cookieToken = this.cookieService.get('token')
+    this.userService.saveLastLoginIp().subscribe({
+      next: () => { this.revokeSession(token, cookieToken) },
+      error: (err) => { console.log(err); this.revokeSession(token, cookieToken) }
+    })
     localStorage.removeItem('token')
     this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
@@ -244,6 +249,12 @@ export class NavbarComponent implements OnInit {
     sessionStorage.removeItem('guestBasket')
     this.userService.isLoggedIn.next(false)
     this.ngZone.run(async () => await this.router.navigate(['/']))
+  }
+
+  private revokeSession (token: string | null, cookieToken?: string) {
+    if (token) {
+      this.userService.logout(token, cookieToken !== token ? cookieToken : undefined).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    }
   }
 
   changeLanguage (langKey: string) {

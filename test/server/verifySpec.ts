@@ -35,8 +35,10 @@ describe('verify', () => {
   })
 
   describe('"forgedFeedbackChallenge"', () => {
+    const token = security.authorize({ data: { id: 42 } })
+
     beforeEach(() => {
-      security.authenticatedUsers.put('token12345', {
+      security.authenticatedUsers.put(token, {
         data: {
           id: 42,
           email: 'test@juice-sh.op'
@@ -47,7 +49,7 @@ describe('verify', () => {
 
     it('is not solved when an authenticated user passes his own ID when writing feedback', () => {
       req.body.UserId = 42
-      req.headers = { authorization: 'Bearer token12345' }
+      req.headers = { authorization: `Bearer ${token}` }
 
       verify.forgedFeedbackChallenge()(req, res, next)
 
@@ -56,7 +58,7 @@ describe('verify', () => {
 
     it('is not solved when an authenticated user passes no ID when writing feedback', () => {
       req.body.UserId = undefined
-      req.headers = { authorization: 'Bearer token12345' }
+      req.headers = { authorization: `Bearer ${token}` }
 
       verify.forgedFeedbackChallenge()(req, res, next)
 
@@ -65,7 +67,7 @@ describe('verify', () => {
 
     it('is solved when an authenticated user passes someone elses ID when writing feedback', () => {
       req.body.UserId = 1
-      req.headers = { authorization: 'Bearer token12345' }
+      req.headers = { authorization: `Bearer ${token}` }
 
       verify.forgedFeedbackChallenge()(req, res, next)
 
