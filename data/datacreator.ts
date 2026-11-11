@@ -38,6 +38,7 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
 
 const entities = new Entities()
 
@@ -744,19 +745,23 @@ async function createOrders () {
   ]
 
   const adminEmail = 'admin@' + config.get<string>('application.domain')
+  const adminUser = await UserModel.findOne({ where: { email: adminEmail } })
+  const demoUser = await UserModel.findOne({ where: { email: 'demo' } })
   const orders = [
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
+      UserId: adminUser?.id,
       totalPrice: basket1Products[0].total + basket1Products[1].total,
       bonus: basket1Products[0].bonus + basket1Products[1].bonus,
       products: basket1Products,
-      eta: Math.floor((Math.random() * 5) + 1).toString(),
+      eta: crypto.randomInt(1, 6).toString(),
       delivered: false
     },
     {
       orderId: security.hash(adminEmail).slice(0, 4) + '-' + utils.randomHexString(16),
       email: (adminEmail.replace(/[aeiou]/gi, '*')),
+      UserId: adminUser?.id,
       totalPrice: basket2Products[0].total,
       bonus: basket2Products[0].bonus,
       products: basket2Products,
@@ -766,6 +771,7 @@ async function createOrders () {
     {
       orderId: security.hash('demo').slice(0, 4) + '-' + utils.randomHexString(16),
       email: 'd*m*',
+      UserId: demoUser?.id,
       totalPrice: basket3Products[0].total + basket3Products[1].total,
       bonus: basket3Products[0].bonus + basket3Products[1].bonus,
       products: basket3Products,
@@ -775,10 +781,11 @@ async function createOrders () {
   ]
 
   return await Promise.all(
-    orders.map(({ orderId, email, totalPrice, bonus, products, eta, delivered }) =>
+    orders.map(({ orderId, email, UserId, totalPrice, bonus, products, eta, delivered }) =>
       ordersCollection.insert({
         orderId,
         email,
+        UserId,
         totalPrice,
         bonus,
         products,
