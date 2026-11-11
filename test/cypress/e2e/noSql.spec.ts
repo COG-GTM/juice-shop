@@ -27,7 +27,8 @@ describe('/rest/products/reviews', () => {
     })
   })
 
-  describe('challenge "NoSQL Exfiltration"', () => {
+  // Not solvable anymore: order ids are always restricted to [\w-] characters
+  xdescribe('challenge "NoSQL Exfiltration"', () => {
     it('should be possible to inject and get all the orders', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {

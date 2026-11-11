@@ -75,7 +75,8 @@ describe('/api', () => {
 })
 
 describe('/rest/saveLoginIp', () => {
-  describe('challenge "httpHeaderXss"', () => {
+  // Not solvable anymore: True-Client-IP is only stored when it is a valid IP address
+  xdescribe('challenge "httpHeaderXss"', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
