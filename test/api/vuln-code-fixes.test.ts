@@ -47,6 +47,22 @@ void describe('/snippets/fixes/:key', () => {
     assert.equal(res.body.error, 'No fixes found for the snippet!')
   })
 
+  void it('GET fixes for inherited object property key throws error', async () => {
+    const res = await request(app)
+      .get('/snippets/fixes/constructor')
+
+    assert.equal(res.status, 404)
+    assert.equal(res.body.error, 'No fixes found for the snippet!')
+  })
+
+  void it('GET fixes for fix file name prefix of existing challenge throws error', async () => {
+    const res = await request(app)
+      .get('/snippets/fixes/resetPasswordBenderChallenge_1')
+
+    assert.equal(res.status, 404)
+    assert.equal(res.body.error, 'No fixes found for the snippet!')
+  })
+
   void it('GET fixes for existing challenge key', async () => {
     const res = await request(app)
       .get('/snippets/fixes/resetPasswordBenderChallenge')
@@ -86,6 +102,18 @@ void describe('/snippets/fixes', () => {
       .post('/snippets/fixes')
       .send({
         key: 'doesNotExistChallenge',
+        selectedFix: 1
+      })
+
+    assert.equal(res.status, 404)
+    assert.equal(res.body.error, 'No fixes found for the snippet!')
+  })
+
+  void it('POST fix for non-string challenge key throws error', async () => {
+    const res = await request(app)
+      .post('/snippets/fixes')
+      .send({
+        key: ['resetPasswordBenderChallenge'],
         selectedFix: 1
       })
 

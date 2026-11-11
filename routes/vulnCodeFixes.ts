@@ -4,6 +4,7 @@ import { type NextFunction, type Request, type Response } from 'express'
 
 import * as accuracy from '../lib/accuracy'
 import * as challengeUtils from '../lib/challengeUtils'
+import { getCodeChallenges } from '../lib/codingChallenges'
 import { type ChallengeKey } from 'models/challenge'
 
 const FixesDir = 'data/static/codefixes'
@@ -13,13 +14,12 @@ interface codeFix {
   correct: number
 }
 
-type cache = Record<string, codeFix>
-
-const CodeFixes: cache = {}
+const CodeFixes = new Map<string, codeFix>()
 
 export const readFixes = (key: string) => {
-  if (CodeFixes[key]) {
-    return CodeFixes[key]
+  const cached = CodeFixes.get(key)
+  if (cached) {
+    return cached
   }
   const files = fs.readdirSync(FixesDir)
   const fixes: string[] = []
@@ -37,11 +37,21 @@ export const readFixes = (key: string) => {
     }
   }
 
-  CodeFixes[key] = {
-    fixes,
-    correct
+  const fixData = { fixes, correct }
+  if (fixes.length > 0) {
+    CodeFixes.set(key, fixData)
   }
-  return CodeFixes[key]
+  return fixData
+}
+
+const isKnownCodeChallenge = async (key: unknown): Promise<boolean> => {
+  return typeof key === 'string' && (await getCodeChallenges()).has(key)
+}
+
+const sendNoFixesFound = (res: Response) => {
+  res.status(404).json({
+    error: 'No fixes found for the snippet!'
+  })
 }
 
 interface FixesRequestParams {
@@ -53,13 +63,15 @@ interface VerdictRequestBody {
   selectedFix: number
 }
 
-export const serveCodeFixes = () => (req: Request<FixesRequestParams, Record<string, unknown>, Record<string, unknown>>, res: Response, next: NextFunction) => {
+export const serveCodeFixes = () => async (req: Request<FixesRequestParams, Record<string, unknown>, Record<string, unknown>>, res: Response, next: NextFunction) => {
   const key = req.params.key
+  if (!(await isKnownCodeChallenge(key))) {
+    sendNoFixesFound(res)
+    return
+  }
   const fixData = readFixes(key)
   if (fixData.fixes.length === 0) {
-    res.status(404).json({
-      error: 'No fixes found for the snippet!'
-    })
+    sendNoFixesFound(res)
     return
   }
   res.status(200).json({
@@ -70,11 +82,13 @@ export const serveCodeFixes = () => (req: Request<FixesRequestParams, Record<str
 export const checkCorrectFix = () => async (req: Request<Record<string, unknown>, Record<string, unknown>, VerdictRequestBody>, res: Response, next: NextFunction) => {
   const key = req.body.key
   const selectedFix = req.body.selectedFix
+  if (!(await isKnownCodeChallenge(key))) {
+    sendNoFixesFound(res)
+    return
+  }
   const fixData = readFixes(key)
   if (fixData.fixes.length === 0) {
-    res.status(404).json({
-      error: 'No fixes found for the snippet!'
-    })
+    sendNoFixesFound(res)
   } else {
     let explanation
     if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
