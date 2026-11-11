@@ -83,6 +83,20 @@ describe('DataExportComponent', () => {
         expect(component.formatControl.valid).toBeFalsy()
     })
 
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+        expect(component.presenceOfCaptcha).toBe(true)
+    })
+
+    it('should send the captcha answer with the data export request', () => {
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        component.captchaControl.setValue('12345')
+        component.formatControl.setValue('1')
+        component.save()
+        expect(dataSubjectService.dataExport).toHaveBeenCalledWith({ answer: '12345', format: '1' })
+    })
+
     it('should be compulsory to answer the captcha when captcha is present', () => {
         component.captchaControl.setValue('')
         expect(component.captchaControl.valid).toBeFalsy()
@@ -113,7 +127,9 @@ describe('DataExportComponent', () => {
     it('should clear the form and display error if exporting data fails', () => {
         dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Error' }))
         vi.spyOn(component, 'resetFormError')
+        imageCaptchaService.getCaptcha.mockClear()
         component.save()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
         expect(component.confirmation).toBeNull()
         expect(component.error).toBe('Error')
         expect(component.resetFormError).toHaveBeenCalled()
