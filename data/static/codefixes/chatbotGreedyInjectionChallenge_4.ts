@@ -93,8 +93,9 @@ const chatTools = {
       discount: z.number().describe('The discount percentage for the coupon (maximum 10)')
     }),
     execute: async ({ discount }) => {
-      const couponCode = security.generateCoupon(discount)
-      return { couponCode, discount }
+      const cappedDiscount = Math.max(0, Math.min(Math.trunc(discount), MAX_CHATBOT_COUPON_DISCOUNT))
+      const couponCode = security.generateCoupon(cappedDiscount)
+      return { couponCode, discount: cappedDiscount }
     }
   })
 }

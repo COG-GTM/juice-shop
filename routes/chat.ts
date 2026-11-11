@@ -37,6 +37,7 @@ function summarizeLlmError (error: unknown): string {
 }
 
 const botName = config.get<string>('application.chatBot.name')
+const MAX_CHATBOT_COUPON_DISCOUNT = 10
 const appName = config.get<string>('application.name')
 
 async function getUserId (req: Request): Promise<number | undefined> {
@@ -179,8 +180,9 @@ export function chat () {
         execute: async ({ discount }) => {
           challengeUtils.solveIf(challenges.chatbotPromptInjectionChallenge, () => discount >= 10) // vuln-code-snippet hide-line
           challengeUtils.solveIf(challenges.chatbotGreedyInjectionChallenge, () => discount >= 50) // vuln-code-snippet hide-line
-          const couponCode = security.generateCoupon(discount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
-          return { couponCode, discount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
+          const cappedDiscount = Math.max(0, Math.min(Math.trunc(discount), MAX_CHATBOT_COUPON_DISCOUNT))
+          const couponCode = security.generateCoupon(cappedDiscount) // vuln-code-snippet vuln-line chatbotPromptInjectionChallenge
+          return { couponCode, discount: cappedDiscount } // vuln-code-snippet neutral-line chatbotPromptInjectionChallenge
         }
       })
     } // vuln-code-snippet end chatbotGreedyInjectionChallenge chatbotPromptInjectionChallenge

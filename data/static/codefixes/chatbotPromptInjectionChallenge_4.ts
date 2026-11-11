@@ -9,8 +9,9 @@
           if (!orderIdPattern.test(reason)) {
             return { error: 'Reason must reference a valid order ID.' }
           }
-          const couponCode = security.generateCoupon(discount)
-          return { couponCode, discount }
+          const cappedDiscount = Math.max(0, Math.min(Math.trunc(discount), MAX_CHATBOT_COUPON_DISCOUNT))
+          const couponCode = security.generateCoupon(cappedDiscount)
+          return { couponCode, discount: cappedDiscount }
         }
       })
     }
