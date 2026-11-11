@@ -59,7 +59,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         unique: true,
         validate: {
           isEmailAddress (email: string) {
-            if (email.trim() !== '' && !/^[^\s@<>"'`]+@[^\s@<>"'`]+$/.test(email.trim())) {
+            if (/[\s<>"'`]/.test(email.trim())) {
               throw new Error('Invalid email address')
             }
           }
