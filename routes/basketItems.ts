@@ -11,6 +11,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { authenticatedBasketId } from './basket'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
@@ -33,16 +34,15 @@ export function addBasketItem () {
       }
     }
 
-    const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    const bid = await authenticatedBasketId(req)
+    if (bid == null || basketIds.some(basketId => String(basketId) !== String(bid))) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
         ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
+        BasketId: bid,
         quantity: quantities[quantities.length - 1]
       }
-      challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
 
       const basketItemInstance = BasketItemModel.build(basketItem)
       try {
