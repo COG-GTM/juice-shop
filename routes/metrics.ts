@@ -21,6 +21,7 @@ import { reviewsCollection, ordersCollection } from '../data/mongodb'
 import { challenges } from '../data/datacache'
 import * as Prometheus from 'prom-client'
 import onFinished from 'on-finished'
+import crypto from 'node:crypto'
 
 const register = Prometheus.register
 
@@ -70,9 +71,26 @@ export function serveMetrics () {
       const ignoredUserAgents = config.get<string[]>('challenges.metricsIgnoredUserAgents')
       return !ignoredUserAgents.some((ignoredUserAgent) => userAgent.includes(ignoredUserAgent))
     })
+    if (!hasValidScrapeToken(req)) {
+      res.set('WWW-Authenticate', 'Bearer realm="metrics"')
+      res.status(401).end()
+      return
+    }
     res.set('Content-Type', register.contentType)
     res.end(await register.metrics())
   }
+}
+
+function hasValidScrapeToken (req: Request) {
+  const expectedToken = process.env.METRICS_SCRAPE_TOKEN
+  if (!expectedToken) return false
+  const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')
+  if (match == null) return false
+  return crypto.timingSafeEqual(sha256(match[1]), sha256(expectedToken))
+}
+
+function sha256 (value: string) {
+  return crypto.createHash('sha256').update(value).digest()
 }
 
 export function observeMetrics () {

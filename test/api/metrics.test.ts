@@ -6,22 +6,80 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
-import type { Express } from 'express'
+import express, { type Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { serveMetrics } from '../../routes/metrics'
+
+process.env.METRICS_SCRAPE_TOKEN = 'api-test-metrics-scrape-token'
+const scrapeAuthorization = `Bearer ${process.env.METRICS_SCRAPE_TOKEN}`
 
 let app: Express
+let metricsApp: Express
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  metricsApp = express()
+  metricsApp.get('/metrics', serveMetrics())
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
+  void it('GET metrics without scrape token is rejected', async () => {
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .expect(401)
+
+    assert.equal(res.headers['www-authenticate'], 'Bearer realm="metrics"')
+    assert.doesNotMatch(res.text, /_wallet_balance_total/)
+  })
+
+  void it('GET metrics with wrong scrape token is rejected', async () => {
+    await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', 'Bearer wrong-token')
+      .expect(401)
+  })
+
+  void it('GET metrics with an admin JWT instead of the scrape token is rejected', async () => {
+    const login = await request(app)
+      .post('/rest/user/login')
+      .send({ email: 'admin@juice-sh.op', password: 'admin123' })
+      .expect(200)
+
+    await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', `Bearer ${login.body.authentication.token}`)
+      .expect(401)
+  })
+
+  void it('GET metrics is rejected for every caller when no scrape token is configured', async () => {
+    const configuredToken = process.env.METRICS_SCRAPE_TOKEN
+    delete process.env.METRICS_SCRAPE_TOKEN
+    try {
+      await request(metricsApp)
+        .get('/metrics')
+        .set('Authorization', 'Bearer ')
+        .expect(401)
+    } finally {
+      process.env.METRICS_SCRAPE_TOKEN = configuredToken
+    }
+  })
+
+  void it('GET metrics with scrape token is served', async () => {
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
+  })
+
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +108,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +125,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set('Authorization', scrapeAuthorization)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
