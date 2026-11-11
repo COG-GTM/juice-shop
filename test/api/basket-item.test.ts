@@ -72,6 +72,25 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
+
+  for (const quantity of [-100, 0, 1.5, '2']) {
+    void it(`POST new basket item with invalid quantity ${JSON.stringify(quantity)} is rejected`, async () => {
+      const res = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 1, quantity })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+    })
+  }
+
+  void it('POST new basket item with a negative quantity hidden in a nested key is rejected', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"BasketId":2,"ProductId":5,"quantity":1,"x":{"quantity":-100}}')
+    assert.equal(res.status, 400)
+  })
 })
 
 void describe('/api/BasketItems/:id', () => {

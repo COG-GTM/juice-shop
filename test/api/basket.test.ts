@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -136,16 +137,23 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a basket item with a negative quantity is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+  void it('POST placing an order for a basket containing a negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 3, ProductId: 10, quantity: -100 }, { validate: false })
+    try {
+      const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Basket contains an item with an invalid quantity.'))
+    } finally {
+      await item.destroy()
+    }
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {

@@ -64,6 +64,10 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(`${req.__('Date')}: ${date}`, { align: 'left' })
           doc.moveDown()
           doc.moveDown()
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isInteger(BasketItem.quantity) && BasketItem.quantity >= 1))) {
+            next(new Error('Basket contains an item with an invalid quantity.'))
+            return
+          }
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
@@ -138,6 +142,10 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (totalPrice < 0) {
+            next(new Error('Order total must not be negative.'))
+            return
+          }
 
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
