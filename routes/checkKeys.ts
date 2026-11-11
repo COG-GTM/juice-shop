@@ -33,9 +33,11 @@ export function checkKeys () {
   }
 }
 export function nftUnlocked () {
-  return (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     try {
-      res.status(200).json({ status: challenges.nftUnlockChallenge.solved })
+      const { HDNodeWallet } = await import('ethers')
+      const { address } = HDNodeWallet.fromPhrase(await getNftWalletMnemonic())
+      res.status(200).json({ status: challenges.nftUnlockChallenge.solved, address })
     } catch (error) {
       res.status(500).json(utils.getErrorMessage(error))
     }
