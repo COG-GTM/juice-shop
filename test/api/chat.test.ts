@@ -277,12 +277,14 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (callCount === 1) {
         sendSSE(res, [toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify(args)), finishChunk('tool_calls')])
       } else {
-        const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
         try {
-          toolResult = JSON.parse(toolMsg.content)
-        } catch {
-          toolResult = { error: toolMsg.content }
-        }
+          const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+          try {
+            toolResult = JSON.parse(toolMsg.content)
+          } catch {
+            toolResult = { error: toolMsg.content }
+          }
+        } catch {}
         sendSSE(res, [contentChunk('Done'), finishChunk()])
       }
     }
