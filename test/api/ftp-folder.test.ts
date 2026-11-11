@@ -211,4 +211,11 @@ void describe('/ftp', () => {
       .get('/ftp/quarantine/juicy_malware_windows_64.exe.url')
     assert.equal(res.status, 200)
   })
+
+  void it('GET a quarantine file whose name contains a "\\" traversal fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/..%5c..%5cpackage.json')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: File names cannot contain path traversal sequences!'))
+  })
 })

@@ -37,4 +37,23 @@ describe('keyServer', () => {
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
+
+  it('should raise error for backslash traversal in filename', () => {
+    req.params.file = '..\\..\\package.json'
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(403)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should raise error for parent directory reference as filename', () => {
+    req.params.file = '..'
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
 })
