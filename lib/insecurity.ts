@@ -41,7 +41,10 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
-export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
+const securityAnswerHmacKey = process.env.SECURITY_ANSWER_HMAC_KEY !== undefined && process.env.SECURITY_ANSWER_HMAC_KEY !== ''
+  ? process.env.SECURITY_ANSWER_HMAC_KEY
+  : crypto.randomBytes(32).toString('hex')
+export const hmac = (data: string) => crypto.createHmac('sha256', securityAnswerHmacKey).update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
