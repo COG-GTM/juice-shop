@@ -120,11 +120,15 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'mc.safesearch', password: 'Mr. N00dles' })
     })
 
-    it('should be possible to like reviews multiple times', () => {
+    it('should count concurrent likes from the same user only once', () => {
       cy.visit('/')
       cy.window().then(async () => {
+        async function getFirstReview () {
+          const response = await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`)
+          return (await response.json()).data[0]
+        }
         async function sendPostRequest (reviewId: string) {
-          const anotherResponse = await fetch(
+          return await fetch(
             `${Cypress.config('baseUrl')}/rest/products/reviews`,
             {
               method: 'POST',
@@ -135,30 +139,13 @@ describe('/rest/products/reviews', () => {
               body: JSON.stringify({ id: reviewId })
             }
           )
-          if (anotherResponse.status === 200) {
-            console.log('Success')
-          }
         }
 
-        const response = await fetch(
-          `${Cypress.config('baseUrl')}/rest/products/1/reviews`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-type': 'text/plain'
-            }
-          }
-        )
-        if (response.status === 200) {
-          const responseJson = await response.json()
-          const reviewId = responseJson.data[0]._id
-
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-        }
+        const review = await getFirstReview()
+        await Promise.all([sendPostRequest(review._id), sendPostRequest(review._id), sendPostRequest(review._id)])
+        const updatedReview = await getFirstReview()
+        expect(updatedReview.likesCount).to.be.at.most(review.likesCount + 1)
       })
-      cy.expectChallengeSolved({ challenge: 'Multiple Likes' })
     })
   })
 })
