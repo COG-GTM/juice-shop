@@ -309,7 +309,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
   app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
-  app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
+  app.post('/rest/memories', security.isAuthorized(), security.appendUserId(), uploadMemoryImage, removeUploadedFileOnError, ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
   app.use(function jsonParser (req: Request, res: Response, next: NextFunction) {
@@ -691,6 +691,7 @@ const mimeTypeMap: any = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg'
 }
+const memoryUploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
 const uploadToDisk = multer({
   storage: multer.diskStorage({
     destination: (req: Request, file: any, cb: any) => {
@@ -699,7 +700,7 @@ const uploadToDisk = multer({
       if (isValid) {
         error = null
       }
-      cb(error, path.resolve('frontend/dist/frontend/assets/public/images/uploads/'))
+      cb(error, memoryUploadsDir)
     },
     filename: (req: Request, file: any, cb: any) => {
       const name = security.sanitizeFilename(file.originalname)
@@ -709,8 +710,31 @@ const uploadToDisk = multer({
       const ext = mimeTypeMap[file.mimetype]
       cb(null, name + '-' + Date.now() + '.' + ext)
     }
-  })
+  }),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 }
 })
+
+const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
+  uploadToDisk.single('image')(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      res.status(413).json({ error: 'File too large' })
+      return
+    }
+    next(err)
+  })
+}
+
+const removeUploadedFileOnError = (req: Request, res: Response, next: NextFunction) => {
+  res.on('finish', () => {
+    if (res.statusCode >= 400 && req.file?.filename) {
+      const uploadedFilePath = path.resolve(memoryUploadsDir, path.basename(req.file.filename))
+      if (uploadedFilePath.startsWith(memoryUploadsDir + path.sep)) {
+        fs.unlink(uploadedFilePath, () => {})
+      }
+    }
+  })
+  next()
+}
 
 const expectedModels = ['Address', 'Basket', 'BasketItem', 'Captcha', 'Card', 'Challenge', 'ChallengeDependency', 'Complaint', 'Delivery', 'Feedback', 'ImageCaptcha', 'Memory', 'PrivacyRequestModel', 'Product', 'Quantity', 'Recycle', 'SecurityAnswer', 'SecurityQuestion', 'User', 'Wallet', 'Hint']
 while (!expectedModels.every(model => Object.keys(sequelize.models).includes(model))) {
