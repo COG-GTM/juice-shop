@@ -18,9 +18,8 @@ export function retrieveLoggedInUser () {
         const user = security.authenticatedUsers.get(req.cookies.token)
 
         const fieldsParam = typeof req.query?.fields === 'string' ? req.query.fields : undefined
-        const requestedFields = fieldsParam
-          ? fieldsParam.split(',').map(f => f.trim()).filter((f): f is AllowedField => (allowedFields as readonly string[]).includes(f))
-          : []
+        const requested = new Set(fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : [])
+        const requestedFields = allowedFields.filter(f => requested.has(f))
         const fields: readonly AllowedField[] = requestedFields.length > 0 ? requestedFields : allowedFields
 
         const baseUser: Partial<Record<AllowedField, unknown>> = {}
