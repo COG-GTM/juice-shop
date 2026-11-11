@@ -51,4 +51,54 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+  void it('POST update username from a foreign origin is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username with a foreign referer and no origin is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Referer', 'http://htmledit.squarefree.com/')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from an opaque origin is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'null')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username from the same origin sets a SameSite token cookie', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'juice-shop.test')
+      .set('Origin', 'http://juice-shop.test')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const setCookie = ([] as string[]).concat(res.headers['set-cookie'] ?? [])
+    assert.ok(setCookie.some(c => c.startsWith('token=') && /SameSite=Lax/i.test(c)))
+  })
 })
