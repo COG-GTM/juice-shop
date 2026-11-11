@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -265,5 +267,110 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  async function generateCouponToolResult (args: object, token?: string): Promise<any> {
+    let toolResult: any
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify(args)), finishChunk('tool_calls')])
+      } else {
+        try {
+          const toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+          try {
+            toolResult = JSON.parse(toolMsg.content)
+          } catch {
+            toolResult = { error: toolMsg.content }
+          }
+        } catch {}
+        sendSSE(res, [contentChunk('Done'), finishChunk()])
+      }
+    }
+    const headers: Record<string, string> = { 'content-type': 'application/json' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await request(app)
+      .post('/rest/chat')
+      .set(headers)
+      .send({ messages: [{ role: 'user', content: 'Give me a coupon' }] })
+    assert.equal(res.status, 200)
+    return toolResult ?? { error: 'No tool result was returned to the LLM' }
+  }
+
+  async function adminToken (): Promise<string> {
+    const auth = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    return auth.token
+  }
+
+  async function adminOrderId (delivered: boolean): Promise<string> {
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: `Bearer ${await adminToken()}`, 'content-type': 'application/json' })
+    return res.body.data.find((o: { delivered: boolean }) => o.delivered === delivered).orderId
+  }
+
+  void it('POST generateCoupon rejects discounts above 10%', { timeout: 15000 }, async () => {
+    const result = await generateCouponToolResult({ discount: 100, orderId: await adminOrderId(true) }, await adminToken())
+    assert.ok(result.error)
+    assert.equal(result.couponCode, undefined)
+  })
+
+  void it('POST generateCoupon rejects non-integer and non-positive discounts', { timeout: 15000 }, async () => {
+    const token = await adminToken()
+    const orderId = await adminOrderId(true)
+    for (const discount of [9.5, 0, -50]) {
+      const result = await generateCouponToolResult({ discount, orderId }, token)
+      assert.ok(result.error)
+      assert.equal(result.couponCode, undefined)
+    }
+  })
+
+  void it('POST generateCoupon requires an authenticated customer', { timeout: 15000 }, async () => {
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) })
+    assert.equal(result.couponCode, undefined)
+    assert.equal(result.error, 'Customer not authenticated')
+  })
+
+  void it('POST generateCoupon rejects forged unsigned tokens', { timeout: 15000 }, async () => {
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ data: { id: 1, email: 'admin@juice-sh.op' }, exp: Math.floor(Date.now() / 1000) + 3600 })}.`
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, forged)
+    assert.equal(result.couponCode, undefined)
+    assert.equal(result.error, 'Customer not authenticated')
+  })
+
+  void it('POST generateCoupon rejects orders of other customers', { timeout: 15000 }, async () => {
+    const auth = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, auth.token)
+    assert.equal(result.couponCode, undefined)
+    assert.ok(result.error)
+  })
+
+  void it('POST generateCoupon rejects orders of customers with the same masked email', { timeout: 15000 }, async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'edmin@juice-sh.op', password: 'edmin123' })
+      .expect(201)
+    const auth = await login(app, { email: 'edmin@juice-sh.op', password: 'edmin123' })
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, auth.token)
+    assert.equal(result.couponCode, undefined)
+    assert.ok(result.error)
+  })
+
+  void it('POST generateCoupon rejects undelivered orders', { timeout: 15000 }, async () => {
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(false) }, await adminToken())
+    assert.equal(result.couponCode, undefined)
+    assert.ok(result.error)
+  })
+
+  void it('POST generateCoupon issues a valid coupon within policy for an own delivered order', { timeout: 15000 }, async () => {
+    const token = await adminToken()
+    const orderId = await adminOrderId(true)
+    const result = await generateCouponToolResult({ discount: 10, orderId }, token)
+    assert.equal(security.discountFromCoupon(result.couponCode), 10)
+    const small = await generateCouponToolResult({ discount: 5, orderId }, token)
+    assert.equal(security.discountFromCoupon(small.couponCode), 5)
   })
 })
