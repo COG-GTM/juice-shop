@@ -13,7 +13,14 @@ export function login () {
 
   return (req: Request, res: Response, next: NextFunction) => {
     models.sequelize.query(`SELECT * FROM Users WHERE email = '${req.body.email || ''}' AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`, { model: models.User, plain: false })
-      .then((authenticatedUser) => {
+      .then(async (authenticatedUser) => {
+        if (!await security.verifyPassword(req.body.password, authenticatedUser?.password)) {
+          res.status(401).send(res.__('Invalid email or password.'))
+          return
+        }
+        if (security.isLegacyPasswordHash(authenticatedUser?.password)) {
+          await authenticatedUser?.update({ password: req.body.password })
+        }
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
