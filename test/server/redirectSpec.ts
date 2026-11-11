@@ -77,12 +77,50 @@ describe('redirect', () => {
     expect(challenges.redirectCryptoCurrencyChallenge.solved).to.equal(true)
   })
 
-  it('tricking the allowlist should solve "redirectChallenge"', () => {
-    req.query.to = 'http://kimminich.de?to=https://github.com/juice-shop/juice-shop'
-    challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+  describe('should be rejected for URLs that only contain or resemble an allowlisted URL', () => {
+    for (const url of [
+      'http://kimminich.de?to=https://github.com/juice-shop/juice-shop',
+      'https://evil.example/login?x=https://github.com/juice-shop/juice-shop',
+      'https://github.com/juice-shop/juice-shop.evil.example',
+      'https://github.com.evil.example/juice-shop/juice-shop',
+      'https://github.com/juice-shop/juice-shop@evil.example',
+      'https://github.com/juice-shop/juice-shop/../../evil',
+      'https://user:pass@github.com/juice-shop/juice-shop',
+      'http://github.com/juice-shop/juice-shop',
+      '//github.com/juice-shop/juice-shop',
+      '/score-board?satisfyIndexOf=https://github.com/juice-shop/juice-shop',
+      'javascript:alert(1)//https://github.com/juice-shop/juice-shop'
+    ]) {
+      it(url, () => {
+        req.query.to = url
+        challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+
+        performRedirect()(req, res, next)
+
+        expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+        expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+        expect(challenges.redirectChallenge.solved).to.equal(false)
+      })
+    }
+  })
+
+  it('should allow query string and fragment on an allowlisted origin and path', () => {
+    req.query.to = 'https://github.com/juice-shop/juice-shop?tab=readme#top'
 
     performRedirect()(req, res, next)
 
-    expect(challenges.redirectChallenge.solved).to.equal(true)
+    expect(res.redirect).to.have.been.calledWith('https://github.com/juice-shop/juice-shop?tab=readme#top')
+  })
+
+  it('should raise error when "to" is missing or not a string', () => {
+    for (const to of [undefined, ['https://github.com/juice-shop/juice-shop']]) {
+      req.query.to = to
+      next = sinon.spy()
+
+      performRedirect()(req, res, next)
+
+      expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    }
   })
 })
