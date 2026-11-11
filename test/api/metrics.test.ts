@@ -10,8 +10,10 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+const adminAuthHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}` }
 
 before(async () => {
   const result = await createTestApp()
@@ -22,6 +24,7 @@ void describe('/metrics', () => {
   void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuthHeader)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -50,6 +53,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuthHeader)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -66,6 +70,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuthHeader)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
