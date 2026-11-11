@@ -112,6 +112,16 @@ describe('redirect', () => {
     expect(res.redirect).to.have.been.calledWith('https://github.com/juice-shop/juice-shop?tab=readme#top')
   })
 
+  it('should not solve "redirectChallenge" for an allowlisted URL written with an explicit default port', () => {
+    req.query.to = 'https://github.com:443/juice-shop/juice-shop'
+    challenges.redirectChallenge = { solved: false, save } as unknown as Challenge
+
+    performRedirect()(req, res, next)
+
+    expect(res.redirect).to.have.been.calledWith('https://github.com:443/juice-shop/juice-shop')
+    expect(challenges.redirectChallenge.solved).to.equal(false)
+  })
+
   it('should raise error when "to" is missing or not a string', () => {
     for (const to of [undefined, ['https://github.com/juice-shop/juice-shop']]) {
       req.query.to = to
