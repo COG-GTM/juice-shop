@@ -28,11 +28,19 @@ describe('/#/privacy-security/change-password', () => {
         '/#/search?q=%3Ciframe%20src%3D%22javascript%3Axmlhttp%20%3D%20new%20XMLHttpRequest%28%29%3B%20xmlhttp.open%28%27GET%27%2C%20%27http%3A%2F%2Flocalhost%3A3000%2Frest%2Fuser%2Fchange-password%3Fnew%3DslurmCl4ssic%26amp%3Brepeat%3DslurmCl4ssic%27%29%3B%20xmlhttp.setRequestHeader%28%27Authorization%27%2C%60Bearer%3D%24%7BlocalStorage.getItem%28%27token%27%29%7D%60%29%3B%20xmlhttp.send%28%29%3B%22%3E'
       )
       cy.wait(2000)
-      cy.login({ email: 'bender', password: 'slurmCl4ssic' })
-      cy.url().should('match', /\/login/)
-
-      cy.login({ email: 'bender', password: 'OhG0dPlease1nsertLiquor!' })
-      cy.url().should('match', /\/search/)
+      cy.task<string>('GetFromConfig', 'application.domain').then((appDomain: string) => {
+        cy.request({
+          method: 'POST',
+          url: '/rest/user/login',
+          body: { email: `bender@${appDomain}`, password: 'slurmCl4ssic' },
+          failOnStatusCode: false
+        }).its('status').should('eq', 401)
+        cy.request({
+          method: 'POST',
+          url: '/rest/user/login',
+          body: { email: `bender@${appDomain}`, password: 'OhG0dPlease1nsertLiquor!' }
+        }).its('status').should('eq', 200)
+      })
     })
   })
 })
