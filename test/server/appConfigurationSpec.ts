@@ -36,4 +36,15 @@ describe('appConfiguration', () => {
     expect(returnedConfig.application.chatBot).to.exist
     expect(returnedConfig.application.chatBot).to.not.have.property('llmApiUrl')
   })
+
+  it('should not expose security answers of memories', () => {
+    req = {}
+    res = { json: sinon.spy() }
+
+    retrieveAppConfiguration()(req, res)
+    const returnedConfig = res.json.firstCall.args[0].config
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    expect(returnedConfig.memories).to.be.an('array').that.is.not.empty
+    expect(JSON.stringify(returnedConfig)).to.not.match(/SecurityAnswer/i)
+  })
 })
