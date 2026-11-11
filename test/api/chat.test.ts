@@ -330,6 +330,14 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(result.error, 'Customer not authenticated')
   })
 
+  void it('POST generateCoupon rejects forged unsigned tokens', { timeout: 15000 }, async () => {
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const forged = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ data: { id: 1, email: 'admin@juice-sh.op' }, exp: Math.floor(Date.now() / 1000) + 3600 })}.`
+    const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, forged)
+    assert.equal(result.couponCode, undefined)
+    assert.equal(result.error, 'Customer not authenticated')
+  })
+
   void it('POST generateCoupon rejects orders of other customers', { timeout: 15000 }, async () => {
     const auth = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const result = await generateCouponToolResult({ discount: 10, orderId: await adminOrderId(true) }, auth.token)

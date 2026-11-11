@@ -20,6 +20,7 @@ import * as db from '../data/mongodb'
 import { type Review } from '../data/types'
 import logger from '../lib/logger'
 import { Counter } from 'prom-client'
+import jws from 'jws'
 
 function summarizeLlmError (error: unknown): string {
   if (!(error instanceof Error)) {
@@ -46,6 +47,14 @@ async function getUserId (req: Request): Promise<number | undefined> {
   if (!token) return undefined
   const decoded = security.decode(token) as { data?: { id?: number } } | undefined
   return decoded?.data?.id
+}
+
+async function getVerifiedUserId (req: Request): Promise<number | undefined> {
+  const token = utils.jwtFrom(req)
+  if (!token || jws.decode(token)?.header?.alg !== 'RS256' || !security.verify(token)) return undefined
+  const decoded = security.decode(token) as { exp?: number, data?: { id?: number } } | undefined
+  if (decoded?.exp && decoded.exp * 1000 < Date.now()) return undefined
+  return decoded.data?.id
 }
 
 async function getUserNameFromToken (req: Request): Promise<string | undefined> {
@@ -182,7 +191,7 @@ export function chat () {
         execute: async ({ discount, orderId }) => {
           if (!Number.isInteger(discount) || discount < 1 || discount > MAX_CHATBOT_COUPON_DISCOUNT) return { error: `Discount must be between 1 and ${MAX_CHATBOT_COUPON_DISCOUNT}%.` }
 
-          const userId = await getUserId(req)
+          const userId = await getVerifiedUserId(req)
           if (!userId) return { error: 'Customer not authenticated' }
           const user = await UserModel.findByPk(userId, { attributes: ['email'] })
           if (!user?.email) return { error: 'Customer not found' }
