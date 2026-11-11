@@ -82,4 +82,22 @@ void describe('session revocation', () => {
       .set({ Authorization: 'Bearer ' + token })
     assert.notEqual(change.status, 200)
   })
+
+  void it('logout also revokes a newer cookie token of the same user', async () => {
+    await register(app, { email: 'revoke.cookie@juice-sh.op', password: 'somePassword1' })
+    const { token } = await login(app, { email: 'revoke.cookie@juice-sh.op', password: 'somePassword1' })
+    const { token: cookieToken } = await login(app, { email: 'revoke.cookie@juice-sh.op', password: 'somePassword1' })
+    assert.notEqual(token, cookieToken)
+
+    await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: 'Bearer ' + token })
+      .set('Cookie', `token=${cookieToken}`)
+      .expect(204)
+
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + cookieToken })
+      .expect(401)
+  })
 })

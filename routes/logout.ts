@@ -12,6 +12,11 @@ export function logout () {
     const token = utils.jwtFrom(req)
     if (token && security.verify(token)) {
       security.authenticatedUsers.revoke(token)
+      const cookieToken = req.cookies?.token
+      if (cookieToken && cookieToken !== token && security.verify(cookieToken) &&
+        security.decode(cookieToken)?.data?.id === security.decode(token)?.data?.id) {
+        security.authenticatedUsers.revoke(cookieToken)
+      }
     }
     res.status(204).send()
   }
