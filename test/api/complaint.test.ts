@@ -8,14 +8,20 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
-import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+let authHeader: { Authorization: string, 'content-type': string }
+let otherAuthHeader: { Authorization: string, 'content-type': string }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+
+  const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  authHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+  otherAuthHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -39,11 +45,28 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('POST new complaint ignores UserId supplied in body', async () => {
+    const res = await request(app)
+      .post('/api/Complaints')
+      .set(otherAuthHeader)
+      .send({
+        message: 'Filed in Jim\'s name?',
+        UserId: 2
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.UserId, 3)
+  })
+
+  void it('GET all complaints only returns complaints of the current user', async () => {
     const res = await request(app)
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(Array.isArray(res.body.data))
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, 2)
+    }
   })
 })
 
