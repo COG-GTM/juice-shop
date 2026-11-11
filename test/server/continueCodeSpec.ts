@@ -9,6 +9,7 @@ import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { continueCode } from '../../routes/continueCode'
+import { decodeContinueCode, encodeContinueCode } from '../../lib/continueCode'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -36,6 +37,22 @@ describe('continueCode', () => {
     challenges.continueCodeChallenge = { id: 3, solved: false } as unknown as Challenge
 
     continueCode()(req, res)
-    expect(res.json).to.have.been.calledWith({ continueCode: 'yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY' })
+    const code: string = res.json.firstCall.args[0].continueCode
+    expect(code.startsWith('yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')).to.equal(true)
+    expect(decodeContinueCode('continueCode', code)).to.deep.equal([1, 2])
+  })
+
+  it('should not decode unsigned hashid values', () => {
+    expect(decodeContinueCode('continueCode', 'yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')).to.deep.equal([])
+  })
+
+  it('should not decode continue codes with a tampered signature', () => {
+    const code = encodeContinueCode('continueCode', [1, 2])
+    const tampered = code.slice(0, -1) + (code.endsWith('0') ? '1' : '0')
+    expect(decodeContinueCode('continueCode', tampered)).to.deep.equal([])
+  })
+
+  it('should not decode continue codes signed for another kind', () => {
+    expect(decodeContinueCode('fixIt', encodeContinueCode('findIt', [1, 2]))).to.deep.equal([])
   })
 })
