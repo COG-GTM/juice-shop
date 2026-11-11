@@ -59,13 +59,12 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         unique: true,
         validate: {
           isEmailAddress (email: string) {
-            if (/[\s<>"'`]/.test(email.trim())) {
+            if (/[\s<>"'`]/.test(email.trim()) || security.sanitizeSecure(email) !== email) {
               throw new Error('Invalid email address')
             }
           }
         },
         set (email: string) {
-          email = security.sanitizeSecure(email)
           challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
             return utils.contains(
               email,
