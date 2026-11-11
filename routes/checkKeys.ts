@@ -2,12 +2,13 @@ import { type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
+import { getNftWalletMnemonic } from '../lib/nftWallet'
 
 export function checkKeys () {
   return async (req: Request, res: Response) => {
     try {
       const { HDNodeWallet } = await import('ethers')
-      const mnemonic = 'purpose betray marriage blame crunch monitor spin slide donate sport lift clutch'
+      const mnemonic = await getNftWalletMnemonic()
       const mnemonicWallet = HDNodeWallet.fromPhrase(mnemonic)
       const privateKey = mnemonicWallet.privateKey
       const publicKey = mnemonicWallet.publicKey
