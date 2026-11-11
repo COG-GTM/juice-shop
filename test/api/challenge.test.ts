@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { encodeContinueCode } from '../../lib/continueCode'
 import { ChallengeDependencyModelInit } from '../../models/challengeDependency'
 
 let app: Express
@@ -101,8 +102,14 @@ void describe('/rest/continue-code', () => {
 
   void it('PUT continue code for more than one challenge is accepted', async () => {
     const res = await request(app)
-      .put('/rest/continue-code/apply/yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
+      .put('/rest/continue-code/apply/' + encodeContinueCode('continueCode', [1, 2]))
     assert.equal(res.status, 200)
+  })
+
+  void it('PUT forged unsigned continue code is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code/apply/yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
+    assert.equal(res.status, 404)
   })
 
   void it('PUT continue code for non-existent challenge #999 is accepted', async () => {
@@ -133,8 +140,14 @@ void describe('/rest/continue-code-findIt', () => {
 
   void it('PUT continue code for more than one challenge is accepted', async () => {
     const res = await request(app)
-      .put('/rest/continue-code-findIt/apply/Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6')
+      .put('/rest/continue-code-findIt/apply/' + encodeContinueCode('findIt', [1, 2]))
     assert.equal(res.status, 200)
+  })
+
+  void it('PUT forged unsigned continue code is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-findIt/apply/Xg9oK0VdbW5g1KX9G7JYnqLpz3rAPBh6p4eRlkDM6EaBON2QoPmxjyvwMrP6')
+    assert.equal(res.status, 404)
   })
 })
 
@@ -159,7 +172,13 @@ void describe('/rest/continue-code-fixIt', () => {
 
   void it('PUT continue code for more than one challenge is accepted', async () => {
     const res = await request(app)
-      .put('/rest/continue-code-fixIt/apply/y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW')
+      .put('/rest/continue-code-fixIt/apply/' + encodeContinueCode('fixIt', [1, 2]))
     assert.equal(res.status, 200)
+  })
+
+  void it('PUT forged unsigned continue code is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/continue-code-fixIt/apply/y28BEPE2k3yRrdz5p6DGqJONnj41n5UEWawYWgBMoVmL79bKZ8Qve0Xl5QLW')
+    assert.equal(res.status, 404)
   })
 })
