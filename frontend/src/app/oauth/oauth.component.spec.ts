@@ -58,7 +58,7 @@ describe('OAuthComponent', () => {
                 MatTooltipModule,
                 OAuthComponent, LoginComponent],
             providers: [
-                { provide: ActivatedRoute, useValue: { snapshot: { data: { params: '?alt=json&access_token=TEST' } } } },
+                { provide: ActivatedRoute, useValue: { snapshot: { data: { params: '?alt=json&access_token=TEST&state=STATE' } } } },
                 { provide: UserService, useValue: userService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -68,6 +68,7 @@ describe('OAuthComponent', () => {
     })
 
     beforeEach(() => {
+        sessionStorage.setItem('oauthState', 'STATE')
         fixture = TestBed.createComponent(OAuthComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
@@ -80,6 +81,7 @@ describe('OAuthComponent', () => {
     it('removes authentication token and basket id on failed OAuth login attempt', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockReturnValue(throwError({ error: 'Error' }))
+        sessionStorage.setItem('oauthState', 'STATE')
         component.ngOnInit()
         expect(localStorage.getItem('token')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
@@ -87,6 +89,7 @@ describe('OAuthComponent', () => {
 
     it('will create regular user account with base64 encoded reversed email as password', () => {
         userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
+        sessionStorage.setItem('oauthState', 'STATE')
         component.ngOnInit()
         expect(userService.save).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', passwordRepeat: 'bW9jLnRzZXRAdHNldA==' })
     })
@@ -94,8 +97,33 @@ describe('OAuthComponent', () => {
     it('logs in user even after failed account creation as account might already have existed from previous OAuth login', () => {
         userService.oauthLogin.mockReturnValue(of({ email: 'test@test.com' }))
         userService.save.mockReturnValue(throwError({ error: 'Account already exists' }))
+        sessionStorage.setItem('oauthState', 'STATE')
         component.ngOnInit()
         expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
+    })
+
+    it('rejects callback when no state was stored before the redirect', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        sessionStorage.removeItem('oauthState')
+        component.ngOnInit()
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
+    })
+
+    it('rejects callback whose state does not match the stored state', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        userService.oauthLogin.mockClear()
+        sessionStorage.setItem('oauthState', 'OTHER')
+        component.ngOnInit()
+        expect(userService.oauthLogin).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem('oauthState')).toBeNull()
+    })
+
+    it('passes access token to Google only when state matches', () => {
+        userService.oauthLogin.mockClear()
+        sessionStorage.setItem('oauthState', 'STATE')
+        component.ngOnInit()
+        expect(userService.oauthLogin).toHaveBeenCalledWith('TEST')
     })
 
     it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
