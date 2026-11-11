@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -265,5 +266,41 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void it('POST personalizes system prompt for a validly signed token', { timeout: 15000 }, async () => {
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const token = security.authorize({ data: { id: 4 } })
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+      .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(parsedBody.messages[0].content.includes('bkimminich'))
+  })
+
+  void it('POST treats an unsigned alg:none token as anonymous', { timeout: 15000 }, async () => {
+    let parsedBody: any
+    onLlmRequest = (_req, body, res) => {
+      parsedBody = JSON.parse(body)
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+
+    const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const forgedToken = `${b64({ alg: 'none', typ: 'JWT' })}.${b64({ data: { id: 4 } })}.`
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${forgedToken}` })
+      .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(!parsedBody.messages[0].content.includes('bkimminich'))
+    assert.ok(!parsedBody.messages[0].content.includes('currently chatting with'))
   })
 })
