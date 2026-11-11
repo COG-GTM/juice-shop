@@ -10,6 +10,7 @@ import { Status, TrackResultComponent } from './track-result.component'
 import { MatTableModule } from '@angular/material/table'
 import { MatCardModule } from '@angular/material/card'
 import { RouterTestingModule } from '@angular/router/testing'
+import { ActivatedRoute } from '@angular/router'
 import { TrackOrderService } from '../Services/track-order.service'
 import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
@@ -62,7 +63,7 @@ describe('TrackResultComponent', () => {
     })
 
     it('should show the requested order number as text when the lookup fails', () => {
-        component.orderId = '<img src=x onerror=alert(1)>'
+        TestBed.inject(ActivatedRoute).snapshot.queryParams = { id: '<img src=x onerror=alert(1)>' }
         trackOrderService.find.mockReturnValue(throwError(() => new Error('Wrong Param')))
         component.ngOnInit()
         fixture.detectChanges()
