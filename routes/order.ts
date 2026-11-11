@@ -104,7 +104,7 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
@@ -142,7 +142,7 @@ export function placeOrder () {
           if (req.body.UserId) {
             if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
               const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
+              if ((wallet != null) && totalPrice >= 0 && wallet.balance >= totalPrice) {
                 await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
               } else {
                 next(new Error('Insufficient wallet balance.'))
@@ -192,12 +192,19 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     const couponDate = Number(couponData[1])
     const campaign = campaigns[couponCode as keyof typeof campaigns]
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
+    if (campaign && couponDate == campaign.validOn && isCampaignActive(campaign.validOn)) { // eslint-disable-line eqeqeq
       challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
       return campaign.discount
     }
   }
   return 0
+}
+
+const campaignDurationMs = 24 * 60 * 60 * 1000
+
+function isCampaignActive (validOn: number) {
+  const now = Date.now()
+  return now >= validOn && now < validOn + campaignDurationMs
 }
 
 const campaigns = {
