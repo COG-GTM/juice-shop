@@ -168,6 +168,23 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
+
+  void it('POST placing an order with a forged coupon above 100% discount caps the discount instead of producing a negative total', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(security.generateCoupon(150000)))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
