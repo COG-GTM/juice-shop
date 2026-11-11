@@ -13,6 +13,9 @@ import type { Product as ProductConfig } from '../../lib/config.types'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import fs from 'node:fs'
+import path from 'node:path'
+import crypto from 'node:crypto'
 
 const tamperingProductId = config.get<ProductConfig[]>('products').findIndex((product) => !!product.urlForProductTamperingChallenge) + 1
 
@@ -106,6 +109,22 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+  })
+
+  void it('GET product with unknown description does not write it into locale files', async () => {
+    const original = await request(app).get('/api/Products/1')
+    const description = 'i18n-write-probe-' + crypto.randomUUID()
+    await request(app).put('/api/Products/1').set(jsonHeader).send({ description })
+    try {
+      for (const language of ['en', 'de_DE']) {
+        await request(app).get('/api/Products').set('Cookie', `language=${language}`)
+        await request(app).get('/api/Products/1').set('Cookie', `language=${language}`)
+        const localeFile = fs.readFileSync(path.resolve('i18n', `${language}.json`), 'utf8')
+        assert.ok(!localeFile.includes(description))
+      }
+    } finally {
+      await request(app).put('/api/Products/1').set(jsonHeader).send({ description: original.body.data.description })
+    }
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
