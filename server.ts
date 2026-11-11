@@ -11,6 +11,7 @@ import morgan from 'morgan'
 import multer from 'multer'
 import helmet from 'helmet'
 import http from 'node:http'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import express from 'express'
 import colors from 'colors/safe'
@@ -597,7 +598,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       windowMs: 15 * 60 * 1000,
       max: 10,
       skipSuccessfulRequests: true,
-      keyGenerator ({ body }: { body: any }) { return String(body?.email ?? '').trim().toLowerCase() },
+      keyGenerator ({ body }: { body: any }) { return crypto.createHash('sha256').update(String(body?.email ?? '')).digest('hex') },
       validate: false
     }),
     login()

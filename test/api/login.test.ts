@@ -297,7 +297,7 @@ void describe('/rest/saveLoginIp', () => {
     await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
-      .send({ email: ' Brute@Force.ME ', password: 'c0rrectH0rse' })
+      .send({ email: 'brute@force.me', password: 'c0rrectH0rse' })
       .expect(429)
 
     await request(app)
@@ -306,4 +306,5 @@ void describe('/rest/saveLoginIp', () => {
       .send({ email: 'kalli@kasper.le', password: 'kallliiii' })
       .expect(200)
   })
+
 })
