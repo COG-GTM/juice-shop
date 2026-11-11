@@ -12,9 +12,16 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = $mail AND password = $pass AND deletedAt IS NULL`,
-      { bind: { mail: req.body.email, pass: security.hash(req.body.password) }, model: models.User, plain: true })
-      .then((authenticatedUser) => {
+    models.sequelize.query(`SELECT * FROM Users WHERE email = $mail AND deletedAt IS NULL`,
+      { bind: { mail: req.body.email }, model: models.User, plain: true })
+      .then(async (authenticatedUser) => {
+        if (!await security.verifyPassword(req.body.password, authenticatedUser?.password)) {
+          res.status(401).send(res.__('Invalid email or password.'))
+          return
+        }
+        if (security.isLegacyPasswordHash(authenticatedUser?.password)) {
+          await authenticatedUser?.update({ password: req.body.password })
+        }
         const user = utils.queryResultToJson(authenticatedUser)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({

@@ -41,6 +41,63 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+
+const scryptParams = { N: 16384, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }
+const scryptKeyLength = 64
+const legacyMd5Hash = /^[a-f0-9]{32}$/
+
+const scrypt = async (password: string, salt: Buffer, keyLength: number, options: crypto.ScryptOptions) => await new Promise<Buffer>((resolve, reject) => {
+  crypto.scrypt(password, salt, keyLength, options, (err, derivedKey) => { err ? reject(err) : resolve(derivedKey) })
+})
+
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(16)
+  const derivedKey = crypto.scryptSync(password, salt, scryptKeyLength, scryptParams)
+  return `scrypt$${scryptParams.N}$${scryptParams.r}$${scryptParams.p}$${salt.toString('base64')}$${derivedKey.toString('base64')}`
+}
+
+const timingDummySalt = crypto.randomBytes(16)
+
+export const isLegacyPasswordHash = (storedHash?: string | null) => typeof storedHash === 'string' && legacyMd5Hash.test(storedHash)
+
+const parseScryptHash = (storedHash: string) => {
+  const [scheme, N, r, p, salt, key] = storedHash.split('$')
+  if (scheme !== 'scrypt' || Number(N) !== scryptParams.N || Number(r) !== scryptParams.r || Number(p) !== scryptParams.p || !salt || !key) {
+    return undefined
+  }
+  const expected = Buffer.from(key, 'base64')
+  return expected.length === scryptKeyLength ? { salt: Buffer.from(salt, 'base64'), expected } : undefined
+}
+
+export const verifyPassword = async (password: unknown, storedHash?: string | null): Promise<boolean> => {
+  if (typeof password !== 'string' || typeof storedHash !== 'string') {
+    await scrypt(typeof password === 'string' ? password : '', timingDummySalt, scryptKeyLength, scryptParams)
+    return false
+  }
+  if (isLegacyPasswordHash(storedHash)) {
+    return crypto.timingSafeEqual(Buffer.from(hash(password)), Buffer.from(storedHash))
+  }
+  const parsed = parseScryptHash(storedHash)
+  if (parsed == null) {
+    return false
+  }
+  const derivedKey = await scrypt(password, parsed.salt, scryptKeyLength, scryptParams)
+  return crypto.timingSafeEqual(derivedKey, parsed.expected)
+}
+
+const withoutPasswordHash = <T>(payload: T): T => {
+  if (payload === null || typeof payload !== 'object') {
+    return payload
+  }
+  const toPlain = (obj: any) => typeof obj.toJSON === 'function' ? obj.toJSON() : { ...obj }
+  const sanitized = toPlain(payload)
+  delete sanitized.password
+  if (sanitized.data !== null && typeof sanitized.data === 'object') {
+    sanitized.data = toPlain(sanitized.data)
+    delete sanitized.data.password
+  }
+  return sanitized
+}
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
@@ -53,7 +110,7 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+export const authorize = (user = {}) => jwt.sign(withoutPasswordHash(user), privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
@@ -73,6 +130,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
+    user = withoutPasswordHash(user)
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
