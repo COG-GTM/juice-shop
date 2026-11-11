@@ -6,6 +6,7 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -112,6 +113,12 @@ export const extractFilename = (url: string) => {
     file = file.substring(0, file.indexOf('?'))
   }
   return file
+}
+
+export const resolveFileInDirectory = (directory: string, file: string, pathImpl: path.PlatformPath = path): string | undefined => {
+  const root = pathImpl.resolve(directory)
+  const resolved = pathImpl.resolve(root, file)
+  return resolved.startsWith(root + pathImpl.sep) ? resolved : undefined
 }
 
 export const downloadToFile = async (url: string, dest: string) => {
