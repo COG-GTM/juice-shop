@@ -1,16 +1,12 @@
 describe('/#/deluxe-membership', () => {
   describe('challenge "svgInjection"', () => {
-    it('should be possible to pass in a forgotten test parameter abusing the redirect-endpoint to load an external image', () => {
+    it('should not be possible to abuse the redirect-endpoint to load an external image via the forgotten test parameter', () => {
       cy.login({ email: 'jim', password: 'ncc-1701' })
-      cy.location().then((loc) => {
-        cy.visit(
-          `/#/deluxe-membership?testDecal=${encodeURIComponent(
-            `../../..${loc.pathname}/redirect?to=https://placecats.com/g/200/100?x=https://github.com/juice-shop/juice-shop`
-          )}`
-        )
-      })
-
-      cy.expectChallengeSolved({ challenge: 'Cross-Site Imaging' })
+      cy.request({
+        url: '/redirect?to=https://placecats.com/g/200/100?x=https://github.com/juice-shop/juice-shop',
+        failOnStatusCode: false,
+        followRedirect: false
+      }).its('status').should('eq', 406)
     })
   })
 
