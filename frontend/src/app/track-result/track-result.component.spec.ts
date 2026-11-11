@@ -10,28 +10,21 @@ import { Status, TrackResultComponent } from './track-result.component'
 import { MatTableModule } from '@angular/material/table'
 import { MatCardModule } from '@angular/material/card'
 import { RouterTestingModule } from '@angular/router/testing'
+import { ActivatedRoute } from '@angular/router'
 import { TrackOrderService } from '../Services/track-order.service'
-import { DomSanitizer } from '@angular/platform-browser'
-import { of } from 'rxjs'
+import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('TrackResultComponent', () => {
     let component: TrackResultComponent
     let fixture: ComponentFixture<TrackResultComponent>
     let trackOrderService: any
-    let sanitizer: any
 
     beforeEach(async () => {
         trackOrderService = {
             find: vi.fn().mockName("TrackOrderService.find")
         }
         trackOrderService.find.mockReturnValue(of({ data: [{}] }))
-        sanitizer = {
-            bypassSecurityTrustHtml: vi.fn().mockName("DomSanitizer.bypassSecurityTrustHtml"),
-            sanitize: vi.fn().mockName("DomSanitizer.sanitize")
-        }
-        sanitizer.bypassSecurityTrustHtml.mockImplementation((args: any) => args)
-        sanitizer.sanitize.mockReturnValue({})
 
         TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -41,7 +34,6 @@ describe('TrackResultComponent', () => {
                 TrackResultComponent],
             providers: [
                 { provide: TrackOrderService, useValue: trackOrderService },
-                { provide: DomSanitizer, useValue: sanitizer },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -59,12 +51,26 @@ describe('TrackResultComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should consider order number as trusted HTML', () => {
-        component.orderId = '<a src="link">Link</a>'
+    it('should render order number as text instead of HTML', () => {
+        component.orderId = '<img src=x onerror=alert(1)>'
         trackOrderService.find.mockReturnValue(of({ data: [{ orderId: component.orderId }] }))
         component.ngOnInit()
+        fixture.detectChanges()
 
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<code><a src="link">Link</a></code>')
+        const code: HTMLElement = fixture.nativeElement.querySelector('h1 code')
+        expect(code.textContent).toBe('<img src=x onerror=alert(1)>')
+        expect(code.querySelector('img')).toBeNull()
+    })
+
+    it('should show the requested order number as text when the lookup fails', () => {
+        TestBed.inject(ActivatedRoute).snapshot.queryParams = { id: '<img src=x onerror=alert(1)>' }
+        trackOrderService.find.mockReturnValue(throwError(() => new Error('Wrong Param')))
+        component.ngOnInit()
+        fixture.detectChanges()
+
+        const code: HTMLElement = fixture.nativeElement.querySelector('h1 code')
+        expect(code.textContent).toBe('<img src=x onerror=alert(1)>')
+        expect(code.querySelector('img')).toBeNull()
     })
 
     it('should set "delivered" status for delivered orders', () => {

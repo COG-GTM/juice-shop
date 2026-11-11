@@ -23,25 +23,23 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET all orders by injecting into orderId', async () => {
+  void it('GET rejects NoSQL injection attempts in orderId', async () => {
     const res = await request(app)
       .get('/rest/track-order/%27%20%7C%7C%20true%20%7C%7C%20%27')
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET rejects HTML in orderId instead of reflecting it', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E')
+    assert.equal(res.status, 400)
+    assert.ok(!JSON.stringify(res.body).includes('<img'))
+  })
+
+  void it('GET echoes a well-formed unknown orderId as JSON', async () => {
+    const res = await request(app)
+      .get('/rest/track-order/0000-0000000000000000')
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.ok(Array.isArray(res.body.data))
-    for (const item of res.body.data) {
-      assert.equal(typeof item.orderId, 'string')
-      assert.equal(typeof item.email, 'string')
-      assert.equal(typeof item.totalPrice, 'number')
-      assert.ok(Array.isArray(item.products))
-      for (const product of item.products) {
-        assert.equal(typeof product.quantity, 'number')
-        assert.equal(typeof product.name, 'string')
-        assert.equal(typeof product.price, 'number')
-        assert.equal(typeof product.total, 'number')
-      }
-      assert.equal(typeof item.eta, 'string')
-      assert.equal(typeof item._id, 'string')
-    }
+    assert.equal(res.body.data[0].orderId, '0000-0000000000000000')
   })
 })
