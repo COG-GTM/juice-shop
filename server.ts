@@ -309,7 +309,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
   app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
-  app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
+  app.post('/rest/memories', security.isAuthorized(), security.appendUserId(), uploadToDisk.single('image'), removeUploadedFileOnError, ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
   app.use(function jsonParser (req: Request, res: Response, next: NextFunction) {
@@ -709,8 +709,18 @@ const uploadToDisk = multer({
       const ext = mimeTypeMap[file.mimetype]
       cb(null, name + '-' + Date.now() + '.' + ext)
     }
-  })
+  }),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 }
 })
+
+const removeUploadedFileOnError = (req: Request, res: Response, next: NextFunction) => {
+  res.on('finish', () => {
+    if (res.statusCode >= 400 && req.file?.path) {
+      fs.unlink(req.file.path, () => {})
+    }
+  })
+  next()
+}
 
 const expectedModels = ['Address', 'Basket', 'BasketItem', 'Captcha', 'Card', 'Challenge', 'ChallengeDependency', 'Complaint', 'Delivery', 'Feedback', 'ImageCaptcha', 'Memory', 'PrivacyRequestModel', 'Product', 'Quantity', 'Recycle', 'SecurityAnswer', 'SecurityQuestion', 'User', 'Wallet', 'Hint']
 while (!expectedModels.every(model => Object.keys(sequelize.models).includes(model))) {
