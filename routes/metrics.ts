@@ -84,7 +84,7 @@ export function serveMetrics () {
 function hasValidScrapeToken (req: Request) {
   const expectedToken = process.env.METRICS_SCRAPE_TOKEN
   if (!expectedToken) return false
-  const match = /^Bearer (\S+)$/.exec(req.headers.authorization ?? '')
+  const match = /^Bearer (\S+)$/i.exec(req.headers.authorization ?? '')
   if (match == null) return false
   return crypto.timingSafeEqual(sha256(match[1]), sha256(expectedToken))
 }
