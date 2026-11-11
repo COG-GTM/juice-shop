@@ -68,19 +68,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -141,19 +133,22 @@ export function placeOrder () {
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
           try {
-            await processPayment(req.body.UserId, req.body.orderDetails?.paymentId, totalPrice)
+            if (WalletModel.sequelize == null) {
+              throw new Error('Database not initialized')
+            }
+            await WalletModel.sequelize.transaction(async (transaction) => {
+              await processPayment(req.body.UserId, req.body.orderDetails?.paymentId, totalPrice, transaction)
+              for (const { ProductId, quantity } of stockUpdates) {
+                await QuantityModel.decrement({ quantity }, { where: { ProductId }, transaction })
+              }
+              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId }, transaction })
+            })
           } catch (error: unknown) {
             if (error instanceof PaymentError) {
-              res.status(402).json({ status: 'error', error: error.message })
+              res.status(402).json({ status: 'error', error: { message: error.message } })
             } else {
               next(error)
             }
-            return
-          }
-          try {
-            await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-          } catch (error: unknown) {
-            next(error)
             return
           }
 

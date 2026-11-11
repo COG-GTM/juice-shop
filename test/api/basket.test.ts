@@ -149,6 +149,17 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(after.body.data, before.body.data)
   })
 
+  void it('POST placing a rejected order leaves product stock unchanged', async () => {
+    const stockOf = async () => (await request(app).get('/api/Quantitys').set(authHeader)).body.data.find((q: { ProductId: number }) => q.ProductId === 1).quantity
+    const before = await stockOf()
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: 'bogus' } })
+    assert.equal(res.status, 402)
+    assert.equal(res.body.error.message, 'Invalid Card')
+
+    assert.equal(await stockOf(), before)
+  })
+
   void it('POST placing an order with another user\'s card is rejected', async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const adminCards = await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + token })
