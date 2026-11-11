@@ -119,6 +119,17 @@ describe('LoginComponent', () => {
         expect(component.oauthUnavailable).toBe(true)
     })
 
+    it('binds Google login redirect to a random state stored in session storage', () => {
+        const windowRefService = TestBed.inject(WindowRefService)
+        const replace = vi.fn()
+        vi.spyOn(windowRefService, 'nativeWindow', 'get').mockReturnValue({ location: { replace } } as any)
+        component.googleLogin()
+        const state = sessionStorage.getItem('oauthState')
+        expect(state).toMatch(/^[0-9a-f]{64}$/)
+        expect(replace).toHaveBeenCalledWith(expect.stringContaining(`&state=${state}`))
+        sessionStorage.removeItem('oauthState')
+    })
+
     it('forwards to main page after successful login', async () => {
         userService.login.mockReturnValue(of({}))
         component.login()
