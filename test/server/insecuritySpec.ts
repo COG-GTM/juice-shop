@@ -232,6 +232,15 @@ describe('insecurity', () => {
       expect(next.calledOnce).to.equal(true)
     })
 
+    it('rejects admin tokens older than six hours with 401', () => {
+      const clock = sinon.useFakeTimers(Date.now() - 6 * 60 * 60 * 1000 - 1000)
+      const token = security.authorize({ data: { role: security.roles.admin } })
+      clock.restore()
+      const { res, next } = invoke(`Bearer ${token}`)
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(401)).to.equal(true)
+    })
+
     it('rejects unsigned admin tokens with 401', () => {
       const { res, next } = invoke(`Bearer ${jws.sign({ header: { alg: 'none' }, payload: { data: { role: 'admin' } } })}`)
       expect(next.called).to.equal(false)
