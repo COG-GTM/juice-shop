@@ -196,6 +196,59 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash', () => {
+      const passwordHash = security.hashPassword('admin123')
+      expect(passwordHash).to.match(/^scrypt\$16384\$8\$1\$[A-Za-z0-9+/=]+\$[A-Za-z0-9+/=]+$/)
+      expect(passwordHash).to.not.contain(security.hash('admin123'))
+    })
+
+    it('returns different hashes for the same password', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password for a scrypt hash', async () => {
+      expect(await security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password for a scrypt hash', async () => {
+      expect(await security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('accepts the correct password for a legacy MD5 hash', async () => {
+      expect(await security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
+    })
+
+    it('rejects a wrong password for a legacy MD5 hash', async () => {
+      expect(await security.verifyPassword('admin1234', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+    })
+
+    it('rejects missing passwords, missing hashes and malformed hashes', async () => {
+      const passwordHash = security.hashPassword('admin123')
+      expect(await security.verifyPassword(undefined, passwordHash)).to.equal(false)
+      expect(await security.verifyPassword({ $ne: '' }, passwordHash)).to.equal(false)
+      expect(await security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(await security.verifyPassword('admin123', 'admin123')).to.equal(false)
+      expect(await security.verifyPassword('admin123', passwordHash.replace('$16384$', '$1048576$'))).to.equal(false)
+    })
+  })
+
+  describe('password hash in tokens and sessions', () => {
+    it('is removed from signed token payloads', () => {
+      const token = security.authorize({ status: 'success', data: { id: 1, email: 'a@b.c', password: 'secretHash' } })
+      expect(security.decode(token).data).to.deep.include({ id: 1, email: 'a@b.c' })
+      expect(security.decode(token).data.password).to.equal(undefined)
+    })
+
+    it('is removed from authenticated user sessions', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2, password: 'secretHash' } as unknown as UserModel })
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ data: { id: 2 } })
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
