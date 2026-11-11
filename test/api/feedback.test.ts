@@ -301,4 +301,46 @@ void describe('/api/Feedbacks/:id', () => {
       .set(authHeader)
     assert.equal(res.status, 200)
   })
+
+  void it('POST rejects reuse of an already consumed CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const feedback = {
+      comment: 'Replaying my CAPTCHA',
+      rating: 3,
+      captchaId: captchaRes.body.captchaId,
+      captcha: captchaRes.body.answer
+    }
+    const firstRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(firstRes.status, 201)
+
+    const replayRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(replayRes.status, 401)
+  })
+
+  void it('POST with wrong CAPTCHA answer does not consume that CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const wrongRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Guessing', rating: 3, captchaId: captchaRes.body.captchaId, captcha: 'not-a-number' })
+    assert.equal(wrongRes.status, 401)
+
+    const retryRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ comment: 'Guessing', rating: 3, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+    assert.equal(retryRes.status, 201)
+  })
 })

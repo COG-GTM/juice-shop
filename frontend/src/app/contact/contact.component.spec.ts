@@ -219,4 +219,12 @@ describe('ContactComponent', () => {
         component.save()
         expect(component.feedback).toEqual({})
     })
+
+    it('should fetch a new captcha if saving feedback fails', () => {
+        feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
+        captchaService.getCaptcha.mockReturnValue(of({ captcha: 'new', captchaId: 3 }))
+        component.save()
+        expect(component.captchaId).toBe(3)
+        expect(component.captcha).toBe('new')
+    })
 })
