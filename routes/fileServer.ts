@@ -7,7 +7,6 @@ import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as utils from '../lib/utils'
-import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -24,29 +23,26 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
+    const ftpFolder = path.resolve('ftp/')
+    const filePath = path.resolve(ftpFolder, file)
+    const fileName = path.basename(filePath)
 
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
+    if (file && !containsEncodedOrControlCharacters(file) && path.dirname(filePath) === ftpFolder && isAllowlistedFile(fileName)) {
+      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return fileName.toLowerCase() === 'acquisitions.md' })
 
-      res.sendFile(path.resolve('ftp/', file))
+      res.sendFile(filePath)
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
     }
   }
 
-  function verifySuccessfulPoisonNullByteExploit (file: string) {
-    challengeUtils.solveIf(challenges.easterEggLevelOneChallenge, () => { return file.toLowerCase() === 'eastere.gg' })
-    challengeUtils.solveIf(challenges.forgottenDevBackupChallenge, () => { return file.toLowerCase() === 'package.json.bak' })
-    challengeUtils.solveIf(challenges.forgottenBackupChallenge, () => { return file.toLowerCase() === 'coupons_2013.md.bak' })
-    challengeUtils.solveIf(challenges.misplacedSignatureFileChallenge, () => { return file.toLowerCase() === 'suspicious_errors.yml' })
+  function containsEncodedOrControlCharacters (param: string) {
+    return /[%\\\p{Cc}]/u.test(param)
+  }
 
-    challengeUtils.solveIf(challenges.nullByteChallenge, () => {
-      return challenges.easterEggLevelOneChallenge.solved || challenges.forgottenDevBackupChallenge.solved || challenges.forgottenBackupChallenge.solved ||
-        challenges.misplacedSignatureFileChallenge.solved || file.toLowerCase() === 'encrypt.pyc'
-    })
+  function isAllowlistedFile (fileName: string) {
+    return endsWithAllowlistedFileType(fileName) || fileName === 'incident-support.kdbx'
   }
 
   function endsWithAllowlistedFileType (param: string) {
