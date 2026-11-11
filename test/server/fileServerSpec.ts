@@ -79,43 +79,50 @@ describe('fileServer', () => {
     expect(challenges.directoryListingChallenge.solved).to.equal(true)
   })
 
-  it('should solve "easterEggLevelOneChallenge" when requesting eastere.gg with Poison Null Byte attack', () => {
-    challenges.easterEggLevelOneChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'eastere.gg%00.md'
+  for (const file of ['eastere.gg%00.md', 'package.json.bak%00.md', 'coupons_2013.md.bak%00.pdf', 'suspicious_errors.yml%2500.md', 'encrypt.pyc\u0000.md', 'package.json.bak%252500.md']) {
+    it(`should reject poison null byte file name ${JSON.stringify(file)}`, () => {
+      req.params.file = file
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
+
+  it('should raise error for encoded slashes in filename', () => {
+    req.params.file = '..%2f..%2fpackage.json%2500.md'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]eastere\.gg/))
-    expect(challenges.easterEggLevelOneChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should solve "forgottenDevBackupChallenge" when requesting package.json.bak with Poison Null Byte attack', () => {
-    challenges.forgottenDevBackupChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'package.json.bak%00.md'
+  it('should raise error for backslashes in filename', () => {
+    req.params.file = '..\\..\\README.md'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]package\.json\.bak/))
-    expect(challenges.forgottenDevBackupChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should solve "forgottenBackupChallenge" when requesting coupons_2013.md.bak with Poison Null Byte attack', () => {
-    challenges.forgottenBackupChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'coupons_2013.md.bak%00.md'
+  it('should raise error for malformed percent-encoding', () => {
+    req.params.file = 'legal%E0%A4%A.md'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]coupons_2013\.md\.bak/))
-    expect(challenges.forgottenBackupChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
-  it('should solve "misplacedSignatureFileChallenge" when requesting suspicious_errors.yml with Poison Null Byte attack', () => {
-    challenges.misplacedSignatureFileChallenge = { solved: false, save } as unknown as Challenge
-    req.params.file = 'suspicious_errors.yml%00.md'
+  it('should serve allowlisted files whose name was percent-encoded', () => {
+    req.params.file = 'legal%252emd'
 
     servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]suspicious_errors\.yml/))
-    expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
+    expect(res.sendFile).to.have.been.calledWith(sinon.match(/ftp[/\\]legal\.md$/))
   })
 })
