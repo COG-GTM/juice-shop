@@ -110,6 +110,10 @@ before(async () => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
+        if (req.method !== 'POST') {
+          res.end()
+          return
+        }
         onLlmRequest(req, body, res)
       })
     })
