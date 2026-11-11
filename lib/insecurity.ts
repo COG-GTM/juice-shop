@@ -198,7 +198,8 @@ const hostOf = (url: string) => {
 export const isSameOriginRequest = (req: Request) => {
   const source = req.headers.origin ?? req.headers.referer
   if (source === undefined) return true
-  const host = req.headers.host
+  const forwardedHost = req.get('X-Forwarded-Host')?.split(',')[0].trim()
+  const host = forwardedHost ?? req.headers.host
   return host !== undefined && hostOf(source) === host
 }
 

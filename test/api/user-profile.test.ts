@@ -101,4 +101,18 @@ void describe('/profile', () => {
     const setCookie = ([] as string[]).concat(res.headers['set-cookie'] ?? [])
     assert.ok(setCookie.some(c => c.startsWith('token=') && /SameSite=Lax/i.test(c)))
   })
+
+  void it('POST update username behind a host-rewriting proxy uses X-Forwarded-Host', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'upstream:3000')
+      .set('X-Forwarded-Host', 'shop.example.com')
+      .set('Origin', 'https://shop.example.com')
+      .type('form')
+      .send({ username: 'Localhorst' })
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+  })
 })
