@@ -5,7 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { WalletModel } from '../models/wallet'
-import { CardModel } from '../models/card'
+import { chargeCard, walletTopUpLimits } from '../lib/payment'
 
 export function getWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -20,17 +20,22 @@ export function getWalletBalance () {
 
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const cardId = req.body.paymentId
-    const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
-    if (card != null) {
-      try {
-        await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })
-        res.status(200).json({ status: 'success', data: req.body.balance })
-      } catch {
-        res.status(404).json({ status: 'error' })
-      }
-    } else {
+    const amount = req.body.balance
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < walletTopUpLimits.min || amount > walletTopUpLimits.max) {
+      res.status(400).json({ status: 'error', message: `Amount must be between ${walletTopUpLimits.min} and ${walletTopUpLimits.max}.` })
+      return
+    }
+    try {
+      await chargeCard(req.body.UserId, req.body.paymentId, amount)
+    } catch {
       res.status(402).json({ status: 'error', message: 'Payment not accepted.' })
+      return
+    }
+    try {
+      await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
+      res.status(200).json({ status: 'success', data: amount })
+    } catch {
+      res.status(404).json({ status: 'error' })
     }
   }
 }

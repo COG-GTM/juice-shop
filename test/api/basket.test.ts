@@ -13,6 +13,7 @@ import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let orderDetails: { paymentId: string }
 
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
@@ -31,6 +32,8 @@ before(
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
     }
+    const cardsRes = await request(app).get('/api/Cards').set(authHeader)
+    orderDetails = { paymentId: String(cardsRes.body.data[0].id) }
   },
   { timeout: 60000 }
 )
@@ -125,9 +128,56 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ orderDetails })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order without a payment method is rejected', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 402)
+  })
+
+  void it('POST placing an order with an unknown payment id is rejected without crediting bonus points', async () => {
+    const before = await request(app).get('/rest/wallet/balance').set(authHeader)
+    await request(app).post('/api/BasketItems').set(authHeader).send({ BasketId: 2, ProductId: 1, quantity: 1 })
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: 'bogus' } })
+    assert.equal(res.status, 402)
+
+    const after = await request(app).get('/rest/wallet/balance').set(authHeader)
+    assert.equal(after.body.data, before.body.data)
+  })
+
+  void it('POST placing a rejected order leaves product stock unchanged', async () => {
+    const stockOf = async () => (await request(app).get('/api/Quantitys').set(authHeader)).body.data.find((q: { ProductId: number }) => q.ProductId === 1).quantity
+    const before = await stockOf()
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: 'bogus' } })
+    assert.equal(res.status, 402)
+    assert.equal(res.body.error.message, 'Invalid Card')
+
+    assert.equal(await stockOf(), before)
+  })
+
+  void it('POST placing an order with another user\'s card is rejected', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const adminCards = await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + token })
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: String(adminCards.body.data[0].id) } })
+    assert.equal(res.status, 402)
+  })
+
+  void it('POST placing an order with insufficient wallet balance is rejected', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const header = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const before = await request(app).get('/rest/wallet/balance').set(header)
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(header).send({ orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 402)
+
+    const after = await request(app).get('/rest/wallet/balance').set(header)
+    assert.equal(after.body.data, before.body.data)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -136,16 +186,18 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST placing an order for a basket with a negative total cost is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: 'wallet' } })
+    assert.equal(res.status, 402)
+
+    const deleteRes = await request(app).delete(`/api/BasketItems/${itemRes.body.data.id}`).set(authHeader)
+    assert.equal(deleteRes.status, 200)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
@@ -156,7 +208,7 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(couponRes.headers['content-type']?.includes('application/json'))
     assert.equal(couponRes.body.discount, 99)
 
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
