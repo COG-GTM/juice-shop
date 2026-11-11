@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { randomUUID } from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op } from 'sequelize'
 import { CaptchaModel } from '../models/captcha'
+
+export const CAPTCHA_TTL_MS = 5 * 60 * 1000
 
 export function captchas () {
   return async (req: Request, res: Response) => {
-    const captchaId = req.app.locals.captchaId++
+    await CaptchaModel.destroy({ where: { createdAt: { [Op.lt]: new Date(Date.now() - CAPTCHA_TTL_MS) } } })
+    const captchaId = randomUUID()
     const operators = ['*', '+', '-']
 
     const firstTerm = Math.floor((Math.random() * 10) + 1)
@@ -34,8 +39,12 @@ export function captchas () {
 
 export const verifyCaptcha = () => async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
-    if ((captcha != null) && req.body.captcha === captcha.answer) {
+    const { captchaId } = req.body
+    const captcha = typeof captchaId === 'string' ? await CaptchaModel.findOne({ where: { captchaId } }) : null
+    // Every lookup consumes the captcha; only the request whose delete succeeds may use it
+    const consumed = captcha != null && await CaptchaModel.destroy({ where: { captchaId } }) === 1
+    const expired = captcha == null || Date.now() - captcha.createdAt.getTime() > CAPTCHA_TTL_MS
+    if (consumed && !expired && req.body.captcha === captcha.answer) {
       next()
     } else {
       res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))

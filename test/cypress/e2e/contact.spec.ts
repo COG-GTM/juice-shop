@@ -152,7 +152,7 @@ describe('/#/contact', () => {
         }
 
         async function sendPostRequest (captcha: {
-          captchaId: number
+          captchaId: string
           answer: string
         }) {
           const response = await fetch(
@@ -200,7 +200,7 @@ describe('/#/contact', () => {
           }
 
           async function sendPostRequest (captcha: {
-            captchaId: number
+            captchaId: string
             answer: string
           }) {
             await fetch(`${Cypress.config('baseUrl')}/api/Feedbacks`, {
