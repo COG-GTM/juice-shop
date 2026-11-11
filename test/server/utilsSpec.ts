@@ -5,12 +5,36 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import path from 'node:path'
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
 const expect = chai.expect
 
 describe('utils', () => {
+  describe('resolveFileInDirectory', () => {
+    it('resolves plain file names inside the directory', () => {
+      expect(utils.resolveFileInDirectory('logs/', 'access.log')).to.equal(path.resolve('logs', 'access.log'))
+    })
+
+    it('rejects names resolving outside the directory', () => {
+      expect(utils.resolveFileInDirectory('logs/', '../package.json')).to.equal(undefined)
+      expect(utils.resolveFileInDirectory('logs/', '..')).to.equal(undefined)
+      expect(utils.resolveFileInDirectory('logs/', '.')).to.equal(undefined)
+      expect(utils.resolveFileInDirectory('logs/', '/etc/passwd')).to.equal(undefined)
+    })
+
+    it('rejects backslash traversal on Windows', () => {
+      expect(utils.resolveFileInDirectory('C:\\juice-shop\\logs', '..\\..\\data\\juiceshop.sqlite', path.win32)).to.equal(undefined)
+      expect(utils.resolveFileInDirectory('C:\\juice-shop\\logs', 'C:\\Windows\\win.ini', path.win32)).to.equal(undefined)
+      expect(utils.resolveFileInDirectory('C:\\juice-shop\\logs', 'access.log', path.win32)).to.equal('C:\\juice-shop\\logs\\access.log')
+    })
+
+    it('rejects sibling directories sharing the directory name as prefix', () => {
+      expect(utils.resolveFileInDirectory('C:\\juice-shop\\logs', '..\\logs-backup\\secret.txt', path.win32)).to.equal(undefined)
+    })
+  })
+
   describe('toSimpleIpAddress', () => {
     it('returns ipv6 address unchanged', () => {
       expect(utils.toSimpleIpAddress('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).to.equal('2001:0db8:85a3:0000:0000:8a2e:0370:7334')
