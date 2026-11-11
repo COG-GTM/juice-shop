@@ -170,6 +170,10 @@ export class SearchResultComponent implements OnDestroy, AfterViewInit {
   }
   // vuln-code-snippet end localXssChallenge xssBonusChallenge
 
+  get selectedSortLabel (): string {
+    return this.sortOptions.find((option) => option.value === this.sortOption)?.label ?? ''
+  }
+
   sortProducts (option: ProductSortOption) {
     this.sortOption = option
     if (!this.dataSource) return

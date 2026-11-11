@@ -247,6 +247,13 @@ describe('SearchResultComponent', () => {
             expect(sortBar.nextElementSibling?.classList).toContain('products-grid')
         })
 
+        it('should show the selected sort option in the dropdown trigger', () => {
+            expect(component.selectedSortLabel).toBe('LABEL_SORT_RELEVANCE')
+            expect(fixture.nativeElement.querySelector('#sortBy mat-select-trigger, #sortBy .mat-mdc-select-value-text')).toBeTruthy()
+            component.sortProducts('nameAsc')
+            expect(component.selectedSortLabel).toBe('LABEL_SORT_NAME_A_TO_Z')
+        })
+
         it('should sort by price from low to high', () => {
             component.sortProducts('priceAsc')
             expect(ids()).toEqual([2, 1, 4, 3])
