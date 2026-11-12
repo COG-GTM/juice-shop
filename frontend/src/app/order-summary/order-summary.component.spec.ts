@@ -26,6 +26,7 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { DeliveryService } from '../Services/delivery.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('OrderSummaryComponent', () => {
@@ -169,5 +170,22 @@ describe('OrderSummaryComponent', () => {
         expect(removeItemSpy).toHaveBeenCalledWith('deliveryMethodId')
         expect(removeItemSpy).toHaveBeenCalledWith('couponDetails')
         expect(removeItemSpy).toHaveBeenCalledWith('couponDiscount')
+    })
+    it('should show a string checkout error in the snackbar', () => {
+        const snackBarHelperService = TestBed.inject(SnackBarHelperService)
+        const openSpy = vi.spyOn(snackBarHelperService, 'open').mockImplementation(() => {})
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        basketService.checkout.mockReturnValue(throwError(() => ({ error: { error: 'Insufficient wallet balance.' } })))
+        component.placeOrder()
+        expect(openSpy).toHaveBeenCalledWith('Insufficient wallet balance.', 'errorBar')
+    })
+
+    it('should show a nested checkout error message in the snackbar', () => {
+        const snackBarHelperService = TestBed.inject(SnackBarHelperService)
+        const openSpy = vi.spyOn(snackBarHelperService, 'open').mockImplementation(() => {})
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        basketService.checkout.mockReturnValue(throwError(() => ({ error: { error: { message: 'Unexpected error' } } })))
+        component.placeOrder()
+        expect(openSpy).toHaveBeenCalledWith('Unexpected error', 'errorBar')
     })
 })
