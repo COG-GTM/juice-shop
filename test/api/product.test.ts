@@ -127,6 +127,17 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.data.price, 1.99)
   })
 
+  void it('PUT update existing product is possible for admin users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } }), 'content-type': 'application/json' })
+      .send({
+        price: 2.99
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.price, 2.99)
+  })
+
   void it('DELETE existing product is forbidden via public API', async () => {
     const res = await request(app)
       .delete('/api/Products/1')
