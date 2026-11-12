@@ -103,7 +103,7 @@ void describe('/rest/products/:id/reviews', () => {
 
   void it('PUT product review is rejected when the message is missing, not a string or too long', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
-    for (const message of [undefined, '', { $gt: '' }, 'x'.repeat(161)]) {
+    for (const message of [undefined, '', '   ', { $gt: '' }, 'x'.repeat(161)]) {
       const res = await request(app)
         .put('/rest/products/1/reviews')
         .set({ Authorization: `Bearer ${token}` })
