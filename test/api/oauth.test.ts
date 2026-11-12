@@ -109,6 +109,15 @@ void describe('/rest/user/oauth', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST rejects an expired token', async () => {
+    stubGoogleTokenInfo({ aud: clientId, email: 'oauth.expired@gmail.com', email_verified: 'true', expires_in: '0' })
+
+    const res = await request(app).post('/rest/user/oauth').set(jsonHeader).send({ accessToken: 'ya29.expired-token' })
+
+    assert.equal(res.status, 401)
+    assert.equal(await UserModel.count({ where: { email: 'oauth.expired@gmail.com' } }), 0)
+  })
+
   void it('POST rejects a token Google does not accept', async () => {
     stubGoogleTokenInfo({ error: 'invalid_token' }, 400)
 
