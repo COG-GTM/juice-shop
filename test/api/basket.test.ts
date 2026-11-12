@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
 import * as utils from '../../lib/utils'
@@ -206,6 +207,29 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(walletAfter?.balance, walletBefore?.balance)
     } finally {
       await item.destroy()
+    }
+  })
+  void it('POST placing a fully discounted wallet order is not rejected because of rounding', async () => {
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(overHundredCoupon))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+
+    const product = await ProductModel.create({ name: 'Rounding Juice', description: '', price: 1.15, deluxePrice: 1.15, image: 'undefined.jpg' })
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: product.id, quantity: 100 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 200)
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+    } finally {
+      await item.destroy()
+      await product.destroy({ force: true })
     }
   })
 })
