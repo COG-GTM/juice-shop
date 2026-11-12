@@ -5,6 +5,7 @@
 
 import chai from 'chai'
 import sinon from 'sinon'
+import config from 'config'
 import * as challengeUtils from '../../lib/challengeUtils'
 import * as utils from '../../lib/utils'
 import { challenges, notifications } from '../../data/datacache'
@@ -76,6 +77,21 @@ describe('challengeUtils', () => {
       expect(notification).to.not.have.property('flag')
       expect(notification.isRestore).to.equal(true)
       expect(notifications[0]).to.not.have.property('flag')
+    })
+
+    it('does not include the CTF flag for restored challenges when flags are enabled', () => {
+      const get = sinon.stub(config, 'get').callThrough()
+      get.withArgs('ctf.showFlagsInNotifications').returns(true)
+      try {
+        challengeUtils.sendNotification(solvedChallenge, false)
+        challengeUtils.sendNotification(solvedChallenge, true)
+      } finally {
+        get.restore()
+      }
+      expect(globalWithSocketIO.io?.emit.firstCall.args[1].flag).to.equal(utils.ctfFlag('Score Board'))
+      const restored = globalWithSocketIO.io?.emit.secondCall.args[1]
+      expect(restored).to.not.have.property('flag')
+      expect(restored.isRestore).to.equal(true)
     })
 
     it('includes the CTF flag when explicitly requested for a repeated notification', () => {
