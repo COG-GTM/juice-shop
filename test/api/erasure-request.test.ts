@@ -50,7 +50,7 @@ void describe('/dataerasure', () => {
   })
 
   void it('POST erasure request does not actually delete the user', async () => {
-    const { token } = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
+    const { token, bid } = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
     const res = await request(app)
       .post('/dataerasure/')
@@ -62,7 +62,7 @@ void describe('/dataerasure', () => {
 
     const authentication = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
-    assert.equal(typeof authentication.token, 'string')
+    assert.equal(authentication.bid, bid)
   })
 
   void it('POST erasure form  fails on unauthenticated access', async () => {
