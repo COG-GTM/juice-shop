@@ -6,6 +6,9 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
+import { execFileSync } from 'node:child_process'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -185,6 +188,38 @@ describe('insecurity', () => {
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs tokens with an RSA key of at least 2048 bits that verifies against the public key', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+      expect(crypto.createPublicKey(security.publicKey).asymmetricKeyDetails?.modulusLength).to.be.at.least(2048)
+    })
+
+    it('does not accept tokens signed with a different key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'pkcs1', format: 'pem' } })
+      const token = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(token)).to.equal(false)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is not an HMAC keyed with the JWT public key', () => {
+      const email = 'bender@juice-sh.op'
+      const publicKeyHmac = crypto.createHmac('sha256', security.publicKey).update(email + security.roles.deluxe).digest('hex')
+      expect(security.deluxeToken(email)).to.match(/^[0-9a-f]{64}$/)
+      expect(security.deluxeToken(email)).to.not.equal(publicKeyHmac)
+    })
+
+    it('is an HMAC keyed with DELUXE_TOKEN_SECRET when it is set', function () {
+      this.timeout(30000)
+      const email = 'bender@juice-sh.op'
+      const token = execFileSync(process.execPath, ['--import', 'tsx', '-e', `import('./lib/insecurity.ts').then(s => process.stdout.write(s.deluxeToken('${email}')))`], {
+        env: { ...process.env, DELUXE_TOKEN_SECRET: 'test-deluxe-secret' }
+      }).toString()
+      expect(token).to.equal(crypto.createHmac('sha256', 'test-deluxe-secret').update(email + security.roles.deluxe).digest('hex'))
     })
   })
 

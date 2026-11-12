@@ -14,9 +14,16 @@ import * as security from '../../lib/insecurity'
 import { type UserModel } from 'models/user'
 import * as verify from '../../routes/verify'
 import { isWindows } from '../../lib/utils'
+import crypto from 'node:crypto'
 const expect = chai.expect
 
 chai.use(sinonChai)
+
+const forgeHs256Token = (payload: object) => {
+  const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+  const unsigned = `${encode({ typ: 'JWT', alg: 'HS256' })}.${encode(payload)}`
+  return `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+}
 
 describe('verify', () => {
   let req: any
@@ -294,7 +301,7 @@ describe('verify', () => {
         Header: { "alg": "HS256", "typ": "JWT" }
         Payload: { "data": { "email": "rsa_lord@juice-sh.op" }, "iat": 1508639612, "exp": 9999999999 }
          */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAanVpY2Utc2gub3AifSwiaWF0IjoxNTgyMjIxNTc1fQ.ycFwtqh4ht4Pq9K5rhiPPY256F9YCTIecd4FHFuSEAg' }
+        req.headers = { authorization: `Bearer ${forgeHs256Token({ data: { email: 'rsa_lord@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })}` }
 
         verify.jwtChallenges()(req, res, next)
 
@@ -306,7 +313,7 @@ describe('verify', () => {
         Header: { "alg": "HS256", "typ": "JWT" }
         Payload: { "data": { "email": "rsa_lord@" }, "iat": 1508639612, "exp": 9999999999 }
          */
-        req.headers = { authorization: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJkYXRhIjp7ImVtYWlsIjoicnNhX2xvcmRAIn0sImlhdCI6MTU4MjIyMTY3NX0.50f6VAIQk2Uzpf3sgH-1JVrrTuwudonm2DKn2ec7Tg8' }
+        req.headers = { authorization: `Bearer ${forgeHs256Token({ data: { email: 'rsa_lord@' }, iat: 1508639612, exp: 9999999999 })}` }
 
         verify.jwtChallenges()(req, res, next)
 
