@@ -147,6 +147,15 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), itemsBefore)
   })
 
+  void it('POST placing an order for another user\'s basket with a forged UserId is forbidden', async () => {
+    const itemsBefore = await BasketItemModel.count({ where: { BasketId: 1 } })
+    assert.ok(itemsBefore > 0)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ UserId: 1 })
+    assert.equal(res.status, 403)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), itemsBefore)
+  })
+
   void it('POST placing an order for a non-existing basket is forbidden', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 403)
@@ -165,6 +174,12 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: ownBasketId, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
     const couponRes = await request(app)
       .put(`/rest/basket/${ownBasketId}/coupon/` + encodeURIComponent(forgedCoupon))
       .set(authHeader)
@@ -175,6 +190,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post(`/rest/basket/${ownBasketId}/checkout`).set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: ownBasketId } }), 0)
   })
 })
 
@@ -206,6 +222,14 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT apply valid coupon to another user\'s basket with a forged UserId is forbidden', async () => {
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .set(authHeader)
+      .send({ UserId: 1 })
     assert.equal(res.status, 403)
   })
 
