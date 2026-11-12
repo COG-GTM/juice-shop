@@ -28,6 +28,8 @@ void describe('/rest/products/:id/reviews', () => {
       .get('/rest/products/1/reviews')
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((review: { product: number }) => review.product === 1))
     const review = res.body.data[0]
     assert.equal(typeof review.product, 'number')
     assert.equal(typeof review.message, 'string')
@@ -77,6 +79,7 @@ void describe('/rest/products/:id/reviews', () => {
     const getRes = await request(app)
       .get('/rest/products/1/reviews')
     assert.equal(getRes.status, 200)
+    assert.ok(getRes.body.data.every((review: { product: number }) => review.product === 1))
     assert.ok(getRes.body.data.some((review: { message: string, author: string }) => review.message === 'Lorem Ipsum' && review.author === 'Anonymous'))
   })
 })
