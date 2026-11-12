@@ -36,11 +36,12 @@ void describe('seeded accounts without JUICE_SHOP_DEMO_CREDENTIALS', async () =>
   for (const { email, customDomain, password } of privilegedUsers) {
     const completeEmail = customDomain ? email : `${email}@${domain}`
     void it(`POST login rejects the static password of privileged account ${completeEmail}`, async () => {
-      await request(app)
+      const res = await request(app)
         .post('/rest/user/login')
         .set({ 'content-type': 'application/json' })
         .send({ email: completeEmail, password })
         .expect(401)
+      assert.notEqual(res.body?.status, 'totp_token_required')
     })
   }
 
