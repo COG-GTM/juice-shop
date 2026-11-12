@@ -30,7 +30,7 @@ describe('logfileServer', () => {
     expect(next).to.have.not.been.calledWith(sinon.match.any)
   })
 
-  for (const file of ['../../../../nice.try', '..\\..\\package.json', '..\\..\\data\\juiceshop.sqlite', '..\\..\\..\\Windows\\win.ini', 'C:\\Windows\\win.ini', 'C:win.ini', '..', '.', 'access.log\0.txt']) {
+  for (const file of ['../../../../nice.try', '..\\..\\package.json', '..\\..\\data\\juiceshop.sqlite', '..\\..\\..\\Windows\\win.ini', 'C:\\Windows\\win.ini', 'C:win.ini', '\\data\\juiceshop.sqlite', '\\\\?\\C:\\Windows\\win.ini', '\\\\server\\share\\file', '..', '.', 'access.log\0.txt']) {
     it(`should raise error for file name ${JSON.stringify(file)}`, () => {
       req.params.file = file
 

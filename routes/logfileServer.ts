@@ -12,7 +12,8 @@ function isPlainFileName (file: string) {
   return !/[/\\:\0]/.test(file) &&
     file !== '.' && file !== '..' &&
     path.posix.basename(file) === file &&
-    path.win32.basename(file) === file
+    path.win32.basename(file) === file &&
+    path.resolve(logsDir, file).startsWith(logsDir + path.sep)
 }
 
 export function serveLogFiles () {
