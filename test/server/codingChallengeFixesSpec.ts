@@ -4,7 +4,7 @@
  */
 
 import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
-import { readFixes } from '../../routes/vulnCodeFixes'
+import { checkCorrectFix, readFixes } from '../../routes/vulnCodeFixes'
 import { getCodingChallengeInfo, loadCodingChallengeInfos, parseCodingChallengeInfo } from '../../lib/codingChallenges'
 import chai from 'chai'
 import fs from 'graceful-fs'
@@ -98,5 +98,59 @@ describe('codingChallengeInfo', () => {
     } finally {
       fs.rmSync(directory, { recursive: true, force: true })
     }
+  })
+})
+
+describe('checkCorrectFix', () => {
+  const codefixesDir = './data/static/codefixes'
+  const maliciousInfo = 'fixes: { find: !!js/function "function () { globalThis.__checkCorrectFixExecuted = true; return { explanation: \'pwned\' } }" }\n'
+
+  const callCheckCorrectFix = async (key: string, selectedFix: number) => {
+    const result: { status?: number, body?: any } = {}
+    const res: any = {
+      __: (text: string) => text,
+      status (code: number) { result.status = code; return this },
+      json (body: unknown) { result.body = body; return this }
+    }
+    await checkCorrectFix()({ body: { key, selectedFix } } as any, res, () => {})
+    return result
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).__checkCorrectFixExecuted
+  })
+
+  it('should not execute a !!js/function planted into an existing info file', async () => {
+    const infoFile = path.join(codefixesDir, 'resetPasswordBenderChallenge.info.yml')
+    const original = fs.readFileSync(infoFile, 'utf8')
+    try {
+      fs.writeFileSync(infoFile, maliciousInfo)
+      const result = await callCheckCorrectFix('resetPasswordBenderChallenge', 0)
+      expect((globalThis as any).__checkCorrectFixExecuted).to.equal(undefined)
+      expect(result.status).to.equal(200)
+      expect(result.body.verdict).to.equal(false)
+      expect(result.body.explanation).to.not.equal('pwned')
+    } finally {
+      fs.writeFileSync(infoFile, original)
+    }
+  })
+
+  it('should reject unknown keys even when matching fix and info files are planted', async () => {
+    const planted = [path.join(codefixesDir, 'plantedRceChallenge.info.yml'), path.join(codefixesDir, 'plantedRceChallenge_1_correct.ts')]
+    try {
+      fs.writeFileSync(planted[0], maliciousInfo)
+      fs.writeFileSync(planted[1], '')
+      const result = await callCheckCorrectFix('plantedRceChallenge', 0)
+      expect((globalThis as any).__checkCorrectFixExecuted).to.equal(undefined)
+      expect(result.status).to.equal(404)
+      expect(result.body).to.deep.equal({ error: 'No fixes found for the snippet!' })
+    } finally {
+      for (const file of planted) fs.rmSync(file, { force: true })
+    }
+  })
+
+  it('should reject non-string keys', async () => {
+    const result = await callCheckCorrectFix({ toString: () => 'resetPasswordBenderChallenge' } as any, 0)
+    expect(result.status).to.equal(404)
   })
 })
