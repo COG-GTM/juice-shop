@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +51,52 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('GET user profile renders Pug interpolation in username as literal text when SSTI challenge is disabled', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'a#{7*7}' })
+      .redirects(0)
+
+    const originalDisabledEnv = challenges.usernameXssChallenge.disabledEnv
+    challenges.usernameXssChallenge.disabledEnv = 'Heroku'
+    process.env.HEROKU = 'true'
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('a#{7*7}'))
+      assert.ok(!res.text.includes('a49'))
+    } finally {
+      delete process.env.HEROKU
+      challenges.usernameXssChallenge.disabledEnv = originalDisabledEnv
+    }
+  })
+
+  void it('GET user profile evaluates Pug interpolation in username when SSTI challenge is enabled', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: '#{7*7}' })
+      .redirects(0)
+
+    const originalDisabledEnv = challenges.usernameXssChallenge.disabledEnv
+    challenges.usernameXssChallenge.disabledEnv = null
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('>49</p>'))
+    } finally {
+      challenges.usernameXssChallenge.disabledEnv = originalDisabledEnv
+    }
   })
 })
