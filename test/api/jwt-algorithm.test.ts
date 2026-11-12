@@ -46,6 +46,14 @@ void describe('isAuthorized middleware', () => {
   })
 })
 
+void describe('GET /encryptionkeys/jwt.pub', () => {
+  void it('serves the active public key', async () => {
+    const res = await request(app).get('/encryptionkeys/jwt.pub')
+    assert.equal(res.status, 200)
+    assert.equal(res.text, security.publicKey)
+  })
+})
+
 void describe('GET /api/Users', () => {
   const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
 
