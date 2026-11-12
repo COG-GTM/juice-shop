@@ -6,6 +6,8 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
@@ -213,5 +215,22 @@ void describe('Hidden URL', () => {
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
     assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
     assert.ok(!res.text.includes('HTTP/1.1"'))
+  })
+})
+
+void describe('Access log', () => {
+  void it('records request paths without query strings', async () => {
+    const marker = 'access-log-redaction-' + Date.now()
+    await request(app)
+      .get('/rest/user/security-question?email=' + marker + '@juice-sh.op')
+
+    const logFile = path.resolve('logs/access.log.' + utils.toISO8601(new Date()))
+    let log = ''
+    for (let i = 0; i < 20 && !log.includes('/rest/user/security-question'); i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      log = await fs.readFile(logFile, 'utf8').catch(() => '')
+    }
+    assert.ok(log.includes('"GET /rest/user/security-question HTTP/1.1"'))
+    assert.ok(!log.includes(marker))
   })
 })
