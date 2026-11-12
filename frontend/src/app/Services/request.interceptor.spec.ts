@@ -54,7 +54,7 @@ describe('RequestInterceptor', () => {
   })
 
   it('should not send token or email to other hosts', () => {
-    for (const url of ['https://example.org/x', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', '//example.org/x']) {
+    for (const url of ['https://example.org/x', 'http://localhost:3001/rest/user/whoami', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', '//example.org/x']) {
       const headers = headersFor(url)
       expect(headers.has('Authorization')).toBe(false)
       expect(headers.has('X-User-Email')).toBe(false)
