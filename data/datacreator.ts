@@ -4,6 +4,7 @@
  */
 
 /* jslint node: true */
+import crypto from 'node:crypto'
 import { AddressModel } from '../models/address'
 import { BasketModel } from '../models/basket'
 import { BasketItemModel } from '../models/basketitem'
@@ -192,7 +193,7 @@ async function createUsers () {
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: password ?? crypto.randomBytes(32).toString('hex'),
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
