@@ -5,12 +5,14 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
 
@@ -205,6 +207,40 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(walletAfter?.balance, walletBefore?.balance)
       assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
     } finally {
+      await item.destroy()
+    }
+  })
+
+  void it('POST placing an order with a zero total is rejected without charging or keeping a receipt', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 1 })
+    const productIds = (await BasketItemModel.findAll({ where: { BasketId: 2 } })).map(({ ProductId }) => ProductId)
+    const productsBefore = await ProductModel.findAll({ where: { id: productIds } })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    const receiptsBefore = fs.readdirSync('ftp').filter(file => file.startsWith('order_'))
+    try {
+      await ProductModel.update({ price: 0, deluxePrice: 0 }, { where: { id: productIds } })
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must be greater than zero.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
+
+      let newReceipts: string[] = []
+      for (let attempt = 0; attempt < 20; attempt++) {
+        newReceipts = fs.readdirSync('ftp').filter(file => file.startsWith('order_') && !receiptsBefore.includes(file))
+        if (newReceipts.length === 0) break
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      assert.deepEqual(newReceipts, [])
+    } finally {
+      await Promise.all(productsBefore.map(async ({ id, price, deluxePrice }) => await ProductModel.update({ price, deluxePrice }, { where: { id } })))
       await item.destroy()
     }
   })
