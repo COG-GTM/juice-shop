@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
+import * as db from '../../data/mongodb'
 
 let app: Express
 
@@ -21,6 +22,17 @@ void describe('/rest/track-order/:id', () => {
     const res = await request(app)
       .get('/rest/track-order/5267-f9cd5882f54c75a3')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET order details for an existing order id', async () => {
+    const [order] = await db.ordersCollection.find({})
+    const res = await request(app)
+      .get(`/rest/track-order/${order.orderId}`)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.equal(res.body.data[0].orderId, order.orderId)
+    assert.equal(typeof res.body.data[0].email, 'string')
+    assert.equal(typeof res.body.data[0].totalPrice, 'number')
   })
 
   void it('GET no orders when injecting into orderId', async () => {
