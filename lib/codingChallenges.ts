@@ -2,7 +2,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import logger from './logger'
 
-export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data', './data/static/web3-snippets', './frontend/src/app', './models'])
+export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data/static/securityQuestions.yml', './data/static/web3-snippets', './frontend/src/app', './models'])
+export const SNIPPET_FILE_EXTENSIONS = Object.freeze(['.ts', '.sol', '.yml'])
 
 interface FileMatch {
   path: string
@@ -25,7 +26,7 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
           files.map(file => path.resolve(currPath, file))
         )
         matches.push(...moreMatches)
-      } else {
+      } else if (SNIPPET_FILE_EXTENSIONS.includes(path.extname(currPath))) {
         const code = await fs.readFile(currPath, 'utf8')
         if (
           // strings are split so that it doesn't find itself...
@@ -43,7 +44,9 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
   return matches
 }
 
-function getCodeChallengesFromFile (file: FileMatch) {
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+export function getCodeChallengesFromFile (file: FileMatch) {
   const fileContent = file.content
 
   // get all challenges which are in the file by a regex capture group
@@ -52,11 +55,22 @@ function getCodeChallengesFromFile (file: FileMatch) {
     .flatMap(match => match.groups?.challenges?.split(' ') ?? [])
     .filter(Boolean)
 
-  return challenges.map((challengeKey) => getCodingChallengeFromFileContent(fileContent, challengeKey))
+  return challenges.flatMap((challengeKey) => {
+    try {
+      return [getCodingChallengeFromFileContent(fileContent, challengeKey)]
+    } catch (e) {
+      if (e instanceof BrokenBoundary) {
+        logger.warn(`${e.message} in ${file.path}. This coding challenge will not be available.`)
+        return []
+      }
+      throw e
+    }
+  })
 }
 
 function getCodingChallengeFromFileContent (source: string, challengeKey: string) {
-  const snippets = source.match(`[/#]{0,2} vuln-code-snippet start.*${challengeKey}([^])*vuln-code-snippet end.*${challengeKey}`)
+  const escapedKey = escapeRegExp(challengeKey)
+  const snippets = source.match(`[/#]{0,2} vuln-code-snippet start.*${escapedKey}([^])*vuln-code-snippet end.*${escapedKey}`)
   if (snippets == null) {
     throw new BrokenBoundary('Broken code snippet boundaries for: ' + challengeKey)
   }
@@ -73,9 +87,9 @@ function getCodingChallengeFromFileContent (source: string, challengeKey: string
   const vulnLines = []
   const neutralLines = []
   for (let i = 0; i < lines.length; i++) {
-    if (new RegExp(`vuln-code-snippet vuln-line.*${challengeKey}`).exec(lines[i]) != null) {
+    if (new RegExp(`vuln-code-snippet vuln-line.*${escapedKey}`).exec(lines[i]) != null) {
       vulnLines.push(i + 1)
-    } else if (new RegExp(`vuln-code-snippet neutral-line.*${challengeKey}`).exec(lines[i]) != null) {
+    } else if (new RegExp(`vuln-code-snippet neutral-line.*${escapedKey}`).exec(lines[i]) != null) {
       neutralLines.push(i + 1)
     }
   }
