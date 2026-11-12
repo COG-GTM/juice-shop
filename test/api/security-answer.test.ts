@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import sinon from 'sinon'
+import { SecurityAnswerModel } from '../../models/securityAnswer'
 
 let app: Express
 const authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
@@ -145,6 +147,34 @@ void describe('/api/SecurityAnswers', () => {
 })
 
 void describe('/api/SecurityAnswers/:id', () => {
+  void it('registration is rolled back when the security answer cannot be saved', async () => {
+    const createStub = sinon.stub(SecurityAnswerModel, 'create').rejects(new Error('simulated write failure'))
+    try {
+      const userRes = await request(app)
+        .post('/api/Users')
+        .set({ 'content-type': 'application/json' })
+        .send({
+          email: 'registered.with.failed.answer@te.st',
+          password: '12345',
+          passwordRepeat: '12345',
+          securityQuestion: { id: 1 },
+          securityAnswer: 'Horst'
+        })
+
+      assert.equal(userRes.status, 400)
+      assert.ok(createStub.calledOnce)
+    } finally {
+      createStub.restore()
+    }
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'registered.with.failed.answer@te.st', password: '12345' })
+
+    assert.equal(loginRes.status, 401)
+  })
+
   void it('GET existing security answer by id is forbidden via public API even when authenticated', async () => {
     const res = await request(app)
       .get('/api/SecurityAnswers/1')
