@@ -127,6 +127,44 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.callCount(0)
   })
 
+  it('accepts exactly 1000 order lines', () => {
+    req.body.orderLinesData = JSON.stringify(Array(1000).fill({ productId: 1, quantity: 1 }))
+
+    b2bOrder()(req, res, next)
+
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('rejects more than 1000 order lines', () => {
+    req.body.orderLinesData = JSON.stringify(Array(1001).fill({ productId: 1, quantity: 1 }))
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('accepts orderLinesData of exactly 100000 characters', () => {
+    const prefix = '{"productId":1,"quantity":1,"customerReference":"'
+    req.body.orderLinesData = prefix + 'x'.repeat(100000 - prefix.length - 2) + '"}'
+    expect(req.body.orderLinesData).to.have.lengthOf(100000)
+
+    b2bOrder()(req, res, next)
+
+    expect(res.json).to.have.been.calledWith(sinon.match.has('orderNo'))
+  })
+
+  it('rejects orderLinesData longer than 100000 characters', () => {
+    const prefix = '{"productId":1,"quantity":1,"customerReference":"'
+    req.body.orderLinesData = prefix + 'x'.repeat(100001 - prefix.length - 2) + '"}'
+    expect(req.body.orderLinesData).to.have.lengthOf(100001)
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
   it('deserializing JSON as documented in Swagger should not solve "rceChallenge"', () => {
     req.body.orderLinesData = '{"productId": 12,"quantity": 10000,"customerReference": ["PO0000001.2", "SM20180105|042"],"couponCode": "pes[Bh.u*t"}'
 
