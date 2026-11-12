@@ -231,4 +231,19 @@ void describe('/rest/basket/:id/checkout with campaign couponData', () => {
     const order = await checkoutWithCampaignCoupon(2, Buffer.from(`WMNSDY2019-${Date.now() + 7 * 24 * 60 * 60 * 1000}`).toString('base64'))
     assert.notEqual(order.promotionalAmount, '0')
   })
+
+  void it('POST campaign coupon is only honored from the campaign start up to 24 hours later', async (t) => {
+    const oneDayInMs = 24 * 60 * 60 * 1000
+    const nowMock = t.mock.method(Date, 'now', () => expiredCampaignValidOn - 1)
+    assert.equal((await checkoutWithCampaignCoupon(3, expiredCampaignCouponData)).promotionalAmount, '0')
+
+    nowMock.mock.mockImplementation(() => expiredCampaignValidOn)
+    assert.notEqual((await checkoutWithCampaignCoupon(4, expiredCampaignCouponData)).promotionalAmount, '0')
+
+    nowMock.mock.mockImplementation(() => expiredCampaignValidOn + oneDayInMs - 1)
+    assert.notEqual((await checkoutWithCampaignCoupon(5, expiredCampaignCouponData)).promotionalAmount, '0')
+
+    nowMock.mock.mockImplementation(() => expiredCampaignValidOn + oneDayInMs)
+    assert.equal((await checkoutWithCampaignCoupon(6, expiredCampaignCouponData)).promotionalAmount, '0')
+  })
 })
