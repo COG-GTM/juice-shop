@@ -278,4 +278,43 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '127.0.0.1')
   })
+
+  void it('POST login locks the account with 429 after 10 failed attempts', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'brute@force.me', password: 'c0rrectH0rse' })
+      .expect(201)
+
+    for (let i = 0; i < 10; i++) {
+      await request(app)
+        .post('/rest/user/login')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.' + i })
+        .send({ email: 'brute@force.me', password: 'wrong' + i })
+        .expect(401)
+    }
+
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.99' })
+      .send({ email: 'brute@force.me', password: 'c0rrectH0rse' })
+      .expect(429)
+
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+      .expect(200)
+  })
+
+  void it('POST login does not count correct passwords of 2FA users as failed attempts', async () => {
+    for (let i = 0; i < 11; i++) {
+      const res = await request(app)
+        .post('/rest/user/login')
+        .set({ 'content-type': 'application/json' })
+        .send({ email: 'wurstbrot@' + config.get<string>('application.domain'), password: 'EinBelegtesBrotMitSchinkenSCHINKEN!' })
+      assert.equal(res.status, 401)
+      assert.equal(res.body.status, 'totp_token_required')
+    }
+  })
 })

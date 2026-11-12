@@ -11,6 +11,7 @@ import morgan from 'morgan'
 import multer from 'multer'
 import helmet from 'helmet'
 import http from 'node:http'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import express from 'express'
 import colors from 'colors/safe'
@@ -592,7 +593,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }
 
   /* Custom Restful API */
-  app.post('/rest/user/login', login())
+  app.post('/rest/user/login',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 10,
+      skipSuccessfulRequests: true,
+      keyGenerator ({ body }: { body: any }) { return crypto.createHash('sha256').update(String(body?.email ?? '')).digest('hex') },
+      requestWasSuccessful (req: Request, res: Response) {
+        // a JSON 401 is the totp_token_required prompt after a correct password
+        return res.statusCode < 400 || (res.statusCode === 401 && String(res.getHeader('content-type')).includes('application/json'))
+      },
+      validate: false
+    }),
+    login()
+  )
   app.get('/rest/user/change-password', utils.asyncHandler(changePassword()))
   app.post('/rest/user/reset-password', utils.asyncHandler(resetPassword()))
   app.get('/rest/user/security-question', utils.asyncHandler(securityQuestion()))
