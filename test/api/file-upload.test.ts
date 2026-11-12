@@ -14,6 +14,9 @@ import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+const legalFile = path.resolve('ftp/legal.md')
+const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+const originalLegalFile = readLegalFile()
 
 before(async () => {
   const result = await createTestApp()
@@ -131,9 +134,6 @@ void describe('/file-upload', () => {
   })
 
   void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
-    const legalFile = path.resolve('ftp/legal.md')
-    const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
-    const original = readLegalFile()
     challenges.fileWriteChallenge.solved = false
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
