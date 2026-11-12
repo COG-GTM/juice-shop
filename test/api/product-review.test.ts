@@ -140,6 +140,13 @@ void describe('/rest/products/:id/reviews', () => {
     }
     assert.deepEqual(statuses.slice(0, 10), Array(10).fill(400))
     assert.equal(statuses[10], 429)
+
+    const { token: otherToken } = await login(app, await seededCredentials('bender'))
+    const other = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${otherToken}` })
+      .send({ message: '' })
+    assert.equal(other.status, 400)
   })
 
   void it('PUT product review is rejected for a valid token without a login session', async () => {
