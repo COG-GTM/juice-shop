@@ -90,6 +90,13 @@ describe('LoginComponent', () => {
         expect(component).toBeTruthy()
     })
 
+    it('does not expose account credentials as component fields', () => {
+        expect(component).not.toHaveProperty('testingUsername')
+        expect(component).not.toHaveProperty('testingPassword')
+        const stringFields = Object.values(component).filter((value) => typeof value === 'string')
+        expect(stringFields.filter((value: string) => value.includes('@'))).toEqual([])
+    })
+
     it('should have email as compulsory', () => {
         component.emailControl.setValue('')
         expect(component.emailControl.valid).toBeFalsy()
