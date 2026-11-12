@@ -192,6 +192,22 @@ void describe('/file-upload', () => {
       templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
     })
 
+    void it('POST zip file with a valid entry persists it in uploads/complaints', async () => {
+      const entry = path.resolve('uploads/complaints/valid-complaint-evidence.txt')
+      fs.rmSync(entry, { force: true })
+      try {
+        const file = path.resolve(__dirname, '../files/validComplaint.zip')
+        const res = await request(app)
+          .post('/file-upload')
+          .set(authHeader)
+          .attach('file', file)
+        assert.equal(res.status, 204)
+        assert.equal(fs.readFileSync(entry, 'utf8'), 'Valid complaint evidence\n')
+      } finally {
+        fs.rmSync(entry, { force: true })
+      }
+    })
+
     void it('POST zip file exceeding the entry limit does not persist any of its entries', async () => {
       const entries = Array.from({ length: 101 }, (_, i) => path.resolve('uploads/complaints', `entry-limit-${i}.txt`))
       entries.forEach(entry => { fs.rmSync(entry, { force: true }) })
