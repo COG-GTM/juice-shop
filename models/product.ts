@@ -39,7 +39,12 @@ const ProductModelInit = (sequelize: Sequelize) => {
         primaryKey: true,
         autoIncrement: true
       },
-      name: DataTypes.STRING,
+      name: {
+        type: DataTypes.STRING,
+        validate: {
+          not: { args: /[<>]/, msg: 'Product name must not contain HTML' }
+        }
+      },
       description: {
         type: DataTypes.STRING,
         set (description: string) {
@@ -50,10 +55,8 @@ const ProductModelInit = (sequelize: Sequelize) => {
                 '<iframe src="javascript:alert(`xss`)">'
               )
             })
-          } else {
-            description = security.sanitizeSecure(description)
           }
-          this.setDataValue('description', description)
+          this.setDataValue('description', security.sanitizeSecure(description))
         }
       },
       price: DataTypes.DECIMAL,
