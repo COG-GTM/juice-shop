@@ -18,7 +18,7 @@ import { OrderCompletionComponent } from './order-completion.component'
 import { TrackOrderService } from '../Services/track-order.service'
 import { ActivatedRoute, convertToParamMap } from '@angular/router'
 import { MatIconModule } from '@angular/material/icon'
-import { BasketService } from '../Services/basket.service'
+import { OrderHistoryService } from '../Services/order-history.service'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { AddressService } from '../Services/address.service'
 import { ConfigurationService } from '../Services/configuration.service'
@@ -36,7 +36,7 @@ describe('OrderCompletionComponent', () => {
     let fixture: ComponentFixture<OrderCompletionComponent>
     let trackOrderService: any
     let activatedRoute: any
-    let basketService: any
+    let orderHistoryService: any
     let addressService: any
     let configurationService: any
 
@@ -54,6 +54,9 @@ describe('OrderCompletionComponent', () => {
             getById: vi.fn().mockName("AddressService.getById")
         }
         addressService.getById.mockReturnValue(of([]))
+        orderHistoryService = {
+            getOrderConfirmation: vi.fn().mockName("OrderHistoryService.getOrderConfirmation")
+        }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
@@ -70,7 +73,7 @@ describe('OrderCompletionComponent', () => {
             providers: [
                 { provide: TrackOrderService, useValue: trackOrderService },
                 { provide: ActivatedRoute, useValue: activatedRoute },
-                { provide: BasketService, useValue: basketService },
+                { provide: OrderHistoryService, useValue: orderHistoryService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: AddressService, useValue: addressService },
                 provideHttpClient(withInterceptorsFromDi()),
@@ -162,5 +165,18 @@ describe('OrderCompletionComponent', () => {
         console.log = vi.fn()
         component.ngOnInit()
         expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    it('should open the order confirmation PDF fetched via the authenticated API', () => {
+        const pdf = new Blob(['%PDF'], { type: 'application/pdf' })
+        orderHistoryService.getOrderConfirmation.mockReturnValue(of(pdf))
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
+        const tab = { location: { href: '' }, close: vi.fn() } as unknown as Window
+        const open = vi.spyOn(window, 'open').mockReturnValue(tab)
+        component.orderId = '5267-f9cd5882f54c75a3'
+        component.openConfirmationPDF()
+        expect(orderHistoryService.getOrderConfirmation).toHaveBeenCalledWith('5267-f9cd5882f54c75a3')
+        expect(open).toHaveBeenCalledWith('', '_blank')
+        expect(tab.location.href).toBe('blob:pdf')
     })
 })

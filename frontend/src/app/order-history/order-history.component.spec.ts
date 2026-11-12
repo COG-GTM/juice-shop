@@ -43,7 +43,8 @@ describe('AccountingComponent', () => {
         }
         productService.get.mockReturnValue(of({}))
         orderHistoryService = {
-            get: vi.fn().mockName("OrderHistoryService.get")
+            get: vi.fn().mockName("OrderHistoryService.get"),
+            getOrderConfirmation: vi.fn().mockName("OrderHistoryService.getOrderConfirmation")
         }
         orderHistoryService.get.mockReturnValue(of([]))
 
@@ -123,5 +124,18 @@ describe('AccountingComponent', () => {
                 productData: { id: 42, name: 'A', description: 'B', image: 'C', price: 10, deluxePrice: undefined, points: 1 }
             }
         })
+    })
+
+    it('should open the order confirmation PDF fetched via the authenticated API', () => {
+        const pdf = new Blob(['%PDF'], { type: 'application/pdf' })
+        orderHistoryService.getOrderConfirmation.mockReturnValue(of(pdf))
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
+        const tab = { location: { href: '' }, close: vi.fn() } as unknown as Window
+        const open = vi.spyOn(window, 'open').mockReturnValue(tab)
+        component.openConfirmationPDF('5267-f9cd5882f54c75a3')
+        expect(orderHistoryService.getOrderConfirmation).toHaveBeenCalledWith('5267-f9cd5882f54c75a3')
+        expect(URL.createObjectURL).toHaveBeenCalledWith(pdf)
+        expect(open).toHaveBeenCalledWith('', '_blank')
+        expect(tab.location.href).toBe('blob:pdf')
     })
 })
