@@ -148,6 +148,29 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing an order with couponData as an object with a large length is rejected', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ couponData: { length: 2000000000 } })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Invalid coupon data.')
+  })
+
+  void it('POST placing an order with couponData as an array is rejected', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ couponData: ['V01OU0RZMjAxOS0xNTUxOTk5NjAwMDAw'] })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST placing an order with oversized couponData string is rejected', async () => {
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ couponData: 'A'.repeat(65) })
+    assert.equal(res.status, 400)
+  })
+
+  void it('POST placing an order with base64 campaign couponData string is accepted', async () => {
+    const couponData = Buffer.from('WMNSDY2019-1551999600000').toString('base64')
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ couponData })
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))

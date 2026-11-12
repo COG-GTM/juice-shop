@@ -29,8 +29,15 @@ interface Product {
   bonus: number
 }
 
+const MAX_COUPON_DATA_LENGTH = 64
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
+    const couponData = req.body?.couponData
+    if (couponData != null && (typeof couponData !== 'string' || couponData.length > MAX_COUPON_DATA_LENGTH)) {
+      res.status(400).json({ error: 'Invalid coupon data.' })
+      return
+    }
     const id = req.params.id
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
@@ -186,7 +193,7 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
   if (discount) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
-  } else if (req.body.couponData) {
+  } else if (typeof req.body.couponData === 'string' && req.body.couponData) {
     const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
     const couponCode = couponData[0]
     const couponDate = Number(couponData[1])
