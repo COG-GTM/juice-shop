@@ -223,6 +223,7 @@ void describe('Access log', () => {
     const marker = 'access-log-redaction-' + Date.now()
     await request(app)
       .get('/rest/user/security-question?email=' + marker + '@juice-sh.op')
+      .set('Referer', 'http://localhost:3000/rest/products/search?q=' + marker)
 
     const logFile = path.resolve('logs/access.log.' + utils.toISO8601(new Date()))
     let log = ''
@@ -231,6 +232,7 @@ void describe('Access log', () => {
       log = await fs.readFile(logFile, 'utf8').catch(() => '')
     }
     assert.ok(log.includes('"GET /rest/user/security-question HTTP/1.1"'))
+    assert.ok(log.includes('"http://localhost:3000/rest/products/search"'))
     assert.ok(!log.includes(marker))
   })
 })
