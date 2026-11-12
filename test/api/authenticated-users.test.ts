@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import config from 'config'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -21,6 +23,16 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/user/authentication-details', () => {
+  void it('GET is denied for token signed with a key other than the server key', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'pkcs1', format: 'pem' } })
+    const forgedToken = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set({ Authorization: `Bearer ${forgedToken}` })
+
+    assert.equal(res.status, 401)
+  })
+
   void it('GET all users with password replaced by asterisks', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')

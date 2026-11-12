@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import crypto from 'node:crypto'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -60,6 +61,11 @@ export default defineConfig({
               return i + 1
             }
           }
+        },
+        ForgeHs256Jwt ({ secret, payload }: { secret: string, payload: object }) {
+          const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+          const unsigned = `${encode({ typ: 'JWT', alg: 'HS256' })}.${encode(payload)}`
+          return `${unsigned}.${crypto.createHmac('sha256', secret).update(unsigned).digest('base64url')}`
         },
         GenerateAuthenticator (inputString: string) {
           return generateSync({ secret: inputString })
