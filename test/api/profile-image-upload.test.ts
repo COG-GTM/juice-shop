@@ -135,3 +135,39 @@ void describe('/profile/image/url', () => {
     assert.ok(res.text.includes('Unexpected end of form'))
   })
 })
+
+void describe('profile image uploads from another origin', () => {
+  const email = `jim@${config.get<string>('application.domain')}`
+
+  void it('POST profile image URL is blocked for cross-origin requests', async () => {
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const before = await UserModel.findOne({ where: { email } })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .set('Origin', 'https://attacker.example')
+      .type('form')
+      .send({ imageUrl: 'https://attacker.example/cat.png' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const after = await UserModel.findOne({ where: { email } })
+    assert.equal(after?.profileImage, before?.profileImage)
+  })
+
+  void it('POST profile image file is blocked for cross-origin requests', async () => {
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const before = await UserModel.findOne({ where: { email } })
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .set('Sec-Fetch-Site', 'cross-site')
+      .attach('file', path.resolve(__dirname, '../files/validProfileImage.jpg'))
+
+    assert.equal(res.status, 403)
+    const after = await UserModel.findOne({ where: { email } })
+    assert.equal(after?.profileImage, before?.profileImage)
+  })
+})
