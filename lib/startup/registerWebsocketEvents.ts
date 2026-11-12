@@ -18,6 +18,7 @@ const globalWithSocketIO = global as typeof globalThis & {
 }
 
 const MAX_PAYLOAD_LENGTH = 10 * 1024
+const MAX_MESSAGE_BYTES = 100 * 1024
 const svgInjectionPayload = /\.\.\/\.\.\/\.\.[\w/-]*?\/redirect\?to=https?:\/\/placecats.com\/(g\/)?[\d]+\/[\d]+/
 
 const isBoundedString = (data: unknown): data is string => typeof data === 'string' && data.length <= MAX_PAYLOAD_LENGTH
@@ -33,7 +34,7 @@ const onSafely = (socket: any, event: string, handler: (data: unknown) => void) 
 }
 
 const registerWebsocketEvents = (server: any) => {
-  const io = new Server(server, { cors: { origin: 'http://localhost:4200' } })
+  const io = new Server(server, { cors: { origin: 'http://localhost:4200' }, maxHttpBufferSize: MAX_MESSAGE_BYTES })
   // @ts-expect-error FIXME Type safety issue when setting global socket-io object
   globalWithSocketIO.io = io
 
