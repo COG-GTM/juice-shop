@@ -31,25 +31,18 @@ describe('/#/search', () => {
 })
 
 describe('/rest/products/search', () => {
-  describe('challenge "unionSqlInjection"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+  describe('UNION SQL injection', () => {
+    it('query param in product search endpoint should not be susceptible to UNION SQL injection attacks', () => {
       cy.request(
         "/rest/products/search?q=')) union select id,'2','3',email,password,'6','7','8','9' from users--"
-      )
-      cy.expectChallengeSolved({ challenge: 'User Credentials' })
-    })
-  })
-
-  describe('challenge "dbSchema"', () => {
-    it('query param in product search endpoint should be susceptible to UNION SQL injection attacks', () => {
+      ).its('body.data').should('have.length', 0)
       cy.request(
         "/rest/products/search?q=')) union select sql,'2','3','4','5','6','7','8','9' from sqlite_master--"
-      )
-      cy.expectChallengeSolved({ challenge: 'Database Schema' })
+      ).its('body.data').should('have.length', 0)
     })
   })
 
-  describe('challenge "dlpPastebinLeakChallenge"', () => {
+  describe('logically deleted products', () => {
     beforeEach(() => {
       cy.login({
         email: 'admin',
@@ -57,22 +50,10 @@ describe('/rest/products/search', () => {
       })
     })
 
-    it('search query should logically reveal the special product', () => {
+    it('search query should not reveal logically deleted products via SQL injection', () => {
       cy.request("/rest/products/search?q='))--")
-        .its('body')
-        .then((sourceContent) => {
-          cy.task<Product>('GetPastebinLeakProduct').then((pastebinLeakProduct: Product) => {
-            let foundProduct = false
-
-            sourceContent.data.forEach((product: Product) => {
-              if (product.name === pastebinLeakProduct.name) {
-                foundProduct = true
-              }
-            })
-            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-            expect(foundProduct).to.be.true
-          })
-        })
+        .its('body.data')
+        .should('have.length', 0)
     })
   })
 
