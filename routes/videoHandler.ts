@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { pipeline } from 'node:stream'
 import config from 'config'
 import { type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
@@ -22,29 +23,49 @@ export const getVideo = () => {
     const fileSize = stat.size
     const range = req.headers.range
     if (range) {
-      const parts = range.replace(/bytes=/, '').split('-')
-      const start = parseInt(parts[0], 10)
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1
-      const chunksize = (end - start) + 1
-      const file = fs.createReadStream(path, { start, end })
+      const byteRange = parseByteRange(range, fileSize)
+      if (byteRange == null) {
+        res.writeHead(416, { 'Content-Range': `bytes */${fileSize}` })
+        res.end()
+        return
+      }
+      const { start, end } = byteRange
       const head = {
         'Content-Range': `bytes ${start}-${end}/${fileSize}`,
         'Accept-Ranges': 'bytes',
-        'Content-Length': chunksize,
+        'Content-Length': (end - start) + 1,
         'Content-Location': '/assets/public/videos/owasp_promo.mp4',
         'Content-Type': 'video/mp4'
       }
       res.writeHead(206, head)
-      file.pipe(res)
+      pipeline(fs.createReadStream(path, { start, end }), res, () => {})
     } else {
       const head = {
         'Content-Length': fileSize,
         'Content-Type': 'video/mp4'
       }
       res.writeHead(200, head)
-      fs.createReadStream(path).pipe(res)
+      pipeline(fs.createReadStream(path), res, () => {})
     }
   }
+}
+
+export function parseByteRange (range: string, fileSize: number): { start: number, end: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range.trim())
+  if (match == null || (match[1] === '' && match[2] === '')) return null
+  let start: number
+  let end: number
+  if (match[1] === '') {
+    const suffixLength = Number(match[2])
+    if (suffixLength === 0) return null
+    start = Math.max(fileSize - suffixLength, 0)
+    end = fileSize - 1
+  } else {
+    start = Number(match[1])
+    end = match[2] === '' ? fileSize - 1 : Math.min(Number(match[2]), fileSize - 1)
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start > end || start >= fileSize) return null
+  return { start, end }
 }
 
 export const promotionVideo = () => {
