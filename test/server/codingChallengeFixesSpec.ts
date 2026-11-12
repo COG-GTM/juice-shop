@@ -7,6 +7,8 @@ import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
 import { readFixes } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
+import nodeFs from 'node:fs'
+import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -28,6 +30,27 @@ describe('codingChallengeFixes', () => {
     for (const challenge of codingChallenges) {
       const fixes = readFixes(challenge)
       expect(fixes.fixes.length, `Coding challenge ${challenge} does not have enough fix option files`).to.be.greaterThanOrEqual(3)
+    }
+  })
+
+  it('should return no fixes for unknown or partial challenge keys', () => {
+    for (const key of ['doesNotExistChallenge', 'resetPasswordBenderChallenge_1', '', 'x'.repeat(10000)]) {
+      const fixes = readFixes(key)
+      expect(fixes.fixes).to.deep.equal([])
+      expect(fixes.correct).to.equal(-1)
+    }
+  })
+
+  it('should not read the fixes directory again for unknown keys', () => {
+    readFixes('resetPasswordBenderChallenge')
+    const readdirSpy = sinon.spy(nodeFs, 'readdirSync')
+    try {
+      for (let i = 0; i < 100; i++) {
+        readFixes(`unknownChallenge${i}`)
+      }
+      expect(readdirSpy).to.have.callCount(0)
+    } finally {
+      readdirSpy.restore()
     }
   })
 
