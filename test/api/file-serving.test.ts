@@ -201,6 +201,22 @@ void describe('/support/logs', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET directory listing as non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(customerAuth)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET directory listing as admin succeeds', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(adminAuth)
+    assert.equal(res.status, 200)
+    assert.match(res.headers['content-type'], /text\/html/)
+    assert.ok(res.text.includes('access.log'))
+  })
+
   void it('GET access log file without authentication fails with a 401 error', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
