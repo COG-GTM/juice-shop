@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -214,12 +215,14 @@ void describe('/rest/basket/:id/checkout', () => {
     }
   })
 
-  void it('POST placing an underfunded wallet order leaves stock unchanged', async () => {
+  void it('POST placing an underfunded wallet order leaves stock unchanged and no order PDF behind', async () => {
     const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 100000 })
     const originalStock = await QuantityModel.findOne({ where: { ProductId: 6 } })
     await QuantityModel.update({ quantity: 100000 }, { where: { ProductId: 6 } })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith('order_') && file.endsWith('.pdf')).sort()
+    const pdfsBefore = orderPdfs()
     try {
       const res = await request(app)
         .post('/rest/basket/2/checkout')
@@ -232,6 +235,8 @@ void describe('/rest/basket/:id/checkout', () => {
       const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
       assert.equal(walletAfter?.balance, walletBefore?.balance)
       assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(orderPdfs(), pdfsBefore)
     } finally {
       await QuantityModel.update({ quantity: originalStock?.quantity }, { where: { ProductId: 6 } })
       await item.destroy()

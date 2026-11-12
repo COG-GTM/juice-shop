@@ -50,6 +50,12 @@ export function placeOrder () {
           const date = new Date().toJSON().slice(0, 10)
           const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
 
+          const discardPdf = () => {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+          }
+
           fileWriter.on('finish', () => {
             void (async () => {
               void basket.update({ coupon: null })
@@ -137,9 +143,7 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
           if (!(totalPrice > 0)) {
-            fileWriter.removeAllListeners('finish')
-            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
-            doc.end()
+            discardPdf()
             res.status(400).json({ error: res.__('Order total must be greater than zero.') })
             return
           }
@@ -167,6 +171,7 @@ export function placeOrder () {
               }
             }
           } catch (error: unknown) {
+            discardPdf()
             const unrestoredProductIds = await restoreStock(decrementedStock)
             if (unrestoredProductIds.length > 0) {
               logger.error(`Checkout failed (${utils.getErrorMessage(error)}) and stock could not be restored for product(s) ${unrestoredProductIds.join(', ')}`)
@@ -174,9 +179,6 @@ export function placeOrder () {
               return
             }
             if (outOfStock) {
-              fileWriter.removeAllListeners('finish')
-              fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
-              doc.end()
               res.status(400).json({ error: res.__('We are out of stock! Sorry for the inconvenience.') })
               return
             }
