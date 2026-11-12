@@ -522,10 +522,10 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { yaml, data, outputBudget: data.length + MAX_YAML_ALIAS_EXPANSION, tooLarge: YAML_TOO_LARGE }
+        const sandbox = { yaml, data, outputBudget: data.length + MAX_YAML_ALIAS_EXPANSION, tooLarge: YAML_TOO_LARGE, isDate: (value: unknown) => value instanceof Date }
         vm.createContext(sandbox)
         const yamlString = vm.runInContext(`JSON.stringify(yaml.safeLoad(data), function (key, value) {
-          outputBudget -= (Array.isArray(this) ? 0 : key.length) + (typeof value === 'string' ? value.length : 1)
+          outputBudget -= (Array.isArray(this) ? 0 : key.length) + (typeof value === 'string' && !isDate(this[key]) ? value.length : 1)
           if (outputBudget < 0) throw new Error(tooLarge)
           return value
         })`, sandbox, { timeout: 2000 })
