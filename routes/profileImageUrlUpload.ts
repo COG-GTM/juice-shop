@@ -21,8 +21,16 @@ export function profileImageUrlUpload () {
       if (url.match(/(.)*solve\/challenges\/server-side(.)*/) !== null) req.app.locals.abused_ssrf_bug = true
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
-        const userId = toProfileImageUserId(loggedInUser.data?.id)
-        if (userId === undefined) {
+        let user: UserModel | null
+        try {
+          const sessionUserId = toProfileImageUserId(loggedInUser.data?.id)
+          user = sessionUserId === undefined ? null : await UserModel.findByPk(sessionUserId)
+        } catch (error) {
+          next(error)
+          return
+        }
+        const userId = toProfileImageUserId(user?.id)
+        if (user === null || userId === undefined) {
           res.status(400)
           next(new Error('Invalid user id in session'))
           return
@@ -39,12 +47,10 @@ export function profileImageUrlUpload () {
           }
           const fileStream = fs.createWriteStream(filePath, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
-          const user = await UserModel.findByPk(userId)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${userId}.${ext}` })
+          await user.update({ profileImage: `/assets/public/images/uploads/${userId}.${ext}` })
         } catch (error) {
           try {
-            const user = await UserModel.findByPk(userId)
-            await user?.update({ profileImage: url })
+            await user.update({ profileImage: url })
             logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
           } catch (error) {
             next(error)
