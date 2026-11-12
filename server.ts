@@ -347,6 +347,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
+  app.use('/api/BasketItems', security.rehydrateAuthenticatedUserFromHeader())
+
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
   /* Checks on JWT in Authorization header */ // vuln-code-snippet hide-line
@@ -454,7 +456,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   // vuln-code-snippet end changeProductChallenge
 
   /* BasketItems: Only items in the caller's own basket can be viewed or removed */
-  app.use('/api/BasketItems', security.rehydrateAuthenticatedUserFromHeader())
   app.get('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
   app.delete('/api/BasketItems/:id', utils.asyncHandler(basketItems.checkBasketItemOwnership()))
 

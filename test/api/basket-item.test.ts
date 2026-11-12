@@ -196,6 +196,36 @@ void describe('/api/BasketItems/:id', () => {
     }
   })
 
+  void it('PUT and POST own basket items after the token map was cleared', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 20, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const token = authHeader.Authorization.replace('Bearer ', '')
+    const user = security.authenticatedUsers.get(token)
+    try {
+      delete security.authenticatedUsers.tokenMap[token]
+      const putRes = await request(app)
+        .put('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+        .send({ quantity: 2 })
+      assert.equal(putRes.status, 200)
+      assert.equal(putRes.body.data.quantity, 2)
+
+      delete security.authenticatedUsers.tokenMap[token]
+      const postRes = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 21, quantity: 1 })
+      assert.equal(postRes.status, 200)
+      assert.equal(postRes.body.data.BasketId, 2)
+    } finally {
+      if (user) security.authenticatedUsers.put(token, user)
+    }
+  })
+
   void it('PUT update newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
