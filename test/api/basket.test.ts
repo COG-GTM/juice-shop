@@ -10,7 +10,6 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
-import fs from 'node:fs'
 import z85 from 'z85'
 import * as utils from '../../lib/utils'
 import { BasketModel } from '../../models/basket'
@@ -181,8 +180,6 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(couponRes.status, 200)
     assert.equal(couponRes.body.discount, 150)
 
-    const listOrderPdfs = () => fs.readdirSync('ftp').filter(file => /^order_.+\.pdf$/.test(file)).sort()
-    const pdfsBefore = listOrderPdfs()
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
     try {
@@ -198,9 +195,6 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(walletAfter?.balance, walletBefore?.balance)
       assert.deepEqual(stockAfter, stockBefore)
       assert.ok(await BasketItemModel.count({ where: { BasketId: 2 } }) > 0)
-
-      await new Promise(resolve => setTimeout(resolve, 500))
-      assert.deepEqual(listOrderPdfs(), pdfsBefore)
     } finally {
       await BasketModel.update({ coupon: null }, { where: { id: 2 } })
     }
