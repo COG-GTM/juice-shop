@@ -82,4 +82,42 @@ void describe('WebSocket', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
   })
+
+  void it('server survives websocket events carrying non-string payloads', async () => {
+    const payloads = [1, {}, [], true, { includes: 'x', match: 'y' }]
+    for (const data of payloads) {
+      socket.emit('verifyLocalXssChallenge', data)
+      socket.emit('verifySvgInjectionChallenge', data)
+      socket.emit('verifyCloseNotificationsChallenge', data)
+      socket.emit('notification received', data)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+    assert.ok(socket.connected)
+  })
+
+  void it('server stays responsive after long websocket string payloads', async () => {
+    const long = '../../..'.repeat(1280)
+    const started = Date.now()
+    for (let i = 0; i < 50; i++) {
+      socket.emit('verifySvgInjectionChallenge', long)
+      socket.emit('verifyLocalXssChallenge', long)
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+    assert.ok(Date.now() - started < 3000)
+    assert.ok(socket.connected)
+  })
+
+  void it('server drops sockets sending messages above maxHttpBufferSize and keeps serving', { timeout: 5000 }, async () => {
+    const oversized = ioClient(`http://localhost:${serverPort}`, { reconnection: false, forceNew: true, transports: ['websocket'] })
+    await new Promise<void>((resolve) => oversized.on('connect', () => { resolve() }))
+    const disconnected = new Promise<void>((resolve) => oversized.on('disconnect', () => { resolve() }))
+    oversized.emit('verifySvgInjectionChallenge', 'a'.repeat(900 * 1024))
+    await disconnected
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
+  })
 })
