@@ -12,6 +12,7 @@ import sinonChai from 'sinon-chai'
 import { profileImageUrlUpload, MAX_IMAGE_BYTES } from '../../routes/profileImageUrlUpload'
 import { authenticatedUsers } from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
+import logger from '../../lib/logger'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -99,10 +100,14 @@ describe('profileImageUrlUpload', () => {
   })
 
   it('should not download an image whose Content-Length exceeds the size limit', async () => {
+    const timeout = AbortSignal.timeout.bind(AbortSignal)
+    sinon.stub(AbortSignal, 'timeout').callsFake(() => timeout(500))
+    const warn = sinon.stub(logger, 'warn')
     req.body.imageUrl = `${baseUrl}/huge.png`
 
     await profileImageUrlUpload()(req, res, next)
 
+    expect(warn).to.have.been.calledWithMatch(`image exceeds the maximum size of ${MAX_IMAGE_BYTES} bytes`)
     expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
     expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
   })
