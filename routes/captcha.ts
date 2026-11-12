@@ -17,7 +17,7 @@ const applyOperator = (left: number, operator: string, right: number) => {
   return operator === '+' ? left + right : left - right
 }
 
-const evaluate = (first: number, firstOperator: string, second: number, secondOperator: string, third: number) =>
+export const evaluate = (first: number, firstOperator: string, second: number, secondOperator: string, third: number) =>
   secondOperator === '*' && firstOperator !== '*'
     ? applyOperator(first, firstOperator, second * third)
     : applyOperator(applyOperator(first, firstOperator, second), secondOperator, third)
