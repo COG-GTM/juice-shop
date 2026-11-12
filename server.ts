@@ -474,6 +474,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Created records are attributed to the authenticated caller (or nobody), never to a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
+  app.post('/api/Complaints', security.bindUserId())
+  app.post('/api/Recycles', security.bindUserId())
+  app.post('/api/PrivacyRequests', security.bindUserId())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
@@ -629,7 +634,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/memories', utils.asyncHandler(getMemories()))
   /* NoSQL API endpoints */
   app.get('/rest/products/:id/reviews', showProductReviews())
-  app.put('/rest/products/:id/reviews', utils.asyncHandler(createProductReviews()))
+  app.put('/rest/products/:id/reviews',
+    security.isAuthorized(),
+    rateLimit({
+      windowMs: 60 * 1000,
+      max: 10,
+      validate: false,
+      keyGenerator: (req: Request) => security.authenticatedUsers.from(req)?.data?.email ?? req.ip ?? '',
+      message: { status: 'error', message: 'Too many reviews, please try again later' }
+    }),
+    utils.asyncHandler(createProductReviews()))
   app.patch('/rest/products/reviews', security.isAuthorized(), updateProductReviews())
   app.post('/rest/products/reviews', security.isAuthorized(), utils.asyncHandler(likeProductReviews()))
 
