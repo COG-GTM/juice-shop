@@ -13,6 +13,9 @@ import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
+import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -20,6 +23,7 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const overHundredCoupon = z85.encode(utils.toMMMYY(new Date()) + '-999999')
 
 before(
   async () => {
@@ -180,6 +184,29 @@ void describe('/rest/basket/:id/checkout', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing a wallet order with a coupon discount above 100% does not credit the wallet', async () => {
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(overHundredCoupon))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+    assert.equal(couponRes.body.discount, 100)
+
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 1, quantity: 1 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 200)
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+    } finally {
+      await item.destroy()
+    }
   })
 })
 
