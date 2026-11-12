@@ -87,9 +87,9 @@ describe('registerWebsocketEvents', () => {
   it('matches bounded svgInjection payloads without quadratic backtracking', async () => {
     const worstCase = '../../..'.repeat(1280)
     const started = Date.now()
-    for (let i = 0; i < 10; i++) socket.emit('verifySvgInjectionChallenge', worstCase)
+    for (let i = 0; i < 50; i++) socket.emit('verifySvgInjectionChallenge', worstCase)
     expect(await roundTrip()).to.equal('ok')
-    expect(Date.now() - started).to.be.below(500)
+    expect(Date.now() - started).to.be.below(1500)
     expect(challenges.svgInjectionChallenge.solved).to.equal(false)
   })
 
