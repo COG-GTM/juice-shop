@@ -76,7 +76,7 @@ describe('rateLimiting', () => {
 
     it('ignores tokens that are not signed by the server', () => {
       const [header, , signature] = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' }).split('.')
-      const forged = [header, Buffer.from(JSON.stringify({ userId: 1, type: 'password_valid_needs_second_factor_token' })).toString('base64url'), signature].join('.')
+      const forged = [header, Buffer.from(JSON.stringify({ userId: 1, type: 'password_valid_needs_second_factor_token', expiresAt: security.secondFactorTokenExpiry() })).toString('base64url'), signature].join('.')
       expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken: forged }))).to.equal(undefined)
       expect(rateLimiting.secondFactorUserOf(requestWithBody({ tmpToken: 'garbage' }))).to.equal(undefined)
       expect(rateLimiting.secondFactorUserOf(requestWithBody({}))).to.equal(undefined)
