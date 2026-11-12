@@ -84,6 +84,22 @@ describe('registerWebsocketEvents', () => {
     expect(socket.connected).to.equal(true)
   })
 
+  it('matches bounded svgInjection payloads without quadratic backtracking', async () => {
+    const worstCase = '../../..'.repeat(1280)
+    const started = Date.now()
+    for (let i = 0; i < 10; i++) socket.emit('verifySvgInjectionChallenge', worstCase)
+    expect(await roundTrip()).to.equal('ok')
+    expect(Date.now() - started).to.be.below(500)
+    expect(challenges.svgInjectionChallenge.solved).to.equal(false)
+  })
+
+  it('keeps the connection and server alive when a handler throws for a valid payload', async () => {
+    challenges.localXssChallenge = { get solved () { throw new Error('boom') } } as unknown as Challenge
+    socket.emit('verifyLocalXssChallenge', '<iframe src="javascript:alert(`xss`)">')
+    expect(await roundTrip()).to.equal('ok')
+    expect(socket.connected).to.equal(true)
+  })
+
   it('drops connections sending messages above maxHttpBufferSize and keeps serving others', async () => {
     const disconnected = new Promise<string>((resolve) => socket.on('disconnect', resolve))
     socket.emit('verifySvgInjectionChallenge', 'a'.repeat(900 * 1024))
