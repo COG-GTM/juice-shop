@@ -10,8 +10,21 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { setPasswordResetMailer } from '../../routes/resetPassword'
 
 let app: Express
+
+async function requestResetToken (email: string) {
+  let deliveredToken = ''
+  setPasswordResetMailer((_email, token) => { deliveredToken = token })
+  const res = await request(app)
+    .post('/rest/user/reset-password/request')
+    .set({ 'content-type': 'application/json' })
+    .send({ email })
+  setPasswordResetMailer()
+  assert.equal(res.status, 200)
+  return deliveredToken
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -105,11 +118,13 @@ void describe('/rest/user/change-password', () => {
 
 void describe('/rest/user/reset-password', () => {
   void it('POST password reset for Jim with correct answer to his security question', async () => {
+    const token = await requestResetToken('jim@' + config.get<string>('application.domain'))
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'jim@' + config.get<string>('application.domain'),
+        token,
         answer: 'Samuel',
         new: 'ncc-1701',
         repeat: 'ncc-1701'
@@ -119,11 +134,13 @@ void describe('/rest/user/reset-password', () => {
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {
+    const token = await requestResetToken('bender@' + config.get<string>('application.domain'))
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bender@' + config.get<string>('application.domain'),
+        token,
         answer: 'Stop\'n\'Drop',
         new: 'OhG0dPlease1nsertLiquor!',
         repeat: 'OhG0dPlease1nsertLiquor!'
@@ -133,11 +150,13 @@ void describe('/rest/user/reset-password', () => {
   })
 
   void it('POST password reset for Bjoern\u00b4s internal account with correct answer to his security question', async () => {
+    const token = await requestResetToken('bjoern@' + config.get<string>('application.domain'))
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern@' + config.get<string>('application.domain'),
+        token,
         answer: 'West-2082',
         new: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase',
         repeat: 'monkey summer birthday are all bad passwords but work just fine in a long passphrase'
@@ -147,11 +166,13 @@ void describe('/rest/user/reset-password', () => {
   })
 
   void it('POST password reset for Bjoern\u00b4s OWASP account with correct answer to his security question', async () => {
+    const token = await requestResetToken('bjoern@owasp.org')
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bjoern@owasp.org',
+        token,
         answer: 'Zaya',
         new: 'kitten lesser pooch karate buffoon indoors',
         repeat: 'kitten lesser pooch karate buffoon indoors'
@@ -161,11 +182,13 @@ void describe('/rest/user/reset-password', () => {
   })
 
   void it('POST password reset for Morty with correct answer to his security question', async () => {
+    const token = await requestResetToken('morty@' + config.get<string>('application.domain'))
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'morty@' + config.get<string>('application.domain'),
+        token,
         answer: '5N0wb41L',
         new: 'iBurri3dMySe1fInTheB4ckyard!',
         repeat: 'iBurri3dMySe1fInTheB4ckyard!'
@@ -258,5 +281,58 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('POST password reset with correct answer but without emailed reset token is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        answer: 'Samuel',
+        new: 'ncc-1701-d',
+        repeat: 'ncc-1701-d'
+      })
+
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Invalid or expired password reset token.'))
+  })
+
+  void it('POST password reset with an already used reset token is rejected', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const token = await requestResetToken(email)
+    const first = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, token, answer: 'Samuel', new: 'ncc-1701-e', repeat: 'ncc-1701-e' })
+    assert.equal(first.status, 200)
+
+    const second = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ email, token, answer: 'Samuel', new: 'ncc-1701-f', repeat: 'ncc-1701-f' })
+    assert.equal(second.status, 401)
+  })
+
+  void it('POST password reset request does not reveal whether an account exists', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password/request')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'nobody@' + config.get<string>('application.domain') })
+
+    assert.equal(res.status, 200)
+  })
+
+  void it('POST password reset attempts are limited per account regardless of X-Forwarded-For', async () => {
+    const email = 'uvogin@' + config.get<string>('application.domain')
+    let res
+    for (let i = 0; i <= 100; i++) {
+      res = await request(app)
+        .post('/rest/user/reset-password')
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': `10.0.${Math.floor(i / 256)}.${i % 256}` })
+        .send({ email, answer: 'wrong-' + i, new: 'abcdef', repeat: 'abcdef' })
+    }
+
+    assert.equal(res?.status, 429)
   })
 })

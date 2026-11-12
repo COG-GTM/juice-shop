@@ -131,6 +131,22 @@ describe('UserService', () => {
         httpMock.verify()
     })
 
+    it('should request a password reset token directly from the rest api', () => {
+        const service = TestBed.inject(UserService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        let res: any
+        service.requestPasswordReset({ email: 'x@y.z' }).subscribe((data) => (res = data))
+
+        const req = httpMock.expectOne('http://localhost:3000/rest/user/reset-password/request')
+        req.flush({ status: 'success' })
+
+        expect(req.request.method).toBe('POST')
+        expect(req.request.body).toEqual({ email: 'x@y.z' })
+        expect(res).toEqual({ status: 'success' })
+        httpMock.verify()
+    })
+
     it('should reset the password directly from the rest api', () => {
         const service = TestBed.inject(UserService)
         const httpMock = TestBed.inject(HttpTestingController)
