@@ -5,6 +5,7 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -267,6 +268,15 @@ describe('utils', () => {
       expect(utils.ctfFlag('Score Board')).to.match(/^[0-9a-f]{40}$/)
       expect(utils.ctfFlag('Score Board')).to.equal(utils.ctfFlag('Score Board'))
       expect(utils.ctfFlag('Score Board')).to.not.equal(utils.ctfFlag('DOM XSS'))
+    })
+
+    it('uses a different random key in every process if no key is configured', function () {
+      if (fs.existsSync(utils.ctfKeyFile)) this.skip()
+      this.timeout(30000)
+      const flagOfFreshProcess = () => execFileSync(process.execPath, ['--import', 'tsx', '-e', "console.log(require('./lib/utils').ctfFlag('Score Board'))"], { env: { ...process.env, CTF_KEY: '' } }).toString().trim().split('\n').pop()
+      const first = flagOfFreshProcess()
+      expect(first).to.match(/^[0-9a-f]{40}$/)
+      expect(flagOfFreshProcess()).to.not.equal(first)
     })
   })
 })
