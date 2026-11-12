@@ -92,6 +92,8 @@ void describe('/rest/products/reviews', () => {
       email: 'bjoern.kimminich@gmail.com',
       password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
     })
+    const findReview = async () => (await request(app).get('/rest/products/1/reviews')).body.data.find((review: { _id: string }) => review._id === reviewId)
+    const messageBefore = (await findReview()).message
     const res = await request(app)
       .patch('/rest/products/reviews')
       .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
@@ -101,8 +103,7 @@ void describe('/rest/products/reviews', () => {
       })
     assert.equal(res.status, 403)
 
-    const reviews = await request(app).get('/rest/products/1/reviews')
-    assert.equal(reviews.body.data.find((review: { _id: string }) => review._id === reviewId).message, 'Lorem Ipsum')
+    assert.equal((await findReview()).message, messageBefore)
   })
 
   void it('PATCH product review with a token not bound to a logged-in user is rejected', async () => {
