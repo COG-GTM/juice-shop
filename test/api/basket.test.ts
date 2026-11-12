@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
+import { BasketModel } from '../../models/basket'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -218,11 +219,15 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT apply valid coupon to another user\'s basket is forbidden', async () => {
+  void it('PUT apply valid coupon to another user\'s basket is forbidden and leaves its coupon untouched', async () => {
+    const couponBefore = (await BasketModel.findByPk(1))?.coupon
+    assert.notEqual(couponBefore, forgedCoupon)
+
     const res = await request(app)
-      .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(forgedCoupon))
       .set(authHeader)
     assert.equal(res.status, 403)
+    assert.equal((await BasketModel.findByPk(1))?.coupon, couponBefore)
   })
 
   void it('PUT apply valid coupon to another user\'s basket with a forged UserId is forbidden', async () => {
