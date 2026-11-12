@@ -146,6 +146,7 @@ void describe('/file-upload', () => {
       }
       assert.equal(challenges.fileWriteChallenge.solved, true)
       assert.equal(readLegalFile(), original)
+      assert.ok(!(readLegalFile() ?? '').includes('h4cked by N008i3 H4X0r'))
     })
 
     void it('POST zip file does not replace existing files in uploads/complaints', async () => {
