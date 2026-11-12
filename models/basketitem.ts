@@ -27,8 +27,7 @@ const BasketItemModelInit = (sequelize: Sequelize) => {
   BasketItem.init(
     {
       ProductId: {
-        type: DataTypes.INTEGER,
-        allowNull: false
+        type: DataTypes.INTEGER
       },
       BasketId: {
         type: DataTypes.INTEGER
