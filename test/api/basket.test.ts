@@ -188,11 +188,26 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT apply valid coupon to another user\'s basket is forbidden', async () => {
+  void it('PUT apply valid coupon to another user\'s basket is forbidden and leaves its coupon untouched', async () => {
+    const { token: adminToken } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const adminHeader = { Authorization: 'Bearer ' + adminToken, 'content-type': 'application/json' }
+    const before = await request(app)
+      .get('/rest/basket/1')
+      .set(adminHeader)
+    assert.notEqual(before.body.data.coupon, validCoupon)
+
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 403)
+
+    const after = await request(app)
+      .get('/rest/basket/1')
+      .set(adminHeader)
+    assert.equal(after.body.data.coupon, before.body.data.coupon)
   })
 
   void it('PUT invalid coupon to another user\'s basket is forbidden and leaves its coupon untouched', async () => {
