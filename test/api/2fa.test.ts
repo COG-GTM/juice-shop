@@ -111,7 +111,7 @@ void describe('/rest/2fa/verify tmp token expiry', () => {
       .set(jsonHeader)
       .send({
         tmpToken: tmpTokenWurstbrot,
-        totpToken: '123456'
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
       })
 
     assert.equal(res.status, 401)
@@ -128,7 +128,7 @@ void describe('/rest/2fa/verify tmp token expiry', () => {
       .set(jsonHeader)
       .send({
         tmpToken: tmpTokenWurstbrot,
-        totpToken: '123456'
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
       })
 
     assert.equal(res.status, 401)
