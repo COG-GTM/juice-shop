@@ -200,6 +200,21 @@ void describe('/api/Users registration with security answer', () => {
     assert.equal(res.status, 400)
     assert.equal(await UserModel.count({ where: { email: 'empty.answer@te.st' } }), 0)
   })
+
+  for (const [label, partial] of [
+    ['only a security question', { securityQuestion: { id: 1 } }],
+    ['only a security answer', { securityAnswer: 'Horst' }]
+  ] as const) {
+    void it(`POST user with ${label} is rejected`, async () => {
+      const email = `partial.${label.split(' ').pop()}@te.st`
+      const res = await request(app)
+        .post('/api/Users')
+        .set(jsonHeader)
+        .send({ email, password: '12345', ...partial })
+      assert.equal(res.status, 400)
+      assert.equal(await UserModel.count({ where: { email } }), 0)
+    })
+  }
 })
 
 void describe('/api/SecurityAnswers/:id', () => {
