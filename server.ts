@@ -55,7 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
-import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
+import cleanupFtpFolder, { cleanupOrderConfirmations } from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
 import validatePreconditions, { preconditionsReady } from './lib/startup/validatePreconditions'
@@ -732,6 +732,7 @@ export async function start (readyCallback?: () => void) {
   await preconditionsReady
   await datacreator()
   datacreatorEnd()
+  await cleanupOrderConfirmations()
   const port = process.env.PORT ?? config.get('server.port')
   process.env.BASE_PATH = process.env.BASE_PATH ?? config.get('server.basePath')
 
