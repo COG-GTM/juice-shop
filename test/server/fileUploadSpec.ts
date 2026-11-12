@@ -4,6 +4,8 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
+import config from 'config'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { checkUploadSize, checkFileType, handleYamlUpload } from '../../routes/fileUpload'
@@ -118,6 +120,24 @@ describe('fileUpload', () => {
       handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
 
       expect(error?.message).to.contain('{"message":"hello"}')
+    })
+
+    it('should not parse uploaded YAML when safety mode disables yamlBombChallenge', () => {
+      challenges.yamlBombChallenge = { solved: true, save, disabledEnv: ['Docker', 'Heroku', 'Gitpod'] } as unknown as Challenge
+      const configGet = sinon.stub(config, 'get').callsFake((key: string) => key === 'challenges.safetyMode' ? 'enabled' : configGet.wrappedMethod.call(config, key))
+      try {
+        (globalThis as any).yamlFunctionInvoked = false
+        req.file = { originalname: 'complaint.yml', buffer: Buffer.from('message: hello\ntoJSON: !!js/function "function () { globalThis.yamlFunctionInvoked = true; return 42 }"') }
+        let error: Error | undefined
+
+        handleYamlUpload(req, res, (err?: unknown) => { error = err as Error })
+
+        expect((globalThis as any).yamlFunctionInvoked).to.equal(false)
+        expect(error?.message).to.equal('B2B customer complaints via file upload have been deprecated for security reasons (complaint.yml)')
+      } finally {
+        configGet.restore()
+        delete (globalThis as any).yamlFunctionInvoked
+      }
     })
   })
 })
