@@ -100,7 +100,7 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
