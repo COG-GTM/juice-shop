@@ -12,7 +12,7 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
-import { CAPTCHA_TTL_MS } from '../../routes/captcha'
+import { CAPTCHA_TTL_MS, evaluate } from '../../routes/captcha'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
@@ -226,6 +226,15 @@ void describe('/api/Feedbacks', () => {
       .get('/rest/captcha')
     assert.equal(captchaRes.status, 200)
     assert.deepEqual(Object.keys(captchaRes.body).sort(), ['captcha', 'captchaId'])
+  })
+
+  void it('CAPTCHA answers follow operator precedence for every operator combination', () => {
+    for (const first of ['*', '+', '-']) {
+      for (const second of ['*', '+', '-']) {
+        const expected = eval(`7${first}3${second}5`) // eslint-disable-line no-eval
+        assert.equal(evaluate(7, first, 3, second, 5), expected, `7${first}3${second}5`)
+      }
+    }
   })
 
   void it('POST feedback rejects malformed CAPTCHA ids', async () => {
