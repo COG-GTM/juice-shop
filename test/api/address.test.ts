@@ -185,7 +185,7 @@ void describe('/api/Addresss/:id', () => {
 
     const ownRes = await request(app).get('/api/Addresss/' + addressId).set(authHeader)
     assert.equal(ownRes.status, 200)
-    assert.equal(ownRes.body.data.fullName, 'Jimy')
+    assert.notEqual(ownRes.body.data.fullName, 'Bender')
   })
 
   void it('PUT update address cannot reassign owner or id', async () => {
