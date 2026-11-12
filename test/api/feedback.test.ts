@@ -303,11 +303,29 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('DELETE existing feedback is forbidden for non-admin users', async () => {
+  void it('DELETE existing feedback is forbidden for tokens without a role', async () => {
     const res = await request(app)
       .delete('/api/Feedbacks/1')
       .set(authHeader)
     assert.equal(res.status, 403)
+  })
+
+  void it('DELETE another user\'s feedback is forbidden for a logged-in customer', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 403)
+
+    const feedbackRes = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(adminHeader)
+    assert.equal(feedbackRes.status, 200)
+    assert.equal(feedbackRes.body.data.id, 1)
   })
 
   void it('PATCH existing feedback is forbidden', async () => {
