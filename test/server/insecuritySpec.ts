@@ -211,6 +211,39 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashSecurityAnswer with SECURITY_ANSWER_KEY', () => {
+    const modulePath = require.resolve('../../lib/insecurity')
+
+    const loadWithKey = (key: string): typeof security => {
+      const cached = require.cache[modulePath]
+      const previous = process.env.SECURITY_ANSWER_KEY
+      process.env.SECURITY_ANSWER_KEY = key
+      delete require.cache[modulePath]
+      try {
+        return require('../../lib/insecurity')
+      } finally {
+        if (previous === undefined) delete process.env.SECURITY_ANSWER_KEY
+        else process.env.SECURITY_ANSWER_KEY = previous
+        if (cached) require.cache[modulePath] = cached
+      }
+    }
+
+    it('derives scrypt(HMAC-SHA256(key, answer), salt)', async () => {
+      const key = 'test-security-answer-key'
+      const salt = '00112233445566778899aabbccddeeff'
+      const pepper = crypto.createHmac('sha256', key).update('Samuel').digest()
+      const expected = crypto.scryptSync(pepper, salt, 32).toString('hex')
+      expect(await loadWithKey(key).hashSecurityAnswer('Samuel', salt)).to.equal(`${salt}:${expected}`)
+    })
+
+    it('does not verify answers hashed under a different key', async () => {
+      const stored = await loadWithKey('first-key').hashSecurityAnswer('Samuel')
+      const other = loadWithKey('second-key')
+      expect(await other.verifySecurityAnswer('Samuel', stored)).to.equal(false)
+      expect(await loadWithKey('first-key').verifySecurityAnswer('Samuel', stored)).to.equal(true)
+    })
+  })
+
   describe('verifySecurityAnswer', () => {
     it('accepts the correct answer', async () => {
       expect(await security.verifySecurityAnswer('Samuel', await security.hashSecurityAnswer('Samuel'))).to.equal(true)
