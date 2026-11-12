@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -10,8 +11,15 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketModel } from '../../models/basket'
+import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
+import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
+
+const jimOrderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(`order_${security.hash('jim@juice-sh.op').slice(0, 4)}-`) && file.endsWith('.pdf')).sort()
 let authHeader: { Authorization: string, 'content-type': string }
 
 const validCoupon = security.generateCoupon(15)
@@ -136,16 +144,133 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a negative quantity to reach a negative order total is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+  void it('POST placing an order for an empty basket is rejected and leaves no order PDF behind', async () => {
+    const basket = await BasketModel.create({ UserId: 2 })
+    const pdfsBefore = jimOrderPdfs()
+    try {
+      const res = await request(app)
+        .post(`/rest/basket/${basket.id}/checkout`)
+        .set(authHeader)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must be greater than zero.')
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(jimOrderPdfs(), pdfsBefore)
+    } finally {
+      await basket.destroy()
+    }
+  })
+
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
+    assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+  })
+
+  void it('POST placing a wallet order for a basket containing a stored negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: -1000 }, { validate: false })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+    }
+  })
+
+  void it('POST placing an order for more items than are in stock returns 400 and restores stock', async () => {
+    const basket = await BasketModel.create({ UserId: 2 })
+    await BasketItemModel.bulkCreate([
+      { BasketId: basket.id, ProductId: 4, quantity: 1 },
+      { BasketId: basket.id, ProductId: 6, quantity: 2 }
+    ])
+    const checkoutOrder = await BasketModel.findOne({ where: { id: basket.id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const productIds = (checkoutOrder?.Products ?? []).map(({ id }) => id)
+    assert.equal(productIds.length, 2)
+    const [decrementedId, outOfStockId] = productIds
+    const decrementedStockBefore = await QuantityModel.findOne({ where: { ProductId: decrementedId } })
+    const outOfStockBefore = await QuantityModel.findOne({ where: { ProductId: outOfStockId } })
+    const requestedQuantity = outOfStockId === 6 ? 2 : 1
+    await QuantityModel.update({ quantity: requestedQuantity - 1 }, { where: { ProductId: outOfStockId } })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    try {
+      const res = await request(app)
+        .post(`/rest/basket/${basket.id}/checkout`)
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'We are out of stock! Sorry for the inconvenience.')
+
+      const decrementedStockAfter = await QuantityModel.findOne({ where: { ProductId: decrementedId } })
+      const outOfStockAfter = await QuantityModel.findOne({ where: { ProductId: outOfStockId } })
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      assert.equal(decrementedStockAfter?.quantity, decrementedStockBefore?.quantity)
+      assert.equal(outOfStockAfter?.quantity, requestedQuantity - 1)
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+    } finally {
+      await QuantityModel.update({ quantity: outOfStockBefore?.quantity }, { where: { ProductId: outOfStockId } })
+      await BasketItemModel.destroy({ where: { BasketId: basket.id } })
+      await basket.destroy()
+    }
+  })
+
+  void it('POST placing an underfunded wallet order leaves stock unchanged and no order PDF behind', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 100000 })
+    const originalStock = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    await QuantityModel.update({ quantity: 100000 }, { where: { ProductId: 6 } })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    const pdfsBefore = jimOrderPdfs()
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Insufficient wallet balance.'))
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(jimOrderPdfs(), pdfsBefore)
+    } finally {
+      await QuantityModel.update({ quantity: originalStock?.quantity }, { where: { ProductId: 6 } })
+      await item.destroy()
+    }
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
