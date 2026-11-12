@@ -62,12 +62,16 @@ mat-card {
   font-size: 15px;
   font-weight: 500;
   gap: $space-3xs;
-  height: 32px;
+  height: auto;
   letter-spacing: normal;
-  padding: 0 $space-s;
+  line-height: 1.2;
+  min-height: 32px;
+  padding: $space-2xs $space-s;
+  text-align: start;
   transition: background-color 0.15s ease;
 
   mat-icon {
+    flex-shrink: 0;
     font-size: 18px;
     height: 18px;
     width: 18px;
