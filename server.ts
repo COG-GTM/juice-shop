@@ -93,7 +93,7 @@ import { serveAngularClient } from './routes/angular'
 import { resetPassword } from './routes/resetPassword'
 import { serveLogFiles } from './routes/logfileServer'
 import { servePublicFiles } from './routes/fileServer'
-import { addMemory, getMemories } from './routes/memory'
+import { addMemory, ensureMemoryImageContent, getMemories } from './routes/memory'
 import { changePassword } from './routes/changePassword'
 import { countryMapping } from './routes/countryMapping'
 import { retrieveAppVersion } from './routes/appVersion'
@@ -309,7 +309,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
   app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
-  app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
+  app.post('/rest/memories', security.isAuthorized(), security.appendUserId(), uploadMemoryImage, ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(ensureMemoryImageContent()), security.appendUserId(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
   app.use(function jsonParser (req: Request, res: Response, next: NextFunction) {
@@ -691,9 +691,11 @@ const mimeTypeMap: any = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg'
 }
+const memoryUploadMimeTypes = new WeakMap<Request, string>()
 const uploadToDisk = multer({
   storage: multer.diskStorage({
     destination: (req: Request, file: any, cb: any) => {
+      memoryUploadMimeTypes.set(req, file.mimetype)
       const isValid = mimeTypeMap[file.mimetype]
       let error: Error | null = new Error('Invalid mime type')
       if (isValid) {
@@ -709,8 +711,19 @@ const uploadToDisk = multer({
       const ext = mimeTypeMap[file.mimetype]
       cb(null, name + '-' + Date.now() + '.' + ext)
     }
-  })
+  }),
+  limits: { fileSize: 1000000, files: 1 }
 })
+const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
+  uploadToDisk.single('image')(req, res, (error: unknown) => {
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      metrics.countFileUploadError(memoryUploadMimeTypes.get(req) ?? 'unknown')
+      res.status(413).json({ error: 'File too large' })
+      return
+    }
+    next(error)
+  })
+}
 
 const expectedModels = ['Address', 'Basket', 'BasketItem', 'Captcha', 'Card', 'Challenge', 'ChallengeDependency', 'Complaint', 'Delivery', 'Feedback', 'ImageCaptcha', 'Memory', 'PrivacyRequestModel', 'Product', 'Quantity', 'Recycle', 'SecurityAnswer', 'SecurityQuestion', 'User', 'Wallet', 'Hint']
 while (!expectedModels.every(model => Object.keys(sequelize.models).includes(model))) {
