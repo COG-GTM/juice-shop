@@ -7,9 +7,27 @@ import { type HttpEvent, type HttpHandler, type HttpInterceptor, type HttpReques
 import { Injectable } from '@angular/core'
 import { type Observable } from 'rxjs'
 
+import { environment } from '../../environments/environment'
+
+function originOf (url: string): string | null {
+  try {
+    return new URL(url, window.location.href).origin
+  } catch {
+    return null
+  }
+}
+
+function isApplicationRequest (url: string): boolean {
+  const target = originOf(url)
+  return target !== null && (target === window.location.origin || target === originOf(environment.hostServer))
+}
+
 @Injectable()
 export class RequestInterceptor implements HttpInterceptor {
   intercept (req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    if (!isApplicationRequest(req.url)) {
+      return next.handle(req)
+    }
     if (localStorage.getItem('token')) {
       req = req.clone({
         setHeaders: {
