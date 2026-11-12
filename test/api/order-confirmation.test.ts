@@ -31,8 +31,10 @@ before(async () => {
 
 void describe('/rest/order-confirmation/:id', () => {
   void it('GET own order confirmation PDF as its customer', async () => {
+    const checkout = await request(app).post('/rest/basket/2/checkout').set(jimAuth)
+    assert.equal(checkout.status, 200)
     const res = await request(app)
-      .get(`/rest/order-confirmation/${orderId}`)
+      .get(`/rest/order-confirmation/${checkout.body.orderConfirmation}`)
       .set(jimAuth)
       .buffer(true)
     assert.equal(res.status, 200)
