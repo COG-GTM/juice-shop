@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { type Request } from 'express'
+import express, { type Request, type Response } from 'express'
+import request from 'supertest'
 import chai from 'chai'
 
 import * as rateLimiting from '../../lib/rateLimiting'
@@ -30,6 +31,32 @@ describe('rateLimiting', () => {
       expect(rateLimiting.trustedProxyHops('-1')).to.equal(false)
       expect(rateLimiting.trustedProxyHops('1.5')).to.equal(false)
       expect(rateLimiting.trustedProxyHops('loopback')).to.equal(false)
+    })
+  })
+
+  describe('accountRateLimit', () => {
+    it('counts failed attempts per account across different client addresses', async () => {
+      const app = express()
+      app.set('trust proxy', true)
+      app.use(express.json())
+      const seenIps = new Set<string>()
+      app.post('/reset', rateLimiting.accountRateLimit(rateLimiting.emailOf), (req: Request, res: Response) => {
+        seenIps.add(String(req.ip))
+        rateLimiting.markFailedAttempt(res)
+        res.status(401).end()
+      })
+
+      const statuses: number[] = []
+      for (let i = 1; i <= 11; i++) {
+        const res = await request(app).post('/reset').set('X-Forwarded-For', `198.51.100.${i}`).send({ email: 'victim@juice-sh.op' })
+        statuses.push(res.status)
+      }
+
+      expect(seenIps.size).to.equal(10)
+      expect(statuses.slice(0, 10)).to.deep.equal(Array(10).fill(401))
+      expect(statuses[10]).to.equal(429)
+      const other = await request(app).post('/reset').set('X-Forwarded-For', '198.51.100.99').send({ email: 'other@juice-sh.op' })
+      expect(other.status).to.equal(401)
     })
   })
 
