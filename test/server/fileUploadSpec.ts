@@ -204,16 +204,19 @@ describe('fileUpload', () => {
       return tempPath
     }
     const originalRename = fs.promises.rename
+    let partFilesBefore = new Set<string>()
+    const newPartFiles = () => fs.readdirSync(complaintsDirectory).filter(file => file.endsWith('.part') && !partFilesBefore.has(file))
 
     beforeEach(() => {
       fs.mkdirSync(complaintsDirectory, { recursive: true })
+      partFilesBefore = new Set(fs.readdirSync(complaintsDirectory).filter(file => file.endsWith('.part')))
       fs.writeFileSync(existing, 'OLD')
     })
 
     afterEach(() => {
       fs.promises.rename = originalRename
       for (const file of fs.readdirSync(complaintsDirectory)) {
-        if (file.includes(id)) fs.rmSync(path.join(complaintsDirectory, file), { force: true })
+        if (file.includes(id) || (file.endsWith('.part') && !partFilesBefore.has(file))) fs.rmSync(path.join(complaintsDirectory, file), { force: true })
       }
     })
 
@@ -222,7 +225,7 @@ describe('fileUpload', () => {
       expect(await publishAtomically(entries, () => false)).to.equal(true)
       expect(fs.readFileSync(existing, 'utf8')).to.equal('NEW')
       expect(fs.readFileSync(fresh, 'utf8')).to.equal('FRESH')
-      expect(fs.readdirSync(complaintsDirectory).filter(file => file.includes(id) && file.endsWith('.part'))).to.deep.equal([])
+      expect(newPartFiles()).to.deep.equal([])
     })
 
     it('should roll back already published entries when a later rename fails', async () => {
@@ -239,7 +242,7 @@ describe('fileUpload', () => {
       expect(fs.readFileSync(existing, 'utf8')).to.equal('OLD')
       expect(fs.existsSync(fresh)).to.equal(false)
       expect(fs.existsSync(failing)).to.equal(false)
-      expect(fs.readdirSync(complaintsDirectory).filter(file => file.includes(id) && file.endsWith('.part'))).to.deep.equal([])
+      expect(newPartFiles()).to.deep.equal([])
     })
 
     it('should keep the backup of an overwritten file when restoring it fails', async () => {
