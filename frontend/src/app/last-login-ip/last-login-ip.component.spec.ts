@@ -62,11 +62,12 @@ describe('LastLoginIpComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should log JWT parsing error to console', () => {
+    it('should keep placeholder Last-Login IP for an unparseable JWT', () => {
         console.log = vi.fn()
         startSession('definitelyInvalidJWT')
         component.ngOnInit()
-        expect(console.log).toHaveBeenCalled()
+        expect(component.lastLoginIp).toBe('?')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
     })
 
     it('should set Last-Login IP from JWT as trusted HTML', () => {
