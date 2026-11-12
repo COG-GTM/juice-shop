@@ -183,7 +183,11 @@ void describe('/rest/basket/:id/checkout', () => {
       await awaitAllCheckouts()
       return await update(...args)
     })
-    const barrierTimeout = setTimeout(releaseBarrier, 5000)
+    let barrierTimedOut = false
+    const barrierTimeout = setTimeout(() => {
+      barrierTimedOut = walletAccesses < checkouts
+      releaseBarrier()
+    }, 5000)
     const responses = await Promise.all(Array.from({ length: checkouts }, async () => await request(app)
       .post('/rest/basket/5/checkout')
       .set(uvoginHeader)
@@ -191,6 +195,7 @@ void describe('/rest/basket/:id/checkout', () => {
     clearTimeout(barrierTimeout)
     findOneMock.mock.restore()
     updateMock.mock.restore()
+    assert.equal(barrierTimedOut, false)
     assert.equal(walletAccesses, checkouts)
     assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
     assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
