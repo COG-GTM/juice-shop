@@ -133,6 +133,22 @@ void describe('/profile', () => {
     })
   }
 
+  for (const stored of ['<script>alert(`xss`)</script>', '&lt;script&gt;alert(`xss`)&lt;/script&gt;']) {
+    void it(`GET user profile renders stored username ${stored} as escaped text`, async () => {
+      const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+      user?.setDataValue('username', stored)
+      await user?.save()
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('text-align: center;">&lt;script&gt;alert(`xss`)&lt;/script&gt;<'))
+      assert.ok(!res.text.includes('<script>alert(`xss`)'))
+    })
+  }
+
   void it('GET user profile does not execute Pug code from a stored multi-line username', async () => {
     const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
     await user?.update({ username: 'x\n                  - global.juiceShopSstiProbe = 1' })
