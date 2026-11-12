@@ -21,8 +21,9 @@ async function retrieveUserList (req: Request, res: Response, next: NextFunction
           lastLoginTime = parsedToken ? Math.floor(new Date(parsedToken?.iat ?? 0 * 1000).getTime()) : null
         }
 
+        const { deluxeToken, lastLoginIp, ...userData } = user.dataValues
         return {
-          ...user.dataValues,
+          ...userData,
           password: user.password?.replace(/./g, '*'),
           totpSecret: user.totpSecret?.replace(/./g, '*'),
           lastLoginTime
