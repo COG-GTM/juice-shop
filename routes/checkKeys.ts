@@ -17,7 +17,7 @@ export function checkKeys () {
         return req.body.privateKey === privateKey
       })
       if (req.body.privateKey === privateKey) {
-        res.status(200).json({ success: true, message: 'Challenge successfully solved', status: challenges.nftUnlockChallenge })
+        res.status(200).json({ success: true, message: 'Challenge successfully solved', status: challenges.nftUnlockChallenge, address })
       } else {
         if (req.body.privateKey === address) {
           res.status(401).json({ success: false, message: 'Looks like you entered the public address of my ethereum wallet!', status: challenges.nftUnlockChallenge })

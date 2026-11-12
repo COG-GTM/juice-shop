@@ -82,12 +82,16 @@ describe('NFTUnlockComponent', () => {
     })
 
     it('should handle successful key submission', () => {
-        keysServiceSpy.submitKey.mockReturnValue(of({ success: true, message: 'Success!' }))
+        keysServiceSpy.submitKey.mockReturnValue(of({ success: true, message: 'Success!', address: '0xfeedBEEF1234' }))
         component.privateKey = 'test-private-key'
         component.submitForm()
+        fixture.detectChanges()
         expect(component.formSubmitted).toBe(true)
         expect(component.successResponse).toBe(true)
         expect(component.errorMessage).toBe('Success!')
+        const element: HTMLElement = fixture.nativeElement
+        expect(element.querySelector('.owner-text a')?.getAttribute('href')).toBe('https://testnets.opensea.io/0xfeedBEEF1234')
+        expect(element.querySelector('.box-text')?.textContent?.trim()).toBe('0xfeedBEEF1234')
     })
 
     it('should handle failed key submission with error response', () => {
