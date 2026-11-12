@@ -2,6 +2,7 @@
 node_modules/
 juiceshop.sqlite
 order_*.pdf
+orders/
 app/
 !frontend/src/app
 uploads/complaints/*.*
