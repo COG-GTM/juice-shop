@@ -15,7 +15,18 @@ interface codeFix {
 
 type cache = Record<string, codeFix>
 
+export interface CodingChallengeInfos {
+  fixes?: Array<{ id: number, explanation?: string }>
+  hints?: string[]
+}
+
 const CodeFixes: cache = {}
+
+export const readCodingChallengeInfos = (key: string): CodingChallengeInfos | undefined => {
+  const infoFile = fs.readdirSync(FixesDir).find(file => file === `${key}.info.yml`)
+  if (!infoFile) return undefined
+  return yaml.safeLoad(fs.readFileSync(`${FixesDir}/${infoFile}`, 'utf8')) as CodingChallengeInfos | undefined
+}
 
 export const readFixes = (key: string) => {
   if (CodeFixes[key]) {
@@ -77,11 +88,9 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
-      const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
-      if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
-    }
+    const codingChallengeInfos = readCodingChallengeInfos(key)
+    const selectedFixInfo = codingChallengeInfos?.fixes?.find(({ id }: { id: number }) => id === selectedFix + 1)
+    if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     if (selectedFix === fixData.correct) {
       await challengeUtils.solveFixIt(key)
       res.status(200).json({
