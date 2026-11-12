@@ -122,7 +122,7 @@ describe('/rest/products/reviews', () => {
 
     it('should count concurrent likes of the same user only once', () => {
       cy.visit('/')
-      cy.window().then(async () => {
+      cy.task<string>('GetFromConfig', 'application.domain').then((appDomain: string) => cy.window().then(async () => {
         const headers = {
           'Content-type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`
@@ -138,8 +138,8 @@ describe('/rest/products/reviews', () => {
 
         const review = (await (await fetch(`${Cypress.config('baseUrl')}/rest/products/1/reviews`, { headers })).json()).data
           .find((review: { _id: string }) => review._id === reviewId)
-        expect(review.likedBy.filter((email: string) => email === 'mc.safesearch@juice-sh.op')).to.have.length(1)
-      })
+        expect(review.likedBy.filter((email: string) => email === `mc.safesearch@${appDomain}`)).to.have.length(1)
+      }))
     })
   })
 })
