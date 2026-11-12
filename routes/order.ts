@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
@@ -29,6 +30,54 @@ interface Product {
   bonus: number
 }
 
+export const ORDER_PDF_ROOT = path.resolve('orders')
+const orderIdPattern = /^[0-9a-f]{4}-[0-9a-f]{16}$/
+
+function orderPdfDirectory (userId: number | string | undefined) {
+  if (userId === undefined || userId === null || !/^\d+$/.test(String(userId))) {
+    throw new Error('Unable to determine order owner.')
+  }
+  return path.join(ORDER_PDF_ROOT, String(userId))
+}
+
+function verifiedUserIdFrom (token: unknown) {
+  if (typeof token !== 'string') return undefined
+  const parts = token.split('.')
+  if (parts.length !== 3) return undefined
+  const [encodedHeader, encodedPayload, signature] = parts
+  try {
+    const header = JSON.parse(Buffer.from(encodedHeader, 'base64url').toString())
+    if (header?.alg !== 'RS256') return undefined
+    const validSignature = crypto.verify('RSA-SHA256', Buffer.from(`${encodedHeader}.${encodedPayload}`), security.publicKey, Buffer.from(signature, 'base64url'))
+    if (!validSignature) return undefined
+    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString())
+    if (typeof payload?.exp === 'number' && payload.exp * 1000 < Date.now()) return undefined
+    return payload?.data?.id
+  } catch {
+    return undefined
+  }
+}
+
+export function serveOrderConfirmation () {
+  return (req: Request, res: Response) => {
+    const userId = verifiedUserIdFrom(utils.jwtFrom(req) ?? req.cookies?.token)
+    if (userId === undefined || userId === null || !/^\d+$/.test(String(userId))) {
+      res.status(401).json({ status: 'error', message: 'Unauthorized' })
+      return
+    }
+    const orderId = req.params.id
+    if (!orderIdPattern.test(orderId)) {
+      res.status(400).json({ status: 'error', message: 'Invalid order id' })
+      return
+    }
+    res.sendFile(path.join(orderPdfDirectory(userId), `order_${orderId}.pdf`), (err) => {
+      if (err && !res.headersSent) {
+        res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      }
+    })
+  }
+}
+
 export function placeOrder () {
   return (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id
@@ -38,11 +87,12 @@ export function placeOrder () {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
+          const pdfDir = orderPdfDirectory(customer?.data?.id ?? req.body.UserId)
+          await fs.promises.mkdir(pdfDir, { recursive: true })
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(pdfDir, `order_${orderId}.pdf`)))
 
           fileWriter.on('finish', () => {
             void (async () => {

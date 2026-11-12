@@ -18,4 +18,13 @@ const cleanupFtpFolder = async () => {
     logger.warn('Error listing PDF files in /ftp folder: ' + utils.getErrorMessage(err))
   }
 }
+
+export const cleanupOrderConfirmations = async () => {
+  try {
+    await fs.emptyDir('orders')
+  } catch (err) {
+    logger.warn('Error cleaning up order confirmations: ' + utils.getErrorMessage(err))
+  }
+}
+
 export default cleanupFtpFolder
