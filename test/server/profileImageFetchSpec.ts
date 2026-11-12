@@ -4,6 +4,8 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
+import dns from 'node:dns'
 import http from 'node:http'
 import { type AddressInfo } from 'node:net'
 import { fetchProfileImage, isPublicAddress, parseProfileImageUrl, ProfileImageFetchError, MAX_PROFILE_IMAGE_BYTES } from '../../lib/profileImageFetch'
@@ -103,6 +105,18 @@ describe('profileImageFetch', () => {
 
     it('refuses hostnames that resolve to internal addresses', async () => {
       await expectRejected(fetchProfileImage(baseUrl.replace('127.0.0.1', 'localhost') + '/image.png', httpOnly), /not allowed/)
+      expect(hits).to.deep.equal([])
+    })
+
+    it('refuses hostnames whose DNS answers mix public and internal addresses', async () => {
+      const lookupStub = sinon.stub(dns, 'lookup').callsFake(((_hostname: string, _options: unknown, callback: (...args: any[]) => void) => {
+        callback(null, [{ address: '93.184.216.34', family: 4 }, { address: '127.0.0.1', family: 4 }])
+      }) as any)
+      try {
+        await expectRejected(fetchProfileImage(baseUrl.replace('127.0.0.1', 'mixed.example') + '/image.png', httpOnly), /not allowed/)
+      } finally {
+        lookupStub.restore()
+      }
       expect(hits).to.deep.equal([])
     })
 
