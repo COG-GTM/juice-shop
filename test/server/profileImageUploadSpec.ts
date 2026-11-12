@@ -11,6 +11,7 @@ import chai from 'chai'
 import sinonChai from 'sinon-chai'
 
 import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 import { profileImageUploadDir, profileImageUploadPath, toProfileImageUserId } from '../../lib/profileImageUpload'
 import { profileImageFileUpload } from '../../routes/profileImageFileUpload'
 import { profileImageUrlUpload } from '../../routes/profileImageUrlUpload'
@@ -97,6 +98,58 @@ describe('profileImageUpload', () => {
       expect(fetch).to.have.callCount(0)
       expect(createWriteStream).to.have.callCount(0)
       expect(res.redirect).to.have.callCount(0)
+    })
+  })
+
+  describe('route handlers with a numeric session user id that has no user row', () => {
+    const token = 'unknown-user-profile-image-token'
+    let res: any
+    let next: any
+
+    beforeEach(() => {
+      security.authenticatedUsers.put(token, { data: { id: 987654 } } as any)
+      sinon.stub(UserModel, 'findByPk').resolves(null)
+      res = { status: sinon.stub(), location: sinon.stub(), redirect: sinon.stub() }
+      next = sinon.spy()
+    })
+
+    afterEach(() => {
+      delete security.authenticatedUsers.tokenMap[token]
+      sinon.restore()
+    })
+
+    it('profileImageFileUpload rejects the request without writing a file', async () => {
+      const writeFile = sinon.stub(fs.promises, 'writeFile').resolves()
+      const req: any = {
+        cookies: { token },
+        file: { buffer: fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg')) },
+        socket: {}
+      }
+
+      await profileImageFileUpload()(req, res, next)
+
+      expect(UserModel.findByPk).to.have.been.calledWith(987654)
+      expect(res.status).to.have.been.calledWith(400)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error).and(sinon.match.has('message', 'Invalid user id in session')))
+      expect(writeFile).to.have.callCount(0)
+    })
+
+    it('profileImageUrlUpload rejects the request before fetching the image', async () => {
+      const fetch = sinon.stub(globalThis, 'fetch')
+      const createWriteStream = sinon.spy(fs, 'createWriteStream')
+      const req: any = {
+        body: { imageUrl: 'https://example.com/x.png' },
+        cookies: { token },
+        app: { locals: {} },
+        socket: {}
+      }
+
+      await profileImageUrlUpload()(req, res, next)
+
+      expect(UserModel.findByPk).to.have.been.calledWith(987654)
+      expect(res.status).to.have.been.calledWith(400)
+      expect(fetch).to.have.callCount(0)
+      expect(createWriteStream).to.have.callCount(0)
     })
   })
 })
