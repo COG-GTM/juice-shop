@@ -57,6 +57,7 @@ export class NFTUnlockComponent implements OnInit {
         if (response.success) {
           this.successResponse = true
           this.errorMessage = response.message
+          this.walletAddress = response.address ?? ''
         } else {
           this.successResponse = false
         }
