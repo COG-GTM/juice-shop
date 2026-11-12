@@ -115,18 +115,26 @@ describe('OAuthComponent', () => {
     it('rejects the redirect without calling the server when the state does not match', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockClear()
+        localStorage.setItem('token', 'PREVIOUS_TOKEN')
+        sessionStorage.setItem('bid', '7')
         sessionStorage.setItem('oauthState', 'OTHER')
         component.ngOnInit()
         expect(userService.oauthLogin).not.toHaveBeenCalled()
         expect(sessionStorage.getItem('oauthState')).toBeNull()
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
     it('rejects the redirect when no state was stored before leaving for Google', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockClear()
+        localStorage.setItem('token', 'PREVIOUS_TOKEN')
+        sessionStorage.setItem('bid', '7')
         sessionStorage.removeItem('oauthState')
         component.ngOnInit()
         expect(userService.oauthLogin).not.toHaveBeenCalled()
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
     it('never registers or logs in with a password derived from the email', () => {
