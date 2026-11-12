@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -108,6 +109,118 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('isAdmin', () => {
+    let userModel: any
+    let req: Request
+    let res: any
+    let next: any
+    let status: any
+    let json: any
+    let findByPkStub: any
+
+    before(async () => {
+      ({ UserModel: userModel } = await import('../../models/user'))
+    })
+
+    beforeEach(() => {
+      req = { headers: {} } as Request
+      status = sinon.stub().returnsThis()
+      json = sinon.spy()
+      res = { status, json }
+      next = sinon.spy()
+      findByPkStub = sinon.stub(userModel, 'findByPk')
+    })
+
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    const expectForbidden = () => {
+      expect(status.calledOnce).to.equal(true)
+      expect(status.calledWithExactly(403)).to.equal(true)
+      expect(json.calledOnce).to.equal(true)
+      expect(json.firstCall.args[0]).to.deep.equal({ error: 'Malicious activity detected' })
+      expect(next.notCalled).to.equal(true)
+    }
+
+    it('allows an admin based on the database role', async () => {
+      findByPkStub.resolves({ role: 'admin' })
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } })
+      req.headers.authorization = `Bearer ${token}`
+
+      await security.isAdmin()(req, res, next)
+
+      expect(findByPkStub.calledOnce).to.equal(true)
+      expect(findByPkStub.calledWithExactly(1)).to.equal(true)
+      expect(next.calledOnce).to.equal(true)
+      expect(status.called).to.equal(false)
+      expect(json.called).to.equal(false)
+    })
+
+    it('denies an admin token when the database role is customer', async () => {
+      findByPkStub.resolves({ role: 'customer' })
+      const token = security.authorize({
+        data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+      })
+      req.headers.authorization = `Bearer ${token}`
+
+      await security.isAdmin()(req, res, next)
+
+      expect(findByPkStub.calledOnce).to.equal(true)
+      expect(findByPkStub.calledWithExactly(1)).to.equal(true)
+      expectForbidden()
+    })
+
+    it('rejects alg:none tokens before looking up a user', async () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({
+        data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+      })).toString('base64url')
+      req.headers.authorization = `Bearer ${header}.${payload}.`
+
+      await security.isAdmin()(req, res, next)
+
+      expectForbidden()
+      expect(findByPkStub.notCalled).to.equal(true)
+    })
+
+    it('rejects a tampered payload before looking up a user', async () => {
+      const token = security.authorize({
+        data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+      })
+      const [header, payload, signature] = token.split('.')
+      const tamperedPayload = JSON.parse(Buffer.from(payload, 'base64url').toString())
+      tamperedPayload.data.id = 2
+      req.headers.authorization = `Bearer ${header}.${Buffer.from(JSON.stringify(tamperedPayload)).toString('base64url')}.${signature}`
+
+      await security.isAdmin()(req, res, next)
+
+      expectForbidden()
+      expect(findByPkStub.notCalled).to.equal(true)
+    })
+
+    it('rejects expired tokens before looking up a user', async () => {
+      const token = security.authorize({
+        data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' },
+        exp: Math.floor(Date.now() / 1000) - 60
+      })
+      expect(security.decode(token).exp).to.be.lessThan(Date.now() / 1000)
+      req.headers.authorization = `Bearer ${token}`
+
+      await security.isAdmin()(req, res, next)
+
+      expectForbidden()
+      expect(findByPkStub.notCalled).to.equal(true)
+    })
+
+    it('rejects requests without an authorization header', async () => {
+      await security.isAdmin()(req, res, next)
+
+      expectForbidden()
+      expect(findByPkStub.notCalled).to.equal(true)
     })
   })
 

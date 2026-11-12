@@ -96,7 +96,8 @@ void describe('/rest/user/authentication-details', () => {
       .get('/rest/user/authentication-details')
       .set({ Authorization: `Bearer ${header}.${payload}.` })
 
-    assert.ok([401, 403].includes(res.status))
+    assert.equal(res.status, 403)
+    assert.equal(res.body.error, 'Malicious activity detected')
   })
 
   void it('requires an authorization header', async () => {
