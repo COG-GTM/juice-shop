@@ -14,6 +14,7 @@ import { createTestApp } from './helpers/setup'
 import { loadStaticUserData } from '../../data/staticData'
 import { isPrivilegedRole } from '../../data/privilegedSeedPasswords'
 import { challenges } from '../../data/datacache'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -32,6 +33,16 @@ void describe('seeded accounts without JUICE_SHOP_DEMO_CREDENTIALS', async () =>
     assert.ok(privilegedUsers.some(({ role }) => role === 'admin'))
     assert.ok(privilegedUsers.some(({ role }) => role === 'accounting'))
   })
+
+  for (const { email, customDomain, password, role } of privilegedUsers) {
+    const completeEmail = customDomain ? email : `${email}@${domain}`
+    void it(`seeds privileged account ${completeEmail} with a password other than the static one`, async () => {
+      const user = await UserModel.findOne({ where: { email: completeEmail } })
+      assert.ok(user, `${completeEmail} was not seeded`)
+      assert.equal(user.role, role)
+      assert.notEqual(user.password, security.hash(password))
+    })
+  }
 
   for (const { email, customDomain, password } of privilegedUsers) {
     const completeEmail = customDomain ? email : `${email}@${domain}`
