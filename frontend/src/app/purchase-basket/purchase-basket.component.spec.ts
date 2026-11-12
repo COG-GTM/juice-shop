@@ -198,6 +198,13 @@ describe('PurchaseBasketComponent', () => {
         expect(component.itemTotal).toBe(4)
     })
 
+    it('should display the total price rounded to two decimals', () => {
+        basketService.find.mockReturnValue(of({ Products: [{ name: 'Product1', price: 2.99, deluxePrice: 2.99, BasketItem: { quantity: 5 } }] }))
+        component.load()
+        fixture.detectChanges()
+        expect(fixture.nativeElement.querySelector('#price').textContent).toContain(': 14.95¤')
+    })
+
     it('should log error while getting Products from backend API directly to browser console', () => {
         basketService.find.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
