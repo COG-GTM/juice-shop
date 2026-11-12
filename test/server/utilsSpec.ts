@@ -233,12 +233,12 @@ describe('utils', () => {
 
     it('falls back to a local key file', () => {
       fs.writeFileSync(keyFile, 'key from file')
-      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal('key from file')
+      expect(utils.configuredCtfKey('', keyFile)).to.equal('key from file')
       expect(utils.configuredCtfKey('', keyFile)).to.equal('key from file')
     })
 
     it('returns undefined if neither is configured', () => {
-      expect(utils.configuredCtfKey(undefined, keyFile)).to.equal(undefined)
+      expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
       fs.writeFileSync(keyFile, ' \n')
       expect(utils.configuredCtfKey('', keyFile)).to.equal(undefined)
     })
@@ -246,7 +246,7 @@ describe('utils', () => {
     it('rejects the publicly known former default key', () => {
       const rejectedFingerprints = [utils.ctfKeyFingerprint('leaked key')]
       fs.writeFileSync(keyFile, 'leaked key\n')
-      expect(utils.configuredCtfKey(undefined, keyFile, rejectedFingerprints)).to.equal(undefined)
+      expect(utils.configuredCtfKey('', keyFile, rejectedFingerprints)).to.equal(undefined)
       expect(utils.configuredCtfKey('leaked key', keyFile, rejectedFingerprints)).to.equal(undefined)
       expect(utils.configuredCtfKey('other key', keyFile, rejectedFingerprints)).to.equal('other key')
     })

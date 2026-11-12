@@ -531,15 +531,15 @@ describe('configValidation', () => {
 
   describe('checkCtfKeyConfigured', () => {
     it('should fail if CTF flags are enabled without a configured CTF key', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, undefined)).to.equal(false)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => undefined)).to.equal(false)
     })
 
     it('should accept CTF flags with a configured CTF key', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, 'secret')).to.equal(true)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: true } }, () => 'secret')).to.equal(true)
     })
 
     it('should accept a missing CTF key if CTF flags are disabled', () => {
-      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, undefined)).to.equal(true)
+      expect(checkCtfKeyConfigured({ ctf: { showFlagsInNotifications: false } }, () => undefined)).to.equal(true)
     })
   })
 })
