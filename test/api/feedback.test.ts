@@ -251,6 +251,20 @@ void describe('/api/Feedbacks', () => {
     assert.equal(replay.status, 401)
   })
 
+  void it('POST feedback accepts only one of several concurrent submissions with the same CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    const feedback = {
+      comment: 'Concurrent replay attempt',
+      rating: 3,
+      captchaId: captchaRes.body.captchaId,
+      captcha: solveCaptcha(captchaRes.body)
+    }
+
+    const results = await Promise.all(Array.from({ length: 5 }, async () => await request(app).post('/api/Feedbacks').set(jsonHeader).send(feedback)))
+    assert.deepEqual(results.map(({ status }) => status).sort(), [201, 401, 401, 401, 401])
+  })
+
   void it('POST feedback with a wrong answer consumes the CAPTCHA', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
