@@ -74,6 +74,7 @@ import { placeOrder } from './routes/order'
 import { b2bOrder } from './routes/b2bOrder'
 import * as delivery from './routes/delivery'
 import * as recycles from './routes/recycles'
+import * as complaints from './routes/complaints'
 import * as twoFactorAuth from './routes/2fa'
 import { applyCoupon } from './routes/coupon'
 import dataErasure from './routes/dataErasure'
@@ -452,6 +453,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  /* Complaints: list only the caller's own complaints (admins see all) */
+  app.get('/api/Complaints', verify.databaseRelatedChallenges(), utils.asyncHandler(complaints.listComplaints()))
+  app.post('/api/Complaints', complaints.setComplaintOwner())
+
+  /* Feedbacks: Only administrators may delete existing feedback, no other changes allowed */
+  app.delete('/api/Feedbacks/:id', security.isAdmin())
+  app.patch('/api/Feedbacks/:id', security.denyAll())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -474,6 +482,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   )
   /* Verifying DB related challenges can be postponed until the next request for challenges is coming via finale */
   app.use(verify.databaseRelatedChallenges())
+  /* Feedback is attributed to the authenticated caller (or nobody), never to a client-supplied UserId */
+  app.post('/api/Feedbacks', security.bindUserId())
 
   // vuln-code-snippet start registerAdminChallenge
   /* Generated API endpoints */
