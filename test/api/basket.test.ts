@@ -11,6 +11,9 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
+import { BasketModel } from '../../models/basket'
+import { QuantityModel } from '../../models/quantity'
+import * as db from '../../data/mongodb'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -138,13 +141,20 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for another user\'s basket is forbidden and leaves it untouched', async () => {
-    const itemsBefore = await BasketItemModel.count({ where: { BasketId: 1 } })
-    assert.ok(itemsBefore > 0)
+    await BasketModel.update({ coupon: 'foreignCoupon' }, { where: { id: 1 } })
+    const itemsBefore = await BasketItemModel.findAll({ where: { BasketId: 1 } })
+    assert.ok(itemsBefore.length > 0)
+    const productIds = itemsBefore.map(item => item.ProductId)
+    const stockBefore = (await QuantityModel.findAll({ where: { ProductId: productIds } })).map(q => q.quantity)
+    const ordersBefore = (await db.ordersCollection.find({})).length
 
     const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
     assert.equal(res.status, 403)
     assert.equal(res.body.orderConfirmation, undefined)
-    assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), itemsBefore)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: 1 } }), itemsBefore.length)
+    assert.equal((await BasketModel.findByPk(1))?.coupon, 'foreignCoupon')
+    assert.deepEqual((await QuantityModel.findAll({ where: { ProductId: productIds } })).map(q => q.quantity), stockBefore)
+    assert.equal((await db.ordersCollection.find({})).length, ordersBefore)
   })
 
   void it('POST placing an order for a non-existing basket is forbidden', async () => {
