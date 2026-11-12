@@ -106,7 +106,7 @@ export function placeOrder () {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
             doc.text(discount + '% discount from coupon: -' + discountAmount + '¤')
             doc.moveDown()
-            totalPrice -= parseFloat(discountAmount)
+            totalPrice -= Math.min(parseFloat(discountAmount), totalPrice)
           }
           const deliveryMethod = {
             deluxePrice: 0,
