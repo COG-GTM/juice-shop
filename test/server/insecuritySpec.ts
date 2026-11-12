@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +201,124 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('issues distinct tokens for identical payloads signed in the same second', () => {
+      const payload = { data: { id: 1, email: 'admin@juice-sh.op' } }
+      expect(security.authorize(payload)).to.not.equal(security.authorize(payload))
+    })
+  })
+
+  describe('verify', () => {
+    const past = () => Math.floor(Date.now() / 1000) - 60
+
+    it('accepts a freshly issued token', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 } }))).to.equal(true)
+    })
+
+    it('rejects an expired token', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 }, exp: past() }))).to.equal(false)
+    })
+
+    it('rejects a signed token without exp claim', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 }, exp: undefined }))).to.equal(false)
+    })
+
+    it('rejects a revoked token', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.revokeToken(token)
+      expect(security.verify(token)).to.equal(false)
+    })
+
+    it('rejects a revoked token whose signature encoding was altered', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.revokeToken(token)
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+      const last = token.slice(-1)
+      const sibling = alphabet[alphabet.indexOf(last) ^ 1]
+      const altered = token.slice(0, -1) + sibling
+      expect(altered).to.not.equal(token)
+      expect(security.isRevoked(altered)).to.equal(true)
+      expect(security.verify(altered)).to.equal(false)
+    })
+
+    it('rejects a malformed token instead of throwing', () => {
+      expect(security.verify('not.a.jwt')).to.equal(false)
+    })
+
+    it('does not return the cached session of an expired token', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      security.authenticatedUsers.tokenMap[token] = { data: { id: 7 } as unknown as UserModel }
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+
+    it('appendUserId rejects an expired token that is still cached', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      security.authenticatedUsers.tokenMap[token] = { data: { id: 7 } as unknown as UserModel }
+      let status = 0
+      let passed = false
+      const req = { headers: { authorization: `Bearer ${token}` }, body: {} } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as unknown as Response
+      security.appendUserId()(req, res, () => { passed = true })
+      expect(passed).to.equal(false)
+      expect(status).to.equal(401)
+    })
+
+    it('isAuthorized rejects an expired token before express-jwt', () => {
+      const token = security.authorize({ data: { id: 7 }, exp: past() })
+      let status = 0
+      let passed = false
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      const res = { status: (code: number) => { status = code; return { json: () => {} } } } as unknown as Response
+      security.isAuthorized()(req, res, () => { passed = true })
+      expect(passed).to.equal(false)
+      expect(status).to.equal(401)
+    })
+  })
+
+  describe('isAccounting', () => {
+    const allowed = (token: string) => {
+      let passed = false
+      const res = { status: () => ({ json: () => {} }) } as unknown as Response
+      security.isAccounting()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, res, () => { passed = true })
+      return passed
+    }
+
+    it('accepts a valid accounting token', () => {
+      expect(allowed(security.authorize({ data: { id: 4, role: security.roles.accounting } }))).to.equal(true)
+    })
+
+    it('rejects a revoked accounting token', () => {
+      const token = security.authorize({ data: { id: 4, role: security.roles.accounting } })
+      security.revokeToken(token)
+      expect(allowed(token)).to.equal(false)
+    })
+  })
+
+  describe('isDeluxe', () => {
+    const deluxeRequest = (token: string) => ({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)
+    const deluxeUser = () => security.authorize({ data: { id: 5, email: 'ciso@juice-sh.op', role: security.roles.deluxe, deluxeToken: security.deluxeToken('ciso@juice-sh.op') } })
+
+    it('accepts a valid deluxe token', () => {
+      expect(security.isDeluxe(deluxeRequest(deluxeUser()))).to.equal(true)
+    })
+
+    it('rejects a revoked deluxe token', () => {
+      const token = deluxeUser()
+      security.revokeToken(token)
+      expect(security.isDeluxe(deluxeRequest(token))).to.equal(false)
+    })
+  })
+
+  describe('isCustomer', () => {
+    it('rejects a revoked customer token', () => {
+      const token = security.authorize({ data: { id: 6, role: security.roles.customer } })
+      const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+      expect(security.isCustomer(req)).to.equal(true)
+      security.revokeToken(token)
+      expect(security.isCustomer(req)).to.equal(false)
     })
   })
 })
