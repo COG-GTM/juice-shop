@@ -144,7 +144,10 @@ void describe('/file-upload', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     assert.equal(challenges.fileWriteChallenge.solved, true)
-    assert.equal(readLegalFile(), original)
+    for (let i = 0; i < 10; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      assert.equal(readLegalFile(), original)
+    }
   })
 
   void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
@@ -155,8 +158,10 @@ void describe('/file-upload', () => {
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
+    for (let i = 0; i < 10; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      templates.forEach((template, j) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[j]) })
+    }
   })
 
   void it('POST zip file with password protection', async () => {
