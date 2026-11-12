@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 import * as db from '../../data/mongodb'
 
 let app: Express
@@ -150,7 +151,7 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async (t) => {
     const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
     const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
     const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
@@ -164,10 +165,31 @@ void describe('/rest/basket/:id/checkout', () => {
     const bonusPoints = 5
     assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
 
-    const responses = await Promise.all([1, 2, 3].map(async () => await request(app)
+    const checkouts = 3
+    let walletAccesses = 0
+    let releaseBarrier: () => void = () => {}
+    const barrier = new Promise<void>(resolve => { releaseBarrier = resolve })
+    const awaitAllCheckouts = async () => {
+      if (++walletAccesses === checkouts) releaseBarrier()
+      await barrier
+    }
+    const findOne = WalletModel.findOne.bind(WalletModel)
+    const update = WalletModel.update.bind(WalletModel)
+    const findOneMock = t.mock.method(WalletModel, 'findOne', async (...args: Parameters<typeof WalletModel.findOne>) => {
+      await awaitAllCheckouts()
+      return await findOne(...args)
+    })
+    const updateMock = t.mock.method(WalletModel, 'update', async (...args: Parameters<typeof WalletModel.update>) => {
+      await awaitAllCheckouts()
+      return await update(...args)
+    })
+    const responses = await Promise.all(Array.from({ length: checkouts }, async () => await request(app)
       .post('/rest/basket/5/checkout')
       .set(uvoginHeader)
       .send({ orderDetails: { paymentId: 'wallet' } })))
+    findOneMock.mock.restore()
+    updateMock.mock.restore()
+    assert.ok(walletAccesses >= checkouts)
     assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
     assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
 
