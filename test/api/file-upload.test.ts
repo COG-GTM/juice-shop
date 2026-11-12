@@ -14,6 +14,21 @@ import { createTestApp } from './helpers/setup'
 
 let app: Express
 
+async function uploadSolvesFileDisclosure (upload: () => Promise<request.Response>) {
+  const challenge = challenges.xxeFileDisclosureChallenge
+  const wasSolved = challenge.solved
+  challenge.solved = false
+  try {
+    const res = await upload()
+    if (utils.isChallengeEnabled(challenge)) {
+      assert.equal(challenge.solved, true, 'expected xxeFileDisclosureChallenge to be solved')
+    }
+    return res
+  } finally {
+    challenge.solved = wasSolved || challenge.solved
+  }
+}
+
 before(async () => {
   const result = await createTestApp()
   app = result.app
@@ -64,9 +79,9 @@ void describe('/file-upload', () => {
   if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
     void it('POST file type XML with XXE attack against Windows is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
-      const res = await request(app)
+      const res = await uploadSolvesFileDisclosure(async () => await request(app)
         .post('/file-upload')
-        .attach('file', file)
+        .attach('file', file))
       assert.equal(res.status, 410)
       assert.ok(res.text.includes('XML documents must not contain a DTD'))
       assert.ok(!res.text.includes('16-bit app support'))
@@ -74,9 +89,9 @@ void describe('/file-upload', () => {
 
     void it('POST file type XML with XXE attack against Linux is rejected without disclosing the file', async () => {
       const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
-      const res = await request(app)
+      const res = await uploadSolvesFileDisclosure(async () => await request(app)
         .post('/file-upload')
-        .attach('file', file)
+        .attach('file', file))
       assert.equal(res.status, 410)
       assert.ok(res.text.includes('XML documents must not contain a DTD'))
       assert.doesNotMatch(res.text, /root:.*:0:0:/)
@@ -266,11 +281,11 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 503)
     })
 
-    void it('POST XML with non-normalized /etc/passwd path is rejected without disclosing the file', async () => {
+    void it('POST XML with non-normalized /etc/passwd path solves the challenge without disclosing the file', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/../etc/passwd">]><foo>&xxe;</foo>')
-      const res = await request(app)
+      const res = await uploadSolvesFileDisclosure(async () => await request(app)
         .post('/file-upload')
-        .attach('file', payload, 'normalizedPasswd.xml')
+        .attach('file', payload, 'normalizedPasswd.xml'))
       assert.equal(res.status, 410)
       assert.doesNotMatch(res.text, /root:.*:0:0:/)
     })
