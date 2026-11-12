@@ -38,7 +38,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
-import { isLoggedIn } from '../Services/auth-session'
+import { isLoggedIn, sessionClaims } from '../Services/auth-session'
 
 describe('PaymentComponent', () => {
     let component: PaymentComponent
@@ -348,11 +348,14 @@ describe('PaymentComponent', () => {
 
     it('should refresh the session without persisting the token on calling choosePayment in deluxe mode', () => {
         component.mode = 'deluxe'
-        userService.upgradeToDeluxe.mockReturnValue(of({ token: 'tokenValue' }))
+        const payload = btoa(JSON.stringify({ data: { email: 'jim@juice-sh.op', role: 'deluxe' }, exp: 4102444800 })).replace(/=+$/, '')
+        const deluxeToken = `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`
+        userService.upgradeToDeluxe.mockReturnValue(of({ token: deluxeToken }))
         const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
         component.choosePayment()
         expect(setItemSpy).not.toHaveBeenCalledWith('token', expect.anything())
         expect(isLoggedIn()).toBe(true)
+        expect(sessionClaims()?.data.role).toBe('deluxe')
         expect(cookieService.put).not.toHaveBeenCalled()
     })
 })
