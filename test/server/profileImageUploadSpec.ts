@@ -5,12 +5,14 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { Writable } from 'node:stream'
 import { inspect } from 'node:util'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 
 import * as security from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
 import { profileImageUploadDir, profileImageUploadPath, toProfileImageUserId } from '../../lib/profileImageUpload'
 import { profileImageFileUpload } from '../../routes/profileImageFileUpload'
 import { profileImageUrlUpload } from '../../routes/profileImageUrlUpload'
@@ -97,6 +99,49 @@ describe('profileImageUpload', () => {
       expect(fetch).to.have.callCount(0)
       expect(createWriteStream).to.have.callCount(0)
       expect(res.redirect).to.have.callCount(0)
+    })
+  })
+  describe('profileImageUrlUpload with a numeric session user id', () => {
+    const token = 'numeric-profile-image-token'
+
+    beforeEach(() => {
+      security.authenticatedUsers.put(token, { data: { id: 7 } } as any)
+    })
+
+    afterEach(() => {
+      delete security.authenticatedUsers.tokenMap[token]
+      sinon.restore()
+    })
+
+    it('writes the downloaded image into the uploads directory and stores its path', async () => {
+      const image = fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg'))
+      sinon.stub(globalThis, 'fetch').resolves(new Response(image))
+      const written: Buffer[] = []
+      const createWriteStream = sinon.stub(fs, 'createWriteStream').returns(new Writable({
+        write (chunk, _encoding, callback) {
+          written.push(chunk)
+          callback()
+        }
+      }) as any)
+      const update = sinon.stub().resolves()
+      const findByPk = sinon.stub(UserModel, 'findByPk').resolves({ update } as any)
+      const res = { status: sinon.stub(), location: sinon.stub(), redirect: sinon.stub() }
+      const next = sinon.spy()
+      const req: any = {
+        body: { imageUrl: 'https://example.com/avatar.png' },
+        cookies: { token },
+        app: { locals: {} },
+        socket: {}
+      }
+
+      await profileImageUrlUpload()(req, res as any, next)
+
+      expect(createWriteStream).to.have.been.calledOnceWith(path.join(profileImageUploadDir, '7.png'))
+      expect(Buffer.concat(written).equals(image)).to.equal(true)
+      expect(findByPk).to.have.been.calledOnceWith(7)
+      expect(update).to.have.been.calledOnceWith({ profileImage: '/assets/public/images/uploads/7.png' })
+      expect(next).to.have.callCount(0)
+      expect(res.redirect).to.have.callCount(1)
     })
   })
 })
