@@ -10,6 +10,10 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import fs from 'node:fs'
+import z85 from 'z85'
+import * as utils from '../../lib/utils'
+import { BasketModel } from '../../models/basket'
 import { BasketItemModel } from '../../models/basketitem'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
@@ -20,6 +24,7 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const overDiscountCoupon = z85.encode(utils.toMMMYY(new Date()) + '-150-xx')
 
 before(
   async () => {
@@ -166,6 +171,38 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(stockAfter?.quantity, stockBefore?.quantity)
     } finally {
       await item.destroy()
+    }
+  })
+
+  void it('POST placing a wallet order with positive quantities but a negative total is rejected', async () => {
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(overDiscountCoupon))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+    assert.equal(couponRes.body.discount, 150)
+
+    const listOrderPdfs = () => fs.readdirSync('ftp').filter(file => /^order_.+\.pdf$/.test(file)).sort()
+    const pdfsBefore = listOrderPdfs()
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must not be negative.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter, stockBefore)
+      assert.ok(await BasketItemModel.count({ where: { BasketId: 2 } }) > 0)
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(listOrderPdfs(), pdfsBefore)
+    } finally {
+      await BasketModel.update({ coupon: null }, { where: { id: 2 } })
     }
   })
 
