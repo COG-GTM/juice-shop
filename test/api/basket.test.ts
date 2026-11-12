@@ -254,6 +254,33 @@ void describe('/rest/basket/:id/checkout', () => {
       await product.destroy({ force: true })
     }
   })
+  void it('POST placing a discounted wallet order with a negative subtotal is rejected without touching the wallet', async () => {
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+
+    const product = await ProductModel.create({ name: 'Negative Juice', description: '', price: -150, deluxePrice: -150, image: 'undefined.jpg' })
+    const negativeItem = await BasketItemModel.create({ BasketId: 2, ProductId: product.id, quantity: 1 })
+    const paidItem = await BasketItemModel.create({ BasketId: 2, ProductId: 1, quantity: 1 })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must not be negative.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+    } finally {
+      await negativeItem.destroy()
+      await paidItem.destroy()
+      await product.destroy({ force: true })
+      await BasketModel.update({ coupon: null }, { where: { id: 2 } })
+    }
+  })
 })
 
 void describe('/rest/basket/:id/coupon/:coupon', () => {
