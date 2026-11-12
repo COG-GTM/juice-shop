@@ -24,7 +24,7 @@ import { MatMenuModule } from '@angular/material/menu'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { SocketIoService } from '../Services/socket-io.service'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { MatCardModule } from '@angular/material/card'
 import { MatInputModule } from '@angular/material/input'
 import { MatTableModule } from '@angular/material/table'
@@ -267,6 +267,21 @@ describe('NavbarComponent', () => {
     })
 
     it('should remove authentication token from cookies', () => {
+        component.logout()
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
+    it('should keep the cookie token until the server session has ended', () => {
+        const serverLogout = new Subject<any>()
+        userService.logout.mockReturnValue(serverLogout)
+        component.logout()
+        expect(cookieService.remove).not.toHaveBeenCalledWith('token')
+        serverLogout.next({})
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
+    it('should remove the cookie token when ending the server session fails', () => {
+        userService.logout.mockReturnValue(throwError(() => new Error('Error')))
         component.logout()
         expect(cookieService.remove).toHaveBeenCalledWith('token')
     })
