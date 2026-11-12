@@ -53,14 +53,17 @@ describe('/#/contact', () => {
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
+          const marker = `persistedXssFeedback-${Date.now()}`
           cy.get('#comment').type(
-            '<<script>Foo</script>iframe src="javascript:alert(`xss`)">'
+            `${marker} <<script>Foo</script>iframe src="javascript:alert(\`xss\`)">`
           )
           cy.get('#submitButton').should('not.be.disabled').click()
 
           cy.expectChallengeSolved({ challenge: 'Server-side XSS Protection' })
           cy.request('/api/Feedbacks').its('body.data').then((feedbacks: Array<{ comment: string }>) => {
-            expect(feedbacks.some((feedback) => feedback.comment.includes('<iframe'))).to.equal(false)
+            const submitted = feedbacks.filter((feedback) => feedback.comment.includes(marker))
+            expect(submitted).to.have.length(1)
+            expect(submitted[0].comment).not.to.include('<iframe')
           })
         }
       })
