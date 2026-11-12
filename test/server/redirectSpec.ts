@@ -99,14 +99,16 @@ describe('redirect', () => {
     }
   })
 
-  it('should raise error for missing or non-string "to" parameter', () => {
+  describe('should raise error for missing or non-string "to" parameter', () => {
     for (const to of [undefined, ['https://github.com/juice-shop/juice-shop', 'https://evil.example']]) {
-      req.query.to = to
+      it(JSON.stringify(to) ?? 'undefined', () => {
+        req.query.to = to
 
-      performRedirect()(req, res, next)
+        performRedirect()(req, res, next)
 
-      expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
-      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+        expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+        expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+      })
     }
   })
 })
