@@ -12,6 +12,34 @@ import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('denyAll', () => {
+    it('rejects requests carrying an unsigned "alg: none" token without calling next', () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op' } })).toString('base64url')
+      const req = { headers: { authorization: `Bearer ${header}.${payload}.` } }
+      let statusCode: number | undefined
+      const res = { status: (code: number) => { statusCode = code; return res }, json: () => res }
+      let nextCalled = false
+
+      security.denyAll()(req as any, res as any, (() => { nextCalled = true }) as any)
+
+      expect(statusCode).to.equal(401)
+      expect(nextCalled).to.equal(false)
+    })
+
+    it('rejects requests carrying a validly signed token without calling next', () => {
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}` } }
+      let statusCode: number | undefined
+      const res = { status: (code: number) => { statusCode = code; return res }, json: () => res }
+      let nextCalled = false
+
+      security.denyAll()(req as any, res as any, (() => { nextCalled = true }) as any)
+
+      expect(statusCode).to.equal(401)
+      expect(nextCalled).to.equal(false)
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
