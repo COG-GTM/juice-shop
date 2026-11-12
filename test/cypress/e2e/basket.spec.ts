@@ -1,3 +1,13 @@
+function selectOwnCardForPayment () {
+  cy.window().then(async (win) => {
+    const response = await fetch(`${Cypress.config('baseUrl')}/api/Cards`, {
+      headers: { Authorization: `Bearer ${win.localStorage.getItem('token')}` }
+    })
+    const cards = (await response.json()).data
+    win.sessionStorage.setItem('paymentId', cards[0].id)
+  })
+}
+
 describe('/#/basket', () => {
   describe('as admin', () => {
     beforeEach(() => {
@@ -34,6 +44,7 @@ describe('/#/basket', () => {
       })
 
       it('should be possible to place an order with a negative total amount', () => {
+        selectOwnCardForPayment()
         cy.visit('/#/order-summary')
         cy.get('#checkoutButton').click()
         cy.expectChallengeSolved({ challenge: 'Payback Time' })
@@ -145,6 +156,7 @@ describe('/#/basket', () => {
       })
 
       it('should be possible to place an order with a forged coupon', () => {
+        selectOwnCardForPayment()
         cy.visit('/#/order-summary')
         cy.get('#checkoutButton').click()
         cy.expectChallengeSolved({ challenge: 'Forged Coupon' })

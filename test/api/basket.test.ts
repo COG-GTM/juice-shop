@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { CardModel } from '../../models/card'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -118,6 +119,17 @@ void describe('/rest/basket/:id', () => {
   })
 })
 
+async function ownOrderDetails () {
+  const cardsRes = await request(app).get('/api/Cards').set(authHeader)
+  const addressesRes = await request(app).get('/api/Addresss').set(authHeader)
+  return { paymentId: cardsRes.body.data[0].id, addressId: addressesRes.body.data[0].id }
+}
+
+async function walletBalance () {
+  const res = await request(app).get('/rest/wallet/balance').set(authHeader)
+  return res.body.data
+}
+
 void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a basket is not allowed via public API', async () => {
     const res = await request(app).post('/rest/basket/1/checkout')
@@ -125,13 +137,13 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader).send({ orderDetails: await ownOrderDetails() })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
-    const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/42/checkout').set(authHeader).send({ orderDetails: await ownOrderDetails() })
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
@@ -143,7 +155,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader).send({ orderDetails: await ownOrderDetails() })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
@@ -156,9 +168,70 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(couponRes.headers['content-type']?.includes('application/json'))
     assert.equal(couponRes.body.discount, 99)
 
-    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: await ownOrderDetails() })
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void describe('with a bonus-earning item in the basket', () => {
+    before(async () => {
+      const itemRes = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 3, quantity: 1 })
+      assert.equal(itemRes.status, 200)
+    })
+
+    void it('POST placing an order without payment details is rejected and credits no bonus points', async () => {
+      const balanceBefore = await walletBalance()
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+      assert.equal(res.status, 402)
+      assert.equal(res.body.error.message, 'Payment not accepted.')
+      assert.equal(await walletBalance(), balanceBefore)
+    })
+
+    void it('POST placing an order with a bogus payment id is rejected and credits no bonus points', async () => {
+      const { addressId } = await ownOrderDetails()
+      const balanceBefore = await walletBalance()
+      for (const paymentId of ['bogus', 99999, '1 OR 1=1', { $ne: null }]) {
+        const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId, addressId } })
+        assert.equal(res.status, 402)
+      }
+      assert.equal(await walletBalance(), balanceBefore)
+    })
+
+    void it('POST placing an order with an expired own card is rejected', async () => {
+      const { paymentId, addressId } = await ownOrderDetails()
+      const ownCard = await CardModel.findByPk(paymentId)
+      assert.ok(ownCard)
+      const expiredCard = await CardModel.create({ UserId: ownCard.UserId, fullName: ownCard.fullName, cardNum: ownCard.cardNum, expMonth: 1, expYear: 2001 }, { validate: false })
+      const balanceBefore = await walletBalance()
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: expiredCard.id, addressId } })
+      assert.equal(res.status, 402)
+      assert.equal(res.body.error.message, 'Payment not accepted.')
+      assert.equal(await walletBalance(), balanceBefore)
+    })
+
+    void it('POST placing an order with another user\'s card is rejected', async () => {
+      const { addressId } = await ownOrderDetails()
+      const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+      const adminCards = await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + token })
+      const balanceBefore = await walletBalance()
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: adminCards.body.data[0].id, addressId } })
+      assert.equal(res.status, 402)
+      assert.equal(await walletBalance(), balanceBefore)
+    })
+
+    void it('POST placing an order with another user\'s address is rejected', async () => {
+      const { paymentId } = await ownOrderDetails()
+      const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+      const adminAddresses = await request(app).get('/api/Addresss').set({ Authorization: 'Bearer ' + token })
+      const balanceBefore = await walletBalance()
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId, addressId: adminAddresses.body.data[0].id } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error.message, 'Invalid address.')
+      assert.equal(await walletBalance(), balanceBefore)
+    })
   })
 })
 
