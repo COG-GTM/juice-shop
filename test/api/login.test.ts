@@ -303,7 +303,7 @@ void describe('/rest/saveLoginIp', () => {
     await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
-      .send({ email: 'kalli@kasper.le', password: 'kallliiii' })
+      .send({ email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
       .expect(200)
   })
 
