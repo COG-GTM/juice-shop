@@ -124,26 +124,26 @@ void describe('/walletNFTVerify', { skip: skipReason }, () => {
 })
 
 void describe('/walletExploitAddress', { skip: skipReason }, () => {
-  void it('POST missing wallet address in request body still leads to success notification', async () => {
+  void it('POST missing wallet address in request body gets rejected', async () => {
     const res = await request(app)
       .post('/rest/web3/walletExploitAddress')
       .send({})
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.success, true)
-    assert.equal(res.body.message, 'Event Listener Created')
+    assert.equal(res.body.success, false)
+    assert.equal(res.body.message, 'Invalid wallet address')
   })
 
-  void it('POST invalid wallet address in request body still leads to success notification', async () => {
+  void it('POST invalid wallet address in request body gets rejected', async () => {
     const res = await request(app)
       .post('/rest/web3/walletExploitAddress')
       .send({ walletAddress: 'lalalalala' })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.success, true)
-    assert.equal(res.body.message, 'Event Listener Created')
+    assert.equal(res.body.success, false)
+    assert.equal(res.body.message, 'Invalid wallet address')
   })
 
   void it('POST self-referential address in request body leads to success notification', async () => {
