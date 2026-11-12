@@ -117,14 +117,14 @@ void describe('/dataerasure', () => {
   void it('POST erasure request with an order confirmation as layout parameter is blocked', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
     const directory = path.resolve('orders', 'erasure-test')
-    const alias = path.resolve('erasure-test-orders-alias')
+    const alias = path.resolve('erasure-test-alias')
     fs.mkdirSync(directory, { recursive: true })
     fs.writeFileSync(path.join(directory, 'order_secret.pdf'), 'customer@juice-sh.op')
     fs.rmSync(alias, { force: true })
     fs.symlinkSync(directory, alias, 'dir')
 
     try {
-      for (const layout of ['../orders/erasure-test/order_secret.pdf', '../ORDERS/erasure-test/order_secret.pdf', '../erasure-test-orders-alias/order_secret.pdf']) {
+      for (const layout of ['../orders/erasure-test/order_secret.pdf', '../ORDERS/erasure-test/order_secret.pdf', '../erasure-test-alias/order_secret.pdf']) {
         const res = await request(app)
           .post('/dataerasure/')
           .set({ Cookie: 'token=' + token })
