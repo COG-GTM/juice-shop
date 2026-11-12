@@ -113,6 +113,19 @@ void describe('/file-upload', () => {
     })
   }
 
+  if (utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
+    void it('POST file type YAML with !!js/function payload is rejected without executing it', async () => {
+      const marker = '__yamlRceMarker'
+      const payload = `toJSON: !!js/function "function () { global.${marker} = true; }"\n`
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', Buffer.from(payload), 'note.yml')
+      assert.equal(res.status, 410)
+      assert.ok(res.text.includes('unknown tag'))
+      assert.equal((global as Record<string, unknown>)[marker], undefined)
+    })
+  }
+
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
     const res = await request(app)
