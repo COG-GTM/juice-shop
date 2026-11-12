@@ -235,10 +235,16 @@ void describe('/api/Users/:id', () => {
 
 void describe('session cookie authentication', () => {
   void it('GET protected basket with only the HttpOnly session cookie', async () => {
-    const { token, bid } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const cookie = sessionCookie(loginRes)
+    assertSessionCookieFlags(cookie, { secure: false })
+    const bid = loginRes.body.authentication.bid
     const res = await request(app)
       .get(`/rest/basket/${bid}`)
-      .set({ Cookie: `token=${token}` })
+      .set({ Cookie: cookie!.split(';')[0] })
     assert.equal(res.status, 200)
     assert.equal(res.body.data.id, bid)
   })
