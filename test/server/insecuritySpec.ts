@@ -109,6 +109,28 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('returns undefined for tokens named like built-in object properties', () => {
+      for (const token of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf']) {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.get(`"${token}"`)).to.equal(undefined)
+        expect(security.authenticatedUsers.from({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)).to.equal(undefined)
+      }
+    })
+
+    it('stores a token named __proto__ as a regular session entry', () => {
+      security.authenticatedUsers.put('__proto__', { data: { id: 42 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('__proto__')).to.deep.equal({ data: { id: 42 } })
+      expect(security.authenticatedUsers.get('constructor')).to.equal(undefined)
+      security.authenticatedUsers.tokenMap.delete('__proto__')
+      security.authenticatedUsers.idMap.delete('42')
+    })
+
+    it('returns no token for users whose id is a built-in object property name', () => {
+      expect(security.authenticatedUsers.tokenOf({ id: 'constructor' } as unknown as UserModel)).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: '__proto__' } as unknown as UserModel)).to.equal(undefined)
+    })
   })
 
   describe('sanitizeHtml', () => {
