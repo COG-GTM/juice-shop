@@ -8,6 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import crypto from 'node:crypto'
 import jwt from 'jsonwebtoken'
+import { execFileSync } from 'node:child_process'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -210,6 +211,15 @@ describe('insecurity', () => {
       const publicKeyHmac = crypto.createHmac('sha256', security.publicKey).update(email + security.roles.deluxe).digest('hex')
       expect(security.deluxeToken(email)).to.match(/^[0-9a-f]{64}$/)
       expect(security.deluxeToken(email)).to.not.equal(publicKeyHmac)
+    })
+
+    it('is an HMAC keyed with DELUXE_TOKEN_SECRET when it is set', function () {
+      this.timeout(30000)
+      const email = 'bender@juice-sh.op'
+      const token = execFileSync(process.execPath, ['--import', 'tsx', '-e', `import('./lib/insecurity.ts').then(s => process.stdout.write(s.deluxeToken('${email}')))`], {
+        env: { ...process.env, DELUXE_TOKEN_SECRET: 'test-deluxe-secret' }
+      }).toString()
+      expect(token).to.equal(crypto.createHmac('sha256', 'test-deluxe-secret').update(email + security.roles.deluxe).digest('hex'))
     })
   })
 
