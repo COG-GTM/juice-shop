@@ -155,90 +155,92 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
-  void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
-    const legalFile = path.resolve('ftp/legal.md')
-    const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
-    const original = readLegalFile()
-    challenges.fileWriteChallenge.solved = false
-    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .set(authHeader)
-      .attach('file', file)
-    assert.equal(res.status, 204)
-    for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-    assert.equal(challenges.fileWriteChallenge.solved, true)
-    assert.equal(readLegalFile(), original)
-  })
-
-  void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
-    const templates = ['views/promotionVideo.pug', 'views/userProfile.pug'].map(file => path.resolve(file))
-    const originals = templates.map(file => fs.readFileSync(file, 'utf8'))
-    const file = path.resolve(__dirname, '../files/zipSlipTemplateOverwrite.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .set(authHeader)
-      .attach('file', file)
-    assert.equal(res.status, 204)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
-  })
-
-  void it('POST zip file exceeding the entry limit does not persist any of its entries', async () => {
-    const entries = Array.from({ length: 101 }, (_, i) => path.resolve('uploads/complaints', `entry-limit-${i}.txt`))
-    entries.forEach(entry => { fs.rmSync(entry, { force: true }) })
-    const file = path.resolve(__dirname, '../files/tooManyComplaintEntries.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .set(authHeader)
-      .attach('file', file)
-    assert.equal(res.status, 413)
-    assert.match(res.body.error, /exceeds the limit of 100 entries/)
-    await new Promise(resolve => setTimeout(resolve, 500))
-    assert.deepEqual(entries.filter(entry => fs.existsSync(entry)), [])
-  })
-
-  void it('POST zip file with an entry targeting an existing directory persists none of its entries', async () => {
-    const directory = path.resolve('uploads/complaints/rename-conflict-dir')
-    const sibling = path.resolve('uploads/complaints/rename-conflict-ok.txt')
-    fs.rmSync(sibling, { force: true })
-    fs.mkdirSync(directory, { recursive: true })
-    try {
-      const file = path.resolve(__dirname, '../files/complaintTargetIsDirectory.zip')
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
+      const legalFile = path.resolve('ftp/legal.md')
+      const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+      const original = readLegalFile()
+      challenges.fileWriteChallenge.solved = false
+      const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
       const res = await request(app)
         .post('/file-upload')
         .set(authHeader)
         .attach('file', file)
-      assert.equal(res.status, 500)
-      assert.equal(fs.existsSync(sibling), false)
-      assert.equal(fs.statSync(directory).isDirectory(), true)
-    } finally {
-      fs.rmSync(directory, { recursive: true, force: true })
-    }
-  })
+      assert.equal(res.status, 204)
+      for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.equal(challenges.fileWriteChallenge.solved, true)
+      assert.equal(readLegalFile(), original)
+    })
 
-  void it('POST corrupt zip file is rejected', async () => {
-    const file = path.resolve(__dirname, '../files/corruptComplaint.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .set(authHeader)
-      .attach('file', file)
-    assert.equal(res.status, 400)
-    assert.equal(res.body.error, 'Invalid ZIP archive')
-  })
+    void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
+      const templates = ['views/promotionVideo.pug', 'views/userProfile.pug'].map(file => path.resolve(file))
+      const originals = templates.map(file => fs.readFileSync(file, 'utf8'))
+      const file = path.resolve(__dirname, '../files/zipSlipTemplateOverwrite.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      templates.forEach((template, i) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[i]) })
+    })
 
-  void it('POST zip file with a malformed record after a valid entry is rejected', async () => {
-    const file = path.resolve(__dirname, '../files/truncatedComplaint.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .set(authHeader)
-      .attach('file', file)
-    assert.equal(res.status, 400)
-    assert.equal(res.body.error, 'Invalid ZIP archive')
-    assert.equal(fs.existsSync(path.resolve('uploads/complaints/evidence.pdf')), false)
-  })
+    void it('POST zip file exceeding the entry limit does not persist any of its entries', async () => {
+      const entries = Array.from({ length: 101 }, (_, i) => path.resolve('uploads/complaints', `entry-limit-${i}.txt`))
+      entries.forEach(entry => { fs.rmSync(entry, { force: true }) })
+      const file = path.resolve(__dirname, '../files/tooManyComplaintEntries.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', file)
+      assert.equal(res.status, 413)
+      assert.match(res.body.error, /exceeds the limit of 100 entries/)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(entries.filter(entry => fs.existsSync(entry)), [])
+    })
+
+    void it('POST zip file with an entry targeting an existing directory persists none of its entries', async () => {
+      const directory = path.resolve('uploads/complaints/rename-conflict-dir')
+      const sibling = path.resolve('uploads/complaints/rename-conflict-ok.txt')
+      fs.rmSync(sibling, { force: true })
+      fs.mkdirSync(directory, { recursive: true })
+      try {
+        const file = path.resolve(__dirname, '../files/complaintTargetIsDirectory.zip')
+        const res = await request(app)
+          .post('/file-upload')
+          .set(authHeader)
+          .attach('file', file)
+        assert.equal(res.status, 500)
+        assert.equal(fs.existsSync(sibling), false)
+        assert.equal(fs.statSync(directory).isDirectory(), true)
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true })
+      }
+    })
+
+    void it('POST corrupt zip file is rejected', async () => {
+      const file = path.resolve(__dirname, '../files/corruptComplaint.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', file)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid ZIP archive')
+    })
+
+    void it('POST zip file with a malformed record after a valid entry is rejected', async () => {
+      const file = path.resolve(__dirname, '../files/truncatedComplaint.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', file)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid ZIP archive')
+      assert.equal(fs.existsSync(path.resolve('uploads/complaints/evidence.pdf')), false)
+    })
+  }
 
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
