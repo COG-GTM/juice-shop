@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -18,6 +20,17 @@ before(async () => {
 
 function responseText (res: request.Response): string {
   return res.text ?? (Buffer.isBuffer(res.body) ? res.body.toString('utf-8') : '')
+}
+
+// Server startup clears ftp/*.pdf, so the leftover order confirmation is written right before each request
+async function withLeftoverOrderConfirmationInFtp (send: () => Promise<request.Response>) {
+  const fixture = path.resolve('ftp/order_0000-0000000000000000.pdf')
+  await fs.writeFile(fixture, '%PDF-1.3 Customer: leftover@juice-sh.op')
+  try {
+    return await send()
+  } finally {
+    await fs.rm(fixture, { force: true })
+  }
 }
 
 void describe('/ftp', () => {
@@ -42,15 +55,17 @@ void describe('/ftp', () => {
   })
 
   void it('GET an order confirmation PDF in /ftp will return a 404 error', async () => {
-    const res = await request(app)
-      .get('/ftp/order_0000-0000000000000000.pdf')
+    const res = await withLeftoverOrderConfirmationInFtp(async () => await request(app)
+      .get('/ftp/order_0000-0000000000000000.pdf'))
     assert.equal(res.status, 404)
+    assert.ok(!responseText(res).includes('leftover@juice-sh.op'))
   })
 
   void it('GET an order confirmation PDF in /ftp by using Poison Null Byte attack will return a 404 error', async () => {
-    const res = await request(app)
-      .get('/ftp/order_0000-0000000000000000.pdf%2500.md')
+    const res = await withLeftoverOrderConfirmationInFtp(async () => await request(app)
+      .get('/ftp/order_0000-0000000000000000.pdf%2500.md'))
     assert.equal(res.status, 404)
+    assert.ok(!responseText(res).includes('leftover@juice-sh.op'))
   })
 
   void it('GET a non-existing file in /ftp will return a 403 error for invalid file type', async () => {
