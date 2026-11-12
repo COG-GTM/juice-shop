@@ -58,7 +58,8 @@ void describe('/api/Users', () => {
   void it('GET all users can still be searched by email', async () => {
     const res = await request(app).get('/api/Users?q=wurstbrot').set(authHeader)
     assert.equal(res.status, 200)
-    assert.ok(res.body.data.some((user: { email: string }) => user.email.startsWith('wurstbrot@')))
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((user: { email: string }) => user.email.startsWith('wurstbrot@')))
   })
 
   void it('GET all users ignores filters on excluded attributes', async () => {
@@ -78,7 +79,9 @@ void describe('/api/Users', () => {
   void it('GET all users can still be sorted by email', async () => {
     const res = await request(app).get('/api/Users?sort=-email').set(authHeader)
     assert.equal(res.status, 200)
-    assert.ok(res.body.data.length > 1)
+    const emails: string[] = res.body.data.map((user: { email: string }) => user.email)
+    assert.ok(emails.length > 1)
+    assert.deepEqual(emails, [...emails].sort().reverse())
   })
 
   void it('POST new user', async () => {
