@@ -221,7 +221,7 @@ void describe('/rest/basket/:id/checkout', () => {
     await QuantityModel.update({ quantity: 100000 }, { where: { ProductId: 6 } })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
-    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith('order_') && file.endsWith('.pdf')).sort()
+    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(`order_${security.hash('jim@juice-sh.op').slice(0, 4)}-`) && file.endsWith('.pdf')).sort()
     const pdfsBefore = orderPdfs()
     try {
       const res = await request(app)
