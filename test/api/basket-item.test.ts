@@ -102,7 +102,8 @@ void describe('/api/BasketItems', () => {
       .send('{"ProductId":14,"quantity":1,"BasketId":2,"BasketId":1}')
     assert.equal(res.status, 401)
 
-    const items = await request(app).get('/api/BasketItems').set(authHeader)
+    const items = await request(app).get('/api/BasketItems').set(otherUserAuthHeader)
+    assert.equal(items.status, 200)
     assert.equal(items.body.data.some((item: { BasketId: number, ProductId: number }) => item.BasketId === 1 && item.ProductId === 14), false)
   })
 
