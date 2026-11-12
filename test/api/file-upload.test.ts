@@ -127,6 +127,16 @@ void describe('/file-upload', () => {
       assert.doesNotMatch(res.text, /root:.*:0:0:/)
     })
 
+    void it('POST XML with XXE attack using a bare file path is rejected without disclosing the file', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "/etc/passwd">]><foo>&xxe;</foo>')
+      const res = await uploadSolvesFileDisclosure(async () => await request(app)
+        .post('/file-upload')
+        .set(authHeader)
+        .attach('file', payload, 'xxeBarePath.xml'))
+      assert.equal(res.status, 410)
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
+    })
+
     void it('POST UTF-7 encoded XML with XXE attack does not disclose the file', async () => {
       const payload = Buffer.from('<?xml version="1.0" encoding="UTF-7"?>+ADw-+ACE-DOCTYPE foo +AFs-+ADw-+ACE-ENTITY xxe SYSTEM +ACI-file:///etc/passwd+ACI-+AD4-+AF0-+AD4-+ADw-foo+AD4-+ACY-xxe+ADs-+ADw-/foo+AD4-')
       const res = await request(app)
