@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import crypto from 'node:crypto'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,44 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('token verification', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'customer' }, iat: 1508639612, exp: 9999999999 }
+    const unsignedToken = `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(payload)}.`
+    const hmacUnsigned = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`
+    const hmacForgedToken = `${hmacUnsigned}.${crypto.createHmac('sha256', security.publicKey).update(hmacUnsigned).digest('base64url')}`
+
+    it('accepts tokens signed by the server', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.verifiedPayload(token).data.id).to.equal(1)
+    })
+
+    it('rejects unsigned tokens with "alg: none"', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+      expect(security.verifiedPayload(unsignedToken)).to.equal(undefined)
+    })
+
+    it('rejects HS256 tokens signed with the public RSA key', () => {
+      expect(security.verify(hmacForgedToken)).to.equal(false)
+      expect(security.verifiedPayload(hmacForgedToken)).to.equal(undefined)
+    })
+
+    it('does not register forged tokens as authenticated users', () => {
+      for (const token of [unsignedToken, hmacForgedToken]) {
+        const res = { cookie: () => {} } as unknown as Response
+        security.updateAuthenticatedUsers()({ cookies: {}, headers: { authorization: `Bearer ${token}` } } as unknown as Request, res, () => {})
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      }
+    })
+
+    it('does not grant roles based on forged tokens', () => {
+      for (const token of [unsignedToken, hmacForgedToken]) {
+        expect(security.isCustomer({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)).to.equal(false)
+      }
     })
   })
 

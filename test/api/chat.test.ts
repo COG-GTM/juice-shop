@@ -8,7 +8,10 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -264,6 +267,35 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       assert.ok(parsed.choices)
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
+    }
+  })
+
+  void it('POST only identifies the customer from a server-signed token', { timeout: 30000 }, async () => {
+    let systemPrompt = ''
+    onLlmRequest = (_req, body, res) => {
+      systemPrompt = JSON.parse(body).messages[0].content
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = encode(JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()))
+    const unsigned = `${encode({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hmacInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+    const hmacForged = `${hmacInput}.${crypto.createHmac('sha256', security.publicKey).update(hmacInput).digest('base64url')}`
+
+    const chatAs = async (bearer: string) => await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Authorization: `Bearer ${bearer}` })
+      .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+
+    assert.equal((await chatAs(token)).status, 200)
+    assert.ok(systemPrompt.includes('bkimminich'))
+
+    for (const forged of [unsigned, hmacForged]) {
+      systemPrompt = ''
+      assert.equal((await chatAs(forged)).status, 200)
+      assert.ok(systemPrompt.length > 0)
+      assert.ok(!systemPrompt.includes('bkimminich'))
     }
   })
 })
