@@ -126,17 +126,17 @@ void describe('/profile/image/url', () => {
   }
 
   void describe('internal image server', () => {
-    const hits: string[] = []
+    const connections: string[] = []
     let server: http.Server
     let port: number
 
     before(async () => {
       const image = fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg'))
       server = http.createServer((req, res) => {
-        hits.push(req.url ?? '')
         res.writeHead(200, { 'Content-Type': 'image/jpeg' })
         res.end(image)
       })
+      server.on('connection', (socket) => { connections.push(socket.remoteAddress ?? '') })
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
       port = (server.address() as AddressInfo).port
     })
@@ -160,7 +160,7 @@ void describe('/profile/image/url', () => {
           assert.equal(res.status, 302)
         }
 
-        assert.deepEqual(hits, [])
+        assert.deepEqual(connections, [])
         const after = await UserModel.findByPk(before?.id)
         assert.equal(after?.profileImage, before?.profileImage)
       })
