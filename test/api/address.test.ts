@@ -170,6 +170,33 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT update address of another user is forbidden', async () => {
+    const { token } = await login(app, {
+      email: 'bender@juice-sh.op',
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Bender' })
+    assert.equal(res.status, 400)
+    assert.equal(res.body.status, 'error')
+    assert.equal(res.body.data, 'Malicious activity detected.')
+
+    const ownRes = await request(app).get('/api/Addresss/' + addressId).set(authHeader)
+    assert.equal(ownRes.status, 200)
+    assert.notEqual(ownRes.body.data.fullName, 'Bender')
+  })
+
+  void it('PUT update address cannot change id', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set(authHeader)
+      .send({ id: 999999 })
+    assert.equal(res.status, 200)
+    assert.equal(String(res.body.data.id), String(addressId))
+  })
+
   void it('DELETE address by id', async () => {
     const res = await request(app)
       .delete('/api/Addresss/' + addressId)
