@@ -11,6 +11,7 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { PROFILE_CSP } from '../../routes/userProfile'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -101,6 +102,7 @@ void describe('/profile', () => {
   })
 
   void it('GET user profile CSP is not affected by the profile image URL', async () => {
+    const before = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
     const upload = await request(app)
       .post('/profile/image/url')
       .set('Cookie', authHeader.Cookie)
@@ -108,6 +110,8 @@ void describe('/profile', () => {
       .send({ imageUrl: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" })
       .redirects(0)
     assert.equal(upload.status, 302)
+    const after = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.equal(after?.profileImage, before?.profileImage)
 
     const res = await request(app)
       .get('/profile')
@@ -116,5 +120,21 @@ void describe('/profile', () => {
     assert.equal(res.status, 200)
     assert.equal(res.headers['content-security-policy'], PROFILE_CSP)
     assert.ok(!res.text.includes('unsafe-inline'))
+  })
+
+  void it('GET user profile CSP ignores directives already stored in the profile image', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    const original = user?.profileImage
+    await user?.update({ profileImage: "https://a.png; script-src 'unsafe-inline'" })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], PROFILE_CSP)
+    } finally {
+      await user?.update({ profileImage: original })
+    }
   })
 })
