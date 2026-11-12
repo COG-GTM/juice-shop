@@ -233,6 +233,20 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST password reset with the email wrapped in an array is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: ['jim@' + config.get<string>('application.domain')],
+        answer: 'Samuel',
+        new: 'ncc-1701',
+        repeat: 'ncc-1701'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
   void it('POST password reset without any data is blocked', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
