@@ -75,6 +75,19 @@ void describe('/api/Wallets', () => {
     assert.equal(balanceRes.body.data, 210)
   })
 
+  void it('PUT charge wallet with numeric-string amount credits the parsed number', async () => {
+    const before = await getBalance()
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: '10', paymentId: 2 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data, 10)
+    const after = await getBalance()
+    assert.equal(typeof after, 'number')
+    assert.equal(after, before + 10)
+  })
+
   void it('PUT charge wallet with negative amount is rejected', async () => {
     await assertTopUpRejected({ balance: -500, paymentId: 2 }, 400)
   })
