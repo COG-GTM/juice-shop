@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import { generateSync } from 'otplib'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -256,6 +257,36 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '1.2.3.4')
+  })
+
+  void it('GET last login IP responds only with the stored IP and no password hash or 2FA secret', async () => {
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'wurstbrot@' + config.get<string>('application.domain'),
+        password: 'EinBelegtesBrotMitSchinkenSCHINKEN!'
+      })
+    assert.equal(loginRes.status, 401)
+
+    const verifyRes = await request(app)
+      .post('/rest/2fa/verify')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        tmpToken: loginRes.body.data.tmpToken,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+    assert.equal(verifyRes.status, 200)
+
+    const res = await request(app)
+      .get('/rest/saveLoginIp')
+      .set({
+        Authorization: 'Bearer ' + verifyRes.body.authentication.token,
+        'true-client-ip': '5.6.7.8'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body, { lastLoginIp: '5.6.7.8' })
   })
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
