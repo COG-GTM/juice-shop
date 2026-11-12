@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -109,6 +111,30 @@ void describe('/profile/image/url', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+
+  for (const token of ['__proto__', 'constructor', 'toString']) {
+    void it(`POST profile image URL with cookie token=${token} is blocked without outbound request`, async () => {
+      let hits = 0
+      const target = http.createServer((req, res) => { hits++; res.end('x') })
+      await new Promise<void>(resolve => target.listen(0, '127.0.0.1', resolve))
+      const { port } = target.address() as AddressInfo
+
+      try {
+        const res = await request(app)
+          .post('/profile/image/url')
+          .set('Cookie', `token=${token}`)
+          .type('form')
+          .send({ imageUrl: `http://127.0.0.1:${port}/internal.png` })
+          .redirects(0)
+
+        assert.equal(res.status, 500)
+        assert.ok(res.text.includes('Error: Blocked illegal activity'))
+        assert.equal(hits, 0)
+      } finally {
+        await new Promise(resolve => target.close(resolve))
+      }
+    })
+  }
 
   void it('POST valid image with tampered content length', { skip: 'Fails on CI/CD pipeline' }, async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
