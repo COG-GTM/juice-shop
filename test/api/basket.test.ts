@@ -13,6 +13,7 @@ import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketModel } from '../../models/basket'
 import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
 
@@ -210,28 +211,38 @@ void describe('/rest/basket/:id/checkout', () => {
   })
 
   void it('POST placing an order for more items than are in stock returns 400 and restores stock', async () => {
-    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: 2 })
-    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
-    const otherStockBefore = await QuantityModel.findOne({ where: { ProductId: 4 } })
+    const basket = await BasketModel.create({ UserId: 2 })
+    await BasketItemModel.bulkCreate([
+      { BasketId: basket.id, ProductId: 4, quantity: 1 },
+      { BasketId: basket.id, ProductId: 6, quantity: 2 }
+    ])
+    const checkoutOrder = await BasketModel.findOne({ where: { id: basket.id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
+    const productIds = (checkoutOrder?.Products ?? []).map(({ id }) => id)
+    assert.equal(productIds.length, 2)
+    const [decrementedId, outOfStockId] = productIds
+    const decrementedStockBefore = await QuantityModel.findOne({ where: { ProductId: decrementedId } })
+    const outOfStockBefore = await QuantityModel.findOne({ where: { ProductId: outOfStockId } })
+    const requestedQuantity = outOfStockId === 6 ? 2 : 1
+    await QuantityModel.update({ quantity: requestedQuantity - 1 }, { where: { ProductId: outOfStockId } })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
-    await QuantityModel.update({ quantity: 1 }, { where: { ProductId: 6 } })
     try {
       const res = await request(app)
-        .post('/rest/basket/2/checkout')
+        .post(`/rest/basket/${basket.id}/checkout`)
         .set(authHeader)
         .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
       assert.equal(res.status, 400)
       assert.equal(res.body.error, 'We are out of stock! Sorry for the inconvenience.')
 
-      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
-      const otherStockAfter = await QuantityModel.findOne({ where: { ProductId: 4 } })
+      const decrementedStockAfter = await QuantityModel.findOne({ where: { ProductId: decrementedId } })
+      const outOfStockAfter = await QuantityModel.findOne({ where: { ProductId: outOfStockId } })
       const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
-      assert.equal(stockAfter?.quantity, 1)
-      assert.equal(otherStockAfter?.quantity, otherStockBefore?.quantity)
+      assert.equal(decrementedStockAfter?.quantity, decrementedStockBefore?.quantity)
+      assert.equal(outOfStockAfter?.quantity, requestedQuantity - 1)
       assert.equal(walletAfter?.balance, walletBefore?.balance)
     } finally {
-      await QuantityModel.update({ quantity: stockBefore?.quantity }, { where: { ProductId: 6 } })
-      await item.destroy()
+      await QuantityModel.update({ quantity: outOfStockBefore?.quantity }, { where: { ProductId: outOfStockId } })
+      await BasketItemModel.destroy({ where: { BasketId: basket.id } })
+      await basket.destroy()
     }
   })
 
