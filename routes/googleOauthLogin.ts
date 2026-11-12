@@ -8,6 +8,7 @@ import config from 'config'
 
 import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
+import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
@@ -58,6 +59,7 @@ export function googleOauthLogin () {
         defaults: { email, password: crypto.randomBytes(32).toString('hex') }
       })
       const user = utils.queryResultToJson(userModel)
+      await WalletModel.findOrCreate({ where: { UserId: user.data.id } })
       if (user.data.totpSecret !== '') {
         return res.status(401).json({
           status: 'totp_token_required',

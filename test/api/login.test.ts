@@ -314,6 +314,27 @@ void describe('/rest/user/oauth-login', () => {
     assert.equal(res.body.authentication.umail, 'brand.new.oauth@gmail.com')
   })
 
+  void it('POST with valid Google access token creates a wallet for a new user', async () => {
+    const { res } = await oauthLoginWithTokenInfo({ aud: clientId, email: 'wallet.oauth@gmail.com', email_verified: 'true', expires_in: '3599' })
+    assert.equal(res.status, 200)
+
+    const balance = await request(app)
+      .get('/rest/wallet/balance')
+      .set({ Authorization: `Bearer ${res.body.authentication.token}` })
+
+    assert.equal(balance.status, 200)
+    assert.equal(balance.body.data, 0)
+  })
+
+  void it('POST with valid Google access token for account with 2FA requires second factor', async () => {
+    const { res } = await oauthLoginWithTokenInfo({ aud: clientId, email: `wurstbrot@${config.get<string>('application.domain')}`, email_verified: 'true', expires_in: '3599' })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.status, 'totp_token_required')
+    assert.equal(typeof res.body.data.tmpToken, 'string')
+    assert.equal(res.body.authentication, undefined)
+  })
+
   void it('POST with Google access token issued for another client is rejected', async () => {
     const { res } = await oauthLoginWithTokenInfo({ aud: 'other-app.apps.googleusercontent.com', azp: 'other-app.apps.googleusercontent.com', email: 'bjoern.kimminich@gmail.com', email_verified: 'true', expires_in: '3599' })
 
