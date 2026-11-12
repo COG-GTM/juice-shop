@@ -164,6 +164,10 @@ void describe('/rest/user/change-password', () => {
 
 void describe('/rest/user/reset-password', () => {
   void it('POST password reset for Jim with correct answer to his security question', async () => {
+    const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const header = { Authorization: 'Bearer ' + token }
+    await request(app).get('/api/Cards').set(header).expect(200)
+
     const res = await request(app)
       .post('/rest/user/reset-password')
       .set({ 'content-type': 'application/json' })
@@ -175,6 +179,9 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+
+    const replay = await request(app).get('/api/Cards').set(header)
+    assert.equal(replay.status, 401)
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {
