@@ -783,5 +783,8 @@ export async function createApp (options?: { inMemoryDb?: boolean }) {
 }
 
 // stop server on sigint or sigterm signals
+process.on('unhandledRejection', (reason) => {
+  logger.error(`Unhandled promise rejection: ${utils.getErrorMessage(reason)}`)
+})
 process.on('SIGINT', () => { close(0) })
 process.on('SIGTERM', () => { close(0) })
