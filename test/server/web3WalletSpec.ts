@@ -6,6 +6,8 @@
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
+import { challenges } from '../../data/datacache'
+import { type Challenge } from 'data/types'
 import {
   contractExploitListener,
   consumeWallet,
@@ -82,6 +84,8 @@ describe('web3Wallet', () => {
   describe('contract exploit listener', () => {
     let providers: any[]
     let now: number
+    let exploitHandler: ((exploiter: string) => void) | undefined
+    let subscribeError: Error | undefined
     const originalDeps = { ...listenerDeps }
     const validRequest = () => ({ body: { walletAddress: address(1) } }) as any
 
@@ -89,13 +93,18 @@ describe('web3Wallet', () => {
       resetExploitListener()
       providers = []
       now = 0
+      exploitHandler = undefined
+      subscribeError = undefined
       class WebSocketProvider {
         websocket: any = { onerror: null }
         destroy = sinon.spy()
         constructor () { providers.push(this) }
       }
       class Contract {
-        async on () {}
+        async on (event: string, handler: (exploiter: string) => void) {
+          if (subscribeError !== undefined) throw subscribeError
+          if (event === 'ContractExploited') exploitHandler = handler
+        }
       }
       listenerDeps.loadEthers = async () => ({ WebSocketProvider, Contract }) as any
       listenerDeps.now = () => now
@@ -111,6 +120,39 @@ describe('web3Wallet', () => {
 
       expect(providers.length).to.equal(1)
       expect(res.status).to.have.always.been.calledWith(200)
+    })
+
+    it('solves the challenge once when a registered wallet exploits the contract', async () => {
+      challenges.web3WalletChallenge = { solved: false, save: () => ({ then () {} }) } as unknown as Challenge
+      await contractExploitListener()(validRequest(), res)
+
+      exploitHandler?.(address(2))
+      expect(challenges.web3WalletChallenge.solved).to.equal(false)
+
+      exploitHandler?.(address(1).toUpperCase().replace('0X', '0x'))
+      expect(challenges.web3WalletChallenge.solved).to.equal(true)
+      expect(walletsConnected.size).to.equal(0)
+    })
+
+    it('destroys the provider and stores nothing when subscribing to the contract fails', async () => {
+      subscribeError = new Error('subscribe failed')
+
+      await contractExploitListener()(validRequest(), res)
+
+      expect(res.status).to.have.been.calledWith(500)
+      expect(providers.length).to.equal(1)
+      expect(providers[0].destroy.calledOnce).to.equal(true)
+      expect(walletsConnected.size).to.equal(0)
+
+      subscribeError = undefined
+      await contractExploitListener()(validRequest(), res)
+      expect(providers.length).to.equal(1)
+
+      now = LISTENER_RETRY_DELAY_MS
+      await contractExploitListener()(validRequest(), res)
+      expect(providers.length).to.equal(2)
+      expect(res.status).to.have.been.calledWith(200)
+      expect(walletsConnected.has(address(1))).to.equal(true)
     })
 
     it('destroys a failed provider and throttles reconnects', async () => {
