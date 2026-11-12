@@ -34,6 +34,20 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
+  void it('GET product reviews with Object.prototype member as bearer token is treated as anonymous', async () => {
+    const anonymous = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(anonymous.status, 200)
+    for (const token of ['__proto__', 'constructor']) {
+      const res = await request(app)
+        .get('/rest/products/1/reviews')
+        .set('Authorization', `Bearer ${token}`)
+        .timeout(10000)
+      assert.equal(res.status, 200)
+      assert.deepEqual(res.body, anonymous.body)
+    }
+  })
+
   void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
     const res = await request(app)
       .get('/rest/products/sleep(1)/reviews')
