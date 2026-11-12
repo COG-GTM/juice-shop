@@ -231,6 +231,16 @@ void describe('/api/Users/:id', () => {
     const res = await request(app).delete('/api/Users/1').set(authHeader)
     assert.equal(res.status, 401)
   })
+
+  void it('PUT update existing user is forbidden via API with an unsigned "alg: none" token', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op' } })).toString('base64url')
+    const res = await request(app)
+      .put('/api/Users/1')
+      .set({ Authorization: `Bearer ${header}.${payload}.`, 'content-type': 'application/json' })
+      .send({ password: 'pwned' })
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('/rest/user/whoami', () => {
