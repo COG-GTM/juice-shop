@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { isIP } from 'node:net'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
@@ -15,22 +16,20 @@ export function saveLoginIp () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.from(req)
     if (loggedInUser !== undefined) {
-      let lastLoginIp = req.headers['true-client-ip']
-      if (Array.isArray(lastLoginIp)) {
-        lastLoginIp = lastLoginIp[0]
+      let trueClientIp = req.headers['true-client-ip']
+      if (Array.isArray(trueClientIp)) {
+        trueClientIp = trueClientIp[0]
       }
       if (utils.isChallengeEnabled(challenges.httpHeaderXssChallenge)) {
-        challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return lastLoginIp === '<iframe src="javascript:alert(`xss`)">' })
-      } else {
-        lastLoginIp = security.sanitizeSecure(lastLoginIp ?? '')
+        challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return trueClientIp === '<iframe src="javascript:alert(`xss`)">' })
       }
-      if (lastLoginIp === undefined) {
-        lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
-      }
+      const lastLoginIp = typeof trueClientIp === 'string' && isIP(trueClientIp) !== 0
+        ? trueClientIp
+        : utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
       try {
         const user = await UserModel.findByPk(loggedInUser.data.id)
-        const updatedUser = await user?.update({ lastLoginIp: lastLoginIp?.toString() })
-        res.json(updatedUser)
+        const updatedUser = await user?.update({ lastLoginIp })
+        res.json({ lastLoginIp: updatedUser?.lastLoginIp })
       } catch (error) {
         next(error)
       }
