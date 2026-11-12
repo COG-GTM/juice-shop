@@ -129,11 +129,18 @@ export async function setup (req: Request, res: Response) {
     userModel.totpSecret = secret
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    endOtherSessions(req, userModel.id)
 
     res.status(200).send()
   } catch (error) {
     res.status(401).send()
   }
+}
+
+function endOtherSessions (req: Request, userId: number) {
+  const cookie = req.cookies?.token
+  const sameUserCookie = cookie && security.authenticatedUsers.get(cookie)?.data?.id === userId ? cookie : undefined
+  security.authenticatedUsers.revokeAllFor(userId, utils.jwtFrom(req), sameUserCookie)
 }
 
 /**
@@ -162,6 +169,7 @@ export async function disable (req: Request, res: Response) {
     userModel.totpSecret = ''
     await userModel.save()
     security.authenticatedUsers.updateFrom(req, utils.queryResultToJson(userModel))
+    endOtherSessions(req, userModel.id)
 
     res.status(200).send()
   } catch (error) {
