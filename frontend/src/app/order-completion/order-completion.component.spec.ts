@@ -171,10 +171,12 @@ describe('OrderCompletionComponent', () => {
         const pdf = new Blob(['%PDF'], { type: 'application/pdf' })
         orderHistoryService.getOrderConfirmation.mockReturnValue(of(pdf))
         URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
-        const open = vi.spyOn(window, 'open').mockReturnValue(null)
+        const tab = { location: { href: '' }, close: vi.fn() } as unknown as Window
+        const open = vi.spyOn(window, 'open').mockReturnValue(tab)
         component.orderId = '5267-f9cd5882f54c75a3'
         component.openConfirmationPDF()
         expect(orderHistoryService.getOrderConfirmation).toHaveBeenCalledWith('5267-f9cd5882f54c75a3')
-        expect(open).toHaveBeenCalledWith('blob:pdf', '_blank')
+        expect(open).toHaveBeenCalledWith('', '_blank')
+        expect(tab.location.href).toBe('blob:pdf')
     })
 })
