@@ -143,3 +143,36 @@ void describe('forged tokens on basket and user management routes', () => {
     assert.equal(res.status, 401)
   })
 })
+
+void describe('denyAll() routes with forged tokens', () => {
+  const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+
+  void it('does not change the admin password via PUT /api/Users/1 with an alg:none token', async () => {
+    const res = await request(app).put('/api/Users/1').set(bearer(unsigned(admin))).send({ password: 'mallory-owns-you', role: 'admin' })
+    assert.equal(res.status, 401)
+
+    const oldLogin = await request(app).post('/rest/user/login').send({ email: 'admin@juice-sh.op', password: 'admin123' })
+    assert.equal(oldLogin.status, 200)
+    const newLogin = await request(app).post('/rest/user/login').send({ email: 'admin@juice-sh.op', password: 'mallory-owns-you' })
+    assert.equal(newLogin.status, 401)
+  })
+
+  for (const [method, path] of [
+    ['get', '/api/SecurityAnswers'],
+    ['get', '/api/SecurityAnswers/1'],
+    ['put', '/api/Cards/1'],
+    ['delete', '/api/Products/1'],
+    ['post', '/api/Challenges'],
+    ['delete', '/api/Hints/1']
+  ] as const) {
+    void it(`rejects an alg:none token on ${method.toUpperCase()} ${path}`, async () => {
+      const res = await request(app)[method](path).set(bearer(unsigned(admin))).send({})
+      assert.equal(res.status, 401)
+    })
+
+    void it(`rejects a valid RS256 admin token on ${method.toUpperCase()} ${path}`, async () => {
+      const res = await request(app)[method](path).set(bearer(security.authorize({ data: admin }))).send({})
+      assert.equal(res.status, 401)
+    })
+  }
+})
