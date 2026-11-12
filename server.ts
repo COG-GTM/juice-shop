@@ -518,6 +518,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     // vuln-code-snippet end registerAdminChallenge
 
     if (name === 'User') {
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any, error: any }) => {
+        const securityAnswer = req.body.securityAnswer
+        if (typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          const securityQuestionId = Number(req.body.securityQuestion?.id)
+          if (!Number.isInteger(securityQuestionId) || (await SecurityQuestionModel.findByPk(securityQuestionId)) == null) {
+            return context.error(400, 'Invalid security question')
+          }
+        }
+        return context.continue
+      })
       resource.create.send.before(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
         const securityQuestionId = Number(req.body.securityQuestion?.id)
         const securityAnswer = req.body.securityAnswer
