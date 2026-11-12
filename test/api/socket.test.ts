@@ -97,8 +97,8 @@ void describe('WebSocket', () => {
     assert.ok(socket.connected)
   })
 
-  void it('server stays responsive after oversized websocket string payloads', async () => {
-    const long = 'a'.repeat(900 * 1024)
+  void it('server stays responsive after long websocket string payloads', async () => {
+    const long = '../../..'.repeat(10 * 1024)
     const started = Date.now()
     socket.emit('verifySvgInjectionChallenge', long)
     socket.emit('verifyLocalXssChallenge', long)
@@ -107,5 +107,15 @@ void describe('WebSocket', () => {
     assert.equal(res.status, 200)
     assert.ok(Date.now() - started < 2000)
     assert.ok(socket.connected)
+  })
+
+  void it('server drops sockets sending messages above maxHttpBufferSize and keeps serving', async () => {
+    const oversized = ioClient(`http://localhost:${serverPort}`, { reconnection: false, forceNew: true, transports: ['websocket'] })
+    await new Promise<void>((resolve) => oversized.on('connect', () => { resolve() }))
+    const disconnected = new Promise<void>((resolve) => oversized.on('disconnect', () => { resolve() }))
+    oversized.emit('verifySvgInjectionChallenge', 'a'.repeat(900 * 1024))
+    await disconnected
+    const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
+    assert.equal(res.status, 200)
   })
 })
