@@ -160,5 +160,19 @@ describe('fileUpload', () => {
       expect(error?.message).to.contain('{"message":"xxx')
       expect(challenges.yamlBombChallenge.solved).to.equal(false)
     })
+
+    it('should not treat large lists of plain YAML dates as a bomb', () => {
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+      req.file = { originalname: 'dates.yml', buffer: Buffer.from(Array.from({ length: 10000 }, () => '- 2001-01-01').join('\n')) }
+      const statuses: number[] = []
+      res = { status: (s: number) => { statuses.push(s); return res }, end: () => {} }
+      let error: Error | undefined
+
+      handleYamlUpload(req, res, (err?: unknown) => { error ??= err as Error })
+
+      expect(statuses[0]).to.equal(410)
+      expect(error?.message).to.contain('["2001-01-01T00:00:00.000Z"')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
   })
 })
