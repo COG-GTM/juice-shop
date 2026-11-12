@@ -226,6 +226,12 @@ void describe('/api/Users/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('GET other user by id as admin user', async () => {
+    const res = await request(app).get('/api/Users/2').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, 2)
+  })
+
   void it('GET own user by id as non-admin user', async () => {
     const res = await request(app).get('/api/Users/2').set(customerAuthHeader)
     assert.equal(res.status, 200)
