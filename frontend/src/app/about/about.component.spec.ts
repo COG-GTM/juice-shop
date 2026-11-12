@@ -4,7 +4,7 @@
  */
 
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter, NO_ERRORS_SCHEMA } from '@angular/core'
+import { EventEmitter, NO_ERRORS_SCHEMA, TemplateRef } from '@angular/core'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 
@@ -14,6 +14,9 @@ import { of } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
 import { FeedbackService } from '../Services/feedback.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+
+import { By } from '@angular/platform-browser'
+import { GalleryImageDef } from 'ng-gallery'
 
 import { AboutComponent } from './about.component'
 
@@ -134,6 +137,20 @@ describe('AboutComponent', () => {
             src: 'assets/public/images/carousel/1.jpg',
             args: { comment, stars: [true, true, true, false, false] }
         })
+    })
+
+    it('should render feedback comments containing markup as literal text in the slide template', () => {
+        const comment = '<<script>alert(1)</script>iframe src="javascript:alert(1)">'
+        const slideTemplate = fixture.debugElement.queryAllNodes(By.directive(GalleryImageDef))[0].injector.get(TemplateRef)
+        const slide = slideTemplate.createEmbeddedView({ $implicit: { args: { comment, stars: component.starsFor(4) } }, active: true })
+        slide.detectChanges()
+
+        const figure: HTMLElement = slide.rootNodes.find((node) => node.nodeName === 'FIGURE')
+        expect(figure.querySelector('iframe')).toBeNull()
+        expect(figure.querySelector('script')).toBeNull()
+        expect(figure.querySelector('.feedback-comment').textContent).toBe(comment)
+        expect(figure.querySelectorAll('.feedback-stars .fas.fa-star').length).toBe(4)
+        slide.destroy()
     })
 
     it('should derive filled stars from the rating', () => {
