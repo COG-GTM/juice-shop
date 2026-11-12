@@ -136,6 +136,21 @@ describe('AboutComponent', () => {
         })
     })
 
+    it('should render feedback comments containing markup as literal text in the active slide', async () => {
+        const comment = '<iframe src="javascript:alert(`xss`)"></iframe><b>bold</b>'
+        feedbackService.find.mockReturnValue(of([{ comment, rating: 4 }]))
+        component.populateSlideshowFromFeedbacks()
+        fixture.detectChanges()
+        await fixture.whenStable()
+        fixture.detectChanges()
+
+        const gallery: HTMLElement = fixture.nativeElement.querySelector('#feedback-gallery')
+        expect(gallery.querySelector('.feedback-comment')?.textContent).toBe(comment)
+        expect(gallery.querySelector('iframe')).toBeNull()
+        expect(gallery.querySelector('b')).toBeNull()
+        expect(gallery.querySelectorAll('.feedback-stars .fas.fa-star').length).toBe(4)
+    })
+
     it('should derive filled stars from the rating', () => {
         expect(component.starsFor(0)).toEqual([false, false, false, false, false])
         expect(component.starsFor(5)).toEqual([true, true, true, true, true])
