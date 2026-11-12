@@ -173,6 +173,19 @@ void describe('/api/SecurityAnswers/:id', () => {
       .send({ email: 'registered.with.failed.answer@te.st', password: '12345' })
 
     assert.equal(loginRes.status, 401)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'registered.with.failed.answer@te.st',
+        password: '12345',
+        passwordRepeat: '12345',
+        securityQuestion: { id: 1 },
+        securityAnswer: 'Horst'
+      })
+
+    assert.equal(retryRes.status, 201)
   })
 
   void it('GET existing security answer by id is forbidden via public API even when authenticated', async () => {

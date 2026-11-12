@@ -538,7 +538,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
           try {
             await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
           } catch (err: unknown) {
-            await UserModel.destroy({ where: { id: context.instance.id } })
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
             throw new finale.Errors.BadRequestError('Unable to save security answer', undefined, err)
           }
         }
