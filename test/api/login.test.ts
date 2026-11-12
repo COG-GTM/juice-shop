@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { isIP } from 'node:net'
+import jwt from 'jsonwebtoken'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -237,7 +238,7 @@ void describe('/rest/user/login', () => {
 })
 
 void describe('/rest/saveLoginIp', () => {
-  async function saveLoginIp (headers: Record<string, string> = {}) {
+  async function login () {
     const loginRes = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -247,10 +248,13 @@ void describe('/rest/saveLoginIp', () => {
       })
 
     assert.equal(loginRes.status, 200)
+    return loginRes.body.authentication.token as string
+  }
 
+  async function saveLoginIp (headers: Record<string, string> = {}) {
     return await request(app)
       .get('/rest/saveLoginIp')
-      .set({ Authorization: 'Bearer ' + loginRes.body.authentication.token, ...headers })
+      .set({ Authorization: 'Bearer ' + await login(), ...headers })
   }
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', async () => {
@@ -265,6 +269,13 @@ void describe('/rest/saveLoginIp', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.lastLoginIp, '1.2.3.4')
+  })
+
+  void it('GET last login IP keeps a valid IPv4-mapped IPv6 True-Client-IP header value unchanged', async () => {
+    const res = await saveLoginIp({ 'true-client-ip': '::ffff:c000:201' })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.lastLoginIp, '::ffff:c000:201')
   })
 
   void it('GET last login IP falls back to remote IP when True-Client-IP is not a valid IP address', async () => {
@@ -289,6 +300,15 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.status, 200)
     assert.doesNotMatch(res.body.lastLoginIp, /[<>"]/)
     assert.notEqual(isIP(res.body.lastLoginIp), 0)
+  })
+
+  void it('GET last login IP from an HTML True-Client-IP header is not signed into the next login token', async () => {
+    const remoteIp = (await saveLoginIp()).body.lastLoginIp
+    const res = await saveLoginIp({ 'true-client-ip': '<img src=x onerror=alert(1)>' })
+    assert.equal(res.status, 200)
+
+    const payload = jwt.decode(await login()) as { data: { lastLoginIp: string } }
+    assert.equal(payload.data.lastLoginIp, remoteIp)
   })
 
   void it('GET last login IP responds only with the stored IP and no other user fields', async () => {
