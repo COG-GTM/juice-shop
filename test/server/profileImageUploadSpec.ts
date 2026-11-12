@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs'
+import { Writable } from 'node:stream'
 import path from 'node:path'
 import { inspect } from 'node:util'
 import sinon from 'sinon'
@@ -150,6 +151,43 @@ describe('profileImageUpload', () => {
       expect(res.status).to.have.been.calledWith(400)
       expect(fetch).to.have.callCount(0)
       expect(createWriteStream).to.have.callCount(0)
+    })
+  })
+
+  describe('profileImageUrlUpload with a valid session user', () => {
+    const token = 'valid-user-profile-image-token'
+
+    afterEach(() => {
+      delete security.authenticatedUsers.tokenMap[token]
+      sinon.restore()
+    })
+
+    it('writes the fetched image to the uploads path built from the user row id', async () => {
+      security.authenticatedUsers.put(token, { data: { id: '7' } } as any)
+      const update = sinon.stub().resolves()
+      sinon.stub(UserModel, 'findByPk').resolves({ id: 7, update } as any)
+      sinon.stub(globalThis, 'fetch').resolves(new Response('IMAGE-BYTES', { status: 200 }))
+      const written: Buffer[] = []
+      const createWriteStream = sinon.stub(fs, 'createWriteStream').returns(new Writable({
+        write (chunk, _encoding, callback) { written.push(Buffer.from(chunk)); callback() }
+      }) as any)
+      const res: any = { status: sinon.stub(), location: sinon.stub(), redirect: sinon.stub() }
+      const next = sinon.spy()
+      const req: any = {
+        body: { imageUrl: 'https://example.com/avatar.png' },
+        cookies: { token },
+        app: { locals: {} },
+        socket: {}
+      }
+
+      await profileImageUrlUpload()(req, res, next)
+
+      expect(UserModel.findByPk).to.have.been.calledWith(7)
+      expect(createWriteStream).to.have.been.calledWith(path.join(profileImageUploadDir, '7.png'))
+      expect(Buffer.concat(written).toString()).to.equal('IMAGE-BYTES')
+      expect(update).to.have.been.calledWith({ profileImage: '/assets/public/images/uploads/7.png' })
+      expect(next).to.have.callCount(0)
+      expect(res.redirect).to.have.callCount(1)
     })
   })
 })
