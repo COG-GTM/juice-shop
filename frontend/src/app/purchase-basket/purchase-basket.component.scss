@@ -13,13 +13,19 @@ $transition-speed: 0.2s;
 
 // Header styles
 h1 {
+  align-items: baseline;
+  column-gap: $space-xs;
+  display: flex;
+  flex-wrap: wrap;
   margin-bottom: $space-s;
 }
 
 h1 small {
-  color: rgba(0, 0, 0, 0.6);
-  font-size: 0.8em;
-  margin-left: $space-xs;
+  color: var(--theme-text);
+  font-size: 0.6em;
+  font-weight: 400;
+  opacity: 0.8;
+  overflow-wrap: anywhere;
 }
 
 .heading {
