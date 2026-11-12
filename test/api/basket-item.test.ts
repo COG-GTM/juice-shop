@@ -211,6 +211,21 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
+  void it('POST basket item stores the top-level product ID that passed the quantity check', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{ "BasketId": 2, "ProductId": 11, "quantity": 1, "nested": { "ProductId": null } }')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.ProductId, 11)
+
+    const updateRes = await request(app)
+      .put('/api/BasketItems/' + res.body.data.id)
+      .set(authHeader)
+      .send({ quantity: 2 })
+    assert.equal(updateRes.status, 200)
+  })
+
   void it('DELETE newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
