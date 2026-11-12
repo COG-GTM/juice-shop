@@ -13,6 +13,7 @@ import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+import logger from './logger'
 
 /* jslint node: true */
 
@@ -34,9 +35,13 @@ const loadPrivateKey = () => {
 const privateKeyObject = loadPrivateKey()
 const privateKey = privateKeyObject.export({ type: 'pkcs1', format: 'pem' }).toString()
 export const publicKey = crypto.createPublicKey(privateKeyObject).export({ type: 'pkcs1', format: 'pem' }).toString()
-try {
-  fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
-} catch {}
+export const writePublicKeyFile = () => {
+  try {
+    fs.writeFileSync('encryptionkeys/jwt.pub', publicKey)
+  } catch (err) {
+    logger.warn(`Could not write encryptionkeys/jwt.pub: ${utils.getErrorMessage(err)}`)
+  }
+}
 const deluxeTokenSecret = process.env.DELUXE_TOKEN_SECRET ?? crypto.randomBytes(32).toString('hex')
 
 interface ResponseWithUser {
