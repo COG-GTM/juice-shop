@@ -4,12 +4,13 @@
  */
 
 import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
-import { readFixes } from '../../routes/vulnCodeFixes'
+import { readFixes, serveCodeFixes, checkCorrectFix } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
 import nodeFs from 'node:fs'
 import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
+import crypto from 'node:crypto'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -62,6 +63,25 @@ describe('codingChallengeFixes', () => {
     } finally {
       readdir.restore()
       readFile.restore()
+    }
+  })
+
+  it('should answer 1000 random keys on both routes with 404 without touching the filesystem', async () => {
+    expect(readFixes('resetPasswordBenderChallenge').fixes).to.have.lengthOf(3)
+    const fsSpies = [sinon.spy(nodeFs, 'readdirSync'), sinon.spy(nodeFs, 'readFileSync'), sinon.spy(nodeFs, 'existsSync')]
+    const res: any = { status: sinon.stub().returnsThis(), json: sinon.stub().returnsThis(), __: (s: string) => s }
+    try {
+      for (let i = 0; i < 1000; i++) {
+        const key = crypto.randomBytes(1 + (i % 64)).toString(i % 2 === 0 ? 'hex' : 'base64')
+        serveCodeFixes()({ params: { key } } as any, res, () => {})
+        await checkCorrectFix()({ body: { key, selectedFix: 0 } } as any, res, () => {})
+      }
+      expect(res.status).to.have.callCount(2000)
+      expect(res.status).to.always.have.been.calledWith(404)
+      expect(res.json).to.always.have.been.calledWith({ error: 'No fixes found for the snippet!' })
+      for (const spy of fsSpies) expect(spy).to.have.callCount(0)
+    } finally {
+      fsSpies.forEach(spy => { spy.restore() })
     }
   })
 })
