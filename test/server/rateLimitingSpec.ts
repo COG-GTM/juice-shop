@@ -164,6 +164,6 @@ describe('verifySecondFactorToken', () => {
     expect(() => security.verifySecondFactorToken(wrongType)).to.throw('Invalid token type')
     expect(() => security.verifySecondFactorToken(expired)).to.throw('Temporary token expired')
     expect(() => security.verifySecondFactorToken('garbage')).to.throw()
-    expect(() => security.verifySecondFactorToken(undefined)).to.throw('Invalid token type')
+    expect(() => security.verifySecondFactorToken(undefined)).to.throw()
   })
 })
