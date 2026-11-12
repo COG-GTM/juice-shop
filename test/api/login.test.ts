@@ -254,6 +254,19 @@ void describe('/rest/user/login', () => {
     assert.equal(res.status, 401)
     assert.equal(res.body.authentication, undefined)
   })
+
+  void it('POST login with non-string password is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'admin@' + config.get<string>('application.domain'),
+        password: ['admin123']
+      })
+
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
+  })
 })
 
 void describe('/rest/saveLoginIp', () => {
