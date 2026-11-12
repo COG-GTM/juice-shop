@@ -7,7 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import config from 'config'
-import { generateSync } from 'otplib'
+import { generateSync, verifySync } from 'otplib'
 import type { Express } from 'express'
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
@@ -63,11 +63,13 @@ void describe('/rest/2fa/verify rate limiting', () => {
       expiresAt: security.secondFactorTokenExpiry()
     })
     const user = await UserModel.findByPk(10)
-    const validTotp = generateSync({ secret: String(user?.totpSecret) })
-    const wrongTotp = (i: number) => {
-      const code = String(100000 + i)
-      return code === validTotp ? String(200000 + i) : code
+    const secret = String(user?.totpSecret)
+    const validTotp = generateSync({ secret })
+    const wrongCodes: string[] = []
+    for (let code = 100000; wrongCodes.length < 11; code++) {
+      if (!verifySync({ secret, token: String(code), epochTolerance: 120 }).valid) wrongCodes.push(String(code))
     }
+    const wrongTotp = (i: number) => wrongCodes[i]
     const statuses: number[] = []
     for (let i = 0; i < 11; i++) {
       const res = await request(app)
