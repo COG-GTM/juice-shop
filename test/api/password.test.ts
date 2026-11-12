@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 
@@ -193,6 +194,14 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+  })
+
+  void it('POST password resets with correct answers solve the reset-password challenges of the seeded accounts', () => {
+    assert.equal(challenges.resetPasswordJimChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBenderChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBjoernChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBjoernOwaspChallenge.solved, true)
+    assert.equal(challenges.resetPasswordMortyChallenge.solved, true)
   })
 
   void it('POST password reset with wrong answer to security question', async () => {
