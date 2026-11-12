@@ -4,6 +4,7 @@
  */
 
 import config from 'config'
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import type { Memory as MemoryConfig } from '../lib/config.types'
@@ -11,6 +12,7 @@ import { SecurityAnswerModel } from '../models/securityAnswer'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { markFailedAttempt } from '../lib/rateLimiting'
 import { UserModel } from '../models/user'
 
 export function resetPassword () {
@@ -21,6 +23,11 @@ export function resetPassword () {
     const repeatPassword = body.repeat
     if (!email || !answer) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+      return
+    }
+    if (typeof email !== 'string') {
+      markFailedAttempt(res)
+      res.status(401).send(res.__('Wrong answer to security question.'))
       return
     }
     if (!newPassword || newPassword === 'undefined') {
@@ -38,14 +45,15 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
+      if ((data != null) && answerMatches(answer, data.answer)) {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
           const updatedUser = await user.update({ password: newPassword })
           verifySecurityAnswerChallenges(updatedUser, answer)
-          res.json({ user: updatedUser })
+          res.json({ user: { id: updatedUser.id, email: updatedUser.email } })
         }
       } else {
+        markFailedAttempt(res)
         res.status(401).send(res.__('Wrong answer to security question.'))
       }
     } catch (error) {
@@ -54,13 +62,20 @@ export function resetPassword () {
   }
 }
 
+function answerMatches (answer: unknown, storedHash: string) {
+  if (typeof answer !== 'string') return false
+  const supplied = Buffer.from(security.hmac(answer))
+  const stored = Buffer.from(String(storedHash))
+  return supplied.length === stored.length && crypto.timingSafeEqual(supplied, stored)
+}
+
 function verifySecurityAnswerChallenges (user: UserModel, answer: string) {
-  challengeUtils.solveIf(challenges.resetPasswordJimChallenge, () => { return user.id === users.jim.id && answer === 'Samuel' })
-  challengeUtils.solveIf(challenges.resetPasswordBenderChallenge, () => { return user.id === users.bender.id && answer === 'Stop\'n\'Drop' })
-  challengeUtils.solveIf(challenges.resetPasswordBjoernChallenge, () => { return user.id === users.bjoern.id && answer === 'West-2082' })
-  challengeUtils.solveIf(challenges.resetPasswordMortyChallenge, () => { return user.id === users.morty.id && answer === '5N0wb41L' })
-  challengeUtils.solveIf(challenges.resetPasswordBjoernOwaspChallenge, () => { return user.id === users.bjoernOwasp.id && answer === 'Zaya' })
-  challengeUtils.solveIf(challenges.resetPasswordUvoginChallenge, () => { return user.id === users.uvogin.id && answer === 'Silence of the Lambs' })
+  challengeUtils.solveIf(challenges.resetPasswordJimChallenge, () => { return user.id === users.jim.id })
+  challengeUtils.solveIf(challenges.resetPasswordBenderChallenge, () => { return user.id === users.bender.id })
+  challengeUtils.solveIf(challenges.resetPasswordBjoernChallenge, () => { return user.id === users.bjoern.id })
+  challengeUtils.solveIf(challenges.resetPasswordMortyChallenge, () => { return user.id === users.morty.id })
+  challengeUtils.solveIf(challenges.resetPasswordBjoernOwaspChallenge, () => { return user.id === users.bjoernOwasp.id })
+  challengeUtils.solveIf(challenges.resetPasswordUvoginChallenge, () => { return user.id === users.uvogin.id })
   challengeUtils.solveIf(challenges.geoStalkingMetaChallenge, () => {
     const securityAnswer = ((() => {
       const memories = config.get<MemoryConfig[]>('memories')
