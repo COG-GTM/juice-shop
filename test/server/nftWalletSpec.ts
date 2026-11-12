@@ -9,8 +9,17 @@ import { getNftWalletMnemonic } from '../../lib/nftWallet'
 const expect = chai.expect
 
 describe('nftWallet', () => {
+  const configuredMnemonic = process.env.NFT_WALLET_MNEMONIC
+
+  before(() => {
+    delete process.env.NFT_WALLET_MNEMONIC
+  })
+
+  after(() => {
+    if (configuredMnemonic !== undefined) process.env.NFT_WALLET_MNEMONIC = configuredMnemonic
+  })
+
   it('should generate a valid disposable 12-word mnemonic when NFT_WALLET_MNEMONIC is not set', async () => {
-    expect(process.env.NFT_WALLET_MNEMONIC).to.equal(undefined)
     const phrase = await getNftWalletMnemonic()
     expect(phrase.split(' ')).to.have.lengthOf(12)
     expect(Mnemonic.isValidMnemonic(phrase)).to.equal(true)
