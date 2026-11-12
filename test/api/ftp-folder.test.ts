@@ -24,7 +24,11 @@ void describe('/ftp', () => {
   void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/ftp')
-    assert.ok(!responseText(res).includes('<title>listing directory /ftp</title>'))
+    const text = responseText(res)
+    assert.ok(!text.includes('listing directory'))
+    for (const file of ['acquisitions.md', 'coupons_2013.md.bak', 'incident-support.kdbx', 'package.json.bak', 'suspicious_errors.yml']) {
+      assert.ok(!text.includes(file), `/ftp response must not reveal ${file}`)
+    }
   })
 
   void it('GET a non-existing Markdown file in /ftp will return a 404 error', async () => {
