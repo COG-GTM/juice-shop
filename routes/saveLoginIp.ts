@@ -12,7 +12,7 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
-export function saveLoginIp () {
+export function saveLoginIp (trustedProxies?: readonly string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.from(req)
     if (loggedInUser !== undefined) {
@@ -24,7 +24,7 @@ export function saveLoginIp () {
         challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return trueClientIp === '<iframe src="javascript:alert(`xss`)">' })
       }
       const remoteAddress = req.socket.remoteAddress ?? ''
-      const clientIp = typeof trueClientIp === 'string' && isIP(trueClientIp) !== 0 && utils.isTrustedProxy(remoteAddress) ? trueClientIp : remoteAddress
+      const clientIp = typeof trueClientIp === 'string' && isIP(trueClientIp) !== 0 && utils.isTrustedProxy(remoteAddress, trustedProxies) ? trueClientIp : remoteAddress
       const lastLoginIp = utils.toSimpleIpAddress(clientIp)
       try {
         const user = await UserModel.findByPk(loggedInUser.data.id)
