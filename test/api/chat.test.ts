@@ -357,6 +357,7 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
   void it('detects greedy coupon requests without minting a coupon', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
+    challenges.chatbotGreedyInjectionChallenge.solved = false
     const result = await couponToolResult({ discount: 50, orderId }, token)
     assert.ok(result.includes('discount'))
     assert.ok(!result.includes('couponCode'))
