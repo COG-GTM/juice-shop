@@ -38,6 +38,7 @@ export class ForgotPasswordComponent {
 
   public emailControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.email])
   public securityQuestionControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required])
+  public resetTokenControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required])
   public passwordControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required, Validators.minLength(5)])
   public repeatPasswordControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required, matchValidator(this.passwordControl)])
   public securityQuestion?: string
@@ -56,10 +57,12 @@ export class ForgotPasswordComponent {
             if (securityQuestion) {
               this.securityQuestion = securityQuestion.question
               this.securityQuestionControl.enable()
+              this.resetTokenControl.enable()
               this.passwordControl.enable()
               this.repeatPasswordControl.enable()
             } else {
               this.securityQuestionControl.disable()
+              this.resetTokenControl.disable()
               this.passwordControl.disable()
               this.repeatPasswordControl.disable()
             }
@@ -69,16 +72,46 @@ export class ForgotPasswordComponent {
         )
       } else {
         this.securityQuestionControl.disable()
+        this.resetTokenControl.disable()
         this.passwordControl.disable()
         this.repeatPasswordControl.disable()
       }
     }, this.timeoutDuration)
   }
 
+  requestResetToken () {
+    this.userService.requestPasswordReset({ email: this.emailControl.value }).subscribe({
+      next: () => {
+        this.error = undefined
+        this.markControlsPristine()
+        this.translate.get('PASSWORD_RESET_TOKEN_SENT').subscribe({
+          next: (tokenSent) => {
+            this.confirmation = tokenSent
+          },
+          error: (translationId) => {
+            this.confirmation = translationId
+          }
+        })
+      },
+      error: (error) => {
+        this.error = error.error
+        this.confirmation = undefined
+        this.markControlsPristine()
+      }
+    })
+  }
+
+  private markControlsPristine () {
+    for (const control of [this.emailControl, this.securityQuestionControl, this.resetTokenControl, this.passwordControl, this.repeatPasswordControl]) {
+      control.markAsPristine()
+    }
+  }
+
   resetPassword () {
     this.userService.resetPassword({
       email: this.emailControl.value,
       answer: this.securityQuestionControl.value,
+      token: this.resetTokenControl.value,
       new: this.passwordControl.value,
       repeat: this.repeatPasswordControl.value
     }).subscribe({
@@ -109,6 +142,9 @@ export class ForgotPasswordComponent {
     this.securityQuestionControl.setValue('')
     this.securityQuestionControl.markAsPristine()
     this.securityQuestionControl.markAsUntouched()
+    this.resetTokenControl.setValue('')
+    this.resetTokenControl.markAsPristine()
+    this.resetTokenControl.markAsUntouched()
     this.passwordControl.setValue('')
     this.passwordControl.markAsPristine()
     this.passwordControl.markAsUntouched()
@@ -123,6 +159,9 @@ export class ForgotPasswordComponent {
     this.securityQuestionControl.setValue('')
     this.securityQuestionControl.markAsPristine()
     this.securityQuestionControl.markAsUntouched()
+    this.resetTokenControl.setValue('')
+    this.resetTokenControl.markAsPristine()
+    this.resetTokenControl.markAsUntouched()
     this.passwordControl.setValue('')
     this.passwordControl.markAsPristine()
     this.passwordControl.markAsUntouched()

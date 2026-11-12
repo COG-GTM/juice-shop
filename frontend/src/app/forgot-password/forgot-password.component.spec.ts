@@ -33,9 +33,11 @@ describe('ForgotPasswordComponent', () => {
         }
         securityQuestionService.findBy.mockReturnValue(of({}))
         userService = {
-            resetPassword: vi.fn().mockName("UserService.resetPassword")
+            resetPassword: vi.fn().mockName("UserService.resetPassword"),
+            requestPasswordReset: vi.fn().mockName("UserService.requestPasswordReset")
         }
         userService.resetPassword.mockReturnValue(of({}))
+        userService.requestPasswordReset.mockReturnValue(of({}))
 
         TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -131,9 +133,11 @@ describe('ForgotPasswordComponent', () => {
     it('should reset form on calling resetForm', () => {
         component.emailControl.setValue('email')
         component.securityQuestionControl.setValue('security question')
+        component.resetTokenControl.setValue('token')
         component.passwordControl.setValue('password')
         component.repeatPasswordControl.setValue('repeat password')
         component.resetForm()
+        expect(component.resetTokenControl.value).toBe('')
         expect(component.emailControl.pristine).toBe(true)
         expect(component.emailControl.untouched).toBe(true)
         expect(component.emailControl.value).toBe('')
@@ -162,6 +166,23 @@ describe('ForgotPasswordComponent', () => {
         component.resetPassword()
         expect(component.error).toBe('Error')
         expect(component.resetErrorForm).toHaveBeenCalled()
+    })
+
+    it('should show confirmation after requesting a reset token', () => {
+        component.emailControl.setValue('known@user.test')
+        component.emailControl.markAsDirty()
+        component.requestResetToken()
+        expect(userService.requestPasswordReset).toHaveBeenCalledWith({ email: 'known@user.test' })
+        expect(component.confirmation).toBeDefined()
+        expect(component.emailControl.dirty).toBe(false)
+        expect(component.error).toBeUndefined()
+    })
+
+    it('should show error when requesting a reset token fails', () => {
+        userService.requestPasswordReset.mockReturnValue(throwError({ error: 'Error' }))
+        component.requestResetToken()
+        expect(component.error).toBe('Error')
+        expect(component.confirmation).toBeUndefined()
     })
 
     it('should find the security question of a user with a known email address', () => {
