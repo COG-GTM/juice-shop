@@ -11,7 +11,8 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 
 export function changePassword () {
-  return async ({ body, headers, connection }: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { body, headers, connection } = req
     const currentPassword: string | null = typeof body?.current === 'string' ? body.current : null
     const newPassword = typeof body?.new === 'string' ? body.new : ''
     const repeatPassword = body?.repeat
@@ -54,8 +55,15 @@ export function changePassword () {
 
       await user.update({ password: newPassword })
       const currentToken = utils.unquote(token)
+      const keptTokens = new Set([currentToken])
       security.authenticatedUsers.put(currentToken, { ...loggedInUser, data: user })
-      revokeOtherSessions(user.id, currentToken)
+      const cookieToken = typeof req.cookies?.token === 'string' ? utils.unquote(req.cookies.token) : undefined
+      const cookieSession = cookieToken ? security.authenticatedUsers.get(cookieToken) : undefined
+      if (cookieToken && cookieSession?.data?.id === user.id && security.verify(cookieToken)) {
+        keptTokens.add(cookieToken)
+        security.authenticatedUsers.put(cookieToken, { ...cookieSession, data: user })
+      }
+      revokeOtherSessions(user.id, keptTokens, currentToken)
       res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
@@ -63,10 +71,10 @@ export function changePassword () {
   }
 }
 
-function revokeOtherSessions (userId: number, currentToken: string) {
+function revokeOtherSessions (userId: number, keptTokens: Set<string>, currentToken: string) {
   const { tokenMap, idMap } = security.authenticatedUsers
   for (const [token, session] of Object.entries(tokenMap)) {
-    if (token !== currentToken && session?.data?.id === userId) {
+    if (!keptTokens.has(token) && session?.data?.id === userId) {
       security.revokeToken(token)
       delete tokenMap[token]
     }
