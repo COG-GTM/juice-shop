@@ -38,6 +38,7 @@ import * as security from '../lib/insecurity'
 import { variableDependencies, domainDependencies, preconditionResults } from '../lib/startup/validatePreconditions'
 // @ts-expect-error FIXME due to non-existing type definitions for replace
 import replace from 'replace'
+import crypto from 'node:crypto'
 
 const entities = new Entities()
 
@@ -182,6 +183,22 @@ async function createChallenges () {
   }
 }
 
+const privilegedRoles: string[] = [security.roles.admin, security.roles.accounting]
+const privilegedPasswordEnvVars: Record<string, string> = {
+  admin: 'JUICE_SHOP_ADMIN_PASSWORD',
+  accountant: 'JUICE_SHOP_ACCOUNTING_PASSWORD'
+}
+
+function seedPassword (key: string, role: string, email: string, password: string) {
+  if (config.get<boolean>('application.demoCredentials') || !privilegedRoles.includes(role)) return password
+  const envVar = privilegedPasswordEnvVars[key]
+  const configuredPassword = envVar ? process.env[envVar] : undefined
+  if (configuredPassword) return configuredPassword
+  const generatedPassword = crypto.randomBytes(18).toString('base64url')
+  if (envVar) logger.info(`Generated password for ${email}: ${generatedPassword} (set ${envVar} to choose your own)`)
+  return generatedPassword
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
 
@@ -192,7 +209,7 @@ async function createUsers () {
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seedPassword(key, role, completeEmail, password),
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
