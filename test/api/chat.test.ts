@@ -377,6 +377,18 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     })
   })
 
+  void it('POST ignores a forged admin role when deciding aiDebuggingChallenge', { timeout: 30000 }, async () => {
+    await withUnpersistedAiDebuggingChallenge(async () => {
+      const { token } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+      const [header, payload, signature] = token.split('.')
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString())
+      claims.data.role = 'admin'
+      const forgedPayload = Buffer.from(JSON.stringify(claims)).toString('base64url')
+      await chatWithToolCallsShown(`${header}.${forgedPayload}.${signature}`)
+      assert.equal(challenges.aiDebuggingChallenge.solved, true)
+    })
+  })
+
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' })
