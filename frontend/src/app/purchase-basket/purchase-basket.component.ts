@@ -17,7 +17,7 @@ import { MatIconButton } from '@angular/material/button'
 import { forkJoin, of } from 'rxjs'
 import { catchError, map } from 'rxjs/operators'
 
-import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow } from '@angular/material/table'
+import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table'
 
 library.add(faTrashAlt, faMinusSquare, faPlusSquare)
 
@@ -25,7 +25,7 @@ library.add(faTrashAlt, faMinusSquare, faPlusSquare)
   selector: 'app-purchase-basket',
   templateUrl: './purchase-basket.component.html',
   styleUrls: ['./purchase-basket.component.scss'],
-  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow, TranslateModule]
+  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, TranslateModule]
 })
 export class PurchaseBasketComponent implements OnInit {
   private readonly deluxeGuard = inject(DeluxeGuard)
@@ -35,7 +35,6 @@ export class PurchaseBasketComponent implements OnInit {
   private readonly snackBarHelperService = inject(SnackBarHelperService)
 
   @Input() public allowEdit = false
-  @Input() public displayTotal = false
   @Input() public totalPrice = true
   @Output() emitTotal = new EventEmitter()
   @Output() emitProductCount = new EventEmitter()

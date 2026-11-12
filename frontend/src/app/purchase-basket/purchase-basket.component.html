@@ -15,13 +15,11 @@
       <img [src]="'assets/public/images/products/'+element.image" alt={{element.name}}
         class="img-responsive img-thumbnail">
       </mat-cell>
-      <mat-footer-cell *matFooterCellDef class="content-align"></mat-footer-cell>
     </ng-container>
 
     <ng-container matColumnDef="product">
       <mat-header-cell *matHeaderCellDef class="header-hidden"></mat-header-cell>
       <mat-cell *matCellDef="let element" class="cell-initial-font"> {{element.name}}</mat-cell>
-      <mat-footer-cell *matFooterCellDef></mat-footer-cell>
     </ng-container>
 
     <ng-container matColumnDef="quantity">
@@ -35,13 +33,11 @@
           <button mat-icon-button (click)="inc(element.BasketItem.id)"><i class="fas fa-plus-square"></i></button>
         }
       </mat-cell>
-      <mat-footer-cell *matFooterCellDef class="header-align">TOTAL</mat-footer-cell>
     </ng-container>
 
     <ng-container matColumnDef="price">
       <mat-header-cell *matHeaderCellDef class="header-hidden"></mat-header-cell>
       <mat-cell *matCellDef="let element" class="cell-initial-font"> {{element.price}}&curren;</mat-cell>
-      <mat-footer-cell *matFooterCellDef></mat-footer-cell>
     </ng-container>
 
     @if (allowEdit) {
@@ -50,18 +46,11 @@
         <mat-cell *matCellDef="let element">
           <button mat-icon-button (click)="delete(element.BasketItem.id)"><i class="far fa-trash-alt"></i></button>
         </mat-cell>
-        <mat-footer-cell *matFooterCellDef></mat-footer-cell>
       </ng-container>
     }
 
     <mat-header-row *matHeaderRowDef="tableColumns"></mat-header-row>
     <mat-row *matRowDef="let row; columns: tableColumns;"></mat-row>
-
-    @if (displayTotal) {
-      <span>
-        <mat-footer-row mat-footer-row *matFooterRowDef="tableColumns"></mat-footer-row>
-      </span>
-    }
   </mat-table>
 
   @if (totalPrice) {
