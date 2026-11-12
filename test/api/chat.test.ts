@@ -350,6 +350,7 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
     const result = await couponToolResult({ discount: 99, orderId }, token)
+    assert.ok(result.includes('discount'))
     assert.ok(!result.includes('couponCode'))
   })
 
@@ -357,6 +358,7 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
     const result = await couponToolResult({ discount: 50, orderId }, token)
+    assert.ok(result.includes('discount'))
     assert.ok(!result.includes('couponCode'))
     assert.equal(challenges.chatbotGreedyInjectionChallenge.solved, true)
   })
@@ -365,6 +367,7 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
     const result = await couponToolResult({ discount: 5, orderId }, token)
+    assert.ok(result.includes('discount'))
     assert.ok(!result.includes('couponCode'))
   })
 
@@ -381,6 +384,19 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const orderId = await deliveredOrderOf(token)
     const forged = token.split('.').slice(0, 2).join('.') + '.'
     const result = await couponToolResult({ discount: 10, orderId }, forged)
+    assert.ok(result.includes('Customer not authenticated'))
+    assert.ok(!result.includes('couponCode'))
+  })
+
+  void it('refuses to mint coupons for owned orders that are not delivered yet', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: `Bearer ${token}` })
+    const order = res.body.data.find((o: { delivered: boolean }) => !o.delivered)
+    assert.ok(order)
+    const result = await couponToolResult({ discount: 10, orderId: order.orderId }, token)
+    assert.ok(result.includes('Coupons can only be issued for delivered orders'))
     assert.ok(!result.includes('couponCode'))
   })
 
