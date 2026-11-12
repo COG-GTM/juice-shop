@@ -264,6 +264,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const negativeItem = await BasketItemModel.create({ BasketId: 2, ProductId: product.id, quantity: 1 })
     const paidItem = await BasketItemModel.create({ BasketId: 2, ProductId: 1, quantity: 1 })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
     try {
       const res = await request(app)
         .post('/rest/basket/2/checkout')
@@ -274,6 +275,8 @@ void describe('/rest/basket/:id/checkout', () => {
 
       const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
       assert.equal(walletAfter?.balance, walletBefore?.balance)
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
     } finally {
       await negativeItem.destroy()
       await paidItem.destroy()
