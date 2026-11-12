@@ -45,4 +45,21 @@ void describe('/video', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('video/mp4'))
   })
+
+  void it('GET promotion video with range header returns partial content', async () => {
+    const res = await request(app)
+      .get('/video')
+      .set('Range', 'bytes=0-1023')
+    assert.equal(res.status, 206)
+    assert.match(res.headers['content-range'], /^bytes 0-1023\/\d+$/)
+    assert.equal(res.headers['content-length'], '1024')
+  })
+
+  void it('GET promotion video with invalid range header returns 416', async () => {
+    const res = await request(app)
+      .get('/video')
+      .set('Range', 'bytes=abc-')
+    assert.equal(res.status, 416)
+    assert.match(res.headers['content-range'], /^bytes \*\/\d+$/)
+  })
 })
