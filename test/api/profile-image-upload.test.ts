@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -76,13 +77,18 @@ void describe('/profile/image/url', () => {
       password: 'ncc-1701'
     })
 
+    const email = `jim@${config.get<string>('application.domain')}`
+    await UserModel.update({ profileImage: '/assets/public/images/uploads/default.svg' }, { where: { email } })
+
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'cataas.com/cat')
+      .field('imageUrl', 'https://cataas.com/cat')
       .redirects(0)
 
     assert.equal(res.status, 302)
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(['https://cataas.com/cat', `/assets/public/images/uploads/${user?.id}.jpg`].includes(user?.profileImage ?? ''))
   })
 
   void it('POST profile image URL redirects even for invalid image URL', async () => {
