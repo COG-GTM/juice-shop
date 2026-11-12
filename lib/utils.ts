@@ -10,6 +10,7 @@ import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
+import { BlockList, isIP } from 'node:net'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
 
@@ -212,6 +213,29 @@ export const toSimpleIpAddress = (ipv6: string) => {
   } else {
     return ipv6
   }
+}
+
+const ipFamily = (ip: string) => isIP(ip) === 6 ? 'ipv6' : 'ipv4'
+
+export const isTrustedProxy = (address: string | undefined, trustedProxies: readonly string[] = config.get<string[]>('server.trustedProxies')) => {
+  const peers = [address ?? '', toSimpleIpAddress(address ?? '')].filter(ip => isIP(ip) !== 0)
+  if (peers.length === 0) {
+    return false
+  }
+  const proxies = new BlockList()
+  for (const entry of trustedProxies) {
+    const [network, prefix, ...rest] = entry.split('/')
+    if (isIP(network) === 0 || rest.length > 0) {
+      continue
+    }
+    const family = ipFamily(network)
+    if (prefix === undefined) {
+      proxies.addAddress(network, family)
+    } else if (/^\d{1,3}$/.test(prefix) && Number(prefix) <= (family === 'ipv6' ? 128 : 32)) {
+      proxies.addSubnet(network, Number(prefix), family)
+    }
+  }
+  return peers.some(ip => proxies.check(ip, ipFamily(ip)))
 }
 
 export const getErrorMessage = (error: unknown) => {
