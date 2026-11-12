@@ -25,8 +25,7 @@ export function accountRateLimit (accountOf: (req: Request) => string | undefine
     max,
     skipSuccessfulRequests: true,
     requestWasSuccessful,
-    keyGenerator: (req: Request) => `account:${accountOf(req) ?? '<none>'}`,
-    validate: false
+    keyGenerator: (req: Request) => `account:${accountOf(req) ?? '<none>'}`
   })
 }
 
@@ -68,8 +67,7 @@ export function loginRateLimit ({ windowMs = 15 * 60 * 1000, maxPerClient = 100,
       windowMs,
       max: maxPerClient,
       skipSuccessfulRequests: true,
-      requestWasSuccessful: passwordAccepted,
-      validate: false
+      requestWasSuccessful: passwordAccepted
     }),
     accountRateLimit(emailOf, { windowMs, max: maxPerAccount, requestWasSuccessful: passwordAccepted })
   ]
