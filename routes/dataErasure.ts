@@ -23,7 +23,7 @@ const entities = new Entities()
 const router = express.Router()
 
 const csrfSecret = crypto.randomBytes(32)
-const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfSecret).update(sessionToken).digest('hex')
+export const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfSecret).update(sessionToken).digest('hex')
 
 const safeEqual = (a: unknown, b: string) => {
   if (typeof a !== 'string') return false

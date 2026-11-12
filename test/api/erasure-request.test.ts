@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { PrivacyRequestModel } from '../../models/privacyRequests'
 import { UserModel } from '../../models/user'
+import { csrfTokenFor } from '../../routes/dataErasure'
 
 let app: Express
 
@@ -172,9 +173,10 @@ void describe('/dataerasure', () => {
       .post('/dataerasure/')
       .type('form')
       .set({ Cookie: 'token=' + token })
-      .send({ email: 'bjoern.kimminich@gmail.com', securityAnswer: 'anything' })
+      .send({ _csrf: csrfTokenFor(token), email: 'bjoern.kimminich@gmail.com', securityAnswer: 'anything' })
 
     assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Email address or security answer is incorrect'))
   })
 
   void it('POST erasure form  fails on unauthenticated access', async () => {
