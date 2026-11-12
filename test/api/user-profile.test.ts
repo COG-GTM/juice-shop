@@ -51,4 +51,40 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders Pug interpolation in username as literal text when SSTI challenge is disabled', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'a#{7*7}')
+      .redirects(0)
+
+    process.env.HEROKU = 'true'
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('a#{7*7}'))
+      assert.ok(!res.text.includes('a49'))
+    } finally {
+      delete process.env.HEROKU
+    }
+  })
+
+  void it('GET user profile evaluates Pug interpolation in username when SSTI challenge is enabled', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{7*7}')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('>49</p>'))
+  })
 })
