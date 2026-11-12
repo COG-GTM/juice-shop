@@ -83,6 +83,7 @@ export class ForgotPasswordComponent {
     this.userService.requestPasswordReset({ email: this.emailControl.value }).subscribe({
       next: () => {
         this.error = undefined
+        this.markControlsPristine()
         this.translate.get('PASSWORD_RESET_TOKEN_SENT').subscribe({
           next: (tokenSent) => {
             this.confirmation = tokenSent
@@ -95,8 +96,15 @@ export class ForgotPasswordComponent {
       error: (error) => {
         this.error = error.error
         this.confirmation = undefined
+        this.markControlsPristine()
       }
     })
+  }
+
+  private markControlsPristine () {
+    for (const control of [this.emailControl, this.securityQuestionControl, this.resetTokenControl, this.passwordControl, this.repeatPasswordControl]) {
+      control.markAsPristine()
+    }
   }
 
   resetPassword () {

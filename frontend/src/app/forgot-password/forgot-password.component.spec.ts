@@ -170,9 +170,11 @@ describe('ForgotPasswordComponent', () => {
 
     it('should show confirmation after requesting a reset token', () => {
         component.emailControl.setValue('known@user.test')
+        component.emailControl.markAsDirty()
         component.requestResetToken()
         expect(userService.requestPasswordReset).toHaveBeenCalledWith({ email: 'known@user.test' })
         expect(component.confirmation).toBeDefined()
+        expect(component.emailControl.dirty).toBe(false)
         expect(component.error).toBeUndefined()
     })
 
