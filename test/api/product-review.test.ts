@@ -138,7 +138,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('POST concurrent likes of the same review by one user are counted once', async () => {
-    const email = 'mc.safesearch@juice-sh.op'
+    const email = 'mc.safesearch@' + config.get<string>('application.domain')
     const { token } = await login(app, { email, password: 'Mr. N00dles' })
     const before = (await request(app).get('/rest/products/1/reviews')).body.data.find((review: any) => review._id === reviewId)
 
