@@ -151,6 +151,44 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST password change keeps the profile cookie token of the same browser session', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'profilecookie@be.rt',
+        password: 'first-secret'
+      })
+      .expect(201)
+
+    const { token: storageToken } = await login(app, { email: 'profilecookie@be.rt', password: 'first-secret' })
+    const { token: otherToken } = await login(app, { email: 'profilecookie@be.rt', password: 'first-secret' })
+    const profileRes = await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${storageToken}`)
+      .field('username', 'Renamed')
+      .redirects(0)
+      .expect(302)
+    const cookieToken = /token=([^;]+)/.exec(String(profileRes.headers['set-cookie']))?.[1]
+    assert.ok(cookieToken)
+    assert.notEqual(cookieToken, storageToken)
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + storageToken, Cookie: `token=${cookieToken}` })
+      .send({ current: 'first-secret', new: 'second-secret', repeat: 'second-secret' })
+      .expect(200)
+
+    await request(app)
+      .get('/profile')
+      .set('Cookie', `token=${cookieToken}`)
+      .expect(200)
+    await request(app)
+      .get('/api/Complaints')
+      .set({ Authorization: 'Bearer ' + otherToken })
+      .expect(401)
+  })
+
   void it('POST password change keeps revoked sessions from being restored or used on protected APIs', async () => {
     await request(app)
       .post('/api/Users')
