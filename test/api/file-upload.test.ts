@@ -130,25 +130,27 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
-  void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
-    const legalFile = path.resolve('ftp/legal.md')
-    const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
-    const originalLegalFile = fs.readFileSync(path.resolve('data/static/legal.md'), 'utf8')
-    challenges.fileWriteChallenge.solved = false
-    const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
-    const res = await request(app)
-      .post('/file-upload')
-      .attach('file', file)
-    assert.equal(res.status, 204)
-    for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-    }
-    assert.equal(challenges.fileWriteChallenge.solved, true)
-    for (let i = 0; i < 10; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100))
-      assert.equal(readLegalFile(), originalLegalFile)
-    }
-  })
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
+      const legalFile = path.resolve('ftp/legal.md')
+      const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
+      const originalLegalFile = fs.readFileSync(path.resolve('data/static/legal.md'), 'utf8')
+      challenges.fileWriteChallenge.solved = false
+      const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.equal(challenges.fileWriteChallenge.solved, true)
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        assert.equal(readLegalFile(), originalLegalFile)
+      }
+    })
+  }
 
   void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
     const templates = ['views/promotionVideo.pug', 'views/userProfile.pug'].map(file => path.resolve(file))
@@ -164,23 +166,25 @@ void describe('/file-upload', () => {
     }
   })
 
-  void it('POST zip file with a regular entry extracts it into uploads/complaints', async () => {
-    const extracted = path.resolve('uploads/complaints/zipUploadComplaint.txt')
-    fs.rmSync(extracted, { force: true })
-    try {
-      const file = path.resolve(__dirname, '../files/validComplaint.zip')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 204)
-      for (let i = 0; i < 50 && !fs.existsSync(extracted); i++) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-      assert.equal(fs.readFileSync(extracted, 'utf8'), 'Complaint extracted from zip upload\n')
-    } finally {
+  if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+    void it('POST zip file with a regular entry extracts it into uploads/complaints', async () => {
+      const extracted = path.resolve('uploads/complaints/zipUploadComplaint.txt')
       fs.rmSync(extracted, { force: true })
-    }
-  })
+      try {
+        const file = path.resolve(__dirname, '../files/validComplaint.zip')
+        const res = await request(app)
+          .post('/file-upload')
+          .attach('file', file)
+        assert.equal(res.status, 204)
+        for (let i = 0; i < 50 && !fs.existsSync(extracted); i++) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        assert.equal(fs.readFileSync(extracted, 'utf8'), 'Complaint extracted from zip upload\n')
+      } finally {
+        fs.rmSync(extracted, { force: true })
+      }
+    })
+  }
 
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
