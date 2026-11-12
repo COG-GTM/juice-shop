@@ -48,8 +48,17 @@ describe('utils', () => {
       expect(utils.isTrustedProxy('2001:db9::1', ['2001:db8::/32'])).to.equal(false)
     })
 
-    it('treats ipv6 loopback as 127.0.0.1', () => {
+    it('matches ipv6 loopback peers against both 127.0.0.1 and ::1 entries', () => {
       expect(utils.isTrustedProxy('::1', ['127.0.0.1'])).to.equal(true)
+      expect(utils.isTrustedProxy('::1', ['::1'])).to.equal(true)
+      expect(utils.isTrustedProxy('::1', ['::1/128'])).to.equal(true)
+    })
+
+    it('ignores entries with an empty, non-numeric or out-of-range prefix', () => {
+      expect(utils.isTrustedProxy('203.0.113.7', ['192.0.2.10/'])).to.equal(false)
+      expect(utils.isTrustedProxy('203.0.113.7', ['10.0.0.0/33', '10.0.0.0/x', '10.0.0.0/8/1'])).to.equal(false)
+      expect(utils.isTrustedProxy('2001:db8::1', ['2001:db8::/129'])).to.equal(false)
+      expect(utils.isTrustedProxy('10.1.2.3', ['10.0.0.0/33', '10.0.0.0/8'])).to.equal(true)
     })
 
     it('rejects missing or non-IP peers and ignores invalid entries', () => {

@@ -215,25 +215,27 @@ export const toSimpleIpAddress = (ipv6: string) => {
   }
 }
 
+const ipFamily = (ip: string) => isIP(ip) === 6 ? 'ipv6' : 'ipv4'
+
 export const isTrustedProxy = (address: string | undefined, trustedProxies: readonly string[] = config.get<string[]>('server.trustedProxies')) => {
-  const ip = toSimpleIpAddress(address ?? '')
-  if (isIP(ip) === 0) {
+  const peers = [address ?? '', toSimpleIpAddress(address ?? '')].filter(ip => isIP(ip) !== 0)
+  if (peers.length === 0) {
     return false
   }
   const proxies = new BlockList()
   for (const entry of trustedProxies) {
-    const [network, prefix] = entry.split('/')
-    const family = isIP(network) === 6 ? 'ipv6' : 'ipv4'
-    if (isIP(network) === 0) {
+    const [network, prefix, ...rest] = entry.split('/')
+    if (isIP(network) === 0 || rest.length > 0) {
       continue
     }
+    const family = ipFamily(network)
     if (prefix === undefined) {
       proxies.addAddress(network, family)
-    } else {
+    } else if (/^\d{1,3}$/.test(prefix) && Number(prefix) <= (family === 'ipv6' ? 128 : 32)) {
       proxies.addSubnet(network, Number(prefix), family)
     }
   }
-  return proxies.check(ip, isIP(ip) === 6 ? 'ipv6' : 'ipv4')
+  return peers.some(ip => proxies.check(ip, ipFamily(ip)))
 }
 
 export const getErrorMessage = (error: unknown) => {
