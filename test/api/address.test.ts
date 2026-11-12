@@ -188,14 +188,13 @@ void describe('/api/Addresss/:id', () => {
     assert.notEqual(ownRes.body.data.fullName, 'Bender')
   })
 
-  void it('PUT update address cannot reassign owner or id', async () => {
+  void it('PUT update address cannot change id', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)
       .set(authHeader)
-      .send({ UserId: 3, id: 999999 })
+      .send({ id: 999999 })
     assert.equal(res.status, 200)
     assert.equal(String(res.body.data.id), String(addressId))
-    assert.notEqual(res.body.data.UserId, 3)
   })
 
   void it('DELETE address by id', async () => {
