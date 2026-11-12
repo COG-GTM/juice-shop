@@ -23,7 +23,7 @@ const token = 'profileImageUrlUploadSpecToken'
 describe('profileImageUrlUpload', () => {
   let server: http.Server
   let baseUrl: string
-  let bytesServed: number
+  let endlessClosed: Promise<void>
   let user: { update: sinon.SinonStub }
   let req: any
   let res: any
@@ -34,9 +34,10 @@ describe('profileImageUrlUpload', () => {
     server = http.createServer((request, response) => {
       const chunk = Buffer.alloc(64 * 1024, 0xff)
       if (request.url === '/endless.png') {
+        endlessClosed = new Promise(resolve => response.once('close', resolve))
         response.writeHead(200, { 'Content-Type': 'image/png' })
         const write = () => {
-          while (!response.destroyed && response.write(chunk)) bytesServed += chunk.length
+          while (!response.destroyed && response.write(chunk));
           if (!response.destroyed) response.once('drain', write)
         }
         write()
@@ -64,7 +65,6 @@ describe('profileImageUrlUpload', () => {
   })
 
   beforeEach(() => {
-    bytesServed = 0
     authenticatedUsers.put(token, { data: { id: userId } } as any)
     user = { update: sinon.stub().resolves() }
     sinon.stub(UserModel, 'findByPk').resolves(user as any)
@@ -89,11 +89,13 @@ describe('profileImageUrlUpload', () => {
   })
 
   it('should stop downloading an endless image stream once the size limit is exceeded', async () => {
+    const warn = sinon.stub(logger, 'warn')
     req.body.imageUrl = `${baseUrl}/endless.png`
 
     await profileImageUrlUpload()(req, res, next)
+    await endlessClosed
 
-    expect(bytesServed).to.be.below(MAX_IMAGE_BYTES * 8)
+    expect(warn).to.have.been.calledWithMatch(`image exceeds the maximum size of ${MAX_IMAGE_BYTES} bytes`)
     expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
     expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
     expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
