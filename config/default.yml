@@ -2,6 +2,7 @@ server:
   port: 3000
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
+  trustedProxies: [] # peers allowed to set True-Client-IP, e.g. ['10.0.0.0/8', '192.0.2.10']
 application:
   domain: juice-sh.op # for pre-loaded email users
   name: 'OWASP Juice Shop'

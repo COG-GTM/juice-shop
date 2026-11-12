@@ -29,6 +29,40 @@ describe('utils', () => {
     })
   })
 
+  describe('isTrustedProxy', () => {
+    it('trusts no peer when no proxies are configured', () => {
+      expect(utils.isTrustedProxy('127.0.0.1', [])).to.equal(false)
+      expect(utils.isTrustedProxy('::ffff:10.0.0.5', [])).to.equal(false)
+    })
+
+    it('trusts an exactly configured proxy address, also when ipv4-mapped', () => {
+      expect(utils.isTrustedProxy('192.0.2.10', ['192.0.2.10'])).to.equal(true)
+      expect(utils.isTrustedProxy('::ffff:192.0.2.10', ['192.0.2.10'])).to.equal(true)
+      expect(utils.isTrustedProxy('192.0.2.11', ['192.0.2.10'])).to.equal(false)
+    })
+
+    it('trusts peers inside a configured subnet', () => {
+      expect(utils.isTrustedProxy('10.1.2.3', ['10.0.0.0/8'])).to.equal(true)
+      expect(utils.isTrustedProxy('11.1.2.3', ['10.0.0.0/8'])).to.equal(false)
+      expect(utils.isTrustedProxy('2001:db8::1', ['2001:db8::/32'])).to.equal(true)
+      expect(utils.isTrustedProxy('2001:db9::1', ['2001:db8::/32'])).to.equal(false)
+    })
+
+    it('treats ipv6 loopback as 127.0.0.1', () => {
+      expect(utils.isTrustedProxy('::1', ['127.0.0.1'])).to.equal(true)
+    })
+
+    it('rejects missing or non-IP peers and ignores invalid entries', () => {
+      expect(utils.isTrustedProxy(undefined, ['10.0.0.0/8'])).to.equal(false)
+      expect(utils.isTrustedProxy('<b>x</b>', ['<b>x</b>'])).to.equal(false)
+      expect(utils.isTrustedProxy('10.0.0.1', ['not-an-ip', '10.0.0.1'])).to.equal(true)
+    })
+
+    it('reads trusted proxies from server.trustedProxies by default', () => {
+      expect(utils.isTrustedProxy('192.0.2.10')).to.equal(false)
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')

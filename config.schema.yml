@@ -5,6 +5,8 @@ server:
     type: string
   baseUrl:
     type: string
+  trustedProxies:
+    - type: string
 application:
   domain:
     type: string
