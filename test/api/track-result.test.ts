@@ -63,9 +63,11 @@ void describe('/rest/track-order/:id', () => {
       .get('/rest/track-order/%3Ciframe%20src%3D%22javascript%3Aalert(%60xss%60)%22%3E')
     assert.equal(res.status, 200)
     assert.equal(res.body.data.length, 1)
-    assert.deepEqual(res.body.data[0], { orderId: '<iframe src="javascript:alert(`xss`)">' })
     if (utils.isChallengeEnabled(challenges.reflectedXssChallenge)) {
+      assert.deepEqual(res.body.data[0], { orderId: '<iframe src="javascript:alert(`xss`)">' })
       assert.equal(challenges.reflectedXssChallenge.solved, true)
+    } else {
+      assert.deepEqual(res.body.data[0], { orderId: 'iframesrcjavascriptalertxss' })
     }
   })
 })
