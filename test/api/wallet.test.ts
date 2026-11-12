@@ -88,6 +88,24 @@ void describe('/api/Wallets', () => {
     assert.equal(after, before + 10)
   })
 
+  void it('PUT charge wallet accepts the minimum and maximum amounts', async () => {
+    for (const amount of [10, 1000]) {
+      const before = await getBalance()
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance: amount, paymentId: 2 })
+      assert.equal(res.status, 200)
+      assert.equal(await getBalance(), before + amount)
+    }
+  })
+
+  void it('PUT charge wallet just outside the amount limits is rejected', async () => {
+    for (const balance of [9, 1001]) {
+      await assertTopUpRejected({ balance, paymentId: 2 }, 400)
+    }
+  })
+
   void it('PUT charge wallet with negative amount is rejected', async () => {
     await assertTopUpRejected({ balance: -500, paymentId: 2 }, 400)
   })
