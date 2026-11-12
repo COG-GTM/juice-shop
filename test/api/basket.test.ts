@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { QuantityModel } from '../../models/quantity'
+import * as db from '../../data/mongodb'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -220,5 +222,64 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 500)
+  })
+})
+
+void describe('/rest/basket/:id/checkout rollback', { concurrency: false }, () => {
+  let adminHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    adminHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const [card] = (await request(app).get('/api/Cards').set(adminHeader)).body.data
+    const topUp = await request(app).put('/rest/wallet/balance').set(adminHeader).send({ paymentId: card.id, balance: 1000 })
+    assert.equal(topUp.status, 200)
+    for (const ProductId of [1, 2]) {
+      const item = await request(app).post('/api/BasketItems').set(adminHeader).send({ BasketId: 1, ProductId, quantity: 1 })
+      assert.equal(item.status, 200)
+    }
+  })
+
+  const checkoutState = async () => {
+    const balance = (await request(app).get('/rest/wallet/balance').set(adminHeader)).body.data
+    const quantities = (await request(app).get('/api/Quantitys').set(adminHeader)).body.data
+    const stock = Object.fromEntries(quantities.map((row: { ProductId: number, quantity: number }) => [row.ProductId, row.quantity]))
+    const basketItems = (await request(app).get('/rest/basket/1').set(adminHeader)).body.data.Products.length
+    return { balance, stock: [stock[1], stock[2]], basketItems }
+  }
+
+  const walletCheckout = async () => await request(app)
+    .post('/rest/basket/1/checkout')
+    .set(adminHeader)
+    .send({ orderDetails: { paymentId: 'wallet' } })
+
+  void it('POST checkout restores wallet and stock when a stock reduction fails', async (t) => {
+    const before = await checkoutState()
+
+    const decrement = QuantityModel.decrement.bind(QuantityModel)
+    const decrementMock = t.mock.method(QuantityModel, 'decrement', async (...args: Parameters<typeof QuantityModel.decrement>) => {
+      if (decrementMock.mock.callCount() === 1) throw new Error('stock update failed')
+      return await decrement(...args)
+    })
+    const res = await walletCheckout()
+    decrementMock.mock.restore()
+
+    assert.equal(decrementMock.mock.callCount(), 2)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('stock update failed'))
+    assert.deepEqual(await checkoutState(), before)
+  })
+
+  void it('POST checkout restores wallet and stock when storing the order fails', async (t) => {
+    const before = await checkoutState()
+
+    const insertMock = t.mock.method(db.ordersCollection, 'insert', async () => { throw new Error('order insert failed') })
+    const res = await walletCheckout()
+    insertMock.mock.restore()
+
+    assert.equal(insertMock.mock.callCount(), 1)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('order insert failed'))
+    assert.deepEqual(await checkoutState(), before)
   })
 })
