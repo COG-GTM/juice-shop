@@ -21,6 +21,22 @@ before(async () => {
   authHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
+async function getBalance (): Promise<number> {
+  const res = await request(app).get('/rest/wallet/balance').set(authHeader)
+  assert.equal(res.status, 200)
+  return res.body.data
+}
+
+async function assertTopUpRejected (body: Record<string, unknown>, status: number) {
+  const before = await getBalance()
+  const res = await request(app)
+    .put('/rest/wallet/balance')
+    .set(authHeader)
+    .send(body)
+  assert.equal(res.status, status)
+  assert.equal(await getBalance(), before)
+}
+
 void describe('/api/Wallets', () => {
   void it('GET wallet is forbidden via public API', async () => {
     const res = await request(app)
@@ -60,66 +76,37 @@ void describe('/api/Wallets', () => {
   })
 
   void it('PUT charge wallet with negative amount is rejected', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: -500, paymentId: 2 })
-    assert.equal(res.status, 400)
+    await assertTopUpRejected({ balance: -500, paymentId: 2 }, 400)
+  })
+
+  void it('PUT charge wallet with zero amount is rejected', async () => {
+    await assertTopUpRejected({ balance: 0, paymentId: 2 }, 400)
   })
 
   void it('PUT charge wallet with amount above maximum is rejected', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: 999999, paymentId: 2 })
-    assert.equal(res.status, 400)
-
-    const balanceRes = await request(app)
-      .get('/rest/wallet/balance')
-      .set(authHeader)
-    assert.equal(balanceRes.body.data, 210)
+    await assertTopUpRejected({ balance: 999999, paymentId: 2 }, 400)
   })
 
   void it('PUT charge wallet with non-numeric amount is rejected', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: 'lots', paymentId: 2 })
-    assert.equal(res.status, 400)
+    await assertTopUpRejected({ balance: 'lots', paymentId: 2 }, 400)
   })
 
   void it('PUT charge wallet with non-integer amount is rejected', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: 10.5, paymentId: 2 })
-    assert.equal(res.status, 400)
+    await assertTopUpRejected({ balance: 10.5, paymentId: 2 }, 400)
   })
 
   void it('PUT charge wallet from foreign credit card is forbidden', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: 10, paymentId: 1 })
-    assert.equal(res.status, 402)
+    await assertTopUpRejected({ balance: 10, paymentId: 1 }, 402)
   })
 
   void it('PUT charge wallet with malformed card id is forbidden', async () => {
     for (const paymentId of [[2], true, '2abc']) {
-      const res = await request(app)
-        .put('/rest/wallet/balance')
-        .set(authHeader)
-        .send({ balance: 10, paymentId })
-      assert.equal(res.status, 402)
+      await assertTopUpRejected({ balance: 10, paymentId }, 402)
     }
   })
 
   void it('PUT charge wallet without credit card is forbidden', async () => {
-    const res = await request(app)
-      .put('/rest/wallet/balance')
-      .set(authHeader)
-      .send({ balance: 10 })
-    assert.equal(res.status, 402)
+    await assertTopUpRejected({ balance: 10 }, 402)
   })
 
   void it('PUT charge wallet from expired credit card is rejected', async () => {
@@ -130,16 +117,7 @@ void describe('/api/Wallets', () => {
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     try {
       await CardModel.update({ expMonth: lastMonth.getMonth() + 1, expYear: lastMonth.getFullYear() }, { where: { id: 2 }, validate: false })
-      const balanceBefore = await request(app).get('/rest/wallet/balance').set(authHeader)
-
-      const res = await request(app)
-        .put('/rest/wallet/balance')
-        .set(authHeader)
-        .send({ balance: 10, paymentId: 2 })
-      assert.equal(res.status, 402)
-
-      const balanceAfter = await request(app).get('/rest/wallet/balance').set(authHeader)
-      assert.equal(balanceAfter.body.data, balanceBefore.body.data)
+      await assertTopUpRejected({ balance: 10, paymentId: 2 }, 402)
     } finally {
       await CardModel.update({ expMonth, expYear }, { where: { id: 2 } })
     }
