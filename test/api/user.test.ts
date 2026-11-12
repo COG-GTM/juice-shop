@@ -233,6 +233,23 @@ void describe('/api/Users/:id', () => {
   })
 })
 
+void describe('session cookie authentication', () => {
+  void it('GET protected basket with only the HttpOnly session cookie', async () => {
+    const { token, bid } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .get(`/rest/basket/${bid}`)
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.id, bid)
+  })
+
+  void it('GET protected basket without session cookie or bearer header is denied', async () => {
+    const { bid } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app).get(`/rest/basket/${bid}`)
+    assert.equal(res.status, 401)
+  })
+})
+
 void describe('/rest/user/whoami', () => {
   void it('GET own user id and email on who-am-i request', async () => {
     const { token } = await login(app, {
