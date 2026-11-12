@@ -11,8 +11,12 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
+import * as security from '../../lib/insecurity'
 
 let app: Express
+
+const adminAuth = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })}` }
+const customerAuth = { Authorization: `Bearer ${security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })}` }
 
 let blueprint: string
 
@@ -132,9 +136,23 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET directory listing without authentication fails with a 401 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET directory listing as non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys')
+      .set(customerAuth)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET serves a directory listing to admins', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys')
+      .set(adminAuth)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
@@ -143,20 +161,73 @@ void describe('/encryptionkeys', () => {
   void it('GET a non-existing file in will return a 404 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/doesnotexist.md')
+      .set(adminAuth)
     assert.equal(res.status, 404)
   })
 
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET the Premium Content AES key without authentication fails with a 401 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/premium.key')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET the Premium Content AES key as non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/premium.key')
+      .set(customerAuth)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET the Premium Content AES key as admin', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/premium.key')
+      .set(adminAuth)
     assert.equal(res.status, 200)
   })
 
   void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
     const res = await request(app)
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
+      .set(adminAuth)
     assert.equal(res.status, 403)
     assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+  })
+})
+
+void describe('/support/logs', () => {
+  void it('GET directory listing without authentication fails with a 401 error', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET directory listing as non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(customerAuth)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET directory listing as admin succeeds', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set(adminAuth)
+    assert.equal(res.status, 200)
+    assert.match(res.headers['content-type'], /text\/html/)
+    assert.ok(res.text.includes('access.log'))
+  })
+
+  void it('GET access log file without authentication fails with a 401 error', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET access log file as non-admin user fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set(customerAuth)
+    assert.equal(res.status, 403)
   })
 })
 
@@ -201,9 +272,10 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET folder containing access log files for "Access Log" challenge as admin', async () => {
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set(adminAuth)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
   })
