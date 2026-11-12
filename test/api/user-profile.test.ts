@@ -86,11 +86,17 @@ void describe('/profile', () => {
       .send({ username: '#{7*7}' })
       .redirects(0)
 
-    const res = await request(app)
-      .get('/profile')
-      .set(authHeader)
+    const originalDisabledEnv = challenges.usernameXssChallenge.disabledEnv
+    challenges.usernameXssChallenge.disabledEnv = null
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
 
-    assert.equal(res.status, 200)
-    assert.ok(res.text.includes('>49</p>'))
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('>49</p>'))
+    } finally {
+      challenges.usernameXssChallenge.disabledEnv = originalDisabledEnv
+    }
   })
 })
