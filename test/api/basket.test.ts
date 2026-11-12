@@ -202,6 +202,28 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(stockAfter?.quantity, stockBefore?.quantity)
   })
 
+  void it('POST placing an order deducts the ordered quantity from stock', async () => {
+    const credentials = { email: 'stock.customer@juice-sh.op', password: 'deduct-the-stock' }
+    await request(app).post('/api/Users').set({ 'content-type': 'application/json' }).send(credentials).expect(201)
+    const { token, bid } = await login(app, credentials)
+    const customerHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(customerHeader)
+      .send({ BasketId: bid, ProductId: 1, quantity: 2 })
+    assert.equal(itemRes.status, 200)
+
+    const res = await request(app).post(`/rest/basket/${bid}/checkout`).set(customerHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
+
+    const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
+    assert.equal(stockAfter?.quantity, (stockBefore?.quantity ?? 0) - 2)
+  })
+
   void it('POST paying an order from a wallet with insufficient balance is rejected and restores the deducted stock', async () => {
     const credentials = { email: 'broke.customer@juice-sh.op', password: 'insufficient-funds' }
     await request(app).post('/api/Users').set({ 'content-type': 'application/json' }).send(credentials).expect(201)
