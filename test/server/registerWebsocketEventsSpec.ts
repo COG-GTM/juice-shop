@@ -74,14 +74,21 @@ describe('registerWebsocketEvents', () => {
     expect(challenges.localXssChallenge.solved).to.equal(false)
   })
 
-  it('stays responsive after oversized verifySvgInjectionChallenge and verifyLocalXssChallenge payloads', async () => {
-    const long = 'a'.repeat(900 * 1024)
+  it('stays responsive after long verifySvgInjectionChallenge and verifyLocalXssChallenge payloads', async () => {
+    const long = '../../..'.repeat(10 * 1024)
     const started = Date.now()
     socket.emit('verifySvgInjectionChallenge', long)
     socket.emit('verifyLocalXssChallenge', long)
     expect(await roundTrip()).to.equal('ok')
     expect(Date.now() - started).to.be.below(1000)
     expect(socket.connected).to.equal(true)
+  })
+
+  it('drops connections sending messages above maxHttpBufferSize and keeps serving others', async () => {
+    const disconnected = new Promise<string>((resolve) => socket.on('disconnect', resolve))
+    socket.emit('verifySvgInjectionChallenge', 'a'.repeat(900 * 1024))
+    expect(await disconnected).to.be.a('string')
+    expect(await roundTrip()).to.equal('ok')
   })
 
   it('ignores oversized payloads even when they contain a solving string', async () => {
