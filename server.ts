@@ -390,8 +390,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
+  /* SecurityAnswers: Only created server-side during registration. */
   app.get('/api/SecurityAnswers', security.denyAll())
+  app.post('/api/SecurityAnswers', security.denyAll())
   app.use('/api/SecurityAnswers/:id', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
@@ -416,6 +417,19 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  app.post('/api/Users', utils.asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const { securityQuestion, securityAnswer } = req.body
+    if (securityQuestion == null && securityAnswer == null) {
+      next()
+      return
+    }
+    const securityQuestionId = Number(securityQuestion?.id)
+    if (!Number.isInteger(securityQuestionId) || typeof securityAnswer !== 'string' || securityAnswer.length === 0 || await SecurityQuestionModel.findByPk(securityQuestionId) == null) {
+      res.status(400).json({ status: 'error', message: 'Invalid security question or answer' })
+      return
+    }
+    next()
+  }))
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
@@ -515,6 +529,22 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      resource.create.send.before(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const securityQuestionId = Number(req.body.securityQuestion?.id)
+        const securityAnswer = req.body.securityAnswer
+        if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          try {
+            await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+          } catch (err: unknown) {
+            await UserModel.destroy({ where: { id: context.instance.id }, force: true })
+            throw new finale.Errors.BadRequestError('Unable to save security answer', undefined, err)
+          }
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
