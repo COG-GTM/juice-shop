@@ -12,7 +12,7 @@ import * as utils from '../lib/utils'
 import logger from '../lib/logger'
 import { fetchProfileImage } from '../lib/profileImageFetch'
 
-export function profileImageUrlUpload () {
+export function profileImageUrlUpload (fetchImage = fetchProfileImage) {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
       const url = req.body.imageUrl
@@ -20,7 +20,7 @@ export function profileImageUrlUpload () {
       if (loggedInUser) {
         let image
         try {
-          image = await fetchProfileImage(url)
+          image = await fetchImage(url)
         } catch (error) {
           logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error).replace(/[\r\n]+/g, ' ')}; keeping current profile image`)
         }
