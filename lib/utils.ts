@@ -138,7 +138,7 @@ export const jwtFrom = ({ headers }: { headers: any }) => {
   return undefined
 }
 
-const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password', 'token', 'access_token'])
+const sensitiveQueryParams = new Set(['current', 'new', 'repeat', 'password', 'token', 'access_token', 'email'])
 
 const queryParamKey = (param: string) => {
   const separator = param.indexOf('=')
