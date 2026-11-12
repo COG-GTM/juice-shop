@@ -106,7 +106,9 @@ void describe('/rest/user/change-password', () => {
       .expect(201)
 
     const { token: tokenA } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    await new Promise((resolve) => setTimeout(resolve, 1100))
     const { token: tokenB } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    assert.notEqual(tokenA, tokenB)
 
     await request(app)
       .post('/rest/user/change-password')
