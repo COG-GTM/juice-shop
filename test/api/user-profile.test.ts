@@ -155,6 +155,6 @@ void describe('/profile', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    assert.equal(res.headers['content-security-policy'], "img-src 'self' https:; script-src 'self' 'unsafe-eval'")
+    assert.equal(res.headers['content-security-policy'], "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'")
   })
 })
