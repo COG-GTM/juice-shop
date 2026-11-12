@@ -55,7 +55,11 @@ void describe('/rest/track-order/:id', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.data.length, 1)
     assert.deepEqual(Object.keys(res.body.data[0]), ['orderId'])
-    assert.notEqual(res.body.data[0].orderId, existingOrder.orderId)
+    if (utils.isChallengeEnabled(challenges.reflectedXssChallenge)) {
+      assert.equal(res.body.data[0].orderId, existingOrder.orderId + '!')
+    } else {
+      assert.equal(res.body.data[0].orderId, existingOrder.orderId)
+    }
   })
 
   void it('GET tracking results reflects the orderId into the not-found placeholder for the Reflected XSS challenge', async () => {
