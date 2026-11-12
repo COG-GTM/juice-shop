@@ -13,6 +13,7 @@ import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { challenges } from '../../data/datacache'
 import * as db from '../../data/mongodb'
+import * as utils from '../../lib/utils'
 
 const MOCK_LLM_PORT = 43210
 
@@ -405,9 +406,13 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
   void it('re-delivers the same 10% coupon for an owned delivered order within the month', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await orderOf(token)
+    await db.ordersCollection.update({ orderId }, { $set: { couponIssued: false }, $unset: { couponMonth: true } })
     const first = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
     const couponCode = first.couponCode ?? first.value?.couponCode
     assert.equal(security.discountFromCoupon(couponCode), 10)
+    const order = await db.ordersCollection.findOne({ orderId })
+    assert.equal(order.couponIssued, true)
+    assert.equal(order.couponMonth, utils.toMMMYY(new Date()))
     const second = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
     assert.equal(second.couponCode ?? second.value?.couponCode, couponCode)
   })
