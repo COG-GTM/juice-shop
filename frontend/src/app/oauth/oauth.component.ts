@@ -9,6 +9,7 @@ import { CookieService } from 'ngy-cookie'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
+import { switchMap, throwError } from 'rxjs'
 
 @Component({
   selector: 'app-oauth',
@@ -23,9 +24,25 @@ export class OAuthComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
   private readonly ngZone = inject(NgZone)
 
-
   ngOnInit (): void {
-    this.userService.oauthLogin(this.parseRedirectUrlParams().access_token).subscribe({
+    const expectedState = sessionStorage.getItem('oauthState')
+    const expectedClientId = sessionStorage.getItem('oauthClientId')
+    sessionStorage.removeItem('oauthState')
+    let params: any
+    try {
+      params = this.parseRedirectUrlParams()
+    } catch {
+      params = {}
+    }
+    if (!expectedState || params.state !== expectedState || !params.access_token) {
+      this.ngZone.run(async () => await this.router.navigate(['/login']))
+      return
+    }
+    this.userService.oauthTokenInfo(params.access_token).pipe(
+      switchMap((tokenInfo: any) => expectedClientId && (tokenInfo?.aud ?? tokenInfo?.audience) === expectedClientId
+        ? this.userService.oauthLogin(params.access_token)
+        : throwError(() => new Error('OAuth access token was not issued to this client')))
+    ).subscribe({
       next: (profile: any) => {
         const password = btoa(profile.email.split('').reverse().join(''))
         this.userService.save({ email: profile.email, password, passwordRepeat: password }).subscribe({
@@ -73,7 +90,7 @@ export class OAuthComponent implements OnInit {
     const params: any = {}
     for (const part of splitted) {
       const [key, value] = part.split('=')
-      params[key] = value
+      params[key] = value === undefined ? value : decodeURIComponent(value)
     }
     return params
   }
