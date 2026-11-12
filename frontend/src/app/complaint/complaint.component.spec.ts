@@ -149,6 +149,9 @@ describe('ComplaintComponent', () => {
         expect(component.uploader.queue.length).toBe(0)
         expect(component.uploadRejected).toBe(true)
         expect(component.fileUploadError).toBeUndefined()
+        component.messageControl.setValue('Text-only complaint')
+        fixture.detectChanges()
+        expect(fixture.nativeElement.querySelector('#submitButton').disabled).toBe(false)
     })
 
     it('should clear the upload rejection after a text-only complaint is saved', () => {
