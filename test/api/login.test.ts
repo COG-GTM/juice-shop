@@ -289,14 +289,14 @@ void describe('/rest/saveLoginIp', () => {
     for (let i = 0; i < 10; i++) {
       await request(app)
         .post('/rest/user/login')
-        .set({ 'content-type': 'application/json' })
+        .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.' + i })
         .send({ email: 'brute@force.me', password: 'wrong' + i })
         .expect(401)
     }
 
     await request(app)
       .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
+      .set({ 'content-type': 'application/json', 'X-Forwarded-For': '10.0.0.99' })
       .send({ email: 'brute@force.me', password: 'c0rrectH0rse' })
       .expect(429)
 
