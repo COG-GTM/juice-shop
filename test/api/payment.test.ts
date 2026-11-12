@@ -43,6 +43,17 @@ void describe('/api/Cards', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET all cards is rejected for a same-user cookie token after logout', async () => {
+    const { token: bearer } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const { token: cookie } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + cookie }).expect(200)
+    await request(app).post('/rest/user/logout').set({ Authorization: 'Bearer ' + bearer, Cookie: 'token=' + cookie }).expect(204)
+
+    const res = await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + cookie })
+    assert.equal(res.status, 401)
+  })
+
   void it('POST new card is forbidden via public API', async () => {
     const res = await request(app).post('/api/Cards').send({
       fullName: 'Jim',
