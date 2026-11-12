@@ -309,7 +309,7 @@ void describe('/rest/deluxe-membership', () => {
     for (let i = 0; i < 50 && await WalletModel.count({ where: { UserId: user.id } }) === 0; i++) {
       await new Promise(resolve => setTimeout(resolve, 20))
     }
-    await WalletModel.destroy({ where: { UserId: user.id } })
+    assert.equal(await WalletModel.destroy({ where: { UserId: user.id } }), 1)
 
     const { token } = await login(app, { email, password })
     const res = await request(app)
@@ -321,6 +321,7 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Insuffienct funds in Wallet')
+    assert.equal(await WalletModel.count({ where: { UserId: user.id } }), 0)
     await user.reload()
     assert.equal(user.role, 'customer')
   })
