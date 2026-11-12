@@ -20,6 +20,9 @@ export function likeProductReviews () {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
 
     try {
       const review = await db.reviewsCollection.findOne({ _id: id })
