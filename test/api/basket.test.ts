@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { CardModel } from '../../models/card'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -196,6 +197,18 @@ void describe('/rest/basket/:id/checkout', () => {
         const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId, addressId } })
         assert.equal(res.status, 402)
       }
+      assert.equal(await walletBalance(), balanceBefore)
+    })
+
+    void it('POST placing an order with an expired own card is rejected', async () => {
+      const { paymentId, addressId } = await ownOrderDetails()
+      const ownCard = await CardModel.findByPk(paymentId)
+      assert.ok(ownCard)
+      const expiredCard = await CardModel.create({ UserId: ownCard.UserId, fullName: ownCard.fullName, cardNum: ownCard.cardNum, expMonth: 1, expYear: 2001 }, { validate: false })
+      const balanceBefore = await walletBalance()
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: { paymentId: expiredCard.id, addressId } })
+      assert.equal(res.status, 402)
+      assert.equal(res.body.error.message, 'Payment not accepted.')
       assert.equal(await walletBalance(), balanceBefore)
     })
 
