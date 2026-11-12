@@ -28,8 +28,10 @@ describe('videoHandler', () => {
       expect(parseByteRange('bytes=-9000', 5000)).to.deep.equal({ start: 0, end: 4999 })
     })
 
-    it('should clamp the end of a range to the file size', () => {
+    it('should clamp oversized ends and suffixes to the file size as per RFC 9110', () => {
       expect(parseByteRange('bytes=4000-9000', 5000)).to.deep.equal({ start: 4000, end: 4999 })
+      expect(parseByteRange('bytes=0-99999999999999999999', 5000)).to.deep.equal({ start: 0, end: 4999 })
+      expect(parseByteRange('bytes=-99999999999999999999', 5000)).to.deep.equal({ start: 0, end: 4999 })
     })
 
     it('should reject malformed or unsatisfiable ranges', () => {
