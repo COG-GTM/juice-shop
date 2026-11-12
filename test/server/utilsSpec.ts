@@ -249,5 +249,10 @@ describe('utils', () => {
     it('redacts token query parameters', () => {
       expect(utils.redactSensitiveQueryParams('/x?token=abc&access_token=def')).to.equal('/x?token=[REDACTED]&access_token=[REDACTED]')
     })
+
+    it('redacts email query parameters of the security-question lookup', () => {
+      expect(utils.redactSensitiveQueryParams('/rest/user/security-question?email=alice%40juice-sh.op'))
+        .to.equal('/rest/user/security-question?email=[REDACTED]')
+    })
   })
 })
