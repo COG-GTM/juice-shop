@@ -8,6 +8,8 @@ import chai from 'chai'
 import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
 import { checkCorrectFix } from '../../routes/vulnCodeFixes'
+import { checkVulnLines } from '../../routes/vulnCodeSnippet'
+import { getCodeChallenges } from '../../lib/codingChallenges'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -22,8 +24,9 @@ describe('vulnCodeFixes', () => {
     fs.writeFileSync(files[2], 'fixes: { find: !!js/function \'function(){ global.unsafeYamlExecuted = true; return undefined }\' }\nhints: { length: !!js/function \'function(){ global.unsafeYamlExecuted = true; return 0 }\' }\n')
   })
 
-  after(() => {
+  after(async () => {
     files.forEach(file => { fs.rmSync(file, { force: true }) })
+    ;(await getCodeChallenges()).delete(key)
     delete (global as any).unsafeYamlExecuted
   })
 
@@ -35,6 +38,24 @@ describe('vulnCodeFixes', () => {
     let error: any
     try {
       await checkCorrectFix()(req, res, next)
+    } catch (err) {
+      error = err
+    }
+
+    expect(error?.name).to.equal('YAMLException')
+    expect(error?.message).to.contain('!<tag:yaml.org,2002:js/function>')
+    expect((global as any).unsafeYamlExecuted).to.equal(undefined)
+  })
+
+  it('should refuse to deserialize JavaScript functions from coding challenge hints', async () => {
+    ;(await getCodeChallenges()).set(key, { snippet: '', vulnLines: [1], neutralLines: [] })
+    const req: any = { body: { key, selectedLines: [2] } }
+    const res: any = { __: sinon.stub(), status: sinon.stub().returnsThis(), json: sinon.stub() }
+    const next: any = sinon.stub()
+
+    let error: any
+    try {
+      await checkVulnLines()(req, res, next)
     } catch (err) {
       error = err
     }
