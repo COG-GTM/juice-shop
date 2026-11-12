@@ -452,6 +452,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+  app.post('/api/SecurityAnswers', security.isAuthorized(), security.appendUserId())
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',
@@ -515,6 +516,27 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    if (name === 'User') {
+      resource.create.write.before(async (req: Request, res: Response, context: { continue: any, error: any }) => {
+        const securityAnswer = req.body.securityAnswer
+        if (typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          const securityQuestionId = Number(req.body.securityQuestion?.id)
+          if (!Number.isInteger(securityQuestionId) || (await SecurityQuestionModel.findByPk(securityQuestionId)) == null) {
+            return context.error(400, 'Invalid security question')
+          }
+        }
+        return context.continue
+      })
+      resource.create.send.before(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const securityQuestionId = Number(req.body.securityQuestion?.id)
+        const securityAnswer = req.body.securityAnswer
+        if (Number.isInteger(securityQuestionId) && typeof securityAnswer === 'string' && securityAnswer.length > 0) {
+          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityQuestionId, answer: securityAnswer })
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
