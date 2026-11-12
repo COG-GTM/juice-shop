@@ -92,10 +92,10 @@ export class SidenavComponent implements OnInit {
 
   logout () {
     const token = localStorage.getItem('token')
-    const endSession = () => { this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } }) }
+    const removeCookie = () => { this.cookieService.remove('token') }
+    const endSession = () => { this.userService.logout(token).subscribe({ next: removeCookie, error: (err) => { console.log(err); removeCookie() } }) }
     this.userService.saveLastLoginIp().subscribe({ next: () => { endSession() }, error: (err) => { console.log(err); endSession() } })
     localStorage.removeItem('token')
-    this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
@@ -111,8 +111,6 @@ export class SidenavComponent implements OnInit {
     window.location.replace(environment.hostServer + '/dataerasure')
   }
 
-
-  noop () { }
 
   getScoreBoardStatus () {
     this.challengeService.find({ name: 'Score Board' }).subscribe({
