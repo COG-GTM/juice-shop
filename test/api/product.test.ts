@@ -32,6 +32,14 @@ async function accountingHeader () {
   return { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 }
 
+async function customerHeader () {
+  const { token } = await login(app, {
+    email: 'jim@' + config.get<string>('application.domain'),
+    password: 'ncc-1701'
+  })
+  return { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+}
+
 void describe('/api/Products', () => {
   void it('GET all products', async () => {
     const res = await request(app)
@@ -62,9 +70,10 @@ void describe('/api/Products', () => {
   })
 
   void it('POST new product is forbidden for non-accounting users', async () => {
+    const headers = await customerHeader()
     const res = await request(app)
       .post('/api/Products')
-      .set(authHeader)
+      .set(headers)
       .send({
         name: 'Dirt Juice (1000ml)',
         description: 'Made from ugly dirt.',
@@ -131,9 +140,10 @@ void describe('/api/Products/:id', () => {
   })
 
   void it('PUT update existing product is forbidden for non-accounting users', async () => {
+    const headers = await customerHeader()
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
-      .set(authHeader)
+      .set(headers)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
