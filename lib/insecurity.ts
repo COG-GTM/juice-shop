@@ -38,7 +38,7 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
-  revokedTokens: Record<string, number>
+  revokedTokens: Map<string, number>
   remove: (token: string) => void
   revoke: (token?: string) => void
   revokeAllFor: (userId: number, ...exceptTokens: Array<string | undefined>) => void
@@ -130,7 +130,7 @@ export const sanitizeSecure = (html: string): string => {
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
-  revokedTokens: {},
+  revokedTokens: new Map<string, number>(),
   put: function (token: string, user: ResponseWithUser) {
     if (this.isRevoked(token) || isExpired(token)) return
     this.evictExpired()
@@ -172,12 +172,12 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     if (!token) return
     const key = utils.unquote(token)
     const now = nowInSeconds()
-    for (const [revoked, until] of Object.entries(this.revokedTokens)) {
-      if (until <= now) delete this.revokedTokens[revoked]
+    for (const [revoked, until] of this.revokedTokens) {
+      if (until <= now) this.revokedTokens.delete(revoked)
     }
     const exp = expiryOf(key)
     if (exp !== undefined && exp > now && hasValidSignature(key)) {
-      this.revokedTokens[key] = exp
+      this.revokedTokens.set(key, exp)
     }
     this.remove(key)
   },
@@ -192,7 +192,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   isRevoked: function (token?: string) {
     if (!token) return false
     const key = utils.unquote(token)
-    return Object.prototype.hasOwnProperty.call(this.revokedTokens, key) && this.revokedTokens[key] > nowInSeconds()
+    return (this.revokedTokens.get(key) ?? 0) > nowInSeconds()
   },
   evictExpired: function () {
     const now = nowInSeconds()
@@ -201,8 +201,8 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     for (const token of Object.keys(this.tokenMap)) {
       if (isExpired(token)) this.remove(token)
     }
-    for (const [token, until] of Object.entries(this.revokedTokens)) {
-      if (until <= now) delete this.revokedTokens[token]
+    for (const [token, until] of this.revokedTokens) {
+      if (until <= now) this.revokedTokens.delete(token)
     }
   }
 }
