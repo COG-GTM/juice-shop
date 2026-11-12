@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs/promises'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -41,6 +42,19 @@ describe('fileServer', () => {
     await servePublicFiles()(req, res, next)
 
     expect(res.sendFile).to.have.been.calledWith('incident-support.kdbx', sinon.match({ root: sinon.match(/ftp$/) }))
+  })
+
+  it('should serve PDF files from folder /ftp', async () => {
+    const lstat = sinon.stub(fs, 'lstat').resolves({ isFile: () => true } as any)
+    req.params.file = 'order_1234.pdf'
+
+    try {
+      await servePublicFiles()(req, res, next)
+    } finally {
+      lstat.restore()
+    }
+
+    expect(res.sendFile).to.have.been.calledWith('order_1234.pdf', sinon.match({ root: sinon.match(/ftp$/) }))
   })
 
   it('should respond 404 for allowlisted file types that do not exist in /ftp', async () => {
