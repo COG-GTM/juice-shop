@@ -38,22 +38,18 @@ void describe('/promotion', () => {
     assert.ok(res.text.includes('<script id="subtitle" type="application/json" data-label="English" data-lang="en">'))
   })
 
-  void it('GET promotion video page does not let subtitle content break out of its <script>', async () => {
-    const subtitlesFile = 'frontend/dist/frontend/assets/public/videos/owasp_promo.vtt'
-    const original = fs.readFileSync(subtitlesFile, 'utf8')
-    const payload = '</script><script>alert(`xss`)</script>'
-    try {
-      fs.writeFileSync(subtitlesFile, original + '\n' + payload)
-      const res = await request(app)
-        .get('/promotion')
-      assert.equal(res.status, 200)
-      assert.ok(!res.text.includes(payload))
-      const match = res.text.match(/<script id="subtitle"[^>]*>([\s\S]*?)<\/script>/)
-      assert.ok(match)
-      assert.equal(JSON.parse(match[1]), original + '\n' + payload)
-    } finally {
-      fs.writeFileSync(subtitlesFile, original)
-    }
+  void it('GET promotion video page does not let subtitle content break out of its <script>', async (t) => {
+    const subtitles = 'WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello\n</script><script>alert(`xss`)</script>'
+    const readFileSync = fs.readFileSync
+    t.mock.method(fs, 'readFileSync', (file: fs.PathOrFileDescriptor, ...args: any[]) =>
+      String(file).endsWith('owasp_promo.vtt') ? subtitles : readFileSync(file, ...args))
+    const res = await request(app)
+      .get('/promotion')
+    assert.equal(res.status, 200)
+    assert.ok(!res.text.includes('</script><script>alert(`xss`)</script>'))
+    const match = res.text.match(/<script id="subtitle"[^>]*>([\s\S]*?)<\/script>/)
+    assert.ok(match)
+    assert.equal(JSON.parse(match[1]), subtitles)
   })
 })
 
