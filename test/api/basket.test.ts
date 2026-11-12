@@ -10,8 +10,6 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
-import z85 from 'z85'
-import * as utils from '../../lib/utils'
 import { BasketModel } from '../../models/basket'
 import { BasketItemModel } from '../../models/basketitem'
 import { QuantityModel } from '../../models/quantity'
@@ -23,7 +21,7 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
-const overDiscountCoupon = z85.encode(utils.toMMMYY(new Date()) + '-150-xx')
+const overDiscountCoupon = security.generateCoupon(150000)
 
 before(
   async () => {
@@ -178,7 +176,7 @@ void describe('/rest/basket/:id/checkout', () => {
       .put('/rest/basket/2/coupon/' + encodeURIComponent(overDiscountCoupon))
       .set(authHeader)
     assert.equal(couponRes.status, 200)
-    assert.equal(couponRes.body.discount, 150)
+    assert.equal(couponRes.body.discount, 150000)
 
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
