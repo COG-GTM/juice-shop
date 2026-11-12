@@ -58,6 +58,13 @@ void describe('/rest/order-confirmation/:id', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET order confirmation PDF with RS256 token carrying a forged signature is not possible', async () => {
+    const [header, payload, signature] = jimToken.split('.')
+    const forgedPayload = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(payload, 'base64url').toString()), iat: 0 })).toString('base64url')
+    const res = await request(app).get('/rest/order-confirmation/' + orderId).set('Authorization', `Bearer ${header}.${forgedPayload}.${signature}`)
+    assert.equal(res.status, 401)
+  })
+
   void it('GET order confirmation PDF with malformed order id is rejected', async () => {
     const res = await request(app).get('/rest/order-confirmation/..%2F..%2Fpackage.json').set('Authorization', 'Bearer ' + jimToken)
     assert.equal(res.status, 400)
