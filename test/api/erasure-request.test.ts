@@ -125,6 +125,7 @@ void describe('/dataerasure', () => {
         .set({ Cookie: 'token=' + token })
         .type('form')
         .send({ email: 'x', securityAnswer: 'x', layout })
+        .timeout({ response: 5000, deadline: 10000 })
 
       assert.equal(res.status, 200)
       assert.ok(res.text.includes('Sorry to see you leave!'))
