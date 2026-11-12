@@ -516,6 +516,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
 
+    // only accept email and password on registration so callers cannot set role or other privileged fields
+    if (name === 'User') {
+      resource.create.write.before((req: Request, res: Response, context: { attributes: Record<string, unknown>, continue: any }) => {
+        const { email, password } = req.body ?? {}
+        req.body = { email, password }
+        context.attributes = { role: security.roles.customer }
+        return context.continue
+      })
+    }
+
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
