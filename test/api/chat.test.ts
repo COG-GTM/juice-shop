@@ -11,6 +11,7 @@ import * as http from 'http'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import { challenges } from '../../data/datacache'
 import * as db from '../../data/mongodb'
 
@@ -415,6 +416,9 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     const first = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
     const couponCode = first.couponCode ?? first.value?.couponCode
     assert.equal(security.discountFromCoupon(couponCode), 10)
+    const claimed = await db.ordersCollection.findOne({ orderId })
+    assert.equal(claimed.couponIssued, true)
+    assert.equal(claimed.couponMonth, utils.toMMMYY(new Date()))
     const second = JSON.parse(await couponToolResult({ discount: 10, orderId }, token))
     assert.equal(second.couponCode ?? second.value?.couponCode, couponCode)
   })
