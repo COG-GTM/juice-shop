@@ -63,6 +63,17 @@ describe('NFTUnlockComponent', () => {
         expect(component.walletAddress).toBe('0xabc123')
     })
 
+    it('should display the wallet address returned by the server once unlocked', () => {
+        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true, address: '0x1234abcdEF5678' }))
+        component.ngOnInit()
+        fixture.detectChanges()
+        const element: HTMLElement = fixture.nativeElement
+        const ownerLink = element.querySelector('.owner-text a') as HTMLAnchorElement
+        expect(ownerLink.getAttribute('href')).toBe('https://testnets.opensea.io/0x1234abcdEF5678')
+        expect(ownerLink.textContent?.trim()).toBe('1234AB')
+        expect(element.querySelector('.box-text')?.textContent?.trim()).toBe('0x1234abcdEF5678')
+    })
+
     it('should handle error when checking NFT status on init', () => {
         vi.spyOn(console, 'error').mockImplementation(() => {})
         keysServiceSpy.nftUnlocked.mockReturnValue(throwError(() => new Error('Network error')))
