@@ -22,10 +22,11 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatExpansionModule } from '@angular/material/expansion'
 
 import { ProductDetailsComponent } from './product-details.component'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
+import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 
 describe('ProductDetailsComponent', () => {
@@ -151,8 +152,10 @@ describe('ProductDetailsComponent', () => {
         const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
         textArea.value = 'Great product!'
         const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        const snackBarOpen = vi.spyOn(TestBed.inject(SnackBarHelperService), 'open')
         buttonDe.triggerEventHandler('click', null)
         expect(textArea.value).toBe('Great product!')
+        expect(snackBarOpen).not.toHaveBeenCalled()
     })
 
     it('should clear the review text after posting succeeds', () => {
@@ -163,8 +166,26 @@ describe('ProductDetailsComponent', () => {
         const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
         textArea.value = 'Great product!'
         const buttonDe = fixture.debugElement.query(By.css('#submitButton'))
+        const snackBarOpen = vi.spyOn(TestBed.inject(SnackBarHelperService), 'open')
         buttonDe.triggerEventHandler('click', null)
         expect(textArea.value).toBe('')
+        expect(snackBarOpen).toHaveBeenCalledWith('CONFIRM_REVIEW_SAVED')
+    })
+
+    it('should send a review only once while the request is pending', () => {
+        component.data = { productData: { id: 42 } as Product }
+        userService.whoAmI.mockReturnValue(of({}))
+        const pending = new Subject<any>()
+        productReviewService.create.mockReturnValue(pending)
+        component.ngOnInit()
+        const textArea: HTMLTextAreaElement = fixture.debugElement.query(By.css('textarea')).nativeElement
+        textArea.value = 'Great product!'
+        component.addReview(textArea)
+        component.addReview(textArea)
+        expect(productReviewService.create).toHaveBeenCalledTimes(1)
+        pending.next({})
+        pending.complete()
+        expect(component.isSubmittingReview).toBe(false)
     })
 
     it('should refresh reviews after posting a review', () => {

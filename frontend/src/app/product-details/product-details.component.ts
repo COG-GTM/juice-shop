@@ -46,6 +46,7 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   public author = 'Anonymous'
   public reviews$: any
   public userSubscription: any
+  public isSubmittingReview = false
   public reviewControl: UntypedFormControl = new UntypedFormControl('', [Validators.maxLength(160)])
 
   ngOnInit (): void {
@@ -70,15 +71,23 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   }
 
   addReview (textPut: HTMLTextAreaElement) {
+    if (this.isSubmittingReview) {
+      return
+    }
     const review = { message: textPut.value, author: this.author }
 
+    this.isSubmittingReview = true
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
+        this.isSubmittingReview = false
         textPut.value = ''
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
         this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        this.isSubmittingReview = false
+        console.log(err)
+      }
     })
   }
 
