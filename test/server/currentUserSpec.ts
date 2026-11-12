@@ -45,7 +45,7 @@ describe('currentUser', () => {
     const token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
     req.cookies.token = token
     req.query.fields = 'id,email,password,totpSecret'
-    authenticatedUsers.put(token, { data: { id: 1, email: 'admin@juice-sh.op', password: '0192023a7bbd73250516f069df18b500', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' } as unknown as UserModel })
+    authenticatedUsers.tokenMap.set(token, { data: { id: 1, email: 'admin@juice-sh.op', password: '0192023a7bbd73250516f069df18b500', totpSecret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' } as unknown as UserModel })
 
     retrieveLoggedInUser()(req, res)
 
