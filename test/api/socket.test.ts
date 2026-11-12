@@ -111,7 +111,7 @@ void describe('WebSocket', () => {
     assert.ok(socket.connected)
   })
 
-  void it('server drops sockets sending messages above maxHttpBufferSize and keeps serving', async () => {
+  void it('server drops sockets sending messages above maxHttpBufferSize and keeps serving', { timeout: 5000 }, async () => {
     const oversized = ioClient(`http://localhost:${serverPort}`, { reconnection: false, forceNew: true, transports: ['websocket'] })
     await new Promise<void>((resolve) => oversized.on('connect', () => { resolve() }))
     const disconnected = new Promise<void>((resolve) => oversized.on('disconnect', () => { resolve() }))
