@@ -100,8 +100,14 @@ export const revokeToken = (token: string) => {
   for (const [revoked, expiresAt] of revokedTokens) {
     if (expiresAt <= now) revokedTokens.delete(revoked)
   }
-  const exp = decode(utils.unquote(token))?.exp
-  revokedTokens.set(token, exp ? exp * 1000 : now + tokenLifetimeSeconds * 1000)
+  const payload = decode(utils.unquote(token))
+  const exp = payload?.exp
+  revokedTokens.set(revocationKey(token, payload), exp ? exp * 1000 : now + tokenLifetimeSeconds * 1000)
+}
+
+// The signature's base64url encoding is malleable, so revocation is keyed by the signed jti rather than the raw token string
+function revocationKey (token: string, payload = decode(utils.unquote(token))) {
+  return typeof payload?.jti === 'string' ? payload.jti : utils.unquote(token)
 }
 
 export const isExpired = (token?: string) => {
@@ -114,11 +120,11 @@ export const isExpired = (token?: string) => {
 
 export const isRevoked = (token?: string) => {
   if (!token) return false
-  token = utils.unquote(token)
-  const expiresAt = revokedTokens.get(token)
+  const key = revocationKey(token)
+  const expiresAt = revokedTokens.get(key)
   if (expiresAt === undefined) return false
   if (expiresAt <= Date.now()) {
-    revokedTokens.delete(token)
+    revokedTokens.delete(key)
     return false
   }
   return true
