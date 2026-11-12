@@ -158,20 +158,25 @@ void describe('/file-upload', () => {
   if (utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
     void it('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
       const legalFile = path.resolve('ftp/legal.md')
-      const readLegalFile = () => fs.existsSync(legalFile) ? fs.readFileSync(legalFile, 'utf8') : null
-      const original = readLegalFile()
-      challenges.fileWriteChallenge.solved = false
-      const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
-      const res = await request(app)
-        .post('/file-upload')
-        .set(authHeader)
-        .attach('file', file)
-      assert.equal(res.status, 204)
-      for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
-        await new Promise(resolve => setTimeout(resolve, 100))
+      const original = fs.readFileSync(legalFile, 'utf8')
+      const sentinel = `zip slip sentinel ${Date.now()}`
+      fs.writeFileSync(legalFile, sentinel)
+      try {
+        challenges.fileWriteChallenge.solved = false
+        const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
+        const res = await request(app)
+          .post('/file-upload')
+          .set(authHeader)
+          .attach('file', file)
+        assert.equal(res.status, 204)
+        for (let i = 0; i < 50 && !challenges.fileWriteChallenge.solved; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        assert.equal(challenges.fileWriteChallenge.solved, true)
+        assert.equal(fs.readFileSync(legalFile, 'utf8'), sentinel)
+      } finally {
+        fs.writeFileSync(legalFile, original)
       }
-      assert.equal(challenges.fileWriteChallenge.solved, true)
-      assert.equal(readLegalFile(), original)
     })
 
     void it('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
