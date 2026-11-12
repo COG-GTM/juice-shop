@@ -15,7 +15,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads/')
-const uploadedFiles = () => fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir) : []
+const uploadedFiles = (prefix: string) => fs.existsSync(uploadsDir) ? fs.readdirSync(uploadsDir).filter(name => name.startsWith(prefix)) : []
 const jimsToken = async () => (await login(app, {
   email: 'jim@' + config.get<string>('application.domain'),
   password: 'ncc-1701'
@@ -54,28 +54,28 @@ void describe('/rest/memories', () => {
   })
 
   void it('POST new memory without authentication does not write the upload to disk', async () => {
-    const filesBefore = uploadedFiles()
+    const filesBefore = uploadedFiles('anonymous')
     const res = await request(app)
       .post('/rest/memories')
       .attach('image', Buffer.alloc(100000), { filename: 'anonymous.png', contentType: 'image/png' })
       .field('caption', 'Anonymous Image')
     assert.equal(res.status, 401)
-    assert.deepEqual(uploadedFiles(), filesBefore)
+    assert.deepEqual(uploadedFiles('anonymous'), filesBefore)
   })
 
   void it('POST new memory with an invalid token does not write the upload to disk', async () => {
-    const filesBefore = uploadedFiles()
+    const filesBefore = uploadedFiles('forged')
     const res = await request(app)
       .post('/rest/memories')
       .set('Authorization', 'Bearer invalid.token.value')
       .attach('image', Buffer.alloc(100000), { filename: 'forged.png', contentType: 'image/png' })
     assert.equal(res.status, 401)
-    assert.deepEqual(uploadedFiles(), filesBefore)
+    assert.deepEqual(uploadedFiles('forged'), filesBefore)
   })
 
   void it('POST new memory image exceeding the size limit is rejected and not kept on disk', async () => {
     const token = await jimsToken()
-    const filesBefore = uploadedFiles()
+    const filesBefore = uploadedFiles('oversized')
     const res = await request(app)
       .post('/rest/memories')
       .set('Authorization', 'Bearer ' + token)
@@ -84,12 +84,12 @@ void describe('/rest/memories', () => {
     assert.equal(res.status, 413)
     assert.equal(res.body.error, 'File too large')
     assert.ok(res.text.includes('File too large'))
-    assert.deepEqual(uploadedFiles(), filesBefore)
+    assert.deepEqual(uploadedFiles('oversized'), filesBefore)
   })
 
   void it('POST new memory with non-image content declared as image/png is rejected and not kept on disk', async () => {
     const token = await jimsToken()
-    const filesBefore = uploadedFiles()
+    const filesBefore = uploadedFiles('disguised')
     const res = await request(app)
       .post('/rest/memories')
       .set('Authorization', 'Bearer ' + token)
@@ -97,7 +97,7 @@ void describe('/rest/memories', () => {
       .field('caption', 'Disguised Image')
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Uploaded file is not a PNG or JPEG image')
-    assert.deepEqual(uploadedFiles(), filesBefore)
+    assert.deepEqual(uploadedFiles('disguised'), filesBefore)
   })
 
   void it('POST new memory image file invalid type', async () => {
