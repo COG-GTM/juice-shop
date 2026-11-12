@@ -28,7 +28,7 @@ export function orderConfirmation () {
       res.status(404).json({ status: 'error', message: 'Order not found' })
       return
     }
-    res.sendFile(path.resolve(orderConfirmationsFolder, `order_${orderId}.pdf`), (err) => {
+    res.sendFile(`order_${order.orderId}.pdf`, { root: path.resolve(orderConfirmationsFolder) }, (err) => {
       if (err) {
         next(err)
       }
