@@ -196,6 +196,47 @@ void describe('/api/BasketItems/:id', () => {
     }
   })
 
+  void it('POST and PUT own basket item with a stale cookie of another user after the token map was cleared', async () => {
+    const token = authHeader.Authorization.replace('Bearer ', '')
+    const user = security.authenticatedUsers.get(token)
+    delete security.authenticatedUsers.tokenMap[token]
+    try {
+      const createRes = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .set('Cookie', 'token=' + otherUserAuthHeader.Authorization.replace('Bearer ', ''))
+        .send({ ProductId: 20, quantity: 1 })
+      assert.equal(createRes.status, 200)
+      assert.equal(createRes.body.data.BasketId, 2)
+
+      delete security.authenticatedUsers.tokenMap[token]
+      const res = await request(app)
+        .put('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+        .set('Cookie', 'token=' + otherUserAuthHeader.Authorization.replace('Bearer ', ''))
+        .send({ quantity: 2 })
+      assert.equal(res.status, 200)
+      assert.equal(res.body.data.quantity, 2)
+    } finally {
+      if (user) security.authenticatedUsers.put(token, user)
+    }
+  })
+
+  void it('POST and GET basket items with a two-factor temporary token are unauthorized', async () => {
+    const tmpToken = security.authorize({ userId: 1, type: 'password_valid_needs_second_factor_token' })
+    const tmpAuthHeader = { Authorization: 'Bearer ' + tmpToken, 'content-type': 'application/json' }
+    const postRes = await request(app)
+      .post('/api/BasketItems')
+      .set(tmpAuthHeader)
+      .send({ ProductId: 21, quantity: 1 })
+    assert.equal(postRes.status, 401)
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/1')
+      .set(tmpAuthHeader)
+    assert.equal(getRes.status, 401)
+  })
+
   void it('PUT update newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
