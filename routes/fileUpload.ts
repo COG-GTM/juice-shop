@@ -297,7 +297,11 @@ const xmlToken = /<\?[\s\S]*?(?:\?>|$)|<!--[\s\S]*?(?:-->|$)|<!\[CDATA\[[\s\S]*?
 
 function localFilePath (systemId: string) {
   const match = /^file:\/\/(?:localhost)?(\/[^?#]*)$/i.exec(systemId)
-  if (match == null) return null
+  if (match == null) {
+    if (/^\//.test(systemId)) return path.posix.normalize(systemId)
+    if (/^[a-z]:[\\/]/i.test(systemId)) return path.posix.normalize('/' + systemId.replace(/\\/g, '/'))
+    return null
+  }
   try {
     return path.posix.normalize(decodeURIComponent(match[1]))
   } catch {
