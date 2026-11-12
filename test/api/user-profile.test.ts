@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -56,9 +57,12 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'a#{7*7}')
+      .type('form')
+      .send({ username: 'a#{7*7}' })
       .redirects(0)
 
+    const originalDisabledEnv = challenges.usernameXssChallenge.disabledEnv
+    challenges.usernameXssChallenge.disabledEnv = 'Heroku'
     process.env.HEROKU = 'true'
     try {
       const res = await request(app)
@@ -70,6 +74,7 @@ void describe('/profile', () => {
       assert.ok(!res.text.includes('a49'))
     } finally {
       delete process.env.HEROKU
+      challenges.usernameXssChallenge.disabledEnv = originalDisabledEnv
     }
   })
 
@@ -77,7 +82,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', '#{7*7}')
+      .type('form')
+      .send({ username: '#{7*7}' })
       .redirects(0)
 
     const res = await request(app)
