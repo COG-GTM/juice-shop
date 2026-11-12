@@ -4,6 +4,7 @@
  */
 
 import crypto from 'node:crypto'
+import zlib from 'node:zlib'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -20,11 +21,45 @@ let benderToken: string
 let orderId: string
 
 async function checkoutJim () {
+  const item = await request(app)
+    .post('/api/BasketItems')
+    .set({ Authorization: 'Bearer ' + jimToken, 'content-type': 'application/json' })
+    .send({ BasketId: jimBasketId, ProductId: 1, quantity: 1 })
+  assert.equal(item.status, 200)
   const checkout = await request(app)
     .post(`/rest/basket/${jimBasketId}/checkout`)
     .set({ Authorization: 'Bearer ' + jimToken, 'content-type': 'application/json' })
   assert.equal(checkout.status, 200)
   return checkout.body.orderConfirmation as string
+}
+
+function pdfText (pdf: Buffer) {
+  const raw = pdf.toString('latin1')
+  let text = ''
+  for (const match of raw.matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+    let content: string
+    try {
+      content = zlib.inflateSync(Buffer.from(match[1], 'latin1')).toString('latin1')
+    } catch {
+      continue
+    }
+    for (const line of content.matchAll(/\[(.*?)\] TJ/g)) {
+      text += [...line[1].matchAll(/<([0-9a-f]*)>/g)].map(hex => Buffer.from(hex[1], 'hex').toString('latin1')).join('') + '\n'
+    }
+  }
+  return text
+}
+
+function binaryParser (res: any, callback: (err: Error | null, body: Buffer) => void) {
+  const chunks: Buffer[] = []
+  res.on('data', (chunk: Buffer) => chunks.push(chunk))
+  res.on('end', () => { callback(null, Buffer.concat(chunks)) })
+}
+
+function assertPopulatedConfirmation (pdf: Buffer) {
+  const text = pdfText(pdf)
+  assert.ok(text.includes('jim@juice-sh.op'), text)
+  assert.ok(text.includes('Apple Juice (1000ml)'), text)
 }
 
 // Other API test files run in parallel and clear orders/**/*.pdf on startup, so a fresh order is placed right before each download attempt
@@ -76,16 +111,18 @@ void describe('/rest/order-confirmation/:orderId', () => {
   })
 
   void it('GET own order confirmation with bearer token returns the PDF', async () => {
-    const res = await downloadFreshOrderConfirmation(req => req.set('Authorization', 'Bearer ' + jimToken).buffer(true))
+    const res = await downloadFreshOrderConfirmation(req => req.set('Authorization', 'Bearer ' + jimToken).buffer(true).parse(binaryParser))
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
     assert.equal(res.headers['cache-control'], 'private, no-store')
+    assertPopulatedConfirmation(res.body)
   })
 
   void it('GET own order confirmation with token cookie returns the PDF', async () => {
-    const res = await downloadFreshOrderConfirmation(req => req.set('Cookie', 'token=' + jimToken))
+    const res = await downloadFreshOrderConfirmation(req => req.set('Cookie', 'token=' + jimToken).buffer(true).parse(binaryParser))
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
+    assertPopulatedConfirmation(res.body)
   })
 
   void it('GET with a validly signed token that was never issued by a login is denied', async () => {
