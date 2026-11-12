@@ -211,6 +211,18 @@ void describe('/api/Users', () => {
     assert.equal(res.body.errors[0].message, 'Invalid email address')
   })
 
+  void it('POST new user without passwordRepeat stores the trimmed email unchanged', async () => {
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: ' trim&me@juice-sh.op ',
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 201)
+    assert.equal(res.body.data.email, 'trim&me@juice-sh.op')
+  })
+
   void it('POST new user with non-string email is rejected', async () => {
     const res = await request(app)
       .post('/api/Users')

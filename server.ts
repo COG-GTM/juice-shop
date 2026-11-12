@@ -422,6 +422,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       res.status(400).json({ errors: [{ field: 'email', message: 'Invalid email address' }] })
       return
     }
+    if (typeof email === 'string' && email.trim().length !== 0) {
+      req.body.email = email.trim()
+    }
     next()
   })
   app.post('/api/Users', verify.registerAdminChallenge())
