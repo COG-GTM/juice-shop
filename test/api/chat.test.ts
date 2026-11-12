@@ -343,6 +343,20 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(!toolResult?.includes('error'), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
   })
 
+  void it('POST returns a newly placed order via getOrderById for the customer who placed it', { timeout: 30000 }, async () => {
+    const { token, bid } = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const checkout = await request(app)
+      .post(`/rest/basket/${bid}/checkout`)
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+    assert.equal(checkout.status, 200)
+    const orderId = checkout.body.orderConfirmation
+
+    const toolResult = await requestOrder(token, orderId)
+
+    assert.ok(toolResult?.includes(orderId), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
+    assert.ok(!toolResult?.includes('error'), `unexpected tool result for order ${String(orderId)}: ${String(toolResult)}`)
+  })
+
   void it('POST rejects an order of another customer with the same masked email and order id prefix', { timeout: 30000 }, async () => {
     const { token } = await login(app, { email: adminEmail, password: 'admin123' })
     const orderId = security.hash(adminEmail).slice(0, 4) + '-' + Date.now().toString(16)
