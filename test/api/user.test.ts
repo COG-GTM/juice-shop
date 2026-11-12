@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: Record<string, string>
@@ -198,6 +199,8 @@ void describe('/api/Users', () => {
     assert.equal(res.body.data.isActive, true)
     assert.equal(res.body.data.lastLoginIp, '0.0.0.0')
     assert.equal(res.body.data.profileImage, '/assets/public/images/uploads/default.svg')
+    const user = await UserModel.findByPk(res.body.data.id)
+    assert.equal(user?.totpSecret, '')
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
