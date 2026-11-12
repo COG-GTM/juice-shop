@@ -7,6 +7,7 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
@@ -79,6 +80,10 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+
+    it('caps discount from coupon code with trailing digits at 100', () => {
+      expect(security.discountFromCoupon(z85.encode(utils.toMMMYY(new Date()) + '-999999'))).to.equal(100)
     })
   })
 
