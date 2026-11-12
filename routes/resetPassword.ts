@@ -25,6 +25,11 @@ export function resetPassword () {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
     }
+    if (typeof email !== 'string') {
+      markFailedAttempt(res)
+      res.status(401).send(res.__('Wrong answer to security question.'))
+      return
+    }
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
       return
