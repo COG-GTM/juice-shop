@@ -151,6 +151,7 @@ void describe('/rest/user/oauth', () => {
   })
 
   void it('POST with Bjoern\'s verified Google token solves "Login Bjoern"', async () => {
+    challenges.oauthUserPasswordChallenge.solved = false
     stubGoogleTokenInfo({ aud: clientId, email: 'bjoern.kimminich@gmail.com', email_verified: 'true', expires_in: '3599' })
 
     const res = await request(app).post('/rest/user/oauth').set(jsonHeader).send({ accessToken: 'ya29.bjoern-token' })
