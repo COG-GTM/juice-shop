@@ -232,6 +232,18 @@ describe('insecurity', () => {
       expect(security.verify(token)).to.equal(false)
     })
 
+    it('rejects a revoked token whose signature encoding was altered', () => {
+      const token = security.authorize({ data: { id: 1 } })
+      security.revokeToken(token)
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+      const last = token.slice(-1)
+      const sibling = alphabet[alphabet.indexOf(last) ^ 1]
+      const altered = token.slice(0, -1) + sibling
+      expect(altered).to.not.equal(token)
+      expect(security.isRevoked(altered)).to.equal(true)
+      expect(security.verify(altered)).to.equal(false)
+    })
+
     it('rejects a malformed token instead of throwing', () => {
       expect(security.verify('not.a.jwt')).to.equal(false)
     })
