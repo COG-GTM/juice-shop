@@ -4,11 +4,24 @@ describe('/#/login', () => {
   })
 
   describe('SQL injection on email field', () => {
-    for (const payload of ["' or 1=1--", "admin@juice-sh.op'--", "jim@juice-sh.op'--", "bender@juice-sh.op'--", "' or deletedAt IS NOT NULL--", "chris.pike@juice-sh.op'--"]) {
+    for (const payload of ["' or 1=1--", "' or deletedAt IS NOT NULL--"]) {
       it(`should reject login with "${payload}"`, () => {
         cy.get('#email').type(payload)
         cy.get('#password').type('a')
         cy.get('#loginButton').click()
+        cy.get('.error').should('contain', 'Invalid email or password.')
+      })
+    }
+
+    for (const user of ['admin', 'jim', 'bender', 'chris.pike']) {
+      it(`should reject login with "${user}@<domain>'--"`, () => {
+        cy.task<string>('GetFromConfig', 'application.domain').then(
+          (appDomain: string) => {
+            cy.get('#email').type(`${user}@${appDomain}'--`)
+            cy.get('#password').type('a')
+            cy.get('#loginButton').click()
+          }
+        )
         cy.get('.error').should('contain', 'Invalid email or password.')
       })
     }
