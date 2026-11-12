@@ -238,6 +238,8 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Invalid payment mode')
+    const jim = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+    assert.equal(jim?.role, 'customer')
   })
 
   void it('POST upgrade deluxe membership fails for unknown payment mode', async () => {
@@ -256,6 +258,8 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Invalid payment mode')
+    const jim = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+    assert.equal(jim?.role, 'customer')
   })
 
   void it('POST upgrade deluxe membership fails for payment mode "none"', async () => {
@@ -274,6 +278,8 @@ void describe('/rest/deluxe-membership', () => {
 
     assert.equal(res.status, 400)
     assert.equal(res.body.error, 'Invalid payment mode')
+    const jim = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+    assert.equal(jim?.role, 'customer')
   })
 
   void it('POST upgrade deluxe membership fails for customers with an empty wallet', async () => {
