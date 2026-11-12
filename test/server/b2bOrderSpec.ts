@@ -118,8 +118,17 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.callCount(0)
   })
 
-  it('rejects order lines with a nonpositive productId', () => {
-    req.body.orderLinesData = '[{"productId": 0,"quantity": 1},{"productId": -5,"quantity": 1}]'
+  it('rejects order lines with a zero productId', () => {
+    req.body.orderLinesData = '[{"productId": 0,"quantity": 1}]'
+
+    b2bOrder()(req, res, next)
+
+    expect(res.status).to.have.been.calledWith(400)
+    expect(res.json).to.have.callCount(0)
+  })
+
+  it('rejects order lines with a negative productId', () => {
+    req.body.orderLinesData = '[{"productId": 1,"quantity": 1},{"productId": -5,"quantity": 1}]'
 
     b2bOrder()(req, res, next)
 
