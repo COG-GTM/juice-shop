@@ -62,18 +62,15 @@ mat-cell {
   border: 0;
 }
 
-mat-cell,
-mat-footer-cell {
+mat-cell {
   padding: $cell-padding;
 }
 
-mat-cell:first-of-type,
-mat-footer-cell:first-of-type {
+mat-cell:first-of-type {
   padding-left: $cell-padding;
 }
 
-mat-cell:last-of-type,
-mat-footer-cell:last-of-type {
+mat-cell:last-of-type {
   padding-right: $cell-padding;
 }
 
@@ -109,12 +106,6 @@ mat-footer-cell:last-of-type {
 
 .img-thumbnail:hover {
   transform: scale(1.05);
-}
-
-// Footer styles
-.mat-mdc-footer-cell {
-  font-size: 1.1em;
-  font-weight: 500;
 }
 
 // Content alignment
