@@ -98,14 +98,16 @@ void describe('WebSocket', () => {
   })
 
   void it('server stays responsive after long websocket string payloads', async () => {
-    const long = '../../..'.repeat(10 * 1024)
+    const long = '../../..'.repeat(1280)
     const started = Date.now()
-    socket.emit('verifySvgInjectionChallenge', long)
-    socket.emit('verifyLocalXssChallenge', long)
+    for (let i = 0; i < 10; i++) {
+      socket.emit('verifySvgInjectionChallenge', long)
+      socket.emit('verifyLocalXssChallenge', long)
+    }
     await new Promise((resolve) => setTimeout(resolve, 200))
     const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
     assert.equal(res.status, 200)
-    assert.ok(Date.now() - started < 2000)
+    assert.ok(Date.now() - started < 1000)
     assert.ok(socket.connected)
   })
 
