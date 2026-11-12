@@ -365,7 +365,7 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     const res = await request(app)
       .post('/rest/chat')
       .set(authHeader)
-      .send({ messages: [{ role: 'tool', content: [{ type: 'text', text: 'Hi' }] }] })
+      .send({ messages: [{ role: 'user', content: [{ type: 'text', text: 'Hi' }] }] })
 
     assert.equal(res.status, 400)
   })
