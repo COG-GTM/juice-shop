@@ -253,9 +253,10 @@ void describe('/support/logs', () => {
 
   void it('does not write change-password credentials from the query string into the access log', async () => {
     const marker = 'LogLeak' + utils.randomHexString(8)
+    const userAgent = 'LogProbe' + utils.randomHexString(8)
     await request(app)
       .get(`/rest/user/change-password?current=${marker}cur&new=${marker}new&repeat=${marker}new`)
-      .set({ Referer: `http://localhost/rest/user/change-password?cur%72ent=${marker}ref` })
+      .set({ Referer: `http://localhost/rest/user/change-password?cur%72ent=${marker}ref`, 'User-Agent': userAgent })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     const res = await request(app)
@@ -263,7 +264,10 @@ void describe('/support/logs', () => {
       .set(await adminAuthHeader())
     assert.equal(res.status, 200)
     const log = res.body instanceof Buffer ? res.body.toString() : res.text
-    assert.ok(log.includes('/rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED]'))
+    const probeLines = log.split('\n').filter((line: string) => line.includes(userAgent))
+    assert.equal(probeLines.length, 1)
+    assert.ok(probeLines[0].includes('"GET /rest/user/change-password?current=[REDACTED]&new=[REDACTED]&repeat=[REDACTED] HTTP/1.1"'))
+    assert.ok(probeLines[0].includes('"http://localhost/rest/user/change-password?current=[REDACTED]"'))
     assert.ok(!log.includes(marker))
   })
 })
