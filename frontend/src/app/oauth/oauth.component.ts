@@ -37,6 +37,11 @@ export class OAuthComponent implements OnInit {
       },
       error: (error) => {
         this.invalidateSession(error)
+        if (error?.error?.status === 'totp_token_required') {
+          localStorage.setItem('totp_tmp_token', error.error.data.tmpToken)
+          this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
+          return
+        }
         this.ngZone.run(async () => await this.router.navigate(['/login']))
       }
     })

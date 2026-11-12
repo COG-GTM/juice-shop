@@ -17,7 +17,7 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { OAuthComponent } from './oauth.component'
 import { LoginComponent } from '../login/login.component'
 import { ReactiveFormsModule } from '@angular/forms'
-import { ActivatedRoute } from '@angular/router'
+import { ActivatedRoute, Router } from '@angular/router'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { UserService } from '../Services/user.service'
@@ -95,6 +95,17 @@ describe('OAuthComponent', () => {
         component.ngOnInit()
         expect(localStorage.getItem('token')).toBe('SERVER_TOKEN')
         expect(sessionStorage.getItem('bid')).toBe('42')
+    })
+
+    it('hands over to the second factor entry when the server requires a TOTP token', () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {})
+        const router = TestBed.inject(Router)
+        vi.spyOn(router, 'navigate').mockResolvedValue(true)
+        userService.oauthLogin.mockReturnValue(throwError(() => ({ error: { status: 'totp_token_required', data: { tmpToken: 'TMP_TOKEN' } } })))
+        component.ngOnInit()
+        expect(localStorage.getItem('totp_tmp_token')).toBe('TMP_TOKEN')
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(router.navigate).toHaveBeenCalledWith(['/2fa/enter'])
     })
 
     it('never registers or logs in with a password derived from the email address', () => {
