@@ -60,7 +60,7 @@ export function getUserProfile () {
     const theme = themes[themeKey] || themes['bluegrey-lightgreen']
 
     try {
-      const CSP = "img-src 'self' https:; script-src 'self' 'unsafe-eval'"
+      const CSP = "img-src 'self' http: https:; script-src 'self' 'unsafe-eval'"
 
       res.set({
         'Content-Security-Policy': CSP
