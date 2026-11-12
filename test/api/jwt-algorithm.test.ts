@@ -143,3 +143,26 @@ void describe('forged tokens on basket and user management routes', () => {
     assert.equal(res.status, 401)
   })
 })
+
+void describe('forged tokens on account takeover routes', () => {
+  const jim = { id: 2, email: 'jim@juice-sh.op', role: 'customer' }
+
+  void it('rejects an alg:none token on GET /rest/user/authentication-details', async () => {
+    const res = await request(app).get('/rest/user/authentication-details').set(bearer(unsigned(jim)))
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects an HS256/public-key token on GET /rest/user/authentication-details', async () => {
+    const res = await request(app).get('/rest/user/authentication-details').set(bearer(hs256WithPublicKey(jim)))
+    assert.equal(res.status, 401)
+  })
+
+  void it('does not let a forged token registered via /rest/user/whoami change the victim password', async () => {
+    for (const token of [unsigned(jim), hs256WithPublicKey(jim)]) {
+      await request(app).get('/rest/user/whoami').set(bearer(token))
+      const res = await request(app).get('/rest/user/change-password?new=hacked123&repeat=hacked123').set(bearer(token))
+      assert.notEqual(res.status, 200)
+      assert.equal(security.authenticatedUsers.get(token), undefined)
+    }
+  })
+})
