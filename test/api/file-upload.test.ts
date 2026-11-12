@@ -146,7 +146,7 @@ void describe('/file-upload', () => {
     assert.equal(challenges.fileWriteChallenge.solved, true)
     for (let i = 0; i < 10; i++) {
       await new Promise(resolve => setTimeout(resolve, 100))
-      assert.equal(readLegalFile(), original)
+      assert.equal(readLegalFile(), originalLegalFile)
     }
   })
 
@@ -161,6 +161,24 @@ void describe('/file-upload', () => {
     for (let i = 0; i < 10; i++) {
       await new Promise(resolve => setTimeout(resolve, 100))
       templates.forEach((template, j) => { assert.equal(fs.readFileSync(template, 'utf8'), originals[j]) })
+    }
+  })
+
+  void it('POST zip file with a regular entry extracts it into uploads/complaints', async () => {
+    const extracted = path.resolve('uploads/complaints/zipUploadComplaint.txt')
+    fs.rmSync(extracted, { force: true })
+    try {
+      const file = path.resolve(__dirname, '../files/validComplaint.zip')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 204)
+      for (let i = 0; i < 50 && !fs.existsSync(extracted); i++) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+      assert.equal(fs.readFileSync(extracted, 'utf8'), 'Complaint extracted from zip upload\n')
+    } finally {
+      fs.rmSync(extracted, { force: true })
     }
   })
 
