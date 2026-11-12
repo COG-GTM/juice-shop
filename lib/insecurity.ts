@@ -189,7 +189,7 @@ export const rehydrateAuthenticatedUserFromHeader = () => (req: Request, res: Re
   const token = utils.jwtFrom(req)
   if (token && authenticatedUsers.get(token) === undefined) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && decoded?.data?.id != null) {
         authenticatedUsers.put(token, decoded)
       }
     })
