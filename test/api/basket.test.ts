@@ -11,11 +11,14 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketModel } from '../../models/basket'
 import { BasketItemModel } from '../../models/basketitem'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
 
 let app: Express
+
+const jimOrderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(`order_${security.hash('jim@juice-sh.op').slice(0, 4)}-`) && file.endsWith('.pdf')).sort()
 let authHeader: { Authorization: string, 'content-type': string }
 
 const validCoupon = security.generateCoupon(15)
@@ -149,6 +152,23 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
   })
 
+  void it('POST placing an order for an empty basket is rejected and leaves no order PDF behind', async () => {
+    const basket = await BasketModel.create({ UserId: 2 })
+    const pdfsBefore = jimOrderPdfs()
+    try {
+      const res = await request(app)
+        .post(`/rest/basket/${basket.id}/checkout`)
+        .set(authHeader)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must be greater than zero.')
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+      assert.deepEqual(jimOrderPdfs(), pdfsBefore)
+    } finally {
+      await basket.destroy()
+    }
+  })
+
   void it('POST placing concurrent wallet orders cannot overspend the wallet', async () => {
     const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
     const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
@@ -221,8 +241,7 @@ void describe('/rest/basket/:id/checkout', () => {
     await QuantityModel.update({ quantity: 100000 }, { where: { ProductId: 6 } })
     const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
     const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
-    const orderPdfs = () => fs.readdirSync('ftp').filter(file => file.startsWith(`order_${security.hash('jim@juice-sh.op').slice(0, 4)}-`) && file.endsWith('.pdf')).sort()
-    const pdfsBefore = orderPdfs()
+    const pdfsBefore = jimOrderPdfs()
     try {
       const res = await request(app)
         .post('/rest/basket/2/checkout')
@@ -236,7 +255,7 @@ void describe('/rest/basket/:id/checkout', () => {
       assert.equal(walletAfter?.balance, walletBefore?.balance)
       assert.deepEqual(stockAfter.map(({ ProductId, quantity }) => ({ ProductId, quantity })), stockBefore.map(({ ProductId, quantity }) => ({ ProductId, quantity })))
       await new Promise(resolve => setTimeout(resolve, 500))
-      assert.deepEqual(orderPdfs(), pdfsBefore)
+      assert.deepEqual(jimOrderPdfs(), pdfsBefore)
     } finally {
       await QuantityModel.update({ quantity: originalStock?.quantity }, { where: { ProductId: 6 } })
       await item.destroy()
