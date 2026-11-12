@@ -124,6 +124,7 @@ import { imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
 import { upgradeToDeluxe, deluxeMembershipStatus } from './routes/deluxe'
 import { serveCodeSnippet, checkVulnLines } from './routes/vulnCodeSnippet'
 import { orderHistory, allOrders, toggleDeliveryStatus } from './routes/orderHistory'
+import { orderConfirmation } from './routes/orderConfirmation'
 import { continueCode, continueCodeFindIt, continueCodeFixIt } from './routes/continueCode'
 import { ensureFileIsPassed, handleZipFileUpload, checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from './routes/fileUpload'
 
@@ -266,7 +267,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
@@ -620,6 +620,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(dataExport()))
   app.get('/rest/languages', utils.asyncHandler(getLanguageList()))
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
+  app.get('/rest/order-confirmation/:id', security.isAuthorized(), utils.asyncHandler(orderConfirmation()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
   app.get('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(getWalletBalance()))
