@@ -52,7 +52,9 @@ export const cutOffPoisonNullByte = (str: string) => {
 }
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(Object.assign(new Error('Access denied'), { name: 'UnauthorizedError', status: 401, code: 'access_denied' }))
+}
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }

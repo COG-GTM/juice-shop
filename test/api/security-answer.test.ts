@@ -27,6 +27,16 @@ void describe('/api/SecurityAnswers', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('GET all security answers is forbidden with an unsigned alg:none token', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const res = await request(app)
+      .get('/api/SecurityAnswers')
+      .set('Authorization', `Bearer ${header}.${payload}.`)
+
+    assert.equal(res.status, 401)
+  })
+
   void it('POST new security answer for existing user fails from unique constraint', async () => {
     const res = await request(app)
       .post('/api/SecurityAnswers')
