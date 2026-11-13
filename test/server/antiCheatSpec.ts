@@ -86,5 +86,25 @@ describe('antiCheat', () => {
       expect(infoStub.firstCall.args[0]).to.match(/^Cheat score for challenge solved by using a bypass/)
       expect(infoStub.firstCall.args[0]).to.not.include('changePasswordBenderChallenge')
     })
+
+    it('should not log challenge data when calculating a "Find it" cheat score', async () => {
+      const challenge: Challenge = { key: 'resetPasswordJimChallenge' } as any
+
+      await antiCheat.calculateFindItCheatScore(challenge)
+
+      expect(infoStub.calledOnce).to.equal(true)
+      expect(infoStub.firstCall.args[0]).to.match(/^Cheat score for "Find it" phase of challenge solved in \d+min/)
+      expect(infoStub.firstCall.args[0]).to.not.include('resetPasswordJimChallenge')
+    })
+
+    it('should not log challenge data when calculating a "Fix it" cheat score', async () => {
+      const challenge: Challenge = { key: 'resetPasswordJimChallenge' } as any
+
+      await antiCheat.calculateFixItCheatScore(challenge)
+
+      expect(infoStub.calledOnce).to.equal(true)
+      expect(infoStub.firstCall.args[0]).to.match(/^Cheat score for "Fix it" phase of challenge solved in \d+min/)
+      expect(infoStub.firstCall.args[0]).to.not.include('resetPasswordJimChallenge')
+    })
   })
 })
