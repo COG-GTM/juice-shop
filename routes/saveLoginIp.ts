@@ -24,7 +24,8 @@ export function saveLoginIp () {
         challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return trueClientIp === '<iframe src="javascript:alert(`xss`)">' })
       }
       const clientIp = typeof trueClientIp === 'string' && isIP(trueClientIp) !== 0 ? trueClientIp : req.socket.remoteAddress
-      const lastLoginIp = utils.toSimpleIpAddress(clientIp ?? '')
+      const simplifiedIp = utils.toSimpleIpAddress(clientIp ?? '')
+      const lastLoginIp = isIP(simplifiedIp) !== 0 ? simplifiedIp : clientIp ?? ''
       try {
         const user = await UserModel.findByPk(loggedInUser.data.id)
         const updatedUser = await user?.update({ lastLoginIp })
