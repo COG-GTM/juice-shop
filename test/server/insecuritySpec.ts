@@ -6,9 +6,10 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,34 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+
+    it('returns undefined for tokens named like Object.prototype properties', () => {
+      for (const token of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.from({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)).to.equal(undefined)
+      }
+    })
+
+    it('stores prototype-named tokens without touching Object.prototype', () => {
+      security.authenticatedUsers.put('__proto__', { data: { id: 4711 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('__proto__')).to.deep.equal({ data: { id: 4711 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 4711 } as unknown as UserModel)).to.equal('__proto__')
+      expect(({} as any).data).to.equal(undefined)
+      expect(Object.getPrototypeOf({})).to.equal(Object.prototype)
+    })
+
+    it('rejects requests whose token is a prototype property name in appendUserId', () => {
+      const req = { headers: { authorization: 'Bearer constructor' }, body: {} } as unknown as Request
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() } as unknown as Response
+      const next = sinon.spy()
+
+      security.appendUserId()(req, res, next)
+
+      expect(next.called).to.equal(false)
+      expect((res.status as sinon.SinonStub).calledWith(401)).to.equal(true)
+      expect(req.body.UserId).to.equal(undefined)
     })
   })
 
