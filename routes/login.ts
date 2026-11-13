@@ -14,7 +14,6 @@ import * as models from '../models/index'
 import { type User } from '../data/types'
 import * as utils from '../lib/utils'
 import { demoCredentialsEnabled } from '../data/privilegedSeedPasswords'
-
 // vuln-code-snippet start loginAdminChallenge loginBenderChallenge loginJimChallenge
 export function login () {
   function afterLogin (user: { data: User, bid: number }, res: Response, next: NextFunction) {
