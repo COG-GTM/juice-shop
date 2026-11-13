@@ -98,17 +98,20 @@ void describe('WebSocket', () => {
   })
 
   void it('server stays responsive after long websocket string payloads', async () => {
+    const wsOnly = ioClient(`http://localhost:${serverPort}`, { reconnection: false, forceNew: true, transports: ['websocket'] })
+    await new Promise<void>((resolve) => wsOnly.on('connect', () => { resolve() }))
     const long = '../../..'.repeat(1280)
     const started = Date.now()
     for (let i = 0; i < 50; i++) {
-      socket.emit('verifySvgInjectionChallenge', long)
-      socket.emit('verifyLocalXssChallenge', long)
+      wsOnly.emit('verifySvgInjectionChallenge', long)
+      wsOnly.emit('verifyLocalXssChallenge', long)
     }
     await new Promise((resolve) => setTimeout(resolve, 200))
     const res = await fetch(`http://localhost:${serverPort}/rest/admin/application-version`)
     assert.equal(res.status, 200)
     assert.ok(Date.now() - started < 3000)
-    assert.ok(socket.connected)
+    assert.ok(wsOnly.connected)
+    wsOnly.disconnect()
   })
 
   void it('server drops sockets sending messages above maxHttpBufferSize and keeps serving', { timeout: 5000 }, async () => {
