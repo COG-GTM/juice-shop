@@ -18,7 +18,7 @@ describe('keyServer', () => {
 
   beforeEach(() => {
     req = { params: { } }
-    res = { sendFile: sinon.spy(), status: sinon.spy(), send: sinon.spy() }
+    res = { sendFile: sinon.spy(), status: sinon.spy(), end: sinon.spy() }
     res.type = sinon.stub().returns(res)
     next = sinon.spy()
   })
@@ -36,7 +36,7 @@ describe('keyServer', () => {
 
     serveKeyFiles()(req, res, next)
 
-    expect(res.send).to.have.been.calledWith(security.publicKey)
+    expect(res.end).to.have.been.calledWith(security.publicKey)
     expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 
