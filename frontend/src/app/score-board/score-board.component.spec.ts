@@ -19,6 +19,7 @@ import { ChallengeService } from '../Services/challenge.service'
 import { type Challenge } from '../Models/challenge.model'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { HintService } from '../Services/hint.service'
+import { SocketIoService } from '../Services/socket-io.service'
 
 // allows to easily create a challenge with some overwrites
 function createChallenge(challengeOverwrites: Partial<Challenge>): Challenge {
@@ -47,6 +48,11 @@ describe('ScoreBoardComponent', () => {
     let challengeService
     let hintService
     let configService
+    let socketListeners: Map<string, Set<(...args: unknown[]) => void>>
+
+    function listenerCount (event: string): number {
+        return socketListeners.get(event)?.size ?? 0
+    }
 
     beforeEach(async () => {
         challengeService = {
@@ -58,6 +64,16 @@ describe('ScoreBoardComponent', () => {
         }
         configService = {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
+        }
+        socketListeners = new Map()
+        const socket = {
+            on: (event: string, handler: (...args: unknown[]) => void) => {
+                if (!socketListeners.has(event)) socketListeners.set(event, new Set())
+                socketListeners.get(event).add(handler)
+            },
+            off: (event: string, handler: (...args: unknown[]) => void) => {
+                socketListeners.get(event)?.delete(handler)
+            }
         }
         await TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -76,6 +92,7 @@ describe('ScoreBoardComponent', () => {
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: HintService, useValue: hintService },
                 { provide: ConfigurationService, useValue: configService },
+                { provide: SocketIoService, useValue: { socket: () => socket } },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -176,5 +193,32 @@ describe('ScoreBoardComponent', () => {
         })
 
         expect(component.filteredChallenges.find((challenge) => challenge.key === 'challenge-2').codingChallengeStatus).toBe(2)
+    })
+
+    it('should remove its socket listeners when destroyed', (): void => {
+        expect(listenerCount('challenge solved')).toBe(1)
+        expect(listenerCount('code challenge solved')).toBe(1)
+
+        fixture.destroy()
+
+        expect(listenerCount('challenge solved')).toBe(0)
+        expect(listenerCount('code challenge solved')).toBe(0)
+    })
+
+    it('should not add socket listeners when unlocking hints', (): void => {
+        hintService.put.mockReturnValue(of({}))
+
+        component.unlockHint(1, 'challenge-3')
+        component.unlockHint(2, 'challenge-3')
+
+        expect(listenerCount('challenge solved')).toBe(1)
+        expect(listenerCount('code challenge solved')).toBe(1)
+        expect(hintService.getAll).toHaveBeenCalledTimes(3)
+        expect(component.lastUnlockedChallengeKey).toBe('challenge-3')
+
+        fixture.destroy()
+
+        expect(listenerCount('challenge solved')).toBe(0)
+        expect(listenerCount('code challenge solved')).toBe(0)
     })
 })
