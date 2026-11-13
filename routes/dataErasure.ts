@@ -136,11 +136,14 @@ export default router
 
 function isOrderConfirmationPath (layout: string) {
   const appRoot = path.resolve('.')
-  const resolvedPath = path.resolve(layout)
-  const candidates = [resolvedPath]
-  if (resolvedPath.startsWith(appRoot + path.sep)) {
-    const realPath = realpathOfNearestExistingAncestor(resolvedPath)
-    if (realPath) candidates.push(realPath)
+  // hbs resolves layouts relative to the views directory
+  const resolvedPaths = [path.resolve(layout), path.join(path.resolve('views'), layout)]
+  const candidates = [...resolvedPaths]
+  for (const resolvedPath of resolvedPaths) {
+    if (resolvedPath.startsWith(appRoot + path.sep)) {
+      const realPath = realpathOfNearestExistingAncestor(resolvedPath)
+      if (realPath) candidates.push(realPath)
+    }
   }
   const ordersRoots = ['orders']
   try {
