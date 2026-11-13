@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
+import { expressjwt, UnauthorizedError } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
@@ -38,6 +38,7 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
+  refreshAllFor: (user: ResponseWithUser) => void
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -51,10 +52,27 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
-export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
+export const jwtAlgorithms: jwt.Algorithm[] = ['RS256']
+
+export const isAuthorized = () => {
+  const middleware = expressjwt({ secret: publicKey, algorithms: jwtAlgorithms })
+  return (req: Request, res: Response, next: NextFunction) => {
+    void middleware(req, res, next)
+  }
+}
+export const denyAll = () => (req: Request, res: Response, next: NextFunction) => {
+  next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
+}
+export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256', allowInsecureKeySizes: true })
+export const verify = (token: string) => {
+  if (!token) return false
+  try {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+    return true
+  } catch {
+    return false
+  }
+}
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -89,6 +107,15 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
     this.put(token, user)
+  },
+  refreshAllFor: function (user: ResponseWithUser) {
+    for (const [token, cached] of Object.entries(this.tokenMap)) {
+      if (cached?.data?.id === user.data.id) {
+        // drop the password hash so neither the old nor the new one stays readable from a refreshed session
+        const data = Object.fromEntries(Object.entries(user.data).filter(([key]) => key !== 'password'))
+        this.tokenMap[token] = { ...cached, data: data as unknown as UserModel }
+      }
+    }
   }
 }
 
@@ -188,7 +215,7 @@ export const appendUserId = () => {
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
