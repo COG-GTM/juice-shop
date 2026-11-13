@@ -125,6 +125,10 @@ export async function fetchProfileImage (rawUrl: unknown, { isAllowedAddress = i
       })
       res.on('error', settle)
     })
+    req.on('upgrade', (res, socket) => {
+      socket.destroy()
+      settle(new ProfileImageFetchError(`profile image URL returned status ${res.statusCode}`))
+    })
     req.on('timeout', () => req.destroy(new ProfileImageFetchError('profile image request timed out')))
     req.on('error', settle)
   })
