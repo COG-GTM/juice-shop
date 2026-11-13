@@ -57,6 +57,21 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith('order_1234.pdf', sinon.match({ root: sinon.match(/ftp$/) }))
   })
 
+  it('should respond 404 for symlinks in /ftp instead of following them', async () => {
+    const lstat = sinon.stub(fs, 'lstat').resolves({ isFile: () => false, isSymbolicLink: () => true } as any)
+    req.params.file = 'linked.md'
+
+    try {
+      await servePublicFiles()(req, res, next)
+    } finally {
+      lstat.restore()
+    }
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(404)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
   it('should respond 404 for allowlisted file types that do not exist in /ftp', async () => {
     req.params.file = 'test.pdf'
 
