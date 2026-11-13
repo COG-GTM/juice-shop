@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
+ * SPDX-License-Identifier: MIT
+ */
+
+import fs from 'node:fs'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
+import sinon from 'sinon'
+import chai from 'chai'
+import sinonChai from 'sinon-chai'
+import { profileImageUrlUpload, imageDownloadLimits } from '../../routes/profileImageUrlUpload'
+import { authenticatedUsers } from '../../lib/insecurity'
+import { UserModel } from '../../models/user'
+const expect = chai.expect
+chai.use(sinonChai)
+
+const uploadsDir = 'frontend/dist/frontend/assets/public/images/uploads'
+const userId = 4711
+const token = 'profileImageUrlUploadSpecToken'
+const { maxBytes, timeoutMs } = imageDownloadLimits
+
+const partialDownloads = () => fs.readdirSync(uploadsDir).filter(name => name.startsWith(`${userId}.png.`))
+
+describe('profileImageUrlUpload', () => {
+  let server: http.Server
+  let baseUrl: string
+  let bytesServed: number
+  let user: { update: sinon.SinonStub }
+  let req: any
+  let res: any
+  let next: sinon.SinonSpy
+
+  before(async () => {
+    fs.mkdirSync(uploadsDir, { recursive: true })
+    server = http.createServer((request, response) => {
+      const chunk = Buffer.alloc(64 * 1024, 0xff)
+      if (request.url === '/endless.png') {
+        response.writeHead(200, { 'Content-Type': 'image/png' })
+        const write = () => {
+          while (!response.destroyed) {
+            bytesServed += chunk.length
+            if (!response.write(chunk)) break
+          }
+          if (!response.destroyed) response.once('drain', write)
+        }
+        write()
+      } else if (request.url === '/huge.png') {
+        response.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': String(maxBytes * 1024) })
+        response.write(chunk)
+      } else if (request.url === '/trickle.png') {
+        response.writeHead(200, { 'Content-Type': 'image/png' })
+        const interval = setInterval(() => { response.destroyed ? clearInterval(interval) : response.write(Buffer.alloc(16, 0xff)) }, 20)
+      } else {
+        response.writeHead(200, { 'Content-Type': 'image/png' })
+        response.end(chunk)
+      }
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  })
+
+  after(() => {
+    server.closeAllConnections()
+    server.close()
+  })
+
+  beforeEach(() => {
+    bytesServed = 0
+    authenticatedUsers.put(token, { data: { id: userId } } as any)
+    user = { update: sinon.stub().resolves() }
+    sinon.stub(UserModel, 'findByPk').resolves(user as any)
+    req = { body: {}, cookies: { token }, app: { locals: {} } }
+    res = { location: sinon.spy(), redirect: sinon.spy() }
+    next = sinon.spy()
+  })
+
+  afterEach(() => {
+    imageDownloadLimits.timeoutMs = timeoutMs
+    sinon.restore()
+    fs.rmSync(`${uploadsDir}/${userId}.png`, { force: true })
+  })
+
+  it('should store a small image fetched from the URL', async () => {
+    req.body.imageUrl = `${baseUrl}/small.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(fs.statSync(`${uploadsDir}/${userId}.png`).size).to.equal(64 * 1024)
+    expect(user.update).to.have.been.calledWith({ profileImage: `/assets/public/images/uploads/${userId}.png` })
+    expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
+  })
+
+  it('should stop downloading an endless image stream once the size limit is exceeded', async () => {
+    req.body.imageUrl = `${baseUrl}/endless.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(bytesServed).to.be.below(maxBytes * 8)
+    expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
+    expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
+    expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
+  })
+
+  it('should not download an image whose Content-Length exceeds the size limit', async () => {
+    req.body.imageUrl = `${baseUrl}/huge.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
+    expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
+  })
+
+  it('should abort a download that does not finish within the timeout', async () => {
+    imageDownloadLimits.timeoutMs = 300
+    req.body.imageUrl = `${baseUrl}/trickle.png`
+    const start = Date.now()
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(Date.now() - start).to.be.below(3000)
+    expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
+    expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
+    expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
+  })
+
+  it('should keep the previously stored image when a new download fails', async () => {
+    fs.writeFileSync(`${uploadsDir}/${userId}.png`, 'previous image')
+    req.body.imageUrl = `${baseUrl}/endless.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(fs.readFileSync(`${uploadsDir}/${userId}.png`, 'utf8')).to.equal('previous image')
+    expect(partialDownloads()).to.deep.equal([])
+  })
+})
