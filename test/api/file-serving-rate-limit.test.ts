@@ -33,7 +33,7 @@ void describe('Hidden URL rate limiting', () => {
 
   void it('GET hidden URLs are blocked with 429 once the shared limit is exhausted', async () => {
     let lastStatus = 0
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i <= 60; i++) {
       lastStatus = (await request(app).get(hiddenUrls[i % hiddenUrls.length])).status
       if (lastStatus === 429) break
     }
