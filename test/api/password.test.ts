@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import { generateSync } from 'otplib'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -106,7 +108,9 @@ void describe('/rest/user/change-password', () => {
       .expect(201)
 
     const { token: tokenA } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    await new Promise(resolve => setTimeout(resolve, 1100))
     const { token: tokenB } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    assert.notEqual(tokenA, tokenB)
 
     await request(app)
       .post('/rest/user/change-password')
@@ -122,6 +126,36 @@ void describe('/rest/user/change-password', () => {
     assert.equal(res.status, 401)
     assert.equal(await loginStatus('twosessions@be.rt', 'second-secret'), 200)
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
+  })
+
+  void it('POST password change keeps the session usable for 2FA setup with the new password', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'twofa-after-change@be.rt',
+        password: 'old-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'twofa-after-change@be.rt', password: 'old-secret' })
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ current: 'old-secret', new: 'new-secret', repeat: 'new-secret' })
+      .expect(200)
+
+    const secret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+    await request(app)
+      .post('/rest/2fa/setup')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({
+        password: 'new-secret',
+        setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret })
+      })
+      .expect(200)
   })
 
   void it('GET password change via query string is no longer supported', async () => {
