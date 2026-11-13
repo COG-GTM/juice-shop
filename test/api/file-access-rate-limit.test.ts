@@ -25,12 +25,15 @@ void describe('File access rate limiting', () => {
   })
 
   void it('file access routes share a per-client budget that X-Forwarded-For cannot reset', async () => {
+    const paths = ['/ftp/legal.md', '/snippets/fixes/directoryListingChallenge', '/promotion', '/encryptionkeys/jwt.pub']
     const statuses: number[] = []
-    for (let i = 0; i < 299; i++) {
-      const paths = ['/ftp/legal.md', '/snippets/fixes/directoryListingChallenge', '/promotion', '/encryptionkeys/jwt.pub']
+    let remaining = Infinity
+    for (let i = 0; remaining > 0 && i < 300; i++) {
       const res = await request(app).get(paths[i % paths.length]).set('X-Forwarded-For', `10.0.${Math.floor(i / 256)}.${i % 256}`)
       statuses.push(res.status)
+      remaining = Number(/remaining=(\d+)/.exec(res.headers.ratelimit)?.[1])
     }
+    assert.equal(remaining, 0)
     assert.equal(statuses.filter(s => s === 429).length, 0)
 
     for (const path of ['/ftp/legal.md', '/snippets/directoryListingChallenge', '/video', '/support/logs', '/profile', '/some/angular/route']) {
