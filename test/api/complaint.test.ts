@@ -15,14 +15,18 @@ let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 let jimHeader: Record<string, string>
 let benderHeader: Record<string, string>
+let jimId: number
+let benderId: number
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
   const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
   jimHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  jimId = security.decode(jim.token).data.id
   const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
   benderHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
+  benderId = security.decode(bender.token).data.id
 }, { timeout: 60000 })
 
 void describe('/api/Complaints', () => {
@@ -57,14 +61,14 @@ void describe('/api/Complaints', () => {
       .get('/api/Complaints')
       .set(jimHeader)
     assert.equal(jimRes.status, 200)
-    assert.ok(jimRes.body.data.length > 0)
-    assert.ok(jimRes.body.data.every((complaint: { UserId: number }) => complaint.UserId === jimRes.body.data[0].UserId))
+    assert.ok(jimRes.body.data.some((complaint: { id: number }) => complaint.id === createRes.body.data.id))
+    assert.ok(jimRes.body.data.every((complaint: { UserId: number }) => complaint.UserId === jimId))
 
     const benderRes = await request(app)
       .get('/api/Complaints')
       .set(benderHeader)
     assert.equal(benderRes.status, 200)
-    assert.ok(benderRes.body.data.every((complaint: { id: number }) => complaint.id !== createRes.body.data.id))
+    assert.ok(benderRes.body.data.every((complaint: { UserId: number }) => complaint.UserId === benderId))
   })
 })
 
