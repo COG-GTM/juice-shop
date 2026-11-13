@@ -20,6 +20,8 @@ const userId = 4711
 const token = 'profileImageUrlUploadSpecToken'
 const { maxBytes, timeoutMs } = imageDownloadLimits
 
+const partialDownloads = () => fs.readdirSync(uploadsDir).filter(name => name.startsWith(`${userId}.png.`))
+
 describe('profileImageUrlUpload', () => {
   let server: http.Server
   let baseUrl: string
@@ -36,7 +38,10 @@ describe('profileImageUrlUpload', () => {
       if (request.url === '/endless.png') {
         response.writeHead(200, { 'Content-Type': 'image/png' })
         const write = () => {
-          while (!response.destroyed && response.write(chunk)) bytesServed += chunk.length
+          while (!response.destroyed) {
+            bytesServed += chunk.length
+            if (!response.write(chunk)) break
+          }
           if (!response.destroyed) response.once('drain', write)
         }
         write()
@@ -93,6 +98,7 @@ describe('profileImageUrlUpload', () => {
 
     expect(bytesServed).to.be.below(maxBytes * 8)
     expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
     expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
     expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
   })
@@ -103,6 +109,7 @@ describe('profileImageUrlUpload', () => {
     await profileImageUrlUpload()(req, res, next)
 
     expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
     expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
   })
 
@@ -115,7 +122,18 @@ describe('profileImageUrlUpload', () => {
 
     expect(Date.now() - start).to.be.below(3000)
     expect(fs.existsSync(`${uploadsDir}/${userId}.png`)).to.equal(false)
+    expect(partialDownloads()).to.deep.equal([])
     expect(user.update).to.have.been.calledWith({ profileImage: req.body.imageUrl })
     expect(res.redirect).to.have.been.calledWith(process.env.BASE_PATH + '/profile')
+  })
+
+  it('should keep the previously stored image when a new download fails', async () => {
+    fs.writeFileSync(`${uploadsDir}/${userId}.png`, 'previous image')
+    req.body.imageUrl = `${baseUrl}/endless.png`
+
+    await profileImageUrlUpload()(req, res, next)
+
+    expect(fs.readFileSync(`${uploadsDir}/${userId}.png`, 'utf8')).to.equal('previous image')
+    expect(partialDownloads()).to.deep.equal([])
   })
 })
