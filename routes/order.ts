@@ -20,6 +20,9 @@ import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
 
+export const orderConfirmationsDir = 'orders/'
+export const orderConfirmationFile = (userId: number | string, orderId: string) => path.resolve(orderConfirmationsDir, String(userId), `order_${orderId}.pdf`)
+
 interface Product {
   quantity: number
   id?: number
@@ -38,11 +41,12 @@ export function placeOrder () {
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
-          const pdfFile = `order_${orderId}.pdf`
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join('ftp/', pdfFile)))
+          const pdfFile = orderConfirmationFile(customer?.data?.id ?? 'anonymous', orderId)
+          await fs.promises.mkdir(path.dirname(pdfFile), { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfFile))
 
           fileWriter.on('finish', () => {
             void (async () => {
