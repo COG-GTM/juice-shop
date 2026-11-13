@@ -111,6 +111,76 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isSafeProfileImageLink', () => {
+    it('accepts relative paths, http(s) URLs and scheme-less hosts', () => {
+      expect(security.isSafeProfileImageLink('/assets/public/images/uploads/default.svg')).to.equal(true)
+      expect(security.isSafeProfileImageLink('https://placecats.com/g/300/300')).to.equal(true)
+      expect(security.isSafeProfileImageLink('http://shop.example:8080/a.png')).to.equal(true)
+      expect(security.isSafeProfileImageLink('cataas.com/cat')).to.equal(true)
+    })
+
+    it('rejects links that could add Content-Security-Policy directives or sources', () => {
+      expect(security.isSafeProfileImageLink("https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'")).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png;script-src')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png *')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png\nscript-src')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png,b')).to.equal(false)
+      expect(security.isSafeProfileImageLink("'unsafe-inline'")).to.equal(false)
+    })
+
+    it('rejects non-http(s) schemes, protocol-relative links and non-strings', () => {
+      expect(security.isSafeProfileImageLink('javascript:alert(1)')).to.equal(false)
+      expect(security.isSafeProfileImageLink('data:image/png;base64,AAAA')).to.equal(false)
+      expect(security.isSafeProfileImageLink('file:///etc/passwd')).to.equal(false)
+      expect(security.isSafeProfileImageLink('//attacker.example/a.png')).to.equal(false)
+      expect(security.isSafeProfileImageLink(['https://a.png'])).to.equal(false)
+      expect(security.isSafeProfileImageLink(undefined)).to.equal(false)
+    })
+  })
+
+  describe('isCrossSiteRequest', () => {
+    const requestWith = (headers: Record<string, string>, secure = false) => ({
+      headers: { host: 'shop.example', ...headers },
+      secure,
+      get: (name: string) => headers[name.toLowerCase()]
+    }) as unknown as Request
+
+    it('trusts Sec-Fetch-Site when present', () => {
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'same-origin' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'none' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'cross-site', origin: 'https://shop.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ 'sec-fetch-site': 'same-site' }))).to.equal(true)
+    })
+
+    it('compares Origin or Referer with the Host header', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }))).to.equal(false)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://attacker.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example.attacker.example/' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example:8443' }))).to.equal(true)
+    })
+
+    it('rejects plain-http origins on an HTTPS request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'http://shop.example' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'http://shop.example/profile' }, true))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }, true))).to.equal(false)
+    })
+
+    it('rejects HTTPS origins on a plain-http request', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ referer: 'https://shop.example/profile' }))).to.equal(true)
+    })
+
+    it('rejects opaque or malformed origins', () => {
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'null' }))).to.equal(true)
+      expect(security.isCrossSiteRequest(requestWith({ origin: 'https://shop.example@attacker.example' }))).to.equal(true)
+    })
+
+    it('allows requests without any origin information', () => {
+      expect(security.isCrossSiteRequest(requestWith({}))).to.equal(false)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

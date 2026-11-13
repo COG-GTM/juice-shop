@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -42,6 +43,39 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
   })
 
+  void it('GET user profile does not copy CSP directives from a stored profile image link into the header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const profileImageBefore = user.profileImage
+    await user.update({ profileImage: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user.update({ profileImage: profileImageBefore })
+    }
+  })
+
+  void it('GET user profile keeps a safe profile image link in the CSP header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const profileImageBefore = user.profileImage
+    await user.update({ profileImage: 'https://placecats.com/g/300/300' })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.headers['content-security-policy'], "img-src 'self' https://placecats.com/g/300/300; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user.update({ profileImage: profileImageBefore })
+    }
+  })
+
   void it('POST update username of authenticated user', async () => {
     const res = await request(app)
       .post('/profile')
@@ -50,5 +84,45 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  for (const [name, headers] of [
+    ['cross-site Sec-Fetch-Site', { 'Sec-Fetch-Site': 'cross-site' }],
+    ['foreign Origin', { Origin: 'http://htmledit.squarefree.com' }],
+    ['foreign Referer', { Referer: 'https://attacker.example/csrf.html' }],
+    ['opaque Origin', { Origin: 'null' }],
+    ['same hostname on another port', { Origin: 'http://localhost:8080' }]
+  ] as Array<[string, Record<string, string>]>) {
+    void it(`POST update username with ${name} is rejected`, async () => {
+      const res = await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .set('Host', 'localhost:3000')
+        .set(headers)
+        .type('form')
+        .send('username=CSRF')
+        .redirects(0)
+
+      assert.equal(res.status, 403)
+      assert.ok(res.text.includes('Error: Cross-site profile update rejected'))
+      const profile = await request(app).get('/profile').set(authHeader)
+      assert.ok(!profile.text.includes('value="CSRF"'))
+    })
+  }
+
+  void it('POST update username from same origin sets a SameSite=Lax token cookie', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://localhost:3000')
+      .set('Sec-Fetch-Site', 'same-origin')
+      .type('form')
+      .send('username=Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    const cookies = [res.headers['set-cookie'] ?? []].flat()
+    assert.ok(cookies.some((c: string) => c.startsWith('token=') && c.includes('SameSite=Lax')))
   })
 })
