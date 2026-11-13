@@ -264,6 +264,27 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  /* Rate limiting for routes that access the file system */
+  const fileAccessRateLimit = rateLimit({ windowMs: 60 * 1000, max: 200, validate: { trustProxy: false } })
+  app.use([
+    '/ftp',
+    '/.well-known',
+    '/encryptionkeys',
+    '/support/logs',
+    '/file-upload',
+    '/profile',
+    '/rest/memories',
+    '/rest/basket/:id/checkout',
+    '/rest/languages',
+    '/dataerasure',
+    '/promotion',
+    '/video',
+    '/snippets',
+    '/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg',
+    '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us',
+    '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility'
+  ], fileAccessRateLimit)
+
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -671,7 +692,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
   app.post('/snippets/fixes', utils.asyncHandler(checkCorrectFix()))
 
-  app.use(utils.asyncHandler(serveAngularClient()))
+  app.use(fileAccessRateLimit, utils.asyncHandler(serveAngularClient()))
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
