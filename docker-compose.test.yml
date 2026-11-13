@@ -6,3 +6,4 @@ services:
   app:
     image: bkimminich/juice-shop:latest
     build: ./
+    pull_policy: build

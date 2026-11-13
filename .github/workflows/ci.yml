@@ -213,7 +213,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_DEFAULT_VERSION }}
       - name: "Install application"
-        if: github.repository == 'juice-shop/juice-shop' || (github.repository != 'juice-shop/juice-shop' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24')
         run: npm install
       - name: "Execute server tests for each custom configuration"
         uses: nick-invision/retry@7152eba30c6575329ac0576536151aca5a72780e #v3.0.0
@@ -257,9 +256,10 @@ jobs:
           install: false
           browser: ${{ matrix.browser }}
           start: npm start
-          wait-on: http://localhost:3000
-          record: true
-          group: ${{ matrix.browser }} @ ${{ matrix.os }}
+          wait-on: http://127.0.0.1:3000
+          wait-on-timeout: 90
+          record: ${{ secrets.CYPRESS_RECORD_KEY != '' }}
+          group: ${{ secrets.CYPRESS_RECORD_KEY != '' && format('{0} @ {1}', matrix.browser, matrix.os) || '' }}
         env:
           SOLUTIONS_WEBHOOK: ${{ secrets.E2E_SOLUTIONS_WEBHOOK }}
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
@@ -272,9 +272,10 @@ jobs:
           install: false
           browser: ${{ matrix.browser }}
           start: npm start
-          wait-on: http://localhost:3000
-          record: true
-          group: ${{ matrix.browser }} @ ${{ matrix.os }}
+          wait-on: http://127.0.0.1:3000
+          wait-on-timeout: 90
+          record: ${{ secrets.CYPRESS_RECORD_KEY != '' }}
+          group: ${{ secrets.CYPRESS_RECORD_KEY != '' && format('{0} @ {1}', matrix.browser, matrix.os) || '' }}
         env:
           CYPRESS_CACHE_FOLDER: /Users/runner/Library/Caches/Cypress
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
