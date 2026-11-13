@@ -14,7 +14,7 @@ import { createTestApp } from './helpers/setup'
 let app: Express
 
 const b64url = (input: string | Buffer) => Buffer.from(input).toString('base64url')
-const payload = b64url(JSON.stringify({ status: 'success', data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: Math.floor(Date.now() / 1000) }))
+const payload = b64url(JSON.stringify({ status: 'success', data: { id: 1, email: 'accountant@juice-sh.op', role: 'accounting' }, iat: Math.floor(Date.now() / 1000) }))
 
 const unsignedHeader = b64url(JSON.stringify({ alg: 'none', typ: 'JWT' }))
 const unsignedToken = `${unsignedHeader}.${payload}.`
@@ -72,6 +72,14 @@ void describe('regularly signed RS256 JWT', () => {
     const res = await request(app)
       .get('/api/Users')
       .set('Authorization', `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`)
+
+    assert.equal(res.status, 200)
+  })
+
+  void it('is accepted by role checks', async () => {
+    const res = await request(app)
+      .get('/rest/order-history/orders')
+      .set('Authorization', `Bearer ${security.authorize({ data: { email: 'accountant@juice-sh.op', role: 'accounting' } })}`)
 
     assert.equal(res.status, 200)
   })
