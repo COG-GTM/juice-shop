@@ -29,6 +29,30 @@ describe('utils', () => {
     })
   })
 
+  describe('rateLimitClientKey', () => {
+    it('returns ipv4 address unchanged', () => {
+      expect(utils.rateLimitClientKey('192.0.2.128')).to.equal('192.0.2.128')
+    })
+
+    it('returns ipv4-mapped address as ipv4 address', () => {
+      expect(utils.rateLimitClientKey('::ffff:192.0.2.128')).to.equal('192.0.2.128')
+    })
+
+    it('groups ipv6 addresses of the same /64 subnet into one key', () => {
+      expect(utils.rateLimitClientKey('2001:db8:85a3:0:1:8a2e:370:7334')).to.equal('2001:db8:85a3:0::/64')
+      expect(utils.rateLimitClientKey('2001:0db8:85a3::ffff:1')).to.equal('2001:db8:85a3:0::/64')
+      expect(utils.rateLimitClientKey('2001:db8:85a3:0:abcd::%eth0')).to.equal('2001:db8:85a3:0::/64')
+    })
+
+    it('keeps ipv6 addresses of different /64 subnets apart', () => {
+      expect(utils.rateLimitClientKey('2001:db8:85a3:1::1')).to.not.equal(utils.rateLimitClientKey('2001:db8:85a3:2::1'))
+    })
+
+    it('returns a fallback key for a missing address', () => {
+      expect(utils.rateLimitClientKey(undefined)).to.equal('unknown')
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')
