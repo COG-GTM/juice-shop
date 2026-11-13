@@ -647,9 +647,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', b2bOrder())
 
   /* File Serving */
-  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
-  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
-  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
+  const fileServingRateLimit = rateLimit({ windowMs: 60 * 1000, max: 60 })
+  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileServingRateLimit, serveEasterEgg())
+  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', fileServingRateLimit, servePremiumContent())
+  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', fileServingRateLimit, servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
   app.use('/dataerasure', dataErasure)
