@@ -29,7 +29,7 @@ export const isPathInside = (dir: string, file: string, pathLib: path.PlatformPa
   return !pathLib.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + pathLib.sep)
 }
 
-const publiclyServedDirs = ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist']
+const publiclyServedDirs = ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist', 'node_modules/beercss/dist/cdn', 'node_modules/material-icons/iconfont', 'node_modules/@fontsource/roboto']
 
 export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   let privateKey: string

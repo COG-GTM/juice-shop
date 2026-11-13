@@ -270,6 +270,17 @@ describe('insecurity', () => {
       }
     })
 
+    it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE inside a publicly served /vendor directory', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const keyFile = path.resolve('node_modules/material-icons/iconfont', `jwt-test-${process.pid}.pem`)
+      fs.writeFileSync(keyFile, pem)
+      try {
+        expect(() => security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY_FILE: keyFile })).to.throw(/material-icons/)
+      } finally {
+        fs.unlinkSync(keyFile)
+      }
+    })
+
     it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE symlink inside encryptionkeys/ that points outside of it', () => {
       const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
       const keyFile = path.resolve(`jwt-test-${process.pid}.key`)
