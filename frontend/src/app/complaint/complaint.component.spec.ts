@@ -155,6 +155,13 @@ describe('ComplaintComponent', () => {
         expect(fixture.nativeElement.querySelector('#submitButton').disabled).toBe(false)
     })
 
+    it('should show a generic rejection message when the upload fails without a response body', () => {
+        component.uploader.addToQueue([new File([''], 'complaint.zip', { type: 'application/zip' })])
+        component.uploader.onErrorItem(component.uploader.queue[0], '', 0, {})
+        expect(component.uploadRejected).toBe(true)
+        expect(component.uploadRejectionMessage).toBe('File upload failed')
+    })
+
     it('should clear the upload rejection after a text-only complaint is saved', () => {
         complaintService.save.mockReturnValue(of({ id: 42 }))
         translateService.get.mockReturnValue(of('CUSTOMER_SUPPORT_COMPLAINT_REPLY'))
