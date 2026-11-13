@@ -6,6 +6,7 @@
 import os from 'node:os'
 import fs from 'node:fs'
 import vm from 'node:vm'
+import crypto from 'node:crypto'
 import path from 'node:path'
 import yaml from 'js-yaml'
 import libxml from 'libxmljs2'
@@ -168,7 +169,20 @@ function reachableExternalEntities (data: string) {
       for (const reference of contentReferences(declaration.value)) pending.push(reference)
     }
   }
+  if (!areReplacementsWellFormed([...visited].filter(key => key.startsWith('&')), declarations)) return []
   return externalTargets
+}
+
+function areReplacementsWellFormed (keys: string[], declarations: Map<string, { external: boolean, value: string }>) {
+  const wrapper = 'r' + crypto.randomBytes(8).toString('hex')
+  const replacements = keys.map(key => declarations.get(key)).filter(declaration => declaration?.external === false)
+  if (replacements.length === 0) return true
+  try {
+    parseXmlWithoutEntities('<' + wrapper + '>' + replacements.map(declaration => '<' + wrapper + '>' + stripDeclaredReferences(declaration?.value ?? '', declarations) + '</' + wrapper + '>').join('') + '</' + wrapper + '>')
+    return true
+  } catch {
+    return false
+  }
 }
 
 function entitiesReachingExternal (declarations: Map<string, { external: boolean, value: string }>) {
