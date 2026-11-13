@@ -5,7 +5,8 @@
 
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import type { Server } from 'node:http'
+import http, { type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import request from 'supertest'
 import { createTestApp } from './helpers/setup'
 
@@ -39,5 +40,20 @@ void describe('API rate limiting', () => {
       .get('/rest/2fa/status')
       .set('X-Forwarded-For', '203.0.113.7')
     assert.equal(res.status, 429)
+  })
+
+  void it('keeps a separate allowance for a different client address', { skip: process.platform === 'darwin' && '127.0.0.2 is not a loopback address on macOS' }, async () => {
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      http.get({
+        host: '127.0.0.1',
+        port: (server.address() as AddressInfo).port,
+        path: '/rest/2fa/status',
+        localAddress: '127.0.0.2'
+      }, res => {
+        res.resume()
+        resolve(res.statusCode)
+      }).on('error', reject)
+    })
+    assert.equal(status, 401)
   })
 })
