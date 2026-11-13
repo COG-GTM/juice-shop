@@ -36,6 +36,10 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 200)
+    assert.equal(res.body.user.email, 'kuni@be.rt')
+    for (const key of ['password', 'totpSecret', 'deluxeToken']) {
+      assert.ok(!(key in res.body.user), `response must not contain ${key}`)
+    }
   })
 
   void it('GET password change with passing wrong current password', async () => {
@@ -172,6 +176,19 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'morty@' + config.get<string>('application.domain'), password: 'iBurri3dMySe1fInTheB4ckyard!' })
+    assert.equal(loginRes.status, 200)
+    assert.ok(loginRes.body.authentication?.token)
+
+    const staleLoginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'morty@' + config.get<string>('application.domain'), password: 'not-the-reset-password' })
+    assert.equal(staleLoginRes.status, 401)
   })
 
   void it('POST password reset with wrong answer to security question', async () => {

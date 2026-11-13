@@ -27,8 +27,19 @@ void describe('/rest/user/authentication-details', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    const userWithAsterisks = res.body.data.find((user: any) => user.password === '********************************')
+    const userWithAsterisks = res.body.data.find((user: any) => /^\*+$/.test(user.password))
     assert.ok(userWithAsterisks, 'Expected at least one user with password replaced by asterisks')
+  })
+
+  void it('GET does not expose deluxe tokens', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    for (const user of res.body.data) {
+      assert.ok(!user.deluxeToken || /^\*+$/.test(user.deluxeToken), `deluxeToken of ${user.email} must be masked`)
+    }
   })
 
   void it('GET returns lastLoginTime for users with active sessions', async () => {

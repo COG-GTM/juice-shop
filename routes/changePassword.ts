@@ -36,7 +36,7 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
+    if (currentPassword && !await security.verifyPassword(currentPassword, loggedInUser.data.password)) {
       res.status(401).send(res.__('Current password is not correct.'))
       return
     }
@@ -49,11 +49,11 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
-      res.json({ user })
+      const isSlurmClassic = user.id === 3 && await security.verifyPassword('slurmCl4ssic', user.password)
+      challengeUtils.solveIf(challenges.changePasswordBenderChallenge, () => isSlurmClassic && !currentPassword)
+      const safeUser = user.toJSON() as Record<string, unknown>
+      for (const key of ['password', 'totpSecret', 'deluxeToken']) delete safeUser[key]
+      res.json({ user: safeUser })
     } catch (error) {
       next(error)
     }
