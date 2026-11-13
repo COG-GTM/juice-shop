@@ -105,6 +105,13 @@ function parseXmlWithoutEntities (data: string) {
   return vm.runInContext('libxml.parseXml(data, { noblanks: true, noent: false, nonet: true, dtdload: false, dtdattr: false, dtdvalid: false, nocdata: true })', sandbox, { timeout: 2000 })
 }
 
+function decodeCharacterReferences (value: string) {
+  return value.replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, (reference: string, hex: string | undefined, decimal: string | undefined) => {
+    const codePoint = hex !== undefined ? parseInt(hex, 16) : parseInt(decimal as string, 10)
+    return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : reference
+  })
+}
+
 function contentReferences (text: string) {
   const references: string[] = []
   for (const [, , , , , , , referenceType, referenceName] of text.matchAll(xmlToken)) {
@@ -124,7 +131,7 @@ function reachableExternalEntities (data: string) {
       const [, parameter, name, externalId, literal, subsetStart, subsetEnd, referenceType, referenceName] = match
       if (name !== undefined) {
         const key = (parameter !== undefined ? '%' : '&') + name
-        if (!declarations.has(key)) declarations.set(key, { external: externalId !== undefined, value: literal.slice(1, -1) })
+        if (!declarations.has(key)) declarations.set(key, { external: externalId !== undefined, value: decodeCharacterReferences(literal.slice(1, -1)) })
       } else if (subsetStart === '[') {
         inInternalSubset = true
       } else if (subsetEnd !== undefined) {

@@ -205,6 +205,23 @@ void describe('/file-upload', () => {
       assert.ok(Date.now() - start < 3000, `scan took ${Date.now() - start}ms`)
     })
 
+    void it('POST XML with passwd entity referenced through a character reference in an internal entity solves the challenge without disclosing the file', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd"><!ENTITY wrap "&#38;xxe;">]><foo>&wrap;</foo>')
+      const res = await uploadSolvesFileDisclosure(async () => await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'characterReference.xml'))
+      assert.equal(res.status, 410)
+      assert.doesNotMatch(res.text, /root:.*:0:0:/)
+    })
+
+    void it('POST XML with dev/random entity referenced through a hex character reference in an internal entity is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random"><!ENTITY wrap "&#x26;xxe;">]><foo>&wrap;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'hexCharacterReference.xml')
+      assert.equal(res.status, 503)
+    })
+
     void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
       const res = await request(app)
