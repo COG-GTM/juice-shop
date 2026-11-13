@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
-import { readFixes } from '../../routes/vulnCodeFixes'
+import { retrieveChallengesWithCodeSnippet, checkVulnLines } from '../../routes/vulnCodeSnippet'
+import { readFixes, isKnownFixKey, checkCorrectFix, getCodeFixInfoFile } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
+import yaml from 'js-yaml'
+import nodeFs from 'node:fs'
+import sinon from 'sinon'
 import sinonChai from 'sinon-chai'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -34,6 +37,72 @@ describe('codingChallengeFixes', () => {
   it('should have an info YAML file for each coding challenge', async () => {
     for (const challenge of codingChallenges) {
       expect(fs.existsSync('./data/static/codefixes/' + challenge + '.info.yml'), `Coding challenge ${challenge} does not have an info YAML file`).to.equal(true)
+    }
+  })
+
+  it('should parse all coding challenge info YAML files with the safe schema', () => {
+    for (const file of fs.readdirSync('./data/static/codefixes').filter((f: string) => f.endsWith('.info.yml'))) {
+      expect(() => yaml.safeLoad(fs.readFileSync('./data/static/codefixes/' + file, 'utf8')), `${file} is not safe-loadable`).to.not.throw()
+    }
+  })
+
+  it('should only resolve info YAML files listed in the codefixes directory', () => {
+    expect(getCodeFixInfoFile('resetPasswordBenderChallenge')).to.equal('data/static/codefixes/resetPasswordBenderChallenge.info.yml')
+    for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', '../../../etc/passwd', '../codefixes/resetPasswordBenderChallenge', 'resetPasswordBenderChallenge.info.yml', '', ['resetPasswordBenderChallenge'], 42]) {
+      expect(getCodeFixInfoFile(key), `Key ${JSON.stringify(key)} resolved to a file`).to.equal(undefined)
+    }
+  })
+
+  it('should only accept keys of existing coding challenge fixes', () => {
+    expect(isKnownFixKey('resetPasswordBenderChallenge')).to.equal(true)
+    for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', 'toString', '../../../etc/passwd', '../codefixes/resetPasswordBenderChallenge', 'resetPasswordBenderChallenge.info.yml', '', ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }, 42]) {
+      expect(isKnownFixKey(key), `Key ${JSON.stringify(key)} was accepted`).to.equal(false)
+      const fixes = readFixes(key as string)
+      expect(fixes.fixes, `Key ${JSON.stringify(key)} returned fixes`).to.have.lengthOf(0)
+      expect(fixes.correct).to.equal(-1)
+    }
+  })
+
+  it('should not touch the filesystem or grow a cache for unknown keys once the fixes are loaded', () => {
+    readFixes('resetPasswordBenderChallenge')
+    const readdir = sinon.spy(nodeFs, 'readdirSync')
+    const readFile = sinon.spy(nodeFs, 'readFileSync')
+    try {
+      for (let i = 0; i < 1000; i++) {
+        expect(readFixes(`unknownChallenge${i}`).fixes).to.have.lengthOf(0)
+        expect(readFixes(`../../x${i}`).fixes).to.have.lengthOf(0)
+      }
+      expect(readFixes('resetPasswordBenderChallenge').fixes).to.have.lengthOf(3)
+      expect(readdir).to.have.callCount(0)
+      expect(readFile).to.have.callCount(0)
+    } finally {
+      readdir.restore()
+      readFile.restore()
+    }
+  })
+
+  it('should not load unsafe YAML tags from coding challenge info files on verdict requests', async () => {
+    const payload = "!!js/function 'function () { globalThis.unsafeCodefixYamlLoaded = true }'"
+    const readFile = sinon.stub(nodeFs, 'readFileSync').callThrough()
+    readFile.withArgs(sinon.match(/\.info\.yml$/)).returns(`fixes: { find: ${payload} }\nhints: { length: ${payload} }\n`)
+    const res: any = { __: (s: string) => s, status () { return this }, json: sinon.spy() }
+    const verdict = async (handler: any, body: Record<string, unknown>) => {
+      try {
+        await handler({ body }, res, sinon.spy())
+        return null
+      } catch (error) {
+        return error as Error
+      }
+    }
+    try {
+      const fixError = await verdict(checkCorrectFix(), { key: 'accessLogDisclosureChallenge', selectedFix: 1 })
+      const snippetError = await verdict(checkVulnLines(), { key: 'accessLogDisclosureChallenge', selectedLines: [1] })
+      expect(fixError?.message).to.match(/unknown tag/)
+      expect(snippetError?.message).to.match(/unknown tag/)
+      expect((globalThis as any).unsafeCodefixYamlLoaded).to.equal(undefined)
+      expect(res.json).to.have.callCount(0)
+    } finally {
+      readFile.restore()
     }
   })
 })
