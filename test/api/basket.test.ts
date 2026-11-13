@@ -10,6 +10,9 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
+import * as db from '../../data/mongodb'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -148,6 +151,63 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('POST placing concurrent wallet orders cannot overspend the wallet', async (t) => {
+    const { token } = await login(app, { email: 'uvogin@juice-sh.op', password: 'muda-muda > ora-ora' })
+    const uvoginHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    const { token: adminToken } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const stockOf = async () => {
+      const res = await request(app).get('/api/Quantitys').set({ Authorization: 'Bearer ' + adminToken })
+      return Object.fromEntries(res.body.data.map((row: { ProductId: number, quantity: number }) => [row.ProductId, row.quantity]))
+    }
+    const stockBefore = await stockOf()
+    const orderTotal = 5 * 8.99 + 2 * 4.99
+    const bonusPoints = 5
+    assert.ok(orderTotal <= balanceBefore && 2 * orderTotal > balanceBefore)
+
+    const checkouts = 3
+    let walletAccesses = 0
+    let releaseBarrier: () => void = () => {}
+    const barrier = new Promise<void>(resolve => { releaseBarrier = resolve })
+    const awaitAllCheckouts = async () => {
+      if (++walletAccesses === checkouts) releaseBarrier()
+      await barrier
+    }
+    const findOne = WalletModel.findOne.bind(WalletModel)
+    const update = WalletModel.update.bind(WalletModel)
+    const findOneMock = t.mock.method(WalletModel, 'findOne', async (...args: Parameters<typeof WalletModel.findOne>) => {
+      await awaitAllCheckouts()
+      return await findOne(...args)
+    })
+    const updateMock = t.mock.method(WalletModel, 'update', async (...args: Parameters<typeof WalletModel.update>) => {
+      await awaitAllCheckouts()
+      return await update(...args)
+    })
+    let barrierTimedOut = false
+    const barrierTimeout = setTimeout(() => {
+      barrierTimedOut = walletAccesses < checkouts
+      releaseBarrier()
+    }, 5000)
+    const responses = await Promise.all(Array.from({ length: checkouts }, async () => await request(app)
+      .post('/rest/basket/5/checkout')
+      .set(uvoginHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })))
+    clearTimeout(barrierTimeout)
+    findOneMock.mock.restore()
+    updateMock.mock.restore()
+    assert.equal(barrierTimedOut, false)
+    assert.equal(walletAccesses, checkouts)
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 500, 500])
+    assert.equal(responses.filter(res => res.text.includes('Error: Insufficient wallet balance.')).length, 2)
+
+    const balanceAfter = (await request(app).get('/rest/wallet/balance').set(uvoginHeader)).body.data
+    assert.ok(Math.abs(balanceAfter - (balanceBefore - orderTotal + bonusPoints)) < 0.001)
+
+    const stockAfter = await stockOf()
+    assert.equal(stockAfter[3], stockBefore[3] - 5)
+    assert.equal(stockAfter[4], stockBefore[4] - 2)
+  })
+
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
@@ -191,5 +251,76 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
       .put('/rest/basket/4711/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
     assert.equal(res.status, 500)
+  })
+})
+
+void describe('/rest/basket/:id/checkout rollback', { concurrency: false }, () => {
+  let adminHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    adminHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const [card] = (await request(app).get('/api/Cards').set(adminHeader)).body.data
+    const topUp = await request(app).put('/rest/wallet/balance').set(adminHeader).send({ paymentId: card.id, balance: 1000 })
+    assert.equal(topUp.status, 200)
+    for (const ProductId of [1, 2]) {
+      const item = await request(app).post('/api/BasketItems').set(adminHeader).send({ BasketId: 1, ProductId, quantity: 1 })
+      assert.equal(item.status, 200)
+    }
+  })
+
+  const checkoutState = async () => {
+    const balance = (await request(app).get('/rest/wallet/balance').set(adminHeader)).body.data
+    const quantities = (await request(app).get('/api/Quantitys').set(adminHeader)).body.data
+    const stock = Object.fromEntries(quantities.map((row: { ProductId: number, quantity: number }) => [row.ProductId, row.quantity]))
+    const basketItems = (await request(app).get('/rest/basket/1').set(adminHeader)).body.data.Products.length
+    return { balance, stock: [stock[1], stock[2]], basketItems }
+  }
+
+  const walletCheckout = async () => await request(app)
+    .post('/rest/basket/1/checkout')
+    .set(adminHeader)
+    .send({ orderDetails: { paymentId: 'wallet' } })
+
+  void it('POST checkout restores wallet and stock when a stock reduction fails', async (t) => {
+    const before = await checkoutState()
+
+    const decrement = QuantityModel.decrement.bind(QuantityModel)
+    const decrementMock = t.mock.method(QuantityModel, 'decrement', async (...args: Parameters<typeof QuantityModel.decrement>) => {
+      if (decrementMock.mock.callCount() === 1) throw new Error('stock update failed')
+      return await decrement(...args)
+    })
+    const res = await walletCheckout()
+    decrementMock.mock.restore()
+
+    assert.equal(decrementMock.mock.callCount(), 2)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('stock update failed'))
+    assert.deepEqual(await checkoutState(), before)
+  })
+
+  void it('POST checkout restores wallet and stock when storing the order fails', async (t) => {
+    const before = await checkoutState()
+
+    const insertMock = t.mock.method(db.ordersCollection, 'insert', async () => { throw new Error('order insert failed') })
+    const res = await walletCheckout()
+    insertMock.mock.restore()
+
+    assert.equal(insertMock.mock.callCount(), 1)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('order insert failed'))
+    assert.deepEqual(await checkoutState(), before)
+  })
+
+  void it('POST checkout leaves stock unchanged for basket items with null quantity', async () => {
+    const stockOf = async (ProductId: number) => (await request(app).get('/api/Quantitys').set(adminHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+    const stockBefore = await stockOf(7)
+    const item = await request(app).post('/api/BasketItems').set(adminHeader).send({ BasketId: 1, ProductId: 7, quantity: null })
+    assert.equal(item.status, 200)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.equal(await stockOf(7), stockBefore)
   })
 })
