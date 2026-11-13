@@ -309,7 +309,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   const profileRateLimit = rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
-    keyGenerator: (req: Request) => req.socket.remoteAddress ?? '',
+    keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
     validate: false
   })
   /* File Upload */

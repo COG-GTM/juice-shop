@@ -10,6 +10,7 @@ import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
+import { isIPv6 } from 'node:net'
 import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
 
@@ -235,4 +236,17 @@ export const matchesEtcPasswdFile = (text: string) => {
  */
 export const asyncHandler = (fn: (req: any, res: any, next: any) => Promise<any> | any) => (req: any, res: any, next: any) => {
   void Promise.resolve(fn(req, res, next)).catch(next)
+}
+
+export function rateLimitClientKey (address?: string) {
+  if (address === undefined || !isIPv6(address) || address.toLowerCase().startsWith('::ffff:')) {
+    return address ?? ''
+  }
+  const [head, tail] = address.split('%')[0].split('::')
+  const headGroups = head ? head.split(':') : []
+  const tailGroups = tail ? tail.split(':') : []
+  const groups = tail === undefined
+    ? headGroups
+    : [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill('0'), ...tailGroups]
+  return groups.slice(0, 4).map(group => parseInt(group, 16).toString(16)).join(':') + '::/64'
 }
