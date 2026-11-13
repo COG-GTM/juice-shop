@@ -16,20 +16,17 @@ let server: Server
 before(async () => {
   const { app } = await createTestApp()
   server = app.listen(0)
-}, { timeout: 60000 })
+  for (let i = 0; i < requestsPerWindow; i++) {
+    const res = await request(server).get('/rest/2fa/status')
+    assert.equal(res.status, 401, 'authorization-checked route must answer normally below the per-client ceiling')
+  }
+}, { timeout: 120000 })
 
 after(() => {
   server.close()
 })
 
 void describe('API rate limiting', () => {
-  void it('answers authorization-checked routes normally until the per-client ceiling is reached', async () => {
-    for (let i = 0; i < requestsPerWindow; i++) {
-      const res = await request(server).get('/rest/2fa/status')
-      assert.equal(res.status, 401)
-    }
-  })
-
   void it('rejects further requests from the same client with 429', async () => {
     const res = await request(server).get('/rest/2fa/status')
     assert.equal(res.status, 429)
