@@ -16,19 +16,23 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
+const walletAddress = '0x0000000000000000000000000000000000000000'
+
 void describe('/rest/web3 rate limiting', () => {
-  void it('POST /walletNFTVerify is answered normally for the first 100 requests and rejected with 429 afterwards', async () => {
+  before(async () => {
     for (let i = 0; i < 100; i++) {
       const res = await request(app)
         .post('/rest/web3/walletNFTVerify')
-        .send({ walletAddress: '0x0000000000000000000000000000000000000000' })
+        .send({ walletAddress })
       assert.equal(res.status, 200)
       assert.equal(res.body.success, false)
     }
+  }, { timeout: 60000 })
 
+  void it('POST /walletNFTVerify is rejected with 429 after 100 requests', async () => {
     const res = await request(app)
       .post('/rest/web3/walletNFTVerify')
-      .send({ walletAddress: '0x0000000000000000000000000000000000000000' })
+      .send({ walletAddress })
     assert.equal(res.status, 429)
   })
 
@@ -36,7 +40,7 @@ void describe('/rest/web3 rate limiting', () => {
     const res = await request(app)
       .post('/rest/web3/walletNFTVerify')
       .set('X-Forwarded-For', '203.0.113.42')
-      .send({ walletAddress: '0x0000000000000000000000000000000000000000' })
+      .send({ walletAddress })
     assert.equal(res.status, 429)
   })
 
