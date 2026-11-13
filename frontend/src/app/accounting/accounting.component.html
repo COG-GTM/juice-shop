@@ -38,7 +38,7 @@
             <mat-header-cell *matHeaderCellDef class="cell"></mat-header-cell>
             <mat-cell *matCellDef="let element" class="cell">
               @if (element.delivered) {
-                <button mat-icon-button aria-label="Print order confirmation"
+                <button mat-icon-button [attr.aria-label]="'LABEL_MARK_AS_TRANSIT' | translate"
                   matTooltip="{{ 'LABEL_MARK_AS_TRANSIT' | translate }}" matTooltipPosition="below"
                   (click)="changeDeliveryStatus(element.delivered, element.id)">
                   <mat-icon>
@@ -46,7 +46,7 @@
                   </mat-icon>
                 </button>
               } @else {
-                <button mat-icon-button aria-label="Print order confirmation"
+                <button mat-icon-button [attr.aria-label]="'LABEL_MARK_AS_DELIVERED' | translate"
                   matTooltip="{{ 'LABEL_MARK_AS_DELIVERED' | translate }}" matTooltipPosition="below"
                   (click)="changeDeliveryStatus(element.delivered, element.id)">
                   <mat-icon>
