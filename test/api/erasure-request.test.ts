@@ -5,6 +5,9 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -110,5 +113,34 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('juice-shop'))
     assert.ok(res.text.includes('......'))
+  })
+
+  void it('POST erasure request with an order confirmation PDF as layout parameter is denied', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ layout: '../orders/1/order_0000-0000000000000000.pdf' })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('File access not allowed'))
+  })
+
+  void it('POST erasure request with a symlink alias of the order confirmations folder as layout parameter is denied', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const alias = `erasure-alias-${crypto.randomBytes(4).toString('hex')}`
+    fs.symlinkSync(path.resolve('orders'), path.resolve(alias), 'dir')
+    try {
+      const res = await request(app)
+        .post('/dataerasure/')
+        .set({ Cookie: 'token=' + token })
+        .send({ layout: `../${alias}/1/order_0000-0000000000000000.pdf` })
+
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('File access not allowed'))
+    } finally {
+      fs.unlinkSync(path.resolve(alias))
+    }
   })
 })
