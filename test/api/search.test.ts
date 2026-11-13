@@ -39,6 +39,15 @@ void describe('/rest/products/search', () => {
     assert.equal(res.body.data.length, 1)
   })
 
+  void it('GET product search returns seeded HTML descriptions translated for the selected language', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?q=non-foil')
+      .set('Cookie', 'language=de_DE')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 1)
+    assert.ok(res.body.data[0].description.startsWith('Mythische seltene <small><em>(natürlich...)</em></small>'))
+  })
+
   void it('GET product search fails with error message that exposes ins SQL Injection vulnerability', async () => {
     const res = await request(app)
       .get("/rest/products/search?q=';")
