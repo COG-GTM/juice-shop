@@ -11,6 +11,7 @@ import { getCodeChallenges } from '../lib/codingChallenges'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as accuracy from '../lib/accuracy'
 import * as utils from '../lib/utils'
+import { getCodeFixInfoFile } from './vulnCodeFixes'
 import { type ChallengeKey } from 'models/challenge'
 
 interface SnippetRequestBody {
@@ -86,8 +87,9 @@ export const checkVulnLines = () => async (req: Request<Record<string, unknown>,
   const selectedLines: number[] = req.body.selectedLines
   const verdict = getVerdict(vulnLines, neutralLines, selectedLines)
   let hint
-  if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-    const codingChallengeInfos = yaml.safeLoad(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8')) as { hints?: string[] } | undefined
+  const infoFile = getCodeFixInfoFile(key)
+  if (infoFile) {
+    const codingChallengeInfos = yaml.safeLoad(fs.readFileSync(infoFile, 'utf8')) as { hints?: string[] } | undefined
     if (codingChallengeInfos?.hints) {
       if (accuracy.getFindItAttempts(key) > codingChallengeInfos.hints.length) {
         if (vulnLines.length === 1) {

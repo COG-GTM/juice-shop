@@ -14,10 +14,17 @@ interface codeFix {
 }
 
 let CodeFixes: Map<string, codeFix> | null = null
+let InfoFiles: Map<string, string> | null = null
 
 const loadCodeFixes = () => {
   const index = new Map<string, codeFix>()
+  InfoFiles = new Map<string, string>()
   for (const file of fs.readdirSync(FixesDir).sort()) {
+    const info = /^([A-Za-z0-9]+)\.info\.yml$/.exec(file)
+    if (info) {
+      InfoFiles.set(info[1], `${FixesDir}/${file}`)
+      continue
+    }
     const metadata = file.split('_')
     if (metadata.length < 2 || !/^[A-Za-z0-9]+$/.test(metadata[0])) continue
     const entry = index.get(metadata[0]) ?? { fixes: [], correct: -1 }
@@ -35,6 +42,11 @@ const noFixes = (): codeFix => ({ fixes: [], correct: -1 })
 export const isKnownFixKey = (key: unknown): key is string => {
   CodeFixes ??= loadCodeFixes()
   return typeof key === 'string' && CodeFixes.has(key)
+}
+
+export const getCodeFixInfoFile = (key: unknown): string | undefined => {
+  CodeFixes ??= loadCodeFixes()
+  return typeof key === 'string' ? InfoFiles?.get(key) : undefined
 }
 
 export const readFixes = (key: string): codeFix => {
@@ -75,8 +87,8 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    const infoFile = `${FixesDir}/${key}.info.yml`
-    if (fs.existsSync(infoFile)) {
+    const infoFile = getCodeFixInfoFile(key)
+    if (infoFile) {
       const codingChallengeInfos = yaml.safeLoad(fs.readFileSync(infoFile, 'utf8')) as { fixes: Array<{ id: number, explanation?: string }> } | undefined
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)

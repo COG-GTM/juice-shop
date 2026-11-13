@@ -4,7 +4,7 @@
  */
 
 import { retrieveChallengesWithCodeSnippet, checkVulnLines } from '../../routes/vulnCodeSnippet'
-import { readFixes, isKnownFixKey, checkCorrectFix } from '../../routes/vulnCodeFixes'
+import { readFixes, isKnownFixKey, checkCorrectFix, getCodeFixInfoFile } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
 import yaml from 'js-yaml'
@@ -46,6 +46,13 @@ describe('codingChallengeFixes', () => {
     }
   })
 
+  it('should only resolve info YAML files listed in the codefixes directory', () => {
+    expect(getCodeFixInfoFile('resetPasswordBenderChallenge')).to.equal('data/static/codefixes/resetPasswordBenderChallenge.info.yml')
+    for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', '../../../etc/passwd', '../codefixes/resetPasswordBenderChallenge', 'resetPasswordBenderChallenge.info.yml', '', ['resetPasswordBenderChallenge'], 42]) {
+      expect(getCodeFixInfoFile(key), `Key ${JSON.stringify(key)} resolved to a file`).to.equal(undefined)
+    }
+  })
+
   it('should only accept keys of existing coding challenge fixes', () => {
     expect(isKnownFixKey('resetPasswordBenderChallenge')).to.equal(true)
     for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', 'toString', '../../../etc/passwd', '../codefixes/resetPasswordBenderChallenge', 'resetPasswordBenderChallenge.info.yml', '', ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }, 42]) {
@@ -76,9 +83,7 @@ describe('codingChallengeFixes', () => {
 
   it('should not load unsafe YAML tags from coding challenge info files on verdict requests', async () => {
     const payload = "!!js/function 'function () { globalThis.unsafeCodefixYamlLoaded = true }'"
-    const exists = sinon.stub(nodeFs, 'existsSync').callThrough()
     const readFile = sinon.stub(nodeFs, 'readFileSync').callThrough()
-    exists.withArgs(sinon.match(/\.info\.yml$/)).returns(true)
     readFile.withArgs(sinon.match(/\.info\.yml$/)).returns(`fixes: { find: ${payload} }\nhints: { length: ${payload} }\n`)
     const res: any = { __: (s: string) => s, status () { return this }, json: sinon.spy() }
     const verdict = async (handler: any, body: Record<string, unknown>) => {
@@ -97,7 +102,6 @@ describe('codingChallengeFixes', () => {
       expect((globalThis as any).unsafeCodefixYamlLoaded).to.equal(undefined)
       expect(res.json).to.have.callCount(0)
     } finally {
-      exists.restore()
       readFile.restore()
     }
   })
