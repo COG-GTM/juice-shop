@@ -12,6 +12,8 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
+let otherUserHeader: { Authorization: string, 'content-type': string }
+let adminHeader: { Authorization: string, 'content-type': string }
 
 before(
   async () => {
@@ -26,6 +28,10 @@ before(
       Authorization: 'Bearer ' + token,
       'content-type': 'application/json'
     }
+    const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    otherUserHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
+    const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    adminHeader = { Authorization: 'Bearer ' + admin.token, 'content-type': 'application/json' }
   },
   { timeout: 60000 }
 )
@@ -44,8 +50,13 @@ void describe('/api/BasketItems', () => {
   })
 
   void it('GET all basket items', async () => {
-    const res = await request(app).get('/api/BasketItems').set(authHeader)
+    const res = await request(app).get('/api/BasketItems').set(adminHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all basket items is forbidden for non-admin users', async () => {
+    const res = await request(app).get('/api/BasketItems').set(authHeader)
+    assert.equal(res.status, 403)
   })
 
   void it('POST new basket item', async () => {
@@ -149,8 +160,24 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(authHeader)
       .send({ BasketId: 3 })
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET, PUT and DELETE basket item of another user is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+    assert.equal(createRes.status, 200)
+    const itemUrl = '/api/BasketItems/' + createRes.body.data.id
+
+    assert.equal((await request(app).get(itemUrl).set(otherUserHeader)).status, 403)
+    assert.equal((await request(app).put(itemUrl).set(otherUserHeader).send({ quantity: 2 })).status, 403)
+    assert.equal((await request(app).delete(itemUrl).set(otherUserHeader)).status, 403)
+
+    const res = await request(app).get(itemUrl).set(authHeader)
     assert.equal(res.status, 200)
-    assert.equal(res.body.data.BasketId, 3)
+    assert.equal(res.body.data.quantity, 1)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
