@@ -99,6 +99,13 @@ function isDevRandomTarget (systemId: string) {
 }
 const maxParameterEntityDepth = 40
 
+function decodeCharacterReferences (text: string) {
+  return text.replace(/&#(x[0-9a-f]+|[0-9]+);/gi, (reference: string, code: string) => {
+    const codePoint = code[0] === 'x' || code[0] === 'X' ? parseInt(code.slice(1), 16) : parseInt(code, 10)
+    return codePoint <= 0x10FFFF ? String.fromCodePoint(codePoint) : reference
+  })
+}
+
 function parseXmlWithoutEntities (data: string) {
   const sandbox = { libxml, data }
   vm.createContext(sandbox)
@@ -124,7 +131,7 @@ function reachableExternalEntities (data: string) {
       const [, parameter, name, externalId, literal, subsetStart, subsetEnd, referenceType, referenceName] = match
       if (name !== undefined) {
         const key = (parameter !== undefined ? '%' : '&') + name
-        if (!declarations.has(key)) declarations.set(key, { external: externalId !== undefined, value: literal.slice(1, -1) })
+        if (!declarations.has(key)) declarations.set(key, { external: externalId !== undefined, value: externalId !== undefined ? literal.slice(1, -1) : decodeCharacterReferences(literal.slice(1, -1)) })
       } else if (subsetStart === '[') {
         inInternalSubset = true
       } else if (subsetEnd !== undefined) {

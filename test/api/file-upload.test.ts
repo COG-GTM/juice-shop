@@ -213,6 +213,14 @@ void describe('/file-upload', () => {
       assert.equal(res.status, 410)
     })
 
+    void it('POST XML with dev/random entity referenced through a character-encoded internal entity is treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random"><!ENTITY wrap "&#38;xxe;">]><foo>&wrap;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'encodedReference.xml')
+      assert.equal(res.status, 503)
+    })
+
     void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
       const res = await request(app)
