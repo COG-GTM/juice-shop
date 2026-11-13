@@ -123,6 +123,23 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  for (const id of [{ $ne: 'x' }, { $regex: 'a' }, ['x'], 42]) {
+    void it(`POST product review like with non-string id ${JSON.stringify(id)} is rejected without touching reviews`, async () => {
+      const { token } = await login(app, {
+        email: 'bjoern.kimminich@gmail.com',
+        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      })
+      const before = (await request(app).get('/rest/products/1/reviews')).body.data
+      const res = await request(app)
+        .post('/rest/products/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ id })
+      assert.equal(res.status, 400)
+      const after = (await request(app).get('/rest/products/1/reviews')).body.data
+      assert.deepEqual(after, before)
+    })
+  }
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 
