@@ -87,4 +87,22 @@ describe('TrackResultComponent', () => {
 
         expect(component.status).toBe(Status.Transit)
     })
+
+    it('should render product prices and totals with two decimals', () => {
+        trackOrderService.find.mockReturnValue(of({
+            data: [{
+                products: [
+                    { name: 'Orange Juice (1000ml)', price: 2.99, quantity: 5, total: 14.950000000000001 },
+                    { name: 'Best Juice Shop Salesman Artwork', price: 5000, quantity: 1, total: 5000 }
+                ]
+            }]
+        }))
+        component.ngOnInit()
+        fixture.detectChanges()
+
+        const table = fixture.nativeElement as HTMLElement
+        const cellTexts = (selector: string) => Array.from(table.querySelectorAll(selector), cell => cell.textContent?.trim())
+        expect(cellTexts('.product-price')).toEqual(['2.99¤', '5000.00¤'])
+        expect(cellTexts('.product-total')).toEqual(['14.95¤', '5000.00¤'])
+    })
 })
