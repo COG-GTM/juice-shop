@@ -97,6 +97,13 @@ describe('DataExportComponent', () => {
         expect(sanitezedCaptcha).toBe('<svg>captcha</svg>')
     })
 
+    it('should display error if getting a new captcha fails', () => {
+        imageCaptchaService.getCaptcha.mockReturnValue(throwError({ error: 'Too many requests, please try again later.' }))
+        component.getNewCaptcha()
+        expect(component.captcha).toBeUndefined()
+        expect(component.error).toBe('Too many requests, please try again later.')
+    })
+
     it('should show the confirmation and fetch user data and reset data export form on requesting data export', () => {
         dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
         vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)

@@ -266,3 +266,26 @@ void describe('/rest/user/data-export', () => {
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
 })
+
+void describe('/rest/image-captcha', () => {
+  void it('Rate limits CAPTCHA generation per user', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const authHeader = { Authorization: 'Bearer ' + token }
+
+    for (let i = 0; i < 30; i++) {
+      const res = await request(app).get('/rest/image-captcha').set(authHeader)
+      assert.equal(res.status, 200)
+    }
+    const limited = await request(app).get('/rest/image-captcha').set(authHeader)
+    assert.equal(limited.status, 429)
+
+    const other = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const otherRes = await request(app).get('/rest/image-captcha').set({ Authorization: 'Bearer ' + other.token })
+    assert.equal(otherRes.status, 200)
+  })
+
+  void it('Rejects unauthenticated CAPTCHA requests', async () => {
+    const res = await request(app).get('/rest/image-captcha')
+    assert.equal(res.status, 401)
+  })
+})
