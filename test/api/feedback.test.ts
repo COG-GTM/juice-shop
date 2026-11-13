@@ -296,9 +296,23 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')
 
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const res = await request(app)
       .delete('/api/Feedbacks/' + createRes.body.data.id)
-      .set(authHeader)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE feedback of another user is forbidden for non-admin users', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    assert.equal(res.status, 403)
+
+    const feedbackRes = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(authHeader)
+    assert.equal(feedbackRes.status, 200)
   })
 })
