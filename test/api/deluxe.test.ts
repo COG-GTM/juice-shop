@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 import { WalletModel } from '../../models/wallet'
 
 let app: Express
@@ -166,9 +167,13 @@ void describe('/rest/deluxe-membership', () => {
   void it('POST concurrent wallet upgrade and wallet checkout cannot spend the same balance twice', async (t) => {
     const { token } = await login(app, { email: `uvogin@${config.get<string>('application.domain')}`, password: 'muda-muda > ora-ora' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
-    const balanceBefore = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
     const orderTotal = 5 * 8.99 + 2 * 4.99
-    assert.ok(balanceBefore >= orderTotal && balanceBefore >= 49 && balanceBefore < orderTotal + 49)
+    const bonusPoints = 5
+    const balanceBefore = 60
+    const user = await UserModel.findOne({ where: { email: `uvogin@${config.get<string>('application.domain')}` } })
+    assert.ok(user != null)
+    await WalletModel.update({ balance: balanceBefore }, { where: { UserId: user.id } })
+    assert.ok(balanceBefore >= orderTotal && balanceBefore >= 49 && balanceBefore - orderTotal + bonusPoints < 49)
 
     const barrier = overlapWalletAccesses(t, 2)
     const [upgrade, checkout] = await Promise.all([
@@ -180,7 +185,7 @@ void describe('/rest/deluxe-membership', () => {
     const balanceAfter = (await request(app).get('/rest/wallet/balance').set(authHeader)).body.data
     assert.ok(balanceAfter >= 0, `wallet balance went negative: ${balanceAfter}`)
     assert.equal([upgrade.status, checkout.status].filter(status => status === 200).length, 1)
-    const expected = upgrade.status === 200 ? balanceBefore - 49 : balanceBefore - orderTotal + 5
+    const expected = upgrade.status === 200 ? balanceBefore - 49 : balanceBefore - orderTotal + bonusPoints
     assert.ok(Math.abs(balanceAfter - expected) < 0.001)
   })
 
