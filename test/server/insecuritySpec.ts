@@ -285,6 +285,12 @@ describe('insecurity', () => {
       expect(security.consumeSecondFactorToken(tmpToken, security.secondFactorTokenExpiry())).to.equal(false)
     })
 
+    it('treats tokens with the same header and payload but a different signature encoding as reused', () => {
+      const tmpToken = security.authorize({ userId: 2, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token' })
+      expect(security.consumeSecondFactorToken(tmpToken, security.secondFactorTokenExpiry())).to.equal(true)
+      expect(security.consumeSecondFactorToken(tmpToken + 'A', security.secondFactorTokenExpiry())).to.equal(false)
+    })
+
     it('forgets used tokens once they have expired', () => {
       expect(security.consumeSecondFactorToken('expired-token', Date.now() - 1)).to.equal(true)
       expect(security.consumeSecondFactorToken('another-token', security.secondFactorTokenExpiry())).to.equal(true)

@@ -111,8 +111,9 @@ export const consumeSecondFactorToken = (token: string, expiresAt: number) => {
   for (const [usedToken, usedTokenExpiry] of usedSecondFactorTokens) {
     if (usedTokenExpiry <= now) usedSecondFactorTokens.delete(usedToken)
   }
-  if (usedSecondFactorTokens.has(token)) return false
-  usedSecondFactorTokens.set(token, expiresAt)
+  const signedContent = token.split('.').slice(0, 2).join('.')
+  if (usedSecondFactorTokens.has(signedContent)) return false
+  usedSecondFactorTokens.set(signedContent, expiresAt)
   return true
 }
 
