@@ -15,6 +15,7 @@ import { DeliveryModel } from '../models/delivery'
 import { FeedbackModel } from '../models/feedback'
 import { HintModel } from '../models/hint'
 import { MemoryModel } from '../models/memory'
+import { OAuthIdentityModel } from '../models/oauthIdentity'
 import { ProductModel } from '../models/product'
 import { QuantityModel } from '../models/quantity'
 import { RecycleModel } from '../models/recycle'
@@ -187,7 +188,7 @@ async function createUsers () {
   const users = await loadStaticUserData()
 
   await Promise.all(
-    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
+    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, oauth = false, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
         const user = await UserModel.create({
@@ -201,6 +202,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
+        if (oauth) await OAuthIdentityModel.create({ UserId: user.id })
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)

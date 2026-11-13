@@ -92,6 +92,21 @@ void describe('/rest/user/oauth', () => {
     assert.equal(res.status, 401)
   })
 
+  void it('POST refuses Google sign-in into an account that was pre-registered with a password', async () => {
+    const victim = 'oauth.prehijack@gmail.com'
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({ email: victim, password: derivedPassword(victim), passwordRepeat: derivedPassword(victim) })
+      .expect(201)
+    stubGoogleTokenInfo({ aud: clientId, email: victim, email_verified: 'true', expires_in: '3599' })
+
+    const res = await request(app).post('/rest/user/oauth').set(jsonHeader).send({ accessToken: 'ya29.prehijack-token' })
+
+    assert.equal(res.status, 409)
+    assert.equal(res.body.authentication, undefined)
+  })
+
   void it('POST rejects a token issued to another OAuth client', async () => {
     stubGoogleTokenInfo({ aud: 'someone-else.apps.googleusercontent.com', email: 'oauth.confused@gmail.com', email_verified: 'true', expires_in: '3599' })
 

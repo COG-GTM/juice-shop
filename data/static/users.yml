@@ -87,6 +87,7 @@
   username: bkimminich
   customDomain: true
   key: bjoernGoogle
+  oauth: true
   role: 'admin'
   address:
     - fullName: 'Bjoern Kimminich'
