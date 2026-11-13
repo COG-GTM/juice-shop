@@ -1,4 +1,6 @@
 import chai from 'chai'
+import sinon from 'sinon'
+import logger from '../../lib/logger'
 import { type Challenge } from '../../data/types'
 const expect = chai.expect
 
@@ -53,6 +55,36 @@ describe('antiCheat', () => {
       const score = antiCheat.calculateCheatScore(challenge2)
 
       expect(score).to.be.greaterThan(0)
+    })
+  })
+
+  describe('cheat score logging', () => {
+    let info: sinon.SinonStub
+    beforeEach(() => {
+      info = sinon.stub(logger, 'info')
+    })
+    afterEach(() => {
+      info.restore()
+    })
+
+    it('should log the registered key of a known challenge', () => {
+      antiCheat.calculateCheatScore({ key: 'resetPasswordJimChallenge', difficulty: 3 } as any)
+      antiCheat.calculateCheatScore({ key: 'changePasswordBenderChallenge', difficulty: 5 } as any, true)
+
+      expect(info.firstCall.args[0]).to.contain('resetPasswordJimChallenge')
+      expect(info.secondCall.args[0]).to.contain('changePasswordBenderChallenge')
+    })
+
+    it('should not log arbitrary values passed as challenge key', () => {
+      antiCheat.calculateCheatScore({ key: 'admin123\nInjected log line', difficulty: 1 } as any)
+      antiCheat.calculateCheatScore({ key: 'J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P', difficulty: 1 } as any, true)
+
+      expect(info.callCount).to.equal(2)
+      for (const call of info.getCalls()) {
+        expect(call.args[0]).to.contain('unknown challenge')
+        expect(call.args[0]).to.not.contain('admin123')
+        expect(call.args[0]).to.not.contain('J6aVjTgOpRs')
+      }
     })
   })
 })

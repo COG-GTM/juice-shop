@@ -13,7 +13,7 @@ import {
   type Sequelize
 } from 'sequelize'
 
-const CHALLENGE_KEYS = [
+export const CHALLENGE_KEYS = [
   'restfulXssChallenge',
   'accessLogDisclosureChallenge',
   'registerAdminChallenge',

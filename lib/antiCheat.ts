@@ -14,7 +14,7 @@ import { type NextFunction, type Request, type Response } from 'express'
 import * as utils from './utils'
 // @ts-expect-error FIXME due to non-existing type definitions for median
 import median from 'median'
-import { type ChallengeKey } from 'models/challenge'
+import { type ChallengeKey, CHALLENGE_KEYS } from '../models/challenge'
 
 const tightlyCoupledChallenges = {
   loginAdminChallenge: ['weakPasswordChallenge'],
@@ -61,7 +61,7 @@ export const checkForPreSolveInteractions = () => ({ url }: Request, res: Respon
 
 export const calculateCheatScore = (challenge: Challenge, isCheating = false) => {
   if (isCheating) {
-    logger.info(`Cheat score for ${colors.cyan(challenge.key)} solved by using a bypass, direct access, etc. cheat: ${colors.red('1')}`)
+    logger.info(`Cheat score for ${colors.cyan(loggableChallengeKey(challenge))} solved by using a bypass, direct access, etc. cheat: ${colors.red('1')}`)
     solves.push({ challenge, phase: 'hack it', timestamp: new Date(), cheatScore: 1 })
     return 1
   } else {
@@ -90,7 +90,7 @@ export const calculateCheatScore = (challenge: Challenge, isCheating = false) =>
 
     cheatScore = Math.min(1, cheatScore)
 
-    logger.info(`Cheat score for ${areTightlyCoupled(challenge, previous().challenge) ? 'tightly coupled ' : (isLooselyCoupledToPreviouslySolved(challenge) ? 'loosely coupled ' : (isTrivial(challenge) ? 'trivial ' : ''))}${challenge.tutorialOrder ? 'tutorial ' : ''}${colors.cyan(challenge.key)} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min) with${config.get('challenges.showHints') ? '' : 'out'} hints allowed${percentPrecedingInteraction > -1 ? (' and ' + percentPrecedingInteraction * 100 + '% expected preceding URL interaction') : ''}: ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
+    logger.info(`Cheat score for ${areTightlyCoupled(challenge, previous().challenge) ? 'tightly coupled ' : (isLooselyCoupledToPreviouslySolved(challenge) ? 'loosely coupled ' : (isTrivial(challenge) ? 'trivial ' : ''))}${challenge.tutorialOrder ? 'tutorial ' : ''}${colors.cyan(loggableChallengeKey(challenge))} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min) with${config.get('challenges.showHints') ? '' : 'out'} hints allowed${percentPrecedingInteraction > -1 ? (' and ' + percentPrecedingInteraction * 100 + '% expected preceding URL interaction') : ''}: ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
     solves.push({ challenge, phase: 'hack it', timestamp, cheatScore })
     return cheatScore
   }
@@ -116,7 +116,7 @@ export const calculateFindItCheatScore = async (challenge: Challenge) => {
   const minutesSincePreviousSolve = (timestamp.getTime() - previous().timestamp.getTime()) / 60000
   cheatScore += Math.max(0, 1 - (minutesSincePreviousSolve / minutesExpectedToSolve))
 
-  logger.info(`Cheat score for "Find it" phase of ${challenge.key === 'scoreBoardChallenge' && config.get('hackingInstructor.isEnabled') ? 'tutorial ' : ''}${colors.cyan(challenge.key)} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min): ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
+  logger.info(`Cheat score for "Find it" phase of ${challenge.key === 'scoreBoardChallenge' && config.get('hackingInstructor.isEnabled') ? 'tutorial ' : ''}${colors.cyan(loggableChallengeKey(challenge))} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min): ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
   solves.push({ challenge, phase: 'find it', timestamp, cheatScore })
 
   return cheatScore
@@ -131,7 +131,7 @@ export const calculateFixItCheatScore = async (challenge: Challenge) => {
   const minutesSincePreviousSolve = (timestamp.getTime() - previous().timestamp.getTime()) / 60000
   cheatScore += Math.max(0, 1 - (minutesSincePreviousSolve / minutesExpectedToSolve))
 
-  logger.info(`Cheat score for "Fix it" phase of ${colors.cyan(challenge.key)} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min): ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
+  logger.info(`Cheat score for "Fix it" phase of ${colors.cyan(loggableChallengeKey(challenge))} solved in ${Math.round(minutesSincePreviousSolve)}min (expected ~${minutesExpectedToSolve}min): ${cheatScore < 0.33 ? colors.green(cheatScore.toString()) : (cheatScore < 0.66 ? colors.yellow(cheatScore.toString()) : colors.red(cheatScore.toString()))}`)
   solves.push({ challenge, phase: 'fix it', timestamp, cheatScore })
   return cheatScore
 }
@@ -160,6 +160,10 @@ function isLooselyCoupledToPreviouslySolved (challenge: Challenge) {
 
 function isTrivial (challenge: Challenge) {
   return trivialChallenges.includes(challenge.key)
+}
+
+function loggableChallengeKey (challenge: Challenge) {
+  return CHALLENGE_KEYS.find((key) => key === challenge.key) ?? 'unknown challenge'
 }
 
 function previous () {
