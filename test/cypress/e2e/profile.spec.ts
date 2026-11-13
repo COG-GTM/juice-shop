@@ -29,7 +29,7 @@ describe('/profile', () => {
 
       cy.visit('/profile')
       cy.get('#username').should('be.visible').then(() => {
-        expect(alert).not.to.have.been.called
+        expect(alert).to.have.callCount(0)
       })
 
       cy.get('#url').type(
