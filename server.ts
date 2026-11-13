@@ -718,6 +718,12 @@ while (!expectedModels.every(model => Object.keys(sequelize.models).includes(mod
 }
 logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.toString())} of ${colors.bold(expectedModels.length.toString())} are initialized (${colors.green('SUCCESS')})`)
 
+try {
+  fs.writeFileSync('encryptionkeys/jwt.pub', security.publicKey)
+} catch (err) {
+  logger.warn('Could not write JWT public key to encryptionkeys/jwt.pub: ' + utils.getErrorMessage(err))
+}
+
 // vuln-code-snippet start exposedMetricsChallenge
 /* Serve metrics */
 let metricsUpdateLoop: any
@@ -731,11 +737,6 @@ export async function start (readyCallback?: () => void) {
   await preconditionsReady
   await datacreator()
   datacreatorEnd()
-  try {
-    fs.writeFileSync('encryptionkeys/jwt.pub', security.publicKey)
-  } catch (err) {
-    logger.warn('Could not write JWT public key to encryptionkeys/jwt.pub: ' + utils.getErrorMessage(err))
-  }
   const port = process.env.PORT ?? config.get('server.port')
   process.env.BASE_PATH = process.env.BASE_PATH ?? config.get('server.basePath')
 
