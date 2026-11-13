@@ -21,6 +21,8 @@ env:
   NODE_DEFAULT_VERSION: 24
   NODE_OPTIONS: "--max_old_space_size=4096"
   CYCLONEDX_NPM_VERSION: '^2.0.0||^3.0.0||^4.0.0'   # keep in sync with package.json
+permissions:
+  contents: read
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -234,6 +236,9 @@ jobs:
             NODE_ENV=unsafe npm run test:server
   e2e-test:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: read
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -368,8 +373,25 @@ jobs:
     steps:
       - name: "Check out Git repository"
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
+        with:
+          persist-credentials: false
       - name: "Install Heroku CLI"
-        run: curl https://cli-assets.heroku.com/install.sh | sh
+        env:
+          HEROKU_CLI_VERSION: "11.13.0"
+          HEROKU_CLI_BUILD: "77c0f7f"
+          HEROKU_CLI_SHA256: "08b23086e3d71fca607878014033e54d964d6f160efdec5c9d66959b1af5bfd5" # linux-x64 tar.xz, from github.com/heroku/homebrew-brew Formula/heroku.rb
+        run: |
+          set -euo pipefail
+          tarball="${RUNNER_TEMP}/heroku-v${HEROKU_CLI_VERSION}-${HEROKU_CLI_BUILD}-linux-x64.tar.xz"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            --output "${tarball}" \
+            "https://cli-assets.heroku.com/versions/${HEROKU_CLI_VERSION}/${HEROKU_CLI_BUILD}/heroku-v${HEROKU_CLI_VERSION}-${HEROKU_CLI_BUILD}-linux-x64.tar.xz"
+          echo "${HEROKU_CLI_SHA256}  ${tarball}" | sha256sum --check --strict
+          sudo rm -rf /usr/local/lib/heroku
+          sudo tar --extract --xz --no-same-owner --file "${tarball}" --directory /usr/local/lib
+          sudo ln -sf /usr/local/lib/heroku/bin/heroku /usr/local/bin/heroku
+          rm -f "${tarball}"
+          heroku --version
       - name: "Set Heroku app & branch for ${{ github.ref }}"
         run: |
           if [ "$GITHUB_REF" == "refs/heads/master" ]; then
@@ -388,6 +410,9 @@ jobs:
           branch: ${{ env.HEROKU_BRANCH }}
   notify-slack:
     if: github.repository == 'juice-shop/juice-shop' && github.event_name == 'push' && (success() || failure())
+    permissions:
+      contents: read
+      actions: read
     needs:
       - docker
       - heroku
