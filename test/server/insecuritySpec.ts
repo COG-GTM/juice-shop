@@ -221,12 +221,22 @@ describe('insecurity', () => {
       const forged = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, privateKey, { algorithm: 'RS256' })
       expect(security.verify(forged)).to.equal(false)
     })
+
+    it('does not use the formerly hardcoded and leaked RSA keypair', () => {
+      const leakedPublicKeyFingerprint = 'b03e0bd15881d52c061a4d27025dabc5f983ad6676a882915fc60a03545ee1ac'
+      const activeFingerprint = crypto.createHash('sha256').update(crypto.createPublicKey(security.publicKey).export({ type: 'spki', format: 'der' })).digest('hex')
+      expect(activeFingerprint).to.not.equal(leakedPublicKeyFingerprint)
+    })
   })
 
   describe('deluxeToken', () => {
     it('is stable for the same email and differs between emails', () => {
       expect(security.deluxeToken('a@juice-sh.op')).to.equal(security.deluxeToken('a@juice-sh.op'))
       expect(security.deluxeToken('a@juice-sh.op')).to.not.equal(security.deluxeToken('b@juice-sh.op'))
+    })
+
+    it('is not keyed with the formerly hardcoded and leaked RSA private key', () => {
+      expect(security.deluxeToken('bjoern@owasp.org')).to.not.equal('efe2f1599e2d93440d5243a1ffaf5a413b70cf3ac97156bd6fab9b5ddfcbe0e4')
     })
   })
 })
