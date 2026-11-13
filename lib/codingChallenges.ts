@@ -21,7 +21,12 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
     let handle: FileHandle | undefined
     try {
       handle = await fs.open(currPath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0))
-      if ((await handle.stat()).isDirectory()) {
+      const stats = await handle.stat({ bigint: true })
+      const linkStats = await fs.lstat(currPath, { bigint: true })
+      if (linkStats.isSymbolicLink() || linkStats.dev !== stats.dev || linkStats.ino !== stats.ino) {
+        throw new Error(`${currPath} is a link or was replaced while being read`)
+      }
+      if (stats.isDirectory()) {
         await handle.close()
         handle = undefined
         const files = await fs.readdir(currPath)

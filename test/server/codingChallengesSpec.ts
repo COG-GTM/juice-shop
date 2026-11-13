@@ -4,6 +4,7 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -22,6 +23,7 @@ describe('codingChallenges', () => {
   })
 
   afterEach(() => {
+    sinon.restore()
     fs.rmSync(dir, { recursive: true, force: true })
   })
 
@@ -42,6 +44,26 @@ describe('codingChallenges', () => {
     } finally {
       fs.rmSync(outside, { recursive: true, force: true })
     }
+  })
+
+  it('should not follow directory links or junctions to outside directories', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'codingChallenges-outside-'))
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.ts'), '// vuln-code' + '-snippet start leaked\n')
+      fs.symlinkSync(outside, path.join(dir, 'linkedDir'), 'junction')
+      const matches = await findFilesWithCodeChallenges([dir])
+      expect(matches.map(match => path.relative(dir, match.path)).sort()).to.deep.equal(['a.ts', path.join('sub', 'b.py')])
+    } finally {
+      fs.rmSync(path.join(dir, 'linkedDir'), { force: true })
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('should read file content from the checked file handle instead of re-reading the path', async () => {
+    const readFileByPath = sinon.stub(fs.promises, 'readFile').resolves('// vuln-code' + '-snippet start swapped\n')
+    const matches = await findFilesWithCodeChallenges([path.join(dir, 'a.ts')])
+    expect(matches.map(match => match.content)).to.deep.equal(['// vuln-code' + '-snippet start aChallenge\n'])
+    expect(readFileByPath.called).to.equal(false)
   })
 
   it('should skip paths that do not exist', async () => {
