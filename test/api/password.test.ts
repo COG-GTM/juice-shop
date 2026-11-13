@@ -144,6 +144,16 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + firstToken })
     assert.equal(staleRes.status, 500)
     assert.ok(staleRes.text.includes('Error: Blocked illegal activity'))
+
+    await request(app)
+      .get('/rest/user/whoami')
+      .set({ Authorization: 'Bearer ' + firstToken })
+
+    const reregisteredRes = await request(app)
+      .get('/rest/user/change-password?current=secondPassw0rd&new=thirdPassw0rd&repeat=thirdPassw0rd')
+      .set({ Authorization: 'Bearer ' + firstToken })
+    assert.equal(reregisteredRes.status, 500)
+    assert.ok(reregisteredRes.text.includes('Error: Blocked illegal activity'))
   })
 })
 

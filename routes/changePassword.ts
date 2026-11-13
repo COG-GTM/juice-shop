@@ -47,6 +47,7 @@ export function changePassword () {
       for (const [otherToken, entry] of Object.entries(security.authenticatedUsers.tokenMap)) {
         if (otherToken !== token && entry?.data?.id === user.id) {
           delete security.authenticatedUsers.tokenMap[otherToken]
+          security.revokedTokens.add(otherToken)
         }
       }
       security.authenticatedUsers.idMap[user.id] = token
