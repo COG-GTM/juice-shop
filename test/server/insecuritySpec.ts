@@ -138,6 +138,19 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.tokenOf({ id: 1000001 } as unknown as UserModel)).to.equal(undefined)
       expect(security.authenticatedUsers.tokenOf({ id: 2000000 } as unknown as UserModel)).to.equal('token0')
     })
+
+    it('keeps recently used tokens when evicting', () => {
+      security.authenticatedUsers.put('active', { data: { id: 3000001 } as unknown as UserModel })
+      for (let i = 0; i < security.MAX_AUTHENTICATED_TOKENS; i++) {
+        if (i % 1000 === 0) {
+          security.authenticatedUsers.get('active')
+        }
+        security.authenticatedUsers.put(`other${i}`, { data: { id: 4000000 + i } as unknown as UserModel })
+      }
+
+      expect(security.authenticatedUsers.get('active')).to.deep.equal({ data: { id: 3000001 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 3000001 } as unknown as UserModel)).to.equal('active')
+    })
   })
 
   describe('sanitizeHtml', () => {

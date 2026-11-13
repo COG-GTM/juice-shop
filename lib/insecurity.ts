@@ -91,7 +91,16 @@ export const authenticatedUsers: IAuthenticatedUsers = {
     this.idMap.set(id, token)
   },
   get: function (token?: string) {
-    return token ? this.tokenMap.get(utils.unquote(token)) : undefined
+    if (!token) {
+      return undefined
+    }
+    const key = utils.unquote(token)
+    const user = this.tokenMap.get(key)
+    if (user !== undefined) {
+      this.tokenMap.delete(key)
+      this.tokenMap.set(key, user)
+    }
+    return user
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap.get(user.id) : undefined
@@ -191,7 +200,7 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = authenticatedUsers.tokenMap.get(utils.jwtFrom(req))
+      const user = authenticatedUsers.get(utils.jwtFrom(req))
       if (user === undefined) {
         res.status(401).json({ status: 'error', message: 'Unauthorized' })
         return
