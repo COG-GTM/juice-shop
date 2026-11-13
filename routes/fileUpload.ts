@@ -156,6 +156,10 @@ async function publishAtomically (entries: StagedComplaintEntry[], isAborted: ()
 function handleZipFileUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.zip')) {
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.fileWriteChallenge)) {
+      if (file.buffer.length === 0) {
+        res.status(400).json({ error: invalidZipError })
+        return
+      }
       const budget = createExtractionBudget()
       const source = Readable.from([file.buffer])
       const parser = source.pipe(unzipper.Parse())
