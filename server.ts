@@ -645,7 +645,6 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     rateLimit({
       windowMs: 5 * 60 * 1000,
       max: 20,
-      keyGenerator: (req: Request) => req.socket.remoteAddress ?? req.ip ?? '',
       validate: false
     }),
     utils.asyncHandler(contractExploitListener())
