@@ -29,6 +29,8 @@ export const isPathInside = (dir: string, file: string, pathLib: path.PlatformPa
   return !pathLib.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + pathLib.sep)
 }
 
+const publiclyServedDirs = ['encryptionkeys', 'ftp', '.well-known', 'logs', 'frontend/dist']
+
 export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   let privateKey: string
   if (env.JUICE_SHOP_JWT_PRIVATE_KEY) {
@@ -36,10 +38,12 @@ export const loadJwtKeyPair = (env: NodeJS.ProcessEnv = process.env) => {
   } else if (env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE) {
     const requestedFile = path.resolve(env.JUICE_SHOP_JWT_PRIVATE_KEY_FILE)
     const keyFile = fs.realpathSync(requestedFile)
-    const publicKeyDir = path.resolve('encryptionkeys')
-    const realPublicKeyDir = fs.realpathSync(publicKeyDir)
-    if ([publicKeyDir, realPublicKeyDir].some(dir => isPathInside(dir, requestedFile) || isPathInside(dir, keyFile))) {
-      throw new Error('JUICE_SHOP_JWT_PRIVATE_KEY_FILE must not point into the publicly served encryptionkeys/ directory')
+    for (const publicDir of publiclyServedDirs) {
+      const dir = path.resolve(publicDir)
+      const dirs = fs.existsSync(dir) ? [dir, fs.realpathSync(dir)] : [dir]
+      if (dirs.some(d => isPathInside(d, requestedFile) || isPathInside(d, keyFile))) {
+        throw new Error(`JUICE_SHOP_JWT_PRIVATE_KEY_FILE must not point into the publicly served ${publicDir}/ directory`)
+      }
     }
     privateKey = fs.readFileSync(keyFile, 'utf8')
   } else {

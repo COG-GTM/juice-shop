@@ -258,6 +258,17 @@ describe('insecurity', () => {
       }
     })
 
+    it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE inside the publicly served ftp/ directory', () => {
+      const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
+      const keyFile = path.resolve('ftp', `jwt-test-${process.pid}.pem`)
+      fs.writeFileSync(keyFile, pem)
+      try {
+        expect(() => security.loadJwtKeyPair({ JUICE_SHOP_JWT_PRIVATE_KEY_FILE: keyFile })).to.throw(/ftp/)
+      } finally {
+        fs.unlinkSync(keyFile)
+      }
+    })
+
     it('refuses a JUICE_SHOP_JWT_PRIVATE_KEY_FILE symlink inside encryptionkeys/ that points outside of it', () => {
       const pem = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' }).toString()
       const keyFile = path.resolve(`jwt-test-${process.pid}.key`)
