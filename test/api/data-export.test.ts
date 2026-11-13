@@ -265,4 +265,16 @@ void describe('/rest/user/data-export', () => {
     assert.equal(parsedData.memories[0].caption, 'Valid Image')
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
+
+  void it('Rate-limits repeated data export requests', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+    const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    let res = await request(app).post('/rest/user/data-export').set(authHeader).send({ format: '1' })
+    assert.ok(res.headers['ratelimit-limit'] ?? res.headers['x-ratelimit-limit'])
+    for (let i = 0; i < 20 && res.status !== 429; i++) {
+      res = await request(app).post('/rest/user/data-export').set(authHeader).send({ format: '1' })
+    }
+    assert.equal(res.status, 429)
+  })
 })
