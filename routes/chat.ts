@@ -246,8 +246,15 @@ export function chat () {
       return
     }
 
+    const abortController = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) abortController.abort()
+    })
+    if (res.closed || req.socket.destroyed) abortController.abort()
+
     const model = config.get<string>('application.chatBot.model')
     const userName = await getUserNameFromToken(req)
+    if (abortController.signal.aborted) return
 
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -256,11 +263,6 @@ export function chat () {
     res.flushHeaders()
 
     const systemPrompt = buildSystemPrompt(userName)
-
-    const abortController = new AbortController()
-    res.on('close', () => {
-      if (!res.writableEnded) abortController.abort()
-    })
 
     try {
       const result = streamText({
