@@ -16,6 +16,7 @@ import { login } from './helpers/auth'
 
 let app: Express
 let authHeader: { Authorization: string }
+const legalFileOriginal = fs.readFileSync(path.resolve('ftp/legal.md'), 'utf8')
 
 before(async () => {
   const result = await createTestApp()
@@ -164,8 +165,6 @@ void describe('/file-upload', () => {
   })
 
   void itIfFileWriteEnabled('POST zip file with directory traversal payload does not overwrite files outside uploads/complaints', async () => {
-    const legalFile = path.resolve('ftp/legal.md')
-    const original = fs.readFileSync(legalFile, 'utf8')
     challenges.fileWriteChallenge.solved = false
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
@@ -177,7 +176,7 @@ void describe('/file-upload', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     assert.equal(challenges.fileWriteChallenge.solved, true)
-    assert.equal(fs.readFileSync(legalFile, 'utf8'), original)
+    assert.equal(fs.readFileSync(path.resolve('ftp/legal.md'), 'utf8'), legalFileOriginal)
   })
 
   void itIfFileWriteEnabled('POST zip file with traversal entries does not overwrite server-side Pug templates', async () => {
