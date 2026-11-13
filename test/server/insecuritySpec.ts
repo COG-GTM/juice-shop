@@ -6,12 +6,60 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('loadJwtSigningKey', () => {
+    const originalKey = process.env.JWT_PRIVATE_KEY
+    const originalKeyFile = process.env.JWT_PRIVATE_KEY_FILE
+    const pem = (key: crypto.KeyObject) => key.export({ type: 'pkcs1', format: 'pem' }).toString()
+    const newKey = () => crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+
+    afterEach(() => {
+      if (originalKey === undefined) delete process.env.JWT_PRIVATE_KEY
+      else process.env.JWT_PRIVATE_KEY = originalKey
+      if (originalKeyFile === undefined) delete process.env.JWT_PRIVATE_KEY_FILE
+      else process.env.JWT_PRIVATE_KEY_FILE = originalKeyFile
+    })
+
+    it('loads the key from JWT_PRIVATE_KEY with escaped newlines', () => {
+      const key = newKey()
+      process.env.JWT_PRIVATE_KEY = pem(key).replace(/\n/g, '\\n')
+      delete process.env.JWT_PRIVATE_KEY_FILE
+      expect(pem(security.loadJwtSigningKey())).to.equal(pem(key))
+    })
+
+    it('loads the key from the file named by JWT_PRIVATE_KEY_FILE', () => {
+      const key = newKey()
+      const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'jwt-')), 'jwt.pem')
+      fs.writeFileSync(file, pem(key))
+      delete process.env.JWT_PRIVATE_KEY
+      process.env.JWT_PRIVATE_KEY_FILE = file
+      expect(pem(security.loadJwtSigningKey())).to.equal(pem(key))
+      fs.rmSync(path.dirname(file), { recursive: true })
+    })
+
+    it('prefers JWT_PRIVATE_KEY over JWT_PRIVATE_KEY_FILE', () => {
+      const key = newKey()
+      process.env.JWT_PRIVATE_KEY = pem(key)
+      process.env.JWT_PRIVATE_KEY_FILE = '/nonexistent/jwt.pem'
+      expect(pem(security.loadJwtSigningKey())).to.equal(pem(key))
+    })
+
+    it('generates a fresh key per call when no key is configured', () => {
+      delete process.env.JWT_PRIVATE_KEY
+      delete process.env.JWT_PRIVATE_KEY_FILE
+      expect(pem(security.loadJwtSigningKey())).to.not.equal(pem(security.loadJwtSigningKey()))
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
