@@ -144,10 +144,11 @@ describe('ComplaintComponent', () => {
 
     it('should not save complaint and keep submit enabled when the upload is rejected', () => {
         component.uploader.addToQueue([new File([''], 'complaint.zip', { type: 'application/zip' })])
-        component.uploader.onErrorItem(component.uploader.queue[0], '', 413, {})
+        component.uploader.onErrorItem(component.uploader.queue[0], '{"error":"Zip archive exceeds the limit"}', 413, {})
         expect(complaintService.save).not.toHaveBeenCalled()
         expect(component.uploader.queue.length).toBe(0)
         expect(component.uploadRejected).toBe(true)
+        expect(component.uploadRejectionMessage).toBe('Zip archive exceeds the limit')
         expect(component.fileUploadError).toBeUndefined()
         component.messageControl.setValue('Text-only complaint')
         fixture.detectChanges()

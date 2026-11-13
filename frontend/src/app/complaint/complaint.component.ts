@@ -40,6 +40,7 @@ export class ComplaintComponent implements OnInit {
   @ViewChild('fileControl', { static: true }) fileControl!: ElementRef // For controlling the DOM Element for file input.
   public fileUploadError: any = undefined // For controlling error handling related to file input.
   public uploadRejected = false
+  public uploadRejectionMessage = ''
   public uploader: FileUploader = new FileUploader({
     url: environment.hostServer + '/file-upload',
     authToken: `Bearer ${localStorage.getItem('token')}`,
@@ -50,6 +51,14 @@ export class ComplaintComponent implements OnInit {
   public userEmail: any = undefined
   public complaint: any = undefined
   public confirmation: any
+
+  parseUploadError (response: string): string {
+    try {
+      return JSON.parse(response)?.error ?? response
+    } catch {
+      return response
+    }
+  }
 
   ngOnInit (): void {
     this.initComplaint()
@@ -66,8 +75,9 @@ export class ComplaintComponent implements OnInit {
       this.saveComplaint()
       this.uploader.clearQueue()
     }
-    this.uploader.onErrorItem = () => {
+    this.uploader.onErrorItem = (item, response) => {
       this.uploadRejected = true
+      this.uploadRejectionMessage = this.parseUploadError(response)
       this.uploader.clearQueue()
     }
     this.formSubmitService.attachEnterKeyHandler('complaint-form', 'submitButton', () => { this.save() })
