@@ -57,22 +57,22 @@ void describe('/rest/basket/:id', () => {
     assert.equal(res.body.data.Products.length, 3)
   })
 
-  void it('GET basket rejects unsigned JWTs with alg "none"', async () => {
+  void it('isAuthorized rejects unsigned JWTs with alg "none"', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
     const payload = Buffer.from(JSON.stringify({ data: { id: 2, email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
     const unsignedToken = `${header}.${payload}.`
     const res = await request(app)
-      .get('/rest/basket/1')
+      .get('/api/Users')
       .set({ Authorization: 'Bearer ' + unsignedToken, 'content-type': 'application/json' })
     assert.equal(res.status, 401)
   })
 
-  void it('GET basket rejects HS256 JWTs signed with the public RSA key', async () => {
+  void it('isAuthorized rejects HS256 JWTs signed with the public RSA key', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
     const payload = Buffer.from(JSON.stringify({ data: { id: 2, email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })).toString('base64url')
     const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
     const res = await request(app)
-      .get('/rest/basket/1')
+      .get('/api/Users')
       .set({ Authorization: `Bearer ${header}.${payload}.${signature}`, 'content-type': 'application/json' })
     assert.equal(res.status, 401)
   })
