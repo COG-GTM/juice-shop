@@ -6,9 +6,10 @@
 import { type ChallengeKey } from 'models/challenge'
 import logger from './logger'
 import colors from 'colors/safe'
-const solves: Record<string, { 'find it': boolean, 'fix it': boolean, attempts: { 'find it': number, 'fix it': number } }> = {}
-
 type Phase = 'find it' | 'fix it'
+interface Solve { 'find it': boolean, 'fix it': boolean, attempts: { 'find it': number, 'fix it': number } }
+
+const solves = new Map<string, Solve>()
 
 export const storeFindItVerdict = (challengeKey: ChallengeKey, verdict: boolean) => {
   storeVerdict(challengeKey, 'find it', verdict)
@@ -35,13 +36,13 @@ export const totalFixItAccuracy = () => {
 }
 
 export const getFindItAttempts = (challengeKey: ChallengeKey) => {
-  return solves[challengeKey] ? solves[challengeKey].attempts['find it'] : 0
+  return solves.get(challengeKey)?.attempts['find it'] ?? 0
 }
 
 function totalAccuracy (phase: Phase) {
   let sumAccuracy = 0
   let totalSolved = 0
-  Object.entries(solves).forEach(([key, value]) => {
+  solves.forEach((value) => {
     if (value[phase]) {
       sumAccuracy += 1 / value.attempts[phase]
       totalSolved++
@@ -52,19 +53,22 @@ function totalAccuracy (phase: Phase) {
 
 function calculateAccuracy (challengeKey: ChallengeKey, phase: Phase) {
   let accuracy = 0
-  if (solves[challengeKey][phase]) {
-    accuracy = 1 / solves[challengeKey].attempts[phase]
+  const solve = solves.get(challengeKey)
+  if (solve?.[phase]) {
+    accuracy = 1 / solve.attempts[phase]
   }
   logger.info(`Accuracy for '${phase === 'fix it' ? 'Fix It' : 'Find It'}' phase of coding challenge ${colors.cyan(challengeKey)}: ${accuracy > 0.5 ? colors.green(accuracy.toString()) : (accuracy > 0.25 ? colors.yellow(accuracy.toString()) : colors.red(accuracy.toString()))}`)
   return accuracy
 }
 
 function storeVerdict (challengeKey: ChallengeKey, phase: Phase, verdict: boolean) {
-  if (!solves[challengeKey]) {
-    solves[challengeKey] = { 'find it': false, 'fix it': false, attempts: { 'find it': 0, 'fix it': 0 } }
+  let solve = solves.get(challengeKey)
+  if (solve === undefined) {
+    solve = { 'find it': false, 'fix it': false, attempts: { 'find it': 0, 'fix it': 0 } }
+    solves.set(challengeKey, solve)
   }
-  if (!solves[challengeKey][phase]) {
-    solves[challengeKey][phase] = verdict
-    solves[challengeKey].attempts[phase]++
+  if (!solve[phase]) {
+    solve[phase] = verdict
+    solve.attempts[phase]++
   }
 }
