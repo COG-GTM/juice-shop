@@ -213,6 +213,10 @@ describe('insecurity', () => {
       return `${header}.${payload}.${sign(`${header}.${payload}`)}`
     }
 
+    it('allows only the RS256 algorithm', () => {
+      expect(security.jwtAlgorithms).to.deep.equal(['RS256'])
+    })
+
     it('accepts RS256 tokens issued by authorize()', () => {
       expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
     })
