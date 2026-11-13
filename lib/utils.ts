@@ -50,7 +50,7 @@ export const containsEscaped = function (str: string, element: string) {
 
 export const toRelativeDirectoryListingHref = (reqPath: string, matchedUrl: string) => {
   const currentFolder = reqPath.split('/').pop()!
-  const relativePath = path.relative(reqPath, matchedUrl)
+  const relativePath = path.posix.relative(reqPath, matchedUrl)
   if (relativePath === '') {
     return currentFolder
   } else if (!relativePath.startsWith('.') && currentFolder !== '') {
