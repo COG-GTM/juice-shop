@@ -163,9 +163,14 @@ const collectDurationPromise = (name: string, func: (...args: any) => Promise<an
 /* Sets view engine to hbs */
 app.set('view engine', 'hbs')
 
-void collectDurationPromise('validatePreconditions', validatePreconditions)()
-void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
-void collectDurationPromise('validateConfig', validateConfig)({})
+function exitOnStartupFailure (error: unknown) {
+  logger.error(colors.red(`Startup failed: ${utils.getErrorMessage(error)}`))
+  process.exit(1)
+}
+
+collectDurationPromise('validatePreconditions', validatePreconditions)().catch(exitOnStartupFailure)
+collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)().catch(exitOnStartupFailure)
+collectDurationPromise('validateConfig', validateConfig)({}).catch(exitOnStartupFailure)
 
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
