@@ -98,6 +98,13 @@ void describe('/redirect', () => {
     assert.ok(res.text.includes('Unrecognized target URL for redirect: whatever'))
   })
 
+  void it('GET error when calling /redirect with multiple "to" parameters including an allow-listed URL', async () => {
+    const res = await request(app)
+      .get('/redirect?to=https://github.com/juice-shop/juice-shop&to=https://evil.example')
+      .redirects(0)
+    assert.equal(res.status, 406)
+  })
+
   void it('GET redirected to target URL in "to" parameter when a allow-listed URL is part of the query string', async () => {
     const res = await request(app)
       .get('/redirect?to=/score-board?satisfyIndexOf=https://github.com/juice-shop/juice-shop')
