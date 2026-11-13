@@ -650,7 +650,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       windowMs: 5 * 60 * 1000,
       max: 100,
       keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
-      validate: { trustProxy: false, xForwardedForHeader: false }
+      validate: { trustProxy: false, xForwardedForHeader: false },
+      message: { success: false, message: 'Too many requests, please try again later.' }
     }),
     utils.asyncHandler(checkKeys())
   )

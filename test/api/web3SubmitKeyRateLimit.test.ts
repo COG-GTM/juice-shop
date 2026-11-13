@@ -31,5 +31,6 @@ void describe('/rest/web3/submitKey rate limiting', () => {
       .set('X-Forwarded-For', '203.0.113.7')
       .send({ privateKey: 'guess-100' })
     assert.equal(res.status, 429)
+    assert.equal(res.body.message, 'Too many requests, please try again later.')
   })
 })
