@@ -86,5 +86,21 @@ describe('antiCheat', () => {
         expect(call.args[0]).to.not.contain('J6aVjTgOpRs')
       }
     })
+
+    it('should log the registered key in the "Find it" and "Fix it" phases', async () => {
+      await antiCheat.calculateFindItCheatScore({ key: 'loginAdminChallenge' } as any)
+      await antiCheat.calculateFixItCheatScore({ key: 'loginAdminChallenge' } as any)
+
+      expect(info.firstCall.args[0]).to.contain('"Find it" phase of').and.to.contain('loginAdminChallenge')
+      expect(info.secondCall.args[0]).to.contain('"Fix it" phase of').and.to.contain('loginAdminChallenge')
+    })
+
+    it('should not log arbitrary values passed as challenge key in the "Fix it" phase', async () => {
+      await antiCheat.calculateFixItCheatScore({ key: 'admin123\nInjected log line' } as any)
+
+      expect(info.callCount).to.equal(1)
+      expect(info.firstCall.args[0]).to.contain('unknown challenge')
+      expect(info.firstCall.args[0]).to.not.contain('admin123')
+    })
   })
 })
