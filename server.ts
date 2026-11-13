@@ -294,6 +294,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/vendor/material-icons', express.static(path.resolve('node_modules/material-icons/iconfont')))
   app.use('/vendor/fontsource-roboto', express.static(path.resolve('node_modules/@fontsource/roboto')))
 
+  /* Per-client request ceiling for all API and route handlers registered below */
+  app.use(rateLimit({
+    windowMs: 60 * 1000,
+    max: 1000,
+    keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
+    validate: { trustProxy: false, xForwardedForHeader: false }
+  }))
+
   /* Configure and enable backend-side i18n */
   i18n.configure({
     locales: locales.map((locale: { key: string }) => locale.key),
@@ -637,7 +645,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/chat', utils.asyncHandler(chat()))
 
   /* Web3 API endpoints */
-  app.post('/rest/web3/submitKey', utils.asyncHandler(checkKeys()))
+  app.post('/rest/web3/submitKey',
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 100,
+      keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
+      validate: { trustProxy: false, xForwardedForHeader: false },
+      message: { success: false, message: 'Too many requests, please try again later.' }
+    }),
+    utils.asyncHandler(checkKeys())
+  )
   app.get('/rest/web3/nftUnlocked', nftUnlocked())
   app.get('/rest/web3/nftMintListen', utils.asyncHandler(nftMintListener()))
   app.post('/rest/web3/walletNFTVerify', walletNFTVerify())
