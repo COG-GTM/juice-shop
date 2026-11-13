@@ -40,4 +40,19 @@ describe('currentUser', () => {
 
     expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } })
   })
+
+  it('should only return requested own fields and ignore Object.prototype property names', () => {
+    req.cookies.token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwibGFzdExvZ2luSXAiOiIwLjAuMC4wIiwicHJvZmlsZUltYWdlIjoiZGVmYXVsdC5zdmcifSwiaWF0IjoxNTgyMjIyMzY0fQ.CHiFQieZudYlrd1o8Ih-Izv7XY_WZupt8Our-CP9HqsczyEKqrWC7wWguOgVuSGDN_S3mP4FyuEFN8l60aAhVsUbqzFetvJkFwe5nKVhc9dHuen6cujQLMcTlHLKassOSDP41Q-MkKWcUOQu0xUkTMfEq2hPMHpMosDb4benzH0'
+    req.query.fields = 'email,__proto__,constructor,toString,hasOwnProperty'
+    authenticatedUsers.put(
+      req.cookies.token,
+      { data: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } as unknown as UserModel }
+    )
+    retrieveLoggedInUser()(req, res)
+
+    const body = res.json.firstCall.args[0]
+    expect(Object.keys(body.user)).to.deep.equal(['email'])
+    expect(body.user.email).to.equal('admin@juice-sh.op')
+    expect(Object.getPrototypeOf(body.user)).to.equal(Object.prototype)
+  })
 })
