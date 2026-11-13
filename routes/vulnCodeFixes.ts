@@ -1,9 +1,9 @@
 import fs from 'node:fs'
-import yaml from 'js-yaml'
 import { type NextFunction, type Request, type Response } from 'express'
 
 import * as accuracy from '../lib/accuracy'
 import * as challengeUtils from '../lib/challengeUtils'
+import { getCodeChallenges, getCodingChallengeInfo } from '../lib/codingChallenges'
 import { type ChallengeKey } from 'models/challenge'
 
 const FixesDir = 'data/static/codefixes'
@@ -70,6 +70,12 @@ export const serveCodeFixes = () => (req: Request<FixesRequestParams, Record<str
 export const checkCorrectFix = () => async (req: Request<Record<string, unknown>, Record<string, unknown>, VerdictRequestBody>, res: Response, next: NextFunction) => {
   const key = req.body.key
   const selectedFix = req.body.selectedFix
+  if (typeof key !== 'string' || !(await getCodeChallenges()).has(key)) {
+    res.status(404).json({
+      error: 'No fixes found for the snippet!'
+    })
+    return
+  }
   const fixData = readFixes(key)
   if (fixData.fixes.length === 0) {
     res.status(404).json({
@@ -77,11 +83,8 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
-      const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
-      if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
-    }
+    const selectedFixInfo = getCodingChallengeInfo(key)?.fixes.find(({ id }) => id === selectedFix + 1)
+    if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     if (selectedFix === fixData.correct) {
       await challengeUtils.solveFixIt(key)
       res.status(200).json({
