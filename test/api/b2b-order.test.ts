@@ -92,4 +92,29 @@ void describe('/b2b/v2/orders', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.cid, 'test')
   })
+
+  void it('POST new B2B order is rate limited per user after 100 requests within 5 minutes', async () => {
+    const userHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 4711 } }), 'content-type': 'application/json' }
+    for (let i = 0; i < 100; i++) {
+      const res = await request(app).post('/b2b/v2/orders').set(userHeader).send({ cid: 'limit-test' })
+      assert.equal(res.status, 200)
+    }
+
+    const limited = await request(app).post('/b2b/v2/orders').set(userHeader).send({ cid: 'limit-test' })
+    assert.equal(limited.status, 429)
+
+    const otherUserHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 4712 } }), 'content-type': 'application/json' }
+    const otherUser = await request(app).post('/b2b/v2/orders').set(otherUserHeader).send({ cid: 'limit-test' })
+    assert.equal(otherUser.status, 200)
+  })
+
+  void it('POST new B2B order rate limit cannot be bypassed with ID-less tokens and spoofed X-Forwarded-For', async () => {
+    const idlessHeader = { Authorization: 'Bearer ' + security.authorize({ type: 'totp_setup_secret' }), 'content-type': 'application/json' }
+    let limited = false
+    for (let i = 0; i <= 100 && !limited; i++) {
+      const res = await request(app).post('/b2b/v2/orders').set(idlessHeader).set('X-Forwarded-For', `10.0.0.${i}`).send({ cid: 'limit-test' })
+      limited = res.status === 429
+    }
+    assert.ok(limited)
+  })
 })
