@@ -276,6 +276,26 @@ describe('insecurity', () => {
         expect(security.authenticatedUsers.get(other)).to.equal(undefined)
       })
 
+      it('does not re-cache a session issued before the server started', () => {
+        const before = security.authorize(user)
+        Date.now = () => realNow() - 60 * 1000
+        let stale: string
+        try {
+          stale = security.authorize(user)
+        } finally {
+          Date.now = realNow
+        }
+        const next = sinon.spy()
+        const res = { cookie: sinon.spy() }
+
+        security.updateAuthenticatedUsers()({ cookies: { token: stale }, headers: {} } as unknown as Request, res as any, next)
+        security.updateAuthenticatedUsers()({ cookies: { token: before }, headers: {} } as unknown as Request, res as any, next)
+
+        expect(security.authenticatedUsers.get(stale)).to.equal(undefined)
+        expect(security.authenticatedUsers.get(before)?.data).to.deep.equal(user.data)
+        expect(next.callCount).to.equal(2)
+      })
+
       it('points the user index at a remaining session when the indexed one ends', () => {
         const bob = { data: { id: 4713 } as unknown as UserModel }
         const older = security.authorize(bob)

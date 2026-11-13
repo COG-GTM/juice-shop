@@ -60,6 +60,7 @@ export const cutOffPoisonNullByte = (str: string) => {
 export const sessionLifetimeInSeconds = 6 * 60 * 60
 const nowInSeconds = () => Math.floor(Date.now() / 1000)
 const evictionIntervalInSeconds = 60
+const startedAt = nowInSeconds()
 let lastEviction = 0
 
 export const isAuthorized = () => {
@@ -139,6 +140,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   },
   get: function (token?: string) {
     if (!token) return undefined
+    this.evictExpired()
     const key = utils.unquote(token)
     if (!Object.prototype.hasOwnProperty.call(this.tokenMap, key)) return undefined
     if (this.isRevoked(key) || isExpired(key)) {
@@ -308,11 +310,17 @@ export const appendUserId = () => {
   }
 }
 
+// revocations are kept in memory only, so sessions from before a restart must not be re-cached
+const issuedSinceStartup = (token: string) => {
+  const iat = claimsOf(utils.unquote(token))?.iat
+  return typeof iat === 'number' && iat >= startedAt
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && issuedSinceStartup(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token)

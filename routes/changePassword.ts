@@ -52,10 +52,13 @@ export function changePassword () {
       const cookie = cookies?.token
       const sameUserCookie = cookie && security.authenticatedUsers.get(cookie)?.data?.id === user.id ? cookie : undefined
       security.authenticatedUsers.revokeAllFor(user.id, token, sameUserCookie)
-      if (typeof loggedInUser.data.setDataValue === 'function') {
-        loggedInUser.data.setDataValue('password', user.password)
-      } else {
-        loggedInUser.data.password = user.password
+      for (const session of new Set([loggedInUser, sameUserCookie && security.authenticatedUsers.get(sameUserCookie)])) {
+        if (!session) continue
+        if (typeof session.data.setDataValue === 'function') {
+          session.data.setDataValue('password', user.password)
+        } else {
+          session.data.password = user.password
+        }
       }
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,

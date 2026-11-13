@@ -56,6 +56,15 @@ describe('LoginGuard', () => {
         document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
     })
 
+    it('should close and clear the session for a legacy token issued more than 6 hours ago', () => {
+        const guard = TestBed.inject(LoginGuard)
+        const payload = btoa(JSON.stringify({ iat: Math.floor(Date.now() / 1000) - 6 * 60 * 60 - 60 })).replace(/=+$/, '')
+        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
+
+        expect(guard.canActivate()).toBe(false)
+        expect(localStorage.getItem('token')).toBeNull()
+    })
+
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
@@ -124,6 +133,14 @@ describe('AdminGuard', () => {
         expect(guard.canActivate()).toBe(true)
     })
 
+    it('should close for an expired admin token', () => {
+        const guard = TestBed.inject(AdminGuard)
+
+        loginGuard.tokenDecode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) - 60, data: { role: 'admin' } })
+        expect(guard.canActivate()).toBe(false)
+        expect(loginGuard.forbidRoute).toHaveBeenCalled()
+    })
+
     it('should close for regular customers', () => {
         const guard = TestBed.inject(AdminGuard)
 
@@ -182,6 +199,14 @@ describe('AccountingGuard', () => {
 
         loginGuard.tokenDecode.mockReturnValue({ data: { role: 'accounting' } })
         expect(guard.canActivate()).toBe(true)
+    })
+
+    it('should close for an expired accounting token', () => {
+        const guard = TestBed.inject(AccountingGuard)
+
+        loginGuard.tokenDecode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) - 60, data: { role: 'accounting' } })
+        expect(guard.canActivate()).toBe(false)
+        expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
 
     it('should close for regular customers', () => {

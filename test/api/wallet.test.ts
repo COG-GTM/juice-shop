@@ -65,6 +65,9 @@ void describe('/api/Wallets', () => {
 
     const res = await request(app).get('/rest/wallet/balance').set(header)
     assert.equal(res.status, 401)
+
+    const { token: fresh } = await login(app, { email: 'demo', password: 'demo' })
+    authHeader = { Authorization: `Bearer ${fresh}`, 'content-type': 'application/json' }
   })
 
   void it('PUT wallet is forbidden via public API', async () => {
