@@ -92,4 +92,19 @@ void describe('/b2b/v2/orders', () => {
     assert.equal(res.status, 200)
     assert.equal(res.body.cid, 'test')
   })
+
+  void it('POST new B2B order is rate limited per user after 100 requests within 5 minutes', async () => {
+    const userHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 4711 } }), 'content-type': 'application/json' }
+    for (let i = 0; i < 100; i++) {
+      const res = await request(app).post('/b2b/v2/orders').set(userHeader).send({ cid: 'limit-test' })
+      assert.equal(res.status, 200)
+    }
+
+    const limited = await request(app).post('/b2b/v2/orders').set(userHeader).send({ cid: 'limit-test' })
+    assert.equal(limited.status, 429)
+
+    const otherUserHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 4712 } }), 'content-type': 'application/json' }
+    const otherUser = await request(app).post('/b2b/v2/orders').set(otherUserHeader).send({ cid: 'limit-test' })
+    assert.equal(otherUser.status, 200)
+  })
 })

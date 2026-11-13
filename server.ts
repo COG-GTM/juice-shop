@@ -644,7 +644,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/rest/web3/walletExploitAddress', utils.asyncHandler(contractExploitListener()))
 
   /* B2B Order API */
-  app.post('/b2b/v2/orders', b2bOrder())
+  app.post('/b2b/v2/orders', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 100,
+    keyGenerator: (req: Request) => String(security.decode(utils.jwtFrom(req))?.data?.id ?? req.ip),
+    validate: false
+  }), b2bOrder())
 
   /* File Serving */
   app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
