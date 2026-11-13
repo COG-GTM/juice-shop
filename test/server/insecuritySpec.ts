@@ -109,6 +109,41 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('does not resolve inherited object properties as tokens', () => {
+      for (const token of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(security.authenticatedUsers.from({ headers: { authorization: `Bearer ${token}` } } as unknown as Request)).to.equal(undefined)
+      }
+    })
+
+    it('stores a __proto__ token as a plain entry without touching Object.prototype', () => {
+      security.authenticatedUsers.put('__proto__', { data: { id: 4711 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get('__proto__')).to.deep.equal({ data: { id: 4711 } })
+      expect(security.authenticatedUsers.tokenOf({ id: 4711 } as unknown as UserModel)).to.equal('__proto__')
+      expect(({} as any).data).to.equal(undefined)
+      security.authenticatedUsers.tokenMap.delete('__proto__')
+      security.authenticatedUsers.idMap.delete('4711')
+    })
+
+    it('rejects an inherited object property passed as token to appendUserId', () => {
+      const req = { headers: { authorization: 'Bearer __proto__' }, body: {} } as unknown as Request
+      let statusCode: number | undefined
+      let nextCalled = false
+      const res = { status: (code: number) => { statusCode = code; return res }, json: () => res } as any
+
+      security.appendUserId()(req, res, () => { nextCalled = true })
+
+      expect(statusCode).to.equal(401)
+      expect(nextCalled).to.equal(false)
+      expect(req.body.UserId).to.equal(undefined)
+    })
+
+    it('does not resolve inherited object properties as user ids', () => {
+      expect(security.authenticatedUsers.tokenOf({ id: '__proto__' } as unknown as UserModel)).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 'constructor' } as unknown as UserModel)).to.equal(undefined)
+    })
   })
 
   describe('sanitizeHtml', () => {
