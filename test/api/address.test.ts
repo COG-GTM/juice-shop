@@ -186,3 +186,26 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data, 'Malicious activity detected.')
   })
 })
+
+void describe('/api/Addresss rate limiting', () => {
+  void it('rejects requests beyond 300 per 5 minutes from the same client', async () => {
+    let lastStatus = 0
+    let throttled = 0
+    for (let i = 0; i < 310; i++) {
+      const res = await request(app).get('/api/Addresss').set(authHeader)
+      if (res.status === 429) throttled++
+      lastStatus = res.status
+    }
+    assert.equal(lastStatus, 429)
+    assert.ok(throttled > 0)
+  })
+
+  void it('ignores X-Forwarded-For when identifying the client', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/1')
+      .set(authHeader)
+      .set('X-Forwarded-For', '203.0.113.' + Math.floor(Math.random() * 255))
+      .send({ city: 'Gotham' })
+    assert.equal(res.status, 429)
+  })
+})
