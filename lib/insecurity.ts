@@ -219,3 +219,15 @@ export const isCrossSiteRequest = (req: Request) => {
     return true
   }
 }
+
+export const isSafeProfileImageLink = (url: unknown): url is string => {
+  if (typeof url !== 'string' || url.length > 2048 || /[\s;,'"`<>\\]/.test(url)) return false
+  if (url.startsWith('/')) return !url.startsWith('//')
+  try {
+    if (!url.includes('://')) return new URL(`https://${url}`).hostname !== ''
+    const { protocol } = new URL(url)
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}

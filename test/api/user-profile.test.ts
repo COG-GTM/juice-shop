@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -40,6 +41,39 @@ void describe('/profile', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
+  })
+
+  void it('GET user profile does not copy CSP directives from a stored profile image link into the header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const profileImageBefore = user.profileImage
+    await user.update({ profileImage: "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'" })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['content-security-policy'], "img-src 'self'; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user.update({ profileImage: profileImageBefore })
+    }
+  })
+
+  void it('GET user profile keeps a safe profile image link in the CSP header', async () => {
+    const user = await UserModel.findOne({ where: { email: 'jim@juice-sh.op' } })
+    assert.ok(user)
+    const profileImageBefore = user.profileImage
+    await user.update({ profileImage: 'https://placecats.com/g/300/300' })
+    try {
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.headers['content-security-policy'], "img-src 'self' https://placecats.com/g/300/300; script-src 'self' 'unsafe-eval'")
+    } finally {
+      await user.update({ profileImage: profileImageBefore })
+    }
   })
 
   void it('POST update username of authenticated user', async () => {

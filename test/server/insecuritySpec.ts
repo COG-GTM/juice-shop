@@ -111,6 +111,33 @@ describe('insecurity', () => {
     })
   })
 
+  describe('isSafeProfileImageLink', () => {
+    it('accepts relative paths, http(s) URLs and scheme-less hosts', () => {
+      expect(security.isSafeProfileImageLink('/assets/public/images/uploads/default.svg')).to.equal(true)
+      expect(security.isSafeProfileImageLink('https://placecats.com/g/300/300')).to.equal(true)
+      expect(security.isSafeProfileImageLink('http://shop.example:8080/a.png')).to.equal(true)
+      expect(security.isSafeProfileImageLink('cataas.com/cat')).to.equal(true)
+    })
+
+    it('rejects links that could add Content-Security-Policy directives or sources', () => {
+      expect(security.isSafeProfileImageLink("https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'")).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png;script-src')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png *')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png\nscript-src')).to.equal(false)
+      expect(security.isSafeProfileImageLink('https://a.png,b')).to.equal(false)
+      expect(security.isSafeProfileImageLink("'unsafe-inline'")).to.equal(false)
+    })
+
+    it('rejects non-http(s) schemes, protocol-relative links and non-strings', () => {
+      expect(security.isSafeProfileImageLink('javascript:alert(1)')).to.equal(false)
+      expect(security.isSafeProfileImageLink('data:image/png;base64,AAAA')).to.equal(false)
+      expect(security.isSafeProfileImageLink('file:///etc/passwd')).to.equal(false)
+      expect(security.isSafeProfileImageLink('//attacker.example/a.png')).to.equal(false)
+      expect(security.isSafeProfileImageLink(['https://a.png'])).to.equal(false)
+      expect(security.isSafeProfileImageLink(undefined)).to.equal(false)
+    })
+  })
+
   describe('isCrossSiteRequest', () => {
     const requestWith = (headers: Record<string, string>, secure = false) => ({
       headers: { host: 'shop.example', ...headers },

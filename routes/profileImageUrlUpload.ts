@@ -36,6 +36,12 @@ export function profileImageUrlUpload () {
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
+          if (!security.isSafeProfileImageLink(url)) {
+            logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; image link rejected`)
+            res.status(400)
+            next(new Error('Invalid profile image URL'))
+            return
+          }
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
             await user?.update({ profileImage: url })

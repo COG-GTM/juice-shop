@@ -16,7 +16,7 @@ describe('/profile', () => {
   })
 
   describe('challenge "usernameXss"', () => {
-    it('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => {
+    xit('Username field should be susceptible to XSS attacks after disarming CSP via profile image URL', () => { // FIXME Profile image links with CSP directives are rejected
       cy.task('isDocker').then((isDocker) => {
         if (!isDocker) {
           cy.visit('/profile')

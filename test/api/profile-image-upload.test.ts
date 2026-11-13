@@ -182,6 +182,33 @@ void describe('/profile/image/url', () => {
     })
   }
 
+  for (const imageUrl of [
+    "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'",
+    'https://a.png\nscript-src * \'unsafe-inline\'',
+    'javascript:alert(1)'
+  ]) {
+    void it(`POST profile image URL ${JSON.stringify(imageUrl)} is rejected without changing the profile image`, async () => {
+      const { token } = await login(app, {
+        email: `bender@${config.get<string>('application.domain')}`,
+        password: 'OhG0dPlease1nsertLiquor!'
+      })
+      const user = await UserModel.findOne({ where: { email: `bender@${config.get<string>('application.domain')}` } })
+      assert.ok(user)
+      const profileImageBefore = user.profileImage
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', imageUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 400)
+      assert.ok(res.text.includes('Error: Invalid profile image URL'))
+      await user.reload()
+      assert.equal(user.profileImage, profileImageBefore)
+    })
+  }
+
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
       .post('/profile/image/url')
