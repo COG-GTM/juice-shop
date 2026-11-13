@@ -149,6 +149,21 @@ void describe('/dataerasure', () => {
     assert.equal(await deletionRequestCount(), before)
   })
 
+  void it('POST erasure request without security answer is rejected and records nothing', async () => {
+    const { token, csrf } = await erasureSession()
+    const before = await deletionRequestCount()
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .type('form')
+      .set({ Cookie: 'token=' + token })
+      .send({ _csrf: csrf, email: bjoernOwasp.email })
+
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Email address or security answer is incorrect'))
+    assert.equal(await deletionRequestCount(), before)
+  })
+
   void it('POST erasure request with wrong security answer is rejected and records nothing', async () => {
     const { token, csrf } = await erasureSession()
     const before = await deletionRequestCount()
