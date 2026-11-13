@@ -109,6 +109,35 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
     })
+
+    it('ignores users without a numeric ID', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 'toString' } as unknown as UserModel })
+      security.authenticatedUsers.put('33333', { data: { id: '__proto__' } as unknown as UserModel })
+      security.authenticatedUsers.put('44444', {} as unknown as { data: UserModel })
+
+      expect(security.authenticatedUsers.get('22222')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('33333')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('44444')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 'toString' } as unknown as UserModel)).to.equal(undefined)
+    })
+
+    it('does not resolve inherited object properties as tokens', () => {
+      expect(security.authenticatedUsers.get('toString')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('__proto__')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 'constructor' } as unknown as UserModel)).to.equal(undefined)
+    })
+
+    it('evicts the oldest tokens once the maximum number of tokens is reached', () => {
+      security.authenticatedUsers.put('oldest', { data: { id: 1000001 } as unknown as UserModel })
+      for (let i = 0; i < security.MAX_AUTHENTICATED_TOKENS; i++) {
+        security.authenticatedUsers.put(`token${i}`, { data: { id: 2000000 + i } as unknown as UserModel })
+      }
+
+      expect(security.authenticatedUsers.tokenMap.size).to.equal(security.MAX_AUTHENTICATED_TOKENS)
+      expect(security.authenticatedUsers.get('oldest')).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 1000001 } as unknown as UserModel)).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 2000000 } as unknown as UserModel)).to.equal('token0')
+    })
   })
 
   describe('sanitizeHtml', () => {
