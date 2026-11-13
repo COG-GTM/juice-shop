@@ -666,10 +666,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
-  app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))
-  app.post('/snippets/verdict', utils.asyncHandler(checkVulnLines()))
-  app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
-  app.post('/snippets/fixes', utils.asyncHandler(checkCorrectFix()))
+  const codingChallengeRateLimit = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, validate: false })
+  app.get('/snippets/:challenge', codingChallengeRateLimit, utils.asyncHandler(serveCodeSnippet()))
+  app.post('/snippets/verdict', codingChallengeRateLimit, utils.asyncHandler(checkVulnLines()))
+  app.get('/snippets/fixes/:key', codingChallengeRateLimit, utils.asyncHandler(serveCodeFixes()))
+  app.post('/snippets/fixes', codingChallengeRateLimit, utils.asyncHandler(checkCorrectFix()))
 
   app.use(utils.asyncHandler(serveAngularClient()))
 
