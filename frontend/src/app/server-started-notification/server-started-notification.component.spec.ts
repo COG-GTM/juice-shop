@@ -4,7 +4,7 @@
  */
 
 import { CookieModule, CookieService } from 'ngy-cookie'
-import { provideHttpClientTesting } from '@angular/common/http/testing'
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule } from '@angular/material/card'
@@ -174,5 +174,13 @@ describe('ServerStartedNotificationComponent', () => {
         component.clearProgress()
         expect(cookieService.get('continueCode')).toBeUndefined()
         expect(component.hackingProgress.cleared).toBe(true)
+    })
+
+    it('should end the server-side session when clearing progress', () => {
+        const httpMock = TestBed.inject(HttpTestingController)
+        component.clearProgress()
+        const req = httpMock.expectOne((r) => r.url.endsWith('/rest/user/logout'))
+        expect(req.request.method).toBe('POST')
+        req.flush(null)
     })
 })

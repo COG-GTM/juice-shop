@@ -46,6 +46,10 @@ export class UserService {
     return this.http.post(this.hostServer + '/rest/user/login', params).pipe(map((response: any) => response.authentication), catchError((err) => { throw err }))
   }
 
+  logout () {
+    return this.http.post(this.hostServer + '/rest/user/logout', {}).pipe(catchError((err) => { throw err }))
+  }
+
   getLoggedInState () {
     return this.isLoggedIn.asObservable()
   }

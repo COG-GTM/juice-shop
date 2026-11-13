@@ -111,6 +111,67 @@ describe('insecurity', () => {
     })
   })
 
+  describe('bearerTokenFromSessionCookie', () => {
+    const run = (req: any) => {
+      let called = false
+      security.bearerTokenFromSessionCookie()(req, {} as any, () => { called = true })
+      expect(called).to.equal(true)
+      return req
+    }
+
+    it('uses the HttpOnly session cookie when no bearer token is sent', () => {
+      expect(run({ headers: {}, cookies: { token: 'cookieToken' } }).headers.authorization).to.equal('Bearer cookieToken')
+    })
+
+    it('keeps an explicit bearer token', () => {
+      expect(run({ headers: { authorization: 'Bearer headerToken' }, cookies: { token: 'cookieToken' } }).headers.authorization).to.equal('Bearer headerToken')
+    })
+
+    it('leaves requests without session cookie untouched', () => {
+      expect(run({ headers: {}, cookies: {} }).headers.authorization).to.equal(undefined)
+    })
+  })
+
+  describe('revokeToken', () => {
+    it('removes a verified token from authenticatedUsers and marks it revoked', () => {
+      const token = security.authorize({ data: { id: 4711 } })
+      security.authenticatedUsers.put(token, { data: { id: 4711 } as unknown as UserModel })
+
+      security.revokeToken(token)
+
+      expect(security.isRevoked(token)).to.equal(true)
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 4711 } as unknown as UserModel)).to.equal(undefined)
+    })
+
+    it('does not let a revoked token be re-added to authenticatedUsers', () => {
+      const token = security.authorize({ data: { id: 4712 } })
+      security.revokeToken(token)
+
+      security.authenticatedUsers.put(token, { data: { id: 4712 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+
+    it('makes isAccounting reject a revoked accounting token', () => {
+      const token = security.authorize({ data: { id: 4713, role: 'accounting' } })
+      const status = (t: string) => {
+        let code = 200
+        const res: any = { status: (c: number) => { code = c; return { json: () => {} } } }
+        security.isAccounting()({ headers: { authorization: `Bearer ${t}` } } as any, res, () => {})
+        return code
+      }
+      expect(status(token)).to.equal(200)
+      security.revokeToken(token)
+      expect(status(token)).to.equal(403)
+    })
+
+    it('ignores tokens that do not verify', () => {
+      security.revokeToken('not-a-jwt')
+      expect(security.isRevoked('not-a-jwt')).to.equal(false)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

@@ -4,9 +4,9 @@
  */
 
 import { type CanActivate, Router } from '@angular/router'
-import { jwtDecode } from 'jwt-decode'
 import { roles } from './roles'
 import { Injectable, NgZone, inject } from '@angular/core'
+import { isLoggedIn, sessionClaims } from './Services/auth-session'
 
 @Injectable()
 export class LoginGuard implements CanActivate {
@@ -15,7 +15,7 @@ export class LoginGuard implements CanActivate {
 
 
   canActivate () {
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn()) {
       return true
     } else {
       this.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
@@ -31,16 +31,7 @@ export class LoginGuard implements CanActivate {
   }
 
   tokenDecode () {
-    let payload: any = null
-    const token = localStorage.getItem('token')
-    if (token) {
-      try {
-        payload = jwtDecode(token)
-      } catch (err) {
-        console.log(err)
-      }
-    }
-    return payload
+    return sessionClaims()
   }
 }
 

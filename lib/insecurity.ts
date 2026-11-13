@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Request, type Response, type NextFunction, type CookieOptions } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -51,11 +51,58 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const isAuthorized = () => {
+  const checkJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isRevoked(utils.jwtFrom(req))) {
+      res.status(401).json({ status: 'error', message: 'Session has been logged out' })
+      return
+    }
+    checkJwt(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+export const sessionCookieOptions = (req: Request): CookieOptions => ({ httpOnly: true, secure: req.secure, sameSite: 'strict' })
+export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, { ...sessionCookieOptions(res.req), maxAge: 6 * 60 * 60 * 1000 })
+export const clearSessionCookie = (res: Response) => res.clearCookie('token', sessionCookieOptions(res.req))
+
+export const bearerTokenFromSessionCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!utils.jwtFrom(req) && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
+
+const revokedTokens = new Map<string, number>()
+
+export const isRevoked = (token?: string) => {
+  const now = Date.now()
+  for (const [revoked, expiresAt] of revokedTokens) {
+    if (expiresAt <= now) revokedTokens.delete(revoked)
+  }
+  return token ? revokedTokens.has(utils.unquote(token)) : false
+}
+
+export const revokeToken = (token?: string) => {
+  if (!token) return
+  token = utils.unquote(token)
+  try {
+    if (!verify(token)) return
+  } catch {
+    return
+  }
+  const exp = decode(token)?.exp
+  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + 6 * 60 * 60 * 1000)
+  const user = authenticatedUsers.tokenMap[token]
+  delete authenticatedUsers.tokenMap[token]
+  if (user?.data?.id !== undefined && authenticatedUsers.idMap[user.data.id] === token) {
+    delete authenticatedUsers.idMap[user.data.id]
+  }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -73,6 +120,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
+    if (isRevoked(token)) return
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
@@ -155,7 +203,7 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const decodedToken = verify(utils.jwtFrom(req)) && !isRevoked(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {
@@ -189,10 +237,10 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isRevoked(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          setSessionCookie(res, token)
         }
       }
     })
