@@ -264,15 +264,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
-  const fileAccessLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, validate: false })
-  const fileAccessRateLimit = (req: Request, res: Response, next: NextFunction) => {
-    if (res.locals.fileAccessRateLimited) {
-      next()
-      return
+  const fileAccessRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    validate: false,
+    skip: (req: Request, res: Response) => {
+      if (res.locals.fileAccessRateLimited) return true
+      res.locals.fileAccessRateLimited = true
+      return false
     }
-    res.locals.fileAccessRateLimited = true
-    void fileAccessLimiter(req, res, next)
-  }
+  })
   app.use(['/ftp', '/encryptionkeys', '/support/logs'], fileAccessRateLimit)
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
@@ -658,9 +659,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', b2bOrder())
 
   /* File Serving */
-  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileAccessRateLimit, serveEasterEgg())
-  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', fileAccessRateLimit, servePremiumContent())
-  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', fileAccessRateLimit, servePrivacyPolicyProof())
+  app.use(['/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility'], fileAccessRateLimit)
+  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
+  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
+  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
   app.use('/dataerasure', fileAccessRateLimit, dataErasure)

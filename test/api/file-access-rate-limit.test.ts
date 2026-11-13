@@ -34,7 +34,7 @@ void describe('File access rate limiting', () => {
 
   void it('shares the budget across all file-accessing routes', async () => {
     await exhaust('203.0.113.2', '/ftp/doesnotexist.md')
-    for (const path of ['/ftp', '/encryptionkeys/doesnotexist.pub', '/support/logs', '/snippets/fixes/doesNotExist', '/snippets/doesNotExist', '/rest/languages', '/promotion', '/video', '/profile', '/dataerasure', '/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', '/some/client/route']) {
+    for (const path of ['/ftp', '/encryptionkeys/doesnotexist.pub', '/support/logs', '/snippets/fixes/doesNotExist', '/snippets/doesNotExist', '/rest/languages', '/promotion', '/video', '/profile', '/dataerasure', '/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', '/some/client/route']) {
       const res = await request(app).get(path).set('X-Forwarded-For', '203.0.113.2')
       assert.equal(res.status, 429, path)
     }
