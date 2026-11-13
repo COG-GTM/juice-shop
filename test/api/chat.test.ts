@@ -309,22 +309,26 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
 })
 
 void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
+  let couponCallSeq = 0
   async function couponToolResult (args: object, token?: string): Promise<string> {
     let toolResult = ''
-    let callCount = 0
+    const callId = `call_coupon_${++couponCallSeq}`
     onLlmRequest = (_req, body, res) => {
-      callCount++
-      if (callCount === 1) {
+      let messages: Array<{ role: string, tool_call_id?: string, content?: string }> = []
+      try {
+        messages = JSON.parse(body).messages ?? []
+      } catch {}
+      const toolMsg = messages.find(m => m.role === 'tool' && m.tool_call_id === callId)
+      if (toolMsg) {
+        toolResult = toolMsg.content ?? ''
+        sendSSE(res, [contentChunk('Done.'), finishChunk()])
+      } else if (messages.some(m => m.role === 'tool')) {
+        sendSSE(res, [contentChunk('Done.'), finishChunk()])
+      } else {
         sendSSE(res, [
-          toolCallChunk('call_coupon', 'generateCoupon', JSON.stringify(args)),
+          toolCallChunk(callId, 'generateCoupon', JSON.stringify(args)),
           finishChunk('tool_calls')
         ])
-      } else {
-        try {
-          const toolMsg = JSON.parse(body).messages?.find((m: { role: string }) => m.role === 'tool')
-          if (toolMsg) toolResult = toolMsg.content ?? ''
-        } catch {}
-        sendSSE(res, [contentChunk('Done.'), finishChunk()])
       }
     }
     const headers: Record<string, string> = { 'content-type': 'application/json' }
