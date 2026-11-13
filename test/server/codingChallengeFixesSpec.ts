@@ -64,6 +64,15 @@ describe('codingChallengeFixes', () => {
       expect(readdirSync.callCount).to.equal(0)
     })
 
+    it('should not read files outside the codefixes directory for path-like keys', () => {
+      getCodingChallengeInfo('noSuchChallenge')
+      const readFileSync = sinon.spy(nodeFs, 'readFileSync')
+      for (const key of ['../../../package', '../../../config/default.yml#', 'restfulXssChallenge/../loginAdminChallenge', '/etc/passwd', '__proto__']) {
+        expect(getCodingChallengeInfo(key)).to.equal(null)
+      }
+      expect(readFileSync.callCount).to.equal(0)
+    })
+
     it('should return null for a challenge without info YAML file', () => {
       expect(getCodingChallengeInfo('noSuchChallenge')).to.equal(null)
       const readdirSync = sinon.spy(nodeFs, 'readdirSync')

@@ -98,6 +98,18 @@ void describe('snippets/verdict', () => {
     assert.equal(res.body.verdict, false)
   })
 
+  void it('should reject path-like challenge keys', async () => {
+    const res = await request(app)
+      .post('/snippets/verdict')
+      .send({
+        selectedLines: [1],
+        key: '../../../package'
+      })
+
+    assert.equal(res.status, 404)
+    assert.equal(res.body.verdict, undefined)
+  })
+
   void it('should check for the correct lines', async () => {
     const websocketReceivedPromise = new Promise<void>((resolve) => {
       socket.once('code challenge solved', (data: any) => {
