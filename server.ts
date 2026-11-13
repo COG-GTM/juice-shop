@@ -85,6 +85,7 @@ import { trackOrder } from './routes/trackOrder'
 import { saveLoginIp } from './routes/saveLoginIp'
 import { serveKeyFiles } from './routes/keyServer'
 import * as basketItems from './routes/basketItems'
+import * as feedbackOwnership from './routes/feedbackOwnership'
 import { performRedirect } from './routes/redirect'
 import { serveEasterEgg } from './routes/easterEgg'
 import { getLanguageList } from './routes/languages'
@@ -453,8 +454,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
 
-  /* Feedbacks: Only administrators may delete existing feedback, no other changes allowed */
-  app.delete('/api/Feedbacks/:id', security.isAdmin())
+  /* Feedbacks: Only administrators or the feedback's author may delete existing feedback, no other changes allowed */
+  app.delete('/api/Feedbacks/:id', utils.asyncHandler(feedbackOwnership.requireFeedbackOwnerOrAdmin()))
   app.patch('/api/Feedbacks/:id', security.denyAll())
 
   /* Verify the 2FA Token */

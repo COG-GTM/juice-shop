@@ -341,4 +341,65 @@ void describe('/api/Feedbacks/:id', () => {
       .set(adminHeader)
     assert.equal(res.status, 200)
   })
+
+  void it('DELETE own feedback as its author and not as another user', async () => {
+    const { token: ownerToken } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const { token: otherToken } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set({ Authorization: 'Bearer ' + ownerToken, 'content-type': 'application/json' })
+      .send({
+        comment: 'Only I may remove this.',
+        rating: 3,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+    assert.equal(createRes.body.data.UserId, 4)
+
+    const otherRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + otherToken })
+    assert.equal(otherRes.status, 403)
+
+    const ownerRes = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + ownerToken })
+    assert.equal(ownerRes.status, 200)
+  })
+
+  void it('DELETE anonymous feedback is forbidden for non-admin users', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Anonymous feedback',
+        rating: 2,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+    assert.equal(createRes.body.data.UserId, null)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 403)
+  })
 })
