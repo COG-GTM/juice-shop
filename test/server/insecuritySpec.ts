@@ -111,6 +111,21 @@ describe('insecurity', () => {
     })
   })
 
+  describe('appendUserId', () => {
+    it('responds with a generic 401 instead of the internal error for an unknown token', () => {
+      let status: number | undefined
+      let body: unknown
+      let nextCalled = false
+      const res = { status (code: number) { status = code; return this }, json (data: unknown) { body = data } }
+
+      security.appendUserId()({ headers: { authorization: 'Bearer unknown' }, body: {} } as unknown as Request, res as any, () => { nextCalled = true })
+
+      expect(status).to.equal(401)
+      expect(body).to.deep.equal({ status: 'error', message: 'Unauthorized' })
+      expect(nextCalled).to.equal(false)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

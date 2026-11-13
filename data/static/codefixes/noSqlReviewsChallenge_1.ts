@@ -13,8 +13,8 @@ export function updateProductReviews () {
     ).then(
       (result: { modified: number, original: Array<{ author: any }> }) => {
         res.json(result)
-      }, (err: unknown) => {
-        res.status(500).json(err)
+      }, () => {
+        res.status(500).json('Internal Server Error')
       })
   }
 }

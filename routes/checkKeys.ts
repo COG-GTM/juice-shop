@@ -1,5 +1,6 @@
 import { type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
+import logger from '../lib/logger'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
 
@@ -27,7 +28,8 @@ export function checkKeys () {
         }
       }
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      logger.error(`Error checking NFT unlock key: ${utils.getErrorMessage(error)}`)
+      res.status(500).json('Internal Server Error')
     }
   }
 }
@@ -36,7 +38,8 @@ export function nftUnlocked () {
     try {
       res.status(200).json({ status: challenges.nftUnlockChallenge.solved })
     } catch (error) {
-      res.status(500).json(utils.getErrorMessage(error))
+      logger.error(`Error retrieving NFT unlock status: ${utils.getErrorMessage(error)}`)
+      res.status(500).json('Internal Server Error')
     }
   }
 }
