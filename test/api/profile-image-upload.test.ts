@@ -106,6 +106,33 @@ void describe('/profile/image/url', () => {
     assert.equal(res.status, 302)
   })
 
+  void it('POST unreachable profile image URL stores the parsed URL, never injected directives', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const email = `jim@${config.get<string>('application.domain')}`
+    await UserModel.update({ profileImage: '/assets/public/images/uploads/default.svg' }, { where: { email } })
+
+    let res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', "https://x.png; script-src 'unsafe-inline'")
+      .redirects(0)
+    assert.equal(res.status, 302)
+    let user = await UserModel.findOne({ where: { email } })
+    assert.equal(user?.profileImage, '/assets/public/images/uploads/default.svg')
+
+    res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'HTTPS://Unreachable.invalid/ab')
+      .redirects(0)
+    assert.equal(res.status, 302)
+    user = await UserModel.findOne({ where: { email } })
+    assert.equal(user?.profileImage, 'https://unreachable.invalid/ab')
+  })
+
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)
       .post('/profile/image/url')

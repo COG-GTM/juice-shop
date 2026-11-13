@@ -45,7 +45,7 @@ export function profileImageUrlUpload () {
         } catch (error) {
           try {
             const user = await UserModel.findByPk(loggedInUser.data.id)
-            await user?.update({ profileImage: url })
+            await user?.update({ profileImage: new URL(url).href })
             logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
           } catch (error) {
             next(error)
