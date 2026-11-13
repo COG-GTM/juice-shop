@@ -454,3 +454,93 @@ void describe('forged alg:none tokens on 2FA management', () => {
     assert.equal(statusRes.body.setup, false)
   })
 })
+
+void describe('RS256 tokens signed with the committed key on 2FA management', () => {
+  const selfSignedFor = (token: string, password: string) => {
+    const { id, email } = security.decode(token).data
+    return security.authorize({ data: { id, email, password: security.hash(password), totpSecret: '', role: 'customer' } })
+  }
+
+  void it('POST /rest/2fa/disable should check the password and TOTP against the database, not the cached session', async () => {
+    const email = 'selfsigned2fadisable@bar.com'
+    const password = 'victimPassword1'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+    const { token } = await login(app, { email, password, totpSecret })
+    const forged = selfSignedFor(token, 'attacker')
+
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forged)
+    assert.equal(security.authenticatedUsers.get(forged)?.data.password, security.hash('attacker'))
+
+    const withoutTotp = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({ password: 'attacker' })
+    assert.equal(withoutTotp.status, 401)
+
+    const withWrongTotp = await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({ password: 'attacker', totpToken: generateSync({ secret: generateSecret() }) })
+    assert.equal(withWrongTotp.status, 401)
+
+    const statusRes = await getStatus(token)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, true)
+  })
+
+  void it('POST /rest/2fa/setup should check the password against the database, not the cached session', async () => {
+    const email = 'selfsigned2fasetup@bar.com'
+    const password = 'victimPassword1'
+    const secret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+    const forged = selfSignedFor(token, 'attacker')
+
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forged)
+    assert.equal(security.authenticatedUsers.get(forged)?.data.password, security.hash('attacker'))
+
+    const setupRes = await request(app)
+      .post('/rest/2fa/setup')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({
+        password: 'attacker',
+        setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret })
+      })
+    assert.equal(setupRes.status, 401)
+
+    const statusRes = await getStatus(token)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, false)
+  })
+
+  void it('POST /rest/2fa/setup should use the database totpSecret when the cached session claims none', async () => {
+    const email = 'selfsigned2fareplace@bar.com'
+    const password = 'victimPassword1'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+    const attackerSecret = generateSecret()
+
+    await register(app, { email, password, totpSecret })
+    const { token } = await login(app, { email, password, totpSecret })
+    const forged = selfSignedFor(token, password)
+
+    await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + forged)
+    assert.equal(security.authenticatedUsers.get(forged)?.data.totpSecret, '')
+
+    const setupRes = await request(app)
+      .post('/rest/2fa/setup')
+      .set({ Authorization: 'Bearer ' + forged, ...jsonHeader })
+      .send({
+        password,
+        setupToken: security.authorize({ secret: attackerSecret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret: attackerSecret })
+      })
+    assert.equal(setupRes.status, 401)
+
+    const relogin = await login(app, { email, password, totpSecret })
+    assert.ok(relogin?.token)
+  })
+})
