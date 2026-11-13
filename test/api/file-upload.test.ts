@@ -149,13 +149,17 @@ void describe('/file-upload', () => {
 })
 
 void describe('/file-upload rate limiting', () => {
-  void it('POST is rejected with 429 once the request limit is exceeded', async () => {
-    const statuses: number[] = []
-    for (let i = 0; i < 101; i++) {
+  void it('POST allows 100 requests per window and rejects the next one with 429', async () => {
+    const first = await request(app).post('/file-upload')
+    assert.equal(first.status, 400)
+    assert.equal(first.headers['x-ratelimit-limit'], '100')
+    const remaining = Number(first.headers['x-ratelimit-remaining'])
+    assert.ok(remaining > 0)
+    for (let i = 0; i < remaining; i++) {
       const res = await request(app).post('/file-upload')
-      statuses.push(res.status)
+      assert.equal(res.status, 400)
     }
-    assert.equal(statuses[0], 400)
-    assert.equal(statuses[statuses.length - 1], 429)
+    const res = await request(app).post('/file-upload')
+    assert.equal(res.status, 429)
   })
 })
