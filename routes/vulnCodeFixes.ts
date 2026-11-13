@@ -4,6 +4,7 @@ import { type NextFunction, type Request, type Response } from 'express'
 
 import * as accuracy from '../lib/accuracy'
 import * as challengeUtils from '../lib/challengeUtils'
+import { getCodingChallengeInfoPath } from '../lib/codingChallenges'
 import { type ChallengeKey } from 'models/challenge'
 
 const FixesDir = 'data/static/codefixes'
@@ -77,8 +78,9 @@ export const checkCorrectFix = () => async (req: Request<Record<string, unknown>
     })
   } else {
     let explanation
-    if (fs.existsSync('./data/static/codefixes/' + key + '.info.yml')) {
-      const codingChallengeInfos = yaml.load(fs.readFileSync('./data/static/codefixes/' + key + '.info.yml', 'utf8'))
+    const infoPath = getCodingChallengeInfoPath(key)
+    if (infoPath !== null && fs.existsSync(infoPath)) {
+      const codingChallengeInfos = yaml.load(fs.readFileSync(infoPath, 'utf8'))
       const selectedFixInfo = codingChallengeInfos?.fixes.find(({ id }: { id: number }) => id === selectedFix + 1)
       if (selectedFixInfo?.explanation) explanation = res.__(selectedFixInfo.explanation)
     }

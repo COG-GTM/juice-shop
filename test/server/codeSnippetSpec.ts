@@ -1,6 +1,8 @@
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
+import path from 'node:path'
 import { getVerdict } from '../../routes/vulnCodeSnippet'
+import { getCodingChallengeInfoPath } from '../../lib/codingChallenges'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -40,5 +42,28 @@ describe('vulnCodeSnippet', () => {
 
   it('should assert empty edge case as correct', () => {
     expect(getVerdict([], [], [])).to.equal(true)
+  })
+})
+
+describe('getCodingChallengeInfoPath', () => {
+  const codefixesDir = path.resolve('./data/static/codefixes')
+
+  it('should resolve a challenge key to its info file inside the codefixes directory', () => {
+    expect(getCodingChallengeInfoPath('loginAdminChallenge')).to.equal(path.join(codefixesDir, 'loginAdminChallenge.info.yml'))
+  })
+
+  it('should reject keys escaping the codefixes directory', () => {
+    expect(getCodingChallengeInfoPath('../../../package')).to.equal(null)
+    expect(getCodingChallengeInfoPath('/etc/passwd')).to.equal(null)
+  })
+
+  it('should reject keys pointing into subdirectories', () => {
+    expect(getCodingChallengeInfoPath('sub/loginAdminChallenge')).to.equal(null)
+  })
+
+  it('should reject non-string keys', () => {
+    expect(getCodingChallengeInfoPath(['loginAdminChallenge'])).to.equal(null)
+    expect(getCodingChallengeInfoPath({ key: 'loginAdminChallenge' })).to.equal(null)
+    expect(getCodingChallengeInfoPath(undefined)).to.equal(null)
   })
 })

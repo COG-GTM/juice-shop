@@ -122,4 +122,15 @@ void describe('snippets/verdict', () => {
 
     await websocketReceivedPromise
   })
+
+  void it('should return 404 for a path traversal challenge key', async () => {
+    const res = await request(app)
+      .post('/snippets/verdict')
+      .send({
+        selectedLines: [1],
+        key: '../../../package'
+      })
+
+    assert.equal(res.status, 404)
+  })
 })
