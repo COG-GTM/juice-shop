@@ -107,4 +107,14 @@ void describe('/b2b/v2/orders', () => {
     const otherUser = await request(app).post('/b2b/v2/orders').set(otherUserHeader).send({ cid: 'limit-test' })
     assert.equal(otherUser.status, 200)
   })
+
+  void it('POST new B2B order rate limit cannot be bypassed with ID-less tokens and spoofed X-Forwarded-For', async () => {
+    const idlessHeader = { Authorization: 'Bearer ' + security.authorize({ type: 'totp_setup_secret' }), 'content-type': 'application/json' }
+    let limited = false
+    for (let i = 0; i <= 100 && !limited; i++) {
+      const res = await request(app).post('/b2b/v2/orders').set(idlessHeader).set('X-Forwarded-For', `10.0.0.${i}`).send({ cid: 'limit-test' })
+      limited = res.status === 429
+    }
+    assert.ok(limited)
+  })
 })

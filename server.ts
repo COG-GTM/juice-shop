@@ -647,7 +647,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 100,
-    keyGenerator: (req: Request) => String(security.decode(utils.jwtFrom(req))?.data?.id ?? req.ip),
+    keyGenerator: (req: Request) => String(security.decode(utils.jwtFrom(req))?.data?.id ?? req.socket.remoteAddress),
     validate: false
   }), b2bOrder())
 
