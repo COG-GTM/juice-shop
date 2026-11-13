@@ -74,6 +74,13 @@ describe('antiCheat', () => {
     })
 
     it('should not log a challenge key that is not part of the challenge catalog', () => {
+      antiCheat.calculateCheatScore({ key: 'sk-live-0123456789abcdef', difficulty: 1 } as any)
+
+      expect(info.lastCall.args[0]).to.not.contain('sk-live-0123456789abcdef')
+      expect(info.lastCall.args[0]).to.contain('unknown challenge')
+    })
+
+    it('should not log a challenge key that is not part of the challenge catalog when cheating', () => {
       antiCheat.calculateCheatScore({ key: 'sk-live-0123456789abcdef', difficulty: 1 } as any, true)
 
       expect(info.lastCall.args[0]).to.not.contain('sk-live-0123456789abcdef')
