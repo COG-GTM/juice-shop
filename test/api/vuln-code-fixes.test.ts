@@ -58,6 +58,17 @@ void describe('/snippets/fixes/:key', () => {
       assert.equal(typeof fix, 'string')
     }
   })
+
+  void it('GET fixes for union SQL injection challenge has blocklist option replacing all occurrences', async () => {
+    const res = await request(app)
+      .get('/snippets/fixes/unionSqlInjectionChallenge')
+
+    assert.equal(res.status, 200)
+    assert.ok(res.body.fixes[0].includes('criteria = criteria.replace(/"|\'|;|and|or/gi, "")'))
+    for (const fix of res.body.fixes) {
+      assert.ok(!fix.includes('.replace(/"|\'|;|and|or/i,'))
+    }
+  })
 })
 
 void describe('/snippets/fixes', () => {
