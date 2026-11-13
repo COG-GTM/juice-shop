@@ -53,11 +53,13 @@ export class ComplaintComponent implements OnInit {
   public confirmation: any
 
   parseUploadError (response: string): string {
+    let message = response
     try {
-      return JSON.parse(response)?.error ?? response
+      message = JSON.parse(response)?.error ?? response
     } catch {
-      return response
+      message = response
     }
+    return message || 'File upload failed'
   }
 
   ngOnInit (): void {
