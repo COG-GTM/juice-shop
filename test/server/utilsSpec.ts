@@ -216,6 +216,26 @@ describe('utils', () => {
     })
   })
 
+  describe('toRelativeDirectoryListingHref', () => {
+    it('prefixes child entries with the current folder', () => {
+      expect(utils.toRelativeDirectoryListingHref('/ftp/quarantine', '/ftp/quarantine/juicy_malware_linux_amd_64.url')).to.equal('quarantine/juicy_malware_linux_amd_64.url')
+    })
+
+    it('links the current folder to itself', () => {
+      expect(utils.toRelativeDirectoryListingHref('/ftp', '/ftp')).to.equal('ftp')
+    })
+
+    it('rewrites only the leading parent segment', () => {
+      expect(utils.toRelativeDirectoryListingHref('/ftp/quarantine', '/ftp')).to.equal('.')
+      expect(utils.toRelativeDirectoryListingHref('/ftp/quarantine', '/')).to.equal('./..')
+    })
+
+    it('keeps ".." inside entry names intact', () => {
+      expect(utils.toRelativeDirectoryListingHref('/ftp/', '/ftp/.backup..bak')).to.equal('.backup..bak')
+      expect(utils.toRelativeDirectoryListingHref('/ftp/', '/ftp/legal..md')).to.equal('legal..md')
+    })
+  })
+
   describe('toISO8601', () => {
     it('converts date to ISO 8601 representation', () => {
       expect(utils.toISO8601(new Date('2025-12-15T00:00:00Z'))).to.equal('2025-12-15')

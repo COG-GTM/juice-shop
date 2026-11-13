@@ -245,17 +245,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       if (arguments.length) {
         const reqPath = req.originalUrl.replace(/\?.*$/, '')
 
-        const currentFolder = reqPath.split('/').pop()!
         arguments[0] = arguments[0].replace(/a href="([^"]+?)"/gi, function (matchString: string, matchedUrl: string) {
-          let relativePath = path.relative(reqPath, matchedUrl)
-          if (relativePath === '') {
-            relativePath = currentFolder
-          } else if (!relativePath.startsWith('.') && currentFolder !== '') {
-            relativePath = currentFolder + '/' + relativePath
-          } else {
-            relativePath = relativePath.replace(/^\.\./, '.')
-          }
-          return 'a href="' + relativePath + '"'
+          return 'a href="' + utils.toRelativeDirectoryListingHref(reqPath, matchedUrl) + '"'
         })
       }
       // @ts-expect-error FIXME passed argument has wrong type

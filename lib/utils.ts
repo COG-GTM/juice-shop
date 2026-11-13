@@ -6,6 +6,7 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -45,6 +46,17 @@ export const contains = (str: string, element: string) => str ? str.includes(ele
 
 export const containsEscaped = function (str: string, element: string) {
   return contains(str, element.replace(/\\/g, '\\\\').replace(/"/g, '\\"'))
+}
+
+export const toRelativeDirectoryListingHref = (reqPath: string, matchedUrl: string) => {
+  const currentFolder = reqPath.split('/').pop()!
+  const relativePath = path.relative(reqPath, matchedUrl)
+  if (relativePath === '') {
+    return currentFolder
+  } else if (!relativePath.startsWith('.') && currentFolder !== '') {
+    return currentFolder + '/' + relativePath
+  }
+  return relativePath.replace(/^\.\./, '.')
 }
 
 export const containsOrEscaped = function (str: string, element: string) {
