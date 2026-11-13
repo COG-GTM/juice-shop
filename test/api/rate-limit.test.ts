@@ -18,6 +18,12 @@ async function createLimitedApp (): Promise<Express> {
 
 let app: Express
 
+async function exhaustLimit (): Promise<void> {
+  for (let i = 0; i <= LIMIT; i++) {
+    await request(app).get('/ftp/legal.md')
+  }
+}
+
 before(async () => {
   app = await createLimitedApp()
 }, { timeout: 60000 })
@@ -34,6 +40,7 @@ void describe('Global rate limiting', () => {
   })
 
   void it('cannot be bypassed by rotating X-Forwarded-For', async () => {
+    await exhaustLimit()
     for (let i = 0; i < 3; i++) {
       const res = await request(app)
         .get('/ftp/legal.md')
@@ -43,6 +50,7 @@ void describe('Global rate limiting', () => {
   })
 
   void it('applies to all routes, not just file serving', async () => {
+    await exhaustLimit()
     const res = await request(app).get('/rest/admin/application-version')
     assert.equal(res.status, 429)
   })
