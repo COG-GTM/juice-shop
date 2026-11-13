@@ -201,11 +201,15 @@ void describe('/api/Addresss rate limiting', () => {
   })
 
   void it('ignores X-Forwarded-For when identifying the client', async () => {
-    const res = await request(app)
-      .put('/api/Addresss/1')
-      .set(authHeader)
-      .set('X-Forwarded-For', '203.0.113.' + Math.floor(Math.random() * 255))
-      .send({ city: 'Gotham' })
-    assert.equal(res.status, 429)
+    let lastStatus = 0
+    for (let i = 0; i < 310; i++) {
+      const res = await request(app)
+        .put('/api/Addresss/1')
+        .set(authHeader)
+        .set('X-Forwarded-For', `203.0.${Math.floor(i / 256)}.${i % 256}`)
+        .send({ city: 'Gotham' })
+      lastStatus = res.status
+    }
+    assert.equal(lastStatus, 429)
   })
 })
