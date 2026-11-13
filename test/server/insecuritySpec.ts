@@ -196,6 +196,41 @@ describe('insecurity', () => {
     })
   })
 
+  describe('hashPassword', () => {
+    it('returns a salted scrypt hash instead of plain MD5', () => {
+      const passwordHash = security.hashPassword('admin123')
+      expect(passwordHash).to.match(/^scrypt\$[a-f0-9]{32}\$[a-f0-9]{128}$/)
+      expect(passwordHash).to.not.contain(security.hash('admin123'))
+    })
+
+    it('returns different hashes for identical passwords', () => {
+      expect(security.hashPassword('admin123')).to.not.equal(security.hashPassword('admin123'))
+    })
+  })
+
+  describe('verifyPassword', () => {
+    it('accepts the correct password for a salted hash', () => {
+      expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
+    })
+
+    it('rejects a wrong password for a salted hash', () => {
+      expect(security.verifyPassword('admin1234', security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('accepts legacy MD5 hashes so they can be upgraded on next login', () => {
+      expect(security.verifyPassword('admin123', '0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.verifyPassword('admin1234', '0192023a7bbd73250516f069df18b500')).to.equal(false)
+      expect(security.isLegacyPasswordHash('0192023a7bbd73250516f069df18b500')).to.equal(true)
+      expect(security.isLegacyPasswordHash(security.hashPassword('admin123'))).to.equal(false)
+    })
+
+    it('rejects malformed hashes and non-string passwords', () => {
+      expect(security.verifyPassword('admin123', 'scrypt$nothex$nothex')).to.equal(false)
+      expect(security.verifyPassword('admin123', undefined)).to.equal(false)
+      expect(security.verifyPassword({ toString: () => 'admin123' }, security.hashPassword('admin123'))).to.equal(false)
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
