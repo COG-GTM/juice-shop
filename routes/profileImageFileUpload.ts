@@ -4,13 +4,41 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 import fileType from 'file-type'
 
 import logger from '../lib/logger'
-import * as utils from '../lib/utils'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+
+const uploadsDirectory = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+
+export const allowedProfileImageTypes: Readonly<Record<string, string>> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp'
+}
+
+const uploadsInProgress = new Map<number, Promise<void>>()
+
+async function serializePerUser (userId: number, task: () => Promise<void>) {
+  const current = (uploadsInProgress.get(userId) ?? Promise.resolve()).then(task)
+  const settled = current.catch(() => {})
+  uploadsInProgress.set(userId, settled)
+  try {
+    await current
+  } finally {
+    if (uploadsInProgress.get(userId) === settled) uploadsInProgress.delete(userId)
+  }
+}
+
+async function removeStaleProfileImages (userId: number, keepExtension: string) {
+  await Promise.all(Object.values(allowedProfileImageTypes)
+    .filter(ext => ext !== keepExtension)
+    .map(async ext => { await fs.rm(path.join(uploadsDirectory, `${userId}.${ext}`), { force: true }) }))
+}
 
 export function profileImageFileUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -27,9 +55,10 @@ export function profileImageFileUpload () {
       next(new Error('Illegal file type'))
       return
     }
-    if (uploadedFileType === null || !utils.startsWith(uploadedFileType.mime, 'image')) {
+    const extension = allowedProfileImageTypes[uploadedFileType.mime]
+    if (extension === undefined) {
       res.status(415)
-      next(new Error(`Profile image upload does not accept this file type${uploadedFileType ? (': ' + uploadedFileType.mime) : '.'}`))
+      next(new Error(`Profile image upload does not accept this file type: ${uploadedFileType.mime}`))
       return
     }
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
@@ -37,22 +66,43 @@ export function profileImageFileUpload () {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
-
-    const filePath = `frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}`
-    try {
-      await fs.writeFile(filePath, buffer)
-    } catch (err) {
-      logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
+    const userId = Number(loggedInUser.data.id)
+    if (!Number.isSafeInteger(userId) || userId < 1) {
+      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
     }
 
-    try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
-      if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${loggedInUser.data.id}.${uploadedFileType.ext}` })
+    const fileName = `${userId}.${extension}`
+    let failed = false
+    await serializePerUser(userId, async () => {
+      let written = false
+      try {
+        await fs.writeFile(path.join(uploadsDirectory, fileName), buffer, { mode: 0o644 })
+        written = true
+      } catch (err) {
+        logger.warn('Error writing file: ' + (err instanceof Error ? err.message : String(err)))
       }
-    } catch (error) {
-      next(error)
-    }
+
+      try {
+        const user = await UserModel.findByPk(userId)
+        if (user != null) {
+          await user.update({ profileImage: `assets/public/images/uploads/${fileName}` })
+        }
+      } catch (error) {
+        failed = true
+        next(error)
+        return
+      }
+
+      if (written) {
+        try {
+          await removeStaleProfileImages(userId, extension)
+        } catch (err) {
+          logger.warn('Error removing stale profile images: ' + (err instanceof Error ? err.message : String(err)))
+        }
+      }
+    })
+    if (failed) return
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
   }
