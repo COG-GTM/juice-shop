@@ -303,6 +303,31 @@ void describe('/api/Feedbacks/:id', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('DELETE own feedback as non-admin user', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const createRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jimHeader)
+      .send({
+        comment: 'I will delete this myself',
+        rating: 1,
+        UserId: security.decode(token).data.id,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(createRes.status, 201)
+
+    const res = await request(app)
+      .delete('/api/Feedbacks/' + createRes.body.data.id)
+      .set(jimHeader)
+    assert.equal(res.status, 200)
+  })
+
   void it('DELETE feedback of another user is forbidden for non-admin users', async () => {
     const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
     const res = await request(app)
