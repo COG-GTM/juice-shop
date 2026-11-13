@@ -24,7 +24,7 @@
       }
       @if (uploadRejected) {
         <p class="error fileUploadError" role="alert">
-          {{ "FILE_UPLOAD_REJECTED" | translate }}
+          {{ uploadRejectionMessage }}
         </p>
       }
     </section>
