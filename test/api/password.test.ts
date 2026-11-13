@@ -172,6 +172,25 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'morty@' + config.get<string>('application.domain'), password: 'iBurri3dMySe1fInTheB4ckyard!' })
+    assert.equal(loginRes.status, 200)
+    assert.ok(loginRes.body.authentication?.token)
+
+    const staleLoginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'morty@' + config.get<string>('application.domain'), password: 'focusOnScienceMorty!focusOnScience' })
+    assert.equal(staleLoginRes.status, 401)
+
+    const wrongLoginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'morty@' + config.get<string>('application.domain'), password: 'not-the-reset-password' })
+    assert.equal(wrongLoginRes.status, 401)
   })
 
   void it('POST password reset with wrong answer to security question', async () => {
