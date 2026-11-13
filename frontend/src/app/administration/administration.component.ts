@@ -131,7 +131,8 @@ export class AdministrationComponent implements OnInit {
   }
 
   times (numberOfTimes: number) {
-    return Array(numberOfTimes).fill('★')
+    const count = Math.min(Math.max(0, Math.trunc(Number(numberOfTimes)) || 0), 5)
+    return Array(count).fill('★')
   }
 
   doesUserHaveAnActiveSession (user: { email: string, lastLoginTime: number }) {

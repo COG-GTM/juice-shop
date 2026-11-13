@@ -154,6 +154,18 @@ describe('AdministrationComponent', () => {
         expect(component.feedbackColumns[3]).toBe('remove')
     })
 
+    it('should render one star per rating point', () => {
+        expect(component.times(3)).toEqual(['★', '★', '★'])
+        expect(component.times(0)).toEqual([])
+    })
+
+    it('should clamp out-of-range ratings to between zero and five stars', () => {
+        expect(component.times(1000000000).length).toBe(5)
+        expect(component.times(-1).length).toBe(0)
+        expect(component.times(NaN).length).toBe(0)
+        expect(component.times(undefined as unknown as number).length).toBe(0)
+    })
+
     it('should initialize showToolCalls based on cookie', () => {
         cookieService.get.mockReturnValue('true')
         component.ngOnInit()
