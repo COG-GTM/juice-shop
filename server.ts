@@ -120,7 +120,7 @@ import { servePrivacyPolicyProof } from './routes/privacyPolicyProof'
 import { profileImageUrlUpload } from './routes/profileImageUrlUpload'
 import { profileImageFileUpload } from './routes/profileImageFileUpload'
 import { serveCodeFixes, checkCorrectFix } from './routes/vulnCodeFixes'
-import { imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
+import { imageCaptchaRateLimitKey, imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
 import { upgradeToDeluxe, deluxeMembershipStatus } from './routes/deluxe'
 import { serveCodeSnippet, checkVulnLines } from './routes/vulnCodeSnippet'
 import { orderHistory, allOrders, toggleDeliveryStatus } from './routes/orderHistory'
@@ -612,7 +612,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.put('/rest/continue-code-fixIt/apply/:continueCode', utils.asyncHandler(restoreProgress.restoreProgressFixIt()))
   app.put('/rest/continue-code/apply/:continueCode', utils.asyncHandler(restoreProgress.restoreProgress()))
   app.get('/rest/captcha', utils.asyncHandler(captchas()))
-  app.get('/rest/image-captcha', utils.asyncHandler(imageCaptchas()))
+  app.get('/rest/image-captcha',
+    rateLimit({ windowMs: 5 * 60 * 1000, max: 30, keyGenerator: imageCaptchaRateLimitKey }),
+    utils.asyncHandler(imageCaptchas())
+  )
   app.get('/rest/track-order/:id', trackOrder())
   app.get('/rest/country-mapping', utils.asyncHandler(countryMapping()))
   app.get('/rest/saveLoginIp', utils.asyncHandler(saveLoginIp()))

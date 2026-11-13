@@ -9,17 +9,22 @@ import { Op } from 'sequelize'
 import { ImageCaptchaModel } from '../models/imageCaptcha'
 import * as security from '../lib/insecurity'
 
+export function imageCaptchaRateLimitKey (req: Request) {
+  const user = security.authenticatedUsers.from(req)
+  return user?.data?.id ? `user:${user.data.id}` : `ip:${req.ip}`
+}
+
 export function imageCaptchas () {
   return async (req: Request, res: Response) => {
     try {
-      const { default: svgCaptcha } = await import('svg-captcha')
-      const captcha = svgCaptcha.create({ size: 5, noise: 2, color: true })
-
       const user = security.authenticatedUsers.from(req)
       if (!user) {
         res.status(401).send(res.__('You need to be logged in to request a CAPTCHA.'))
         return
       }
+
+      const { default: svgCaptcha } = await import('svg-captcha')
+      const captcha = svgCaptcha.create({ size: 5, noise: 2, color: true })
 
       const imageCaptcha = {
         image: captcha.data,
