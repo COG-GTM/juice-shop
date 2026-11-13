@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketItemModel } from '../../models/basketitem'
 import { BasketModel } from '../../models/basket'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -59,10 +60,11 @@ void describe('/rest/basket/:id', () => {
     assert.ok(Array.isArray(res.body.data.Products))
   })
 
-  void it('GET basket of another user is not allowed', async () => {
+  void it('GET basket of another user is not allowed but still solves "View Basket"', async () => {
     const res = await request(app).get('/rest/basket/1').set(authHeader)
     assert.equal(res.status, 403)
     assert.equal(res.body.data, undefined)
+    assert.equal(challenges.basketAccessChallenge.solved, true)
   })
 
   void it.skip('GET basket should accept forged JWTs', async () => {
