@@ -29,6 +29,8 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { ConfigurationService } from '../Services/configuration.service'
 import { throwError } from 'rxjs/internal/observable/throwError'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { ActivatedRoute } from '@angular/router'
+import { SocketIoService } from '../Services/socket-io.service'
 
 describe('DeluxeUserComponent', () => {
     let component: DeluxeUserComponent
@@ -36,6 +38,8 @@ describe('DeluxeUserComponent', () => {
     let userService
     let cookieService: any
     let configurationService: any
+    let socketIoService: any
+    let mockSocket: any
 
     beforeEach(async () => {
         configurationService = {
@@ -54,6 +58,10 @@ describe('DeluxeUserComponent', () => {
         }
         userService.isLoggedIn.next.mockReturnValue({})
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        mockSocket = { emit: vi.fn() }
+        socketIoService = {
+            socket: vi.fn().mockReturnValue(mockSocket)
+        }
         cookieService = {
             remove: vi.fn().mockName("CookieService.remove")
         }
@@ -80,6 +88,7 @@ describe('DeluxeUserComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CookieService, useValue: cookieService },
+                { provide: SocketIoService, useValue: socketIoService },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
@@ -124,5 +133,42 @@ describe('DeluxeUserComponent', () => {
         console.log = vi.fn()
         component.ngOnInit()
         expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    describe('testDecal query parameter', () => {
+        const setTestDecal = (testDecal: unknown) => {
+            TestBed.inject(ActivatedRoute).snapshot.queryParams = { testDecal }
+            configurationService.getApplicationConfiguration.mockReturnValue(of({ application: { logo: 'JuiceShop_Logo.png' } }))
+            component.ngOnInit()
+        }
+
+        it('should use a plain image file name as decal', () => {
+            setTestDecal('JuiceShop_Logo.svg')
+            expect(component.logoSrc).toBe('assets/public/images/JuiceShop_Logo.svg')
+        })
+
+        it('should ignore a decal traversing to the redirect endpoint and keep the configured logo', () => {
+            setTestDecal('../../../redirect?to=https://placecats.com/g/200/100?x=https://github.com/juice-shop/juice-shop')
+            expect(component.logoSrc).toBe('assets/public/images/JuiceShop_Logo.png')
+        })
+
+        it('should ignore decals containing path separators or parent directory segments', () => {
+            for (const decal of ['../JuiceShop_Logo.png', 'deluxe/../../x.png', '..\\x.png', '/redirect.png', '//evil.example/x.png', 'products/apple_juice.jpg', '..']) {
+                setTestDecal(decal)
+                expect(component.logoSrc).toBe('assets/public/images/JuiceShop_Logo.png')
+            }
+        })
+
+        it('should ignore decals with absolute URLs or non-image file names', () => {
+            for (const decal of ['https://evil.example/x.png', 'javascript:alert(1)', 'x.png?to=https://evil.example', 'x.html']) {
+                setTestDecal(decal)
+                expect(component.logoSrc).toBe('assets/public/images/JuiceShop_Logo.png')
+            }
+        })
+
+        it('should ignore a decal passed more than once', () => {
+            setTestDecal(['JuiceShop_Logo.svg', '../../../redirect?to=https://evil.example'])
+            expect(component.logoSrc).toBe('assets/public/images/JuiceShop_Logo.png')
+        })
     })
 })
