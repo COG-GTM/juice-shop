@@ -6,7 +6,7 @@
 import chai from 'chai'
 import express from 'express'
 import request from 'supertest'
-import { globalRateLimit } from '../../lib/rateLimiting'
+import { globalRateLimit, rateLimitKey } from '../../lib/rateLimiting'
 const expect = chai.expect
 
 function appWithLimit (limit: number) {
@@ -49,5 +49,20 @@ describe('globalRateLimit', () => {
     const res = await request(appWithLimit(5)).get('/rest/user/whoami')
     expect(res.headers.ratelimit).to.match(/limit=5, remaining=4/)
     expect(res.headers['x-ratelimit-limit']).to.equal(undefined)
+  })
+
+  it('shares one budget across an IPv6 /64 prefix', () => {
+    expect(rateLimitKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).to.equal('2001:db8:1:2::/64')
+    expect(rateLimitKey('2001:db8:1:2::1')).to.equal('2001:db8:1:2::/64')
+    expect(rateLimitKey('2001:0db8:0001:0002:0000:0000:0000:0042')).to.equal('2001:db8:1:2::/64')
+    expect(rateLimitKey('2001:db8:1:3::1')).to.equal('2001:db8:1:3::/64')
+    expect(rateLimitKey('::1')).to.equal('0:0:0:0::/64')
+    expect(rateLimitKey('fe80::1%eth0')).to.equal('fe80:0:0:0::/64')
+  })
+
+  it('keys IPv4 and IPv4-mapped IPv6 addresses by the IPv4 address', () => {
+    expect(rateLimitKey('203.0.113.7')).to.equal('203.0.113.7')
+    expect(rateLimitKey('::ffff:203.0.113.7')).to.equal('203.0.113.7')
+    expect(rateLimitKey(undefined)).to.equal('unknown')
   })
 })
