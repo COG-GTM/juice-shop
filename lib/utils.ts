@@ -214,6 +214,19 @@ export const toSimpleIpAddress = (ipv6: string) => {
   }
 }
 
+export const rateLimitClientKey = (address?: string) => {
+  if (!address) return 'unknown'
+  const simple = toSimpleIpAddress(address.split('%')[0])
+  if (!simple.includes(':')) return simple
+  const [head, tail] = simple.split('::')
+  const headGroups = head ? head.split(':') : []
+  const tailGroups = tail ? tail.split(':') : []
+  const groups = tail === undefined
+    ? headGroups
+    : [...headGroups, ...Array(8 - headGroups.length - tailGroups.length).fill('0'), ...tailGroups]
+  return groups.slice(0, 4).map(group => parseInt(group, 16).toString(16)).join(':') + '::/64'
+}
+
 export const getErrorMessage = (error: unknown) => {
   if (error instanceof Error) return error.message
   return String(error)
