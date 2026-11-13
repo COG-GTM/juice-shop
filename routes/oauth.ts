@@ -9,6 +9,8 @@ import { type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { BasketModel } from '../models/basket'
+import * as models from '../models/index'
+import { OAuthIdentityModel } from '../models/oauthIdentity'
 import { UserModel } from '../models/user'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
@@ -42,23 +44,34 @@ export function oauthLogin () {
       return
     }
 
-    let email: string | null
+    let verifiedEmail: string | null
     try {
-      email = await verifiedGoogleEmail(accessToken)
+      verifiedEmail = await verifiedGoogleEmail(accessToken)
     } catch {
-      email = null
+      verifiedEmail = null
     }
-    if (!email) {
+    if (!verifiedEmail) {
       res.status(401).json({ status: 'error', message: 'Invalid OAuth access token.' })
       return
     }
+    const email = verifiedEmail
 
     let user: UserModel
     try {
-      [user] = await UserModel.findOrCreate({
-        where: { email },
-        defaults: { email, password: crypto.randomBytes(32).toString('base64') }
+      let linked: boolean
+      [user, linked] = await models.sequelize.transaction(async (transaction) => {
+        const [user, created] = await UserModel.findOrCreate({
+          where: { email },
+          defaults: { email, password: crypto.randomBytes(32).toString('base64') },
+          transaction
+        })
+        if (created) await OAuthIdentityModel.create({ UserId: user.id }, { transaction })
+        return [user, created || await OAuthIdentityModel.count({ where: { UserId: user.id }, transaction }) > 0] as const
       })
+      if (!linked) {
+        res.status(409).json({ status: 'error', message: 'An account with this email address already exists. Please log in with your password.' })
+        return
+      }
       await WalletModel.findOrCreate({ where: { UserId: user.id } })
     } catch {
       res.status(401).json({ status: 'error', message: 'Invalid OAuth access token.' })

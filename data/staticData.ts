@@ -24,6 +24,7 @@ export interface StaticUser {
   deletedFlag?: boolean
   totpSecret?: string
   customDomain?: boolean
+  oauth?: boolean
   securityQuestion?: StaticUserSecurityQuestion
   feedback?: StaticUserFeedback
   address?: StaticUserAddress[]
