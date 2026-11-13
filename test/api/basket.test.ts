@@ -324,6 +324,44 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(await walletBalance(), balanceBefore)
   })
 
+  void it('POST placing a card order for a basket containing a stored negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: -1 }, { validate: false })
+    const balanceBefore = await walletBalance()
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    try {
+      const res = await request(app).post('/rest/basket/2/checkout').set(authHeader).send({ orderDetails: await ownOrderDetails() })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+      assert.equal(await walletBalance(), balanceBefore)
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+    }
+  })
+
+  void it('POST placing a wallet order with insufficient balance leaves stock and wallet untouched', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 1, quantity: 5 })
+    const wallet = await WalletModel.findOne({ where: { UserId: 2 } })
+    const originalBalance = wallet?.balance ?? 0
+    await WalletModel.update({ balance: 0 }, { where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 1 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Insufficient wallet balance.'))
+      assert.equal(await walletBalance(), 0)
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 1 } })
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+      await WalletModel.update({ balance: originalBalance }, { where: { UserId: 2 } })
+    }
+  })
+
   void it('POST placing an order with another user\'s address is rejected', async () => {
     const { paymentId } = await ownOrderDetails()
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
