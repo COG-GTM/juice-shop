@@ -164,27 +164,41 @@ function reachableExternalEntities (data: string) {
   return externalTargets
 }
 
-function referencesExternalEntity (key: string, declarations: Map<string, { external: boolean, value: string }>) {
-  const pending = [key]
-  const visited = new Set<string>()
-  while (pending.length > 0) {
-    const current = pending.pop() as string
-    const declaration = declarations.get(current)
-    if (declaration === undefined || visited.has(current)) continue
-    if (declaration.external) return true
-    visited.add(current)
-    for (const [, name] of declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)) pending.push('&' + name)
+function entitiesReachingExternal (declarations: Map<string, { external: boolean, value: string }>) {
+  const referrers = new Map<string, string[]>()
+  const reaching = new Set<string>()
+  const pending: string[] = []
+  for (const [key, declaration] of declarations) {
+    if (declaration.external) {
+      reaching.add(key)
+      pending.push(key)
+      continue
+    }
+    for (const [, name] of declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)) {
+      const reference = '&' + name
+      const list = referrers.get(reference)
+      if (list === undefined) referrers.set(reference, [key])
+      else list.push(key)
+    }
   }
-  return false
+  while (pending.length > 0) {
+    for (const referrer of referrers.get(pending.pop() as string) ?? []) {
+      if (!reaching.has(referrer)) {
+        reaching.add(referrer)
+        pending.push(referrer)
+      }
+    }
+  }
+  return reaching
 }
 
 const entityReferenceAt = /&([^\s;&%#<>"'[\]]+);/y
 
 function stripDeclaredReferences (text: string, declarations: Map<string, { external: boolean, value: string }>) {
-  const externalReferences = new Map<string, boolean>()
+  let reachingExternal: Set<string> | undefined
   const isExternal = (key: string) => {
-    if (!externalReferences.has(key)) externalReferences.set(key, referencesExternalEntity(key, declarations))
-    return externalReferences.get(key) === true
+    reachingExternal ??= entitiesReachingExternal(declarations)
+    return reachingExternal.has(key)
   }
   let result = ''
   let index = 0

@@ -192,6 +192,19 @@ void describe('/file-upload', () => {
       assert.ok(!res.text.includes('root:'))
     })
 
+    void it('POST XML with overlapping entity chains referenced from an attribute is scanned in linear time', async () => {
+      const depth = 5500
+      const declarations = Array.from({ length: depth }, (_, i) => `<!ENTITY e${i} "&e${i + 1};">`).join('')
+      const references = Array.from({ length: depth }, (_, i) => `&e${i};`).join('')
+      const payload = Buffer.from(`<?xml version="1.0"?><!DOCTYPE f [${declarations}<!ENTITY e${depth} "x">]><f a="${references}"/>`)
+      const start = Date.now()
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'overlappingEntityChains.xml')
+      assert.equal(res.status, 410)
+      assert.ok(Date.now() - start < 3000, `scan took ${Date.now() - start}ms`)
+    })
+
     void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
       const res = await request(app)
