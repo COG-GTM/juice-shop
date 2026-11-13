@@ -58,6 +58,21 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith(path.resolve('ftp', 'order_1234.pdf'))
   })
 
+  it('should respond 404 for allowlisted names that are not regular files such as symlinks', async () => {
+    const lstat = sinon.stub(fs, 'lstat').resolves({ isFile: () => false } as any)
+    req.params.file = 'acquisitions.md'
+
+    try {
+      await servePublicFiles()(req, res, next)
+    } finally {
+      lstat.restore()
+    }
+
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(404)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
   it('should respond 404 for allowlisted file types that do not exist in /ftp', async () => {
     req.params.file = 'test.pdf'
 
