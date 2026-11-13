@@ -24,7 +24,7 @@ import { MatMenuModule } from '@angular/material/menu'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { SocketIoService } from '../Services/socket-io.service'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { MatCardModule } from '@angular/material/card'
 import { MatInputModule } from '@angular/material/input'
 import { MatTableModule } from '@angular/material/table'
@@ -70,11 +70,13 @@ describe('NavbarComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -269,6 +271,21 @@ describe('NavbarComponent', () => {
         expect(cookieService.remove).toHaveBeenCalledWith('token')
     })
 
+    it('should keep the cookie token until the server session has ended', () => {
+        const serverLogout = new Subject<any>()
+        userService.logout.mockReturnValue(serverLogout)
+        component.logout()
+        expect(cookieService.remove).not.toHaveBeenCalledWith('token')
+        serverLogout.next({})
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
+    it('should remove the cookie token when ending the server session fails', () => {
+        userService.logout.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
     it('should remove basket id from session storage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
@@ -295,6 +312,18 @@ describe('NavbarComponent', () => {
     it('should save the last login IP address', () => {
         component.logout()
         expect(userService.saveLastLoginIp).toHaveBeenCalled()
+    })
+
+    it('should end the session on the server', () => {
+        component.logout()
+        expect(userService.logout).toHaveBeenCalled()
+    })
+
+    it('should end the server session with the current token after saving the last login IP fails', () => {
+        localStorage.setItem('token', 'TOKEN')
+        userService.saveLastLoginIp.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('TOKEN')
     })
 
     it('should forward to main page', async () => {

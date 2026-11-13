@@ -9,7 +9,7 @@ import { SocketIoService } from '../Services/socket-io.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { RouterTestingModule } from '@angular/router/testing'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { LoginGuard } from '../app.guard'
@@ -55,11 +55,13 @@ describe('SidenavComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -167,6 +169,21 @@ describe('SidenavComponent', () => {
         expect(cookieService.remove).toHaveBeenCalledWith('token')
     })
 
+    it('should keep the cookie token until the server session has ended', () => {
+        const serverLogout = new Subject<any>()
+        userService.logout.mockReturnValue(serverLogout)
+        component.logout()
+        expect(cookieService.remove).not.toHaveBeenCalledWith('token')
+        serverLogout.next({})
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
+    it('should remove the cookie token when ending the server session fails', () => {
+        userService.logout.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(cookieService.remove).toHaveBeenCalledWith('token')
+    })
+
     it('should remove basket id from session storage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
@@ -193,6 +210,18 @@ describe('SidenavComponent', () => {
     it('should save the last login IP address', () => {
         component.logout()
         expect(userService.saveLastLoginIp).toHaveBeenCalled()
+    })
+
+    it('should end the session on the server', () => {
+        component.logout()
+        expect(userService.logout).toHaveBeenCalled()
+    })
+
+    it('should end the server session with the current token after saving the last login IP fails', () => {
+        localStorage.setItem('token', 'TOKEN')
+        userService.saveLastLoginIp.mockReturnValue(throwError(() => new Error('Error')))
+        component.logout()
+        expect(userService.logout).toHaveBeenCalledWith('TOKEN')
     })
 
     it('should forward to main page', async () => {
