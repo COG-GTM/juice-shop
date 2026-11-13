@@ -187,29 +187,33 @@ void describe('/api/Addresss/:id', () => {
   })
 })
 
+async function freshClient (): Promise<{ app: Express, headers: typeof authHeader }> {
+  const { app } = await createTestApp()
+  const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+  return { app, headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' } }
+}
+
 void describe('/api/Addresss rate limiting', () => {
-  void it('rejects requests beyond 300 per 5 minutes from the same client', async () => {
-    let lastStatus = 0
-    let throttled = 0
-    for (let i = 0; i < 310; i++) {
-      const res = await request(app).get('/api/Addresss').set(authHeader)
-      if (res.status === 429) throttled++
-      lastStatus = res.status
+  void it('allows 300 requests per 5 minutes from the same client and rejects the next one', async () => {
+    const { app, headers } = await freshClient()
+    for (let i = 0; i < 300; i++) {
+      const res = await request(app).get('/api/Addresss').set(headers)
+      assert.notEqual(res.status, 429, `request ${i + 1} was throttled`)
     }
-    assert.equal(lastStatus, 429)
-    assert.ok(throttled > 0)
+    const res = await request(app).get('/api/Addresss').set(headers)
+    assert.equal(res.status, 429)
   })
 
   void it('ignores X-Forwarded-For when identifying the client', async () => {
-    let lastStatus = 0
-    for (let i = 0; i < 310; i++) {
-      const res = await request(app)
-        .put('/api/Addresss/1')
-        .set(authHeader)
-        .set('X-Forwarded-For', `203.0.${Math.floor(i / 256)}.${i % 256}`)
-        .send({ city: 'Gotham' })
-      lastStatus = res.status
+    const { app, headers } = await freshClient()
+    const put = async (i: number) => await request(app)
+      .put('/api/Addresss/1')
+      .set(headers)
+      .set('X-Forwarded-For', `203.0.${Math.floor(i / 256)}.${i % 256}`)
+      .send({ city: 'Gotham' })
+    for (let i = 0; i < 300; i++) {
+      assert.notEqual((await put(i)).status, 429, `request ${i + 1} was throttled`)
     }
-    assert.equal(lastStatus, 429)
+    assert.equal((await put(300)).status, 429)
   })
 })
