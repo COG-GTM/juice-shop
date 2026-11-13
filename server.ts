@@ -46,6 +46,7 @@ import { ComplaintModel } from './models/complaint'
 import { ChallengeModel } from './models/challenge'
 import { ChallengeDependencyModel } from './models/challengeDependency'
 import { BasketItemModel } from './models/basketitem'
+import { BasketModel } from './models/basket'
 import { SecurityAnswerModel } from './models/securityAnswer'
 import { PrivacyRequestModel } from './models/privacyRequests'
 import { SecurityQuestionModel } from './models/securityQuestion'
@@ -452,6 +453,30 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/api/Deliverys', utils.asyncHandler(delivery.getDeliveryMethods()))
   app.get('/api/Deliverys/:id', utils.asyncHandler(delivery.getDeliveryMethod()))
   // vuln-code-snippet end changeProductChallenge
+
+  /* Object-level authorization: only owners (or admins where applicable) may access these records via finale */
+  app.get('/api/Users', security.requireAdmin())
+  app.get('/api/Users/:id', security.requireSelfOrAdmin())
+  app.get('/api/BasketItems', security.requireAdmin())
+  app.use('/api/BasketItems/:id', security.requireOwnership(async (req) => {
+    const item = await BasketItemModel.findByPk(req.params.id)
+    if (item === null) return undefined
+    const basket = item.BasketId ? await BasketModel.findByPk(item.BasketId) : null
+    return basket?.UserId ?? null
+  }))
+  app.delete('/api/Feedbacks/:id', security.requireOwnership(async (req) => {
+    const feedback = await FeedbackModel.findByPk(req.params.id)
+    return feedback === null ? undefined : feedback.UserId
+  }, { allowAdmin: true }))
+  app.put('/api/Addresss/:id', security.requireOwnership(async (req) => {
+    const address = await AddressModel.findByPk(req.params.id)
+    return address === null ? undefined : address.UserId
+  }))
+  app.post('/api/Complaints', security.appendUserId())
+  app.get('/api/Complaints', security.appendUserId(), utils.asyncHandler(async (req: Request, res: Response) => {
+    const complaints = await ComplaintModel.findAll({ where: { UserId: req.body.UserId } })
+    res.status(200).json({ status: 'success', data: complaints })
+  }))
 
   /* Verify the 2FA Token */
   app.post('/rest/2fa/verify',

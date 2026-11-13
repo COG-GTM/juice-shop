@@ -174,6 +174,64 @@ export const isCustomer = (req: Request) => {
   return decodedToken?.data?.role === roles.customer
 }
 
+const verifiedUserFrom = (req: Request) => {
+  const token = utils.jwtFrom(req)
+  try {
+    const decoded = token ? jws.decode(token) : undefined
+    return decoded?.header?.alg === 'RS256' && verify(token) ? decoded.payload?.data : undefined
+  } catch {
+    return undefined
+  }
+}
+
+export const isAdmin = (req: Request) => verifiedUserFrom(req)?.role === roles.admin
+
+export const requireAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isAdmin(req)) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+export const requireSelfOrAdmin = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = verifiedUserFrom(req)
+    if (user && (user.role === roles.admin || String(user.id) === String(req.params.id))) {
+      next()
+    } else {
+      res.status(403).json({ error: 'Malicious activity detected' })
+    }
+  }
+}
+
+/* ownerIdOf resolves to undefined if the record does not exist, or to its owner's user id (null if unowned) */
+export const requireOwnership = (ownerIdOf: (req: Request) => Promise<number | null | undefined>, { allowAdmin = false } = {}) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = verifiedUserFrom(req)
+      if (!user) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' })
+        return
+      }
+      if (allowAdmin && user.role === roles.admin) {
+        next()
+        return
+      }
+      const ownerId = await ownerIdOf(req)
+      if (ownerId === undefined || (ownerId !== null && String(ownerId) === String(user.id))) {
+        next()
+      } else {
+        res.status(403).json({ error: 'Malicious activity detected' })
+      }
+    } catch (error: unknown) {
+      next(error)
+    }
+  }
+}
+
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
