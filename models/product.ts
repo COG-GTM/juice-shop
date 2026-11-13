@@ -56,7 +56,7 @@ const ProductModelInit = (sequelize: Sequelize) => {
               )
             })
           }
-          this.setDataValue('description', security.sanitizeSecure(description))
+          this.setDataValue('description', /[<>]/.test(description) ? security.sanitizeSecure(description) : description)
         }
       },
       price: DataTypes.DECIMAL,
