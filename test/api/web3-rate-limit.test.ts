@@ -44,6 +44,13 @@ void describe('/rest/web3 rate limiting', () => {
     assert.equal(res.status, 429)
   })
 
+  void it('GET /nftMintListen is rejected with 429 after the limit, even with a new X-Forwarded-For', async () => {
+    const res = await request(app)
+      .get('/rest/web3/nftMintListen')
+      .set('X-Forwarded-For', '198.51.100.7')
+    assert.equal(res.status, 429)
+  })
+
   void it('limit is shared across all /rest/web3 endpoints', async () => {
     const probes: Array<[string, () => request.Test]> = [
       ['POST /rest/web3/submitKey', () => request(app).post('/rest/web3/submitKey').send({ privateKey: '0x0' })],
