@@ -203,7 +203,7 @@ export const deluxeToken = (email: string) => {
 
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
+    const decodedToken = verify(utils.jwtFrom(req)) && !isRevoked(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
     if (decodedToken?.data?.role === roles.accounting) {
       next()
     } else {

@@ -153,6 +153,19 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(token)).to.equal(undefined)
     })
 
+    it('makes isAccounting reject a revoked accounting token', () => {
+      const token = security.authorize({ data: { id: 4713, role: 'accounting' } })
+      const status = (t: string) => {
+        let code = 200
+        const res: any = { status: (c: number) => { code = c; return { json: () => {} } } }
+        security.isAccounting()({ headers: { authorization: `Bearer ${t}` } } as any, res, () => {})
+        return code
+      }
+      expect(status(token)).to.equal(200)
+      security.revokeToken(token)
+      expect(status(token)).to.equal(403)
+    })
+
     it('ignores tokens that do not verify', () => {
       security.revokeToken('not-a-jwt')
       expect(security.isRevoked('not-a-jwt')).to.equal(false)
