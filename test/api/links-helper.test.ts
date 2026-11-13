@@ -20,6 +20,9 @@ void describe('containsLink', () => {
   void it('rejects the URL embedded in another host or path', () => {
     assert.equal(containsLink(`https://evil.example/?u=${paste}`, paste), false)
     assert.equal(containsLink(`https://evil.example/${paste}`, paste), false)
+    assert.equal(containsLink(`https://evil.example/?x=1&u=${paste}`, paste), false)
+    assert.equal(containsLink(`https://evil.example/?x=(${paste})`, paste), false)
+    assert.equal(containsLink(`evil:${paste}`, paste), false)
     assert.equal(containsLink('https://pastebin.com.evil.example/90dUgd7s', paste), false)
     assert.equal(containsLink('https://evilpastebin.com/90dUgd7s', paste), false)
     assert.equal(containsLink('http://pastebin.com/90dUgd7s', paste), false)
