@@ -1,4 +1,6 @@
 import chai from 'chai'
+import sinon from 'sinon'
+import logger from '../../lib/logger'
 import { type Challenge } from '../../data/types'
 const expect = chai.expect
 
@@ -53,6 +55,29 @@ describe('antiCheat', () => {
       const score = antiCheat.calculateCheatScore(challenge2)
 
       expect(score).to.be.greaterThan(0)
+    })
+  })
+
+  describe('cheat score logging', () => {
+    let info: sinon.SinonStub
+    beforeEach(() => {
+      info = sinon.stub(logger, 'info')
+    })
+    afterEach(() => {
+      info.restore()
+    })
+
+    it('should log the key of a known challenge', () => {
+      antiCheat.calculateCheatScore({ key: 'leakedApiKeyChallenge', difficulty: 1 } as any)
+
+      expect(info.lastCall.args[0]).to.contain('leakedApiKeyChallenge')
+    })
+
+    it('should not log a challenge key that is not part of the challenge catalog', () => {
+      antiCheat.calculateCheatScore({ key: 'sk-live-0123456789abcdef', difficulty: 1 } as any, true)
+
+      expect(info.lastCall.args[0]).to.not.contain('sk-live-0123456789abcdef')
+      expect(info.lastCall.args[0]).to.contain('unknown challenge')
     })
   })
 })
