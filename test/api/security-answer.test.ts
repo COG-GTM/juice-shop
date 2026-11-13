@@ -107,6 +107,29 @@ void describe('/api/SecurityAnswers', () => {
 
     assert.equal(resetRes.status, 200)
   })
+
+  void it('POST user registration with nonexistent security question is rejected without creating the user', async () => {
+    const user = {
+      email: 'invalid.question@te.st',
+      password: '12345',
+      passwordRepeat: '12345',
+      securityAnswer: 'Horst'
+    }
+
+    const invalidRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ ...user, securityQuestion: { id: 999999 } })
+
+    assert.equal(invalidRes.status, 400)
+
+    const retryRes = await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ ...user, securityQuestion: { id: 1 } })
+
+    assert.equal(retryRes.status, 201)
+  })
 })
 
 void describe('/api/SecurityAnswers/:id', () => {
