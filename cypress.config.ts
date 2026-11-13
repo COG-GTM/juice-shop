@@ -61,6 +61,10 @@ export default defineConfig({
             }
           }
         },
+        async DeriveNftWalletPrivateKey (seedPhrase: string) {
+          const { HDNodeWallet } = await import('ethers')
+          return HDNodeWallet.fromPhrase(seedPhrase).privateKey
+        },
         GenerateAuthenticator (inputString: string) {
           return generateSync({ secret: inputString })
         },

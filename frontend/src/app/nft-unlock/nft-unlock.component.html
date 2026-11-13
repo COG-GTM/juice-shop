@@ -22,15 +22,15 @@
             {{ 'OWNED_BY' | translate }}
             <a
               target="_blank"
-              href="https://testnets.opensea.io/0x8343d2eb2B13A2495De435a1b15e85b98115Ce05"
-              >8343D2</a
+              [href]="'https://testnets.opensea.io/' + walletAddress"
+              >{{ walletAddress.slice(2, 8).toUpperCase() }}</a
               >
             </div>
             <mat-divider class="detail-divider"></mat-divider>
             <div class="detail-box mat-elevation-z6">
               <div class="box-title">{{ 'LABEL_ACCOUNT_ADDRESS' | translate }}</div>
               <mat-divider class="detail-divider"></mat-divider>
-              <p class="box-text">0x8343d2eb2B13A2495De435a1b15e85b98115Ce05</p>
+              <p class="box-text">{{ walletAddress }}</p>
             </div>
             <div class="detail-box mat-elevation-z6">
               <div class="box-title">{{ 'LABEL_DESCRIPTION' | translate }}</div>
