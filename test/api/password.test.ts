@@ -106,7 +106,11 @@ void describe('/rest/user/change-password', () => {
       .expect(201)
 
     const { token: tokenA } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
-    const { token: tokenB } = await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })
+    let tokenB = tokenA
+    while (tokenB === tokenA) {
+      await new Promise(resolve => setTimeout(resolve, 250))
+      tokenB = (await login(app, { email: 'twosessions@be.rt', password: 'first-secret' })).token
+    }
 
     await request(app)
       .post('/rest/user/change-password')
