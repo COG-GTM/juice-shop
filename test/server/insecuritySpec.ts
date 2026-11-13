@@ -23,6 +23,33 @@ describe('insecurity', () => {
     })
   })
 
+  describe('encryptTotpSecret', () => {
+    it('round-trips a TOTP secret through AES-256-GCM', () => {
+      const encrypted = security.encryptTotpSecret('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+      expect(encrypted).to.match(/^enc:v1:/)
+      expect(encrypted).to.not.contain('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+      expect(security.decryptTotpSecret(encrypted)).to.equal('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+    })
+
+    it('uses a fresh IV for every encryption', () => {
+      expect(security.encryptTotpSecret('KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7')).to.not.equal(security.encryptTotpSecret('KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'))
+    })
+
+    it('keeps an empty secret empty', () => {
+      expect(security.encryptTotpSecret('')).to.equal('')
+      expect(security.decryptTotpSecret('')).to.equal('')
+    })
+
+    it('rejects plaintext and tampered ciphertext', () => {
+      expect(security.decryptTotpSecret('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')).to.equal('')
+      const encrypted = security.encryptTotpSecret('IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH')
+      const parts = encrypted.split(':')
+      parts[3] = (parts[3].startsWith('A') ? 'B' : 'A') + parts[3].slice(1)
+      const tampered = parts.join(':')
+      expect(security.decryptTotpSecret(tampered)).to.equal('')
+    })
+  })
+
   describe('userEmailFrom', () => {
     it('returns content of "x-user-email" header if present', () => {
       expect(security.userEmailFrom({ headers: { 'x-user-email': 'test@bla.blubb' } })).to.equal('test@bla.blubb')

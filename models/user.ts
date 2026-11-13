@@ -114,7 +114,10 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       },
       totpSecret: {
         type: DataTypes.STRING,
-        defaultValue: ''
+        defaultValue: '',
+        set (secret: string) {
+          this.setDataValue('totpSecret', security.encryptTotpSecret(secret))
+        }
       },
       isActive: {
         type: DataTypes.BOOLEAN,

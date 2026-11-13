@@ -130,6 +130,37 @@ export const verifySecurityAnswer = async (answer: string, stored?: string | nul
   return expected.length === actual.length && crypto.timingSafeEqual(expected, actual)
 }
 
+// The database is re-seeded on every startup, so a per-process random key is safe when TOTP_SECRET_KEY is unset
+const totpSecretKey = crypto.createHash('sha256').update(
+  process.env.TOTP_SECRET_KEY !== undefined && process.env.TOTP_SECRET_KEY !== ''
+    ? process.env.TOTP_SECRET_KEY
+    : crypto.randomBytes(32)
+).digest()
+const TOTP_SECRET_PREFIX = 'enc:v1:'
+
+/**
+ * Encrypts a TOTP secret with AES-256-GCM in the format `enc:v1:iv:tag:ciphertext`. Empty secrets stay empty.
+ */
+export const encryptTotpSecret = (secret?: string | null) => {
+  if (secret == null || secret === '' || secret.startsWith(TOTP_SECRET_PREFIX)) return secret ?? ''
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', totpSecretKey, iv)
+  const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()])
+  return TOTP_SECRET_PREFIX + [iv, cipher.getAuthTag(), ciphertext].map(part => part.toString('base64url')).join(':')
+}
+
+export const decryptTotpSecret = (stored?: string | null) => {
+  if (!stored?.startsWith(TOTP_SECRET_PREFIX)) return ''
+  try {
+    const [iv, tag, ciphertext] = stored.slice(TOTP_SECRET_PREFIX.length).split(':').map(part => Buffer.from(part, 'base64url'))
+    const decipher = crypto.createDecipheriv('aes-256-gcm', totpSecretKey, iv)
+    decipher.setAuthTag(tag)
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
+  } catch {
+    return ''
+  }
+}
+
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
   if (utils.contains(str, nullByte)) {
