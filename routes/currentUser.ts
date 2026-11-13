@@ -26,7 +26,7 @@ export function retrieveLoggedInUser () {
 
         if (requestedFields.length > 0) {
           // When fields are specified, return only those fields (never Object.prototype members)
-          const userData: Record<string, unknown> = user?.data ?? {}
+          const userData = (user?.data ?? {}) as unknown as Record<string, unknown>
           baseUser = Object.fromEntries(requestedFields
             .filter(field => !(field in Object.prototype) && userData[field] !== undefined)
             .map(field => [field, userData[field]]))
