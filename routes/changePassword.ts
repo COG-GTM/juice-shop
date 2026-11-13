@@ -8,13 +8,14 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
-    const currentPassword = query.current as string
-    const newPassword = query.new as string
-    const newPasswordInString = newPassword?.toString()
-    const repeatPassword = query.repeat
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { body, headers } = req
+    const currentPassword: string | null = typeof body?.current === 'string' ? body.current : null
+    const newPassword = typeof body?.new === 'string' ? body.new : ''
+    const repeatPassword = body?.repeat
 
     if (!newPassword || newPassword === 'undefined') {
       res.status(401).send(res.__('Password cannot be empty.'))
@@ -25,19 +26,9 @@ export function changePassword () {
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    const loggedInUser = security.authenticatedUsers.get(token)
-    if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
+    const loggedInUser = token !== null && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    if (token === null || !loggedInUser) {
+      res.status(401).send('Invalid or expired authentication token.')
       return
     }
 
@@ -48,14 +39,40 @@ export function changePassword () {
         return
       }
 
-      await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
-      res.json({ user })
+      if (currentPassword === null || security.hash(currentPassword) !== user.password) {
+        challengeUtils.solveIf(
+          challenges.changePasswordBenderChallenge,
+          () => user.id === 3 && !currentPassword && newPassword === 'slurmCl4ssic'
+        )
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
+      await user.update({ password: newPassword })
+      const currentToken = utils.unquote(token)
+      const keptTokens = new Set([currentToken])
+      security.authenticatedUsers.put(currentToken, { ...loggedInUser, data: user })
+      const cookieToken = typeof req.cookies?.token === 'string' ? utils.unquote(req.cookies.token) : undefined
+      const cookieSession = cookieToken ? security.authenticatedUsers.get(cookieToken) : undefined
+      if (cookieToken && cookieSession?.data?.id === user.id && security.verify(cookieToken)) {
+        keptTokens.add(cookieToken)
+        security.authenticatedUsers.put(cookieToken, { ...cookieSession, data: user })
+      }
+      revokeOtherSessions(user.id, keptTokens, currentToken)
+      res.json({ user: { id: user.id, email: user.email, username: user.username } })
     } catch (error) {
       next(error)
     }
   }
+}
+
+function revokeOtherSessions (userId: number, keptTokens: Set<string>, currentToken: string) {
+  const { tokenMap, idMap } = security.authenticatedUsers
+  for (const [token, session] of Object.entries(tokenMap)) {
+    if (!keptTokens.has(token) && session?.data?.id === userId) {
+      security.revokeToken(token)
+      delete tokenMap[token]
+    }
+  }
+  idMap[userId] = currentToken
 }
