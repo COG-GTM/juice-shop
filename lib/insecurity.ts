@@ -105,6 +105,17 @@ export const verifySecondFactorToken = (token: unknown) => {
   return payload
 }
 
+const usedSecondFactorTokens = new Map<string, number>()
+export const consumeSecondFactorToken = (token: string, expiresAt: number) => {
+  const now = Date.now()
+  for (const [usedToken, usedTokenExpiry] of usedSecondFactorTokens) {
+    if (usedTokenExpiry <= now) usedSecondFactorTokens.delete(usedToken)
+  }
+  if (usedSecondFactorTokens.has(token)) return false
+  usedSecondFactorTokens.set(token, expiresAt)
+  return true
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)

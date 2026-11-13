@@ -136,6 +136,26 @@ void describe('/rest/2fa/verify tmp token expiry', () => {
   })
 })
 
+void describe('/rest/2fa/verify tmp token reuse', () => {
+  void it('POST should fail if a tmp token is reused after a successful verification', async () => {
+    const tmpTokenWurstbrot = security.authorize({
+      userId: 10,
+      type: 'password_valid_needs_second_factor_token',
+      expiresAt: security.secondFactorTokenExpiry()
+    })
+    const verify = async () => await request(app)
+      .post('/rest/2fa/verify')
+      .set(jsonHeader)
+      .send({
+        tmpToken: tmpTokenWurstbrot,
+        totpToken: generateSync({ secret: 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH' })
+      })
+
+    assert.equal((await verify()).status, 200)
+    assert.equal((await verify()).status, 401)
+  })
+})
+
 void describe('/rest/2fa/verify forged tmp token', () => {
   const forge = (alg: string, sign: (input: string) => string) => {
     const header = Buffer.from(JSON.stringify({ alg, typ: 'JWT' })).toString('base64url')

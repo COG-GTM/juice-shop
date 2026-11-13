@@ -17,7 +17,7 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId } = security.verifySecondFactorToken(tmpToken)
+    const { userId, expiresAt } = security.verifySecondFactorToken(tmpToken)
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
@@ -31,7 +31,7 @@ export async function verify (req: Request, res: Response) {
 
     const plainUser = utils.queryResultToJson(user)
 
-    if (!isValid) {
+    if (!isValid || !security.consumeSecondFactorToken(tmpToken, expiresAt)) {
       return res.status(401).send()
     }
     challengeUtils.solveIf(challenges.twoFactorAuthUnsafeSecretStorageChallenge, () => { return user.email === 'wurstbrot@' + config.get<string>('application.domain') })
