@@ -140,6 +140,26 @@ void describe('/api/BasketItems', () => {
       .send({ BasketId: 1, ProductId: 17, quantity: 1 })
     assert.equal(res.status, 401)
   })
+
+  void it('GET all basket items applies offset and page to the caller\'s own items only', async () => {
+    const all = await request(app).get('/api/BasketItems').set(authHeader)
+    assert.equal(all.status, 200)
+    const ownIds = all.body.data.map((item: { id: number }) => item.id)
+    assert.ok(ownIds.length > 1)
+
+    const offsetRes = await request(app).get('/api/BasketItems?offset=1').set(authHeader)
+    assert.equal(offsetRes.status, 200)
+    assert.deepEqual(offsetRes.body.data.map((item: { id: number }) => item.id), ownIds.slice(1))
+
+    const pageRes = await request(app).get('/api/BasketItems?page=1&count=1').set(authHeader)
+    assert.equal(pageRes.status, 200)
+    assert.deepEqual(pageRes.body.data.map((item: { id: number }) => item.id), ownIds.slice(1))
+
+    const otherAll = await request(app).get('/api/BasketItems').set(otherUserAuthHeader)
+    const otherOffsetRes = await request(app).get('/api/BasketItems?offset=1').set(otherUserAuthHeader)
+    assert.equal(otherOffsetRes.status, 200)
+    assert.deepEqual(otherOffsetRes.body.data.map((item: { id: number }) => item.id), otherAll.body.data.map((item: { id: number }) => item.id).slice(1))
+  })
 })
 
 void describe('/api/BasketItems/:id', () => {
