@@ -11,6 +11,7 @@ import config from 'config'
 import path from 'node:path'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -76,13 +77,18 @@ void describe('/profile/image/url', () => {
       password: 'ncc-1701'
     })
 
+    const email = `jim@${config.get<string>('application.domain')}`
+    await UserModel.update({ profileImage: '/assets/public/images/uploads/default.svg' }, { where: { email } })
+
     const res = await request(app)
       .post('/profile/image/url')
       .set('Cookie', `token=${token}`)
-      .field('imageUrl', 'cataas.com/cat')
+      .field('imageUrl', 'https://cataas.com/cat')
       .redirects(0)
 
     assert.equal(res.status, 302)
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(['https://cataas.com/cat', `/assets/public/images/uploads/${user?.id}.jpg`].includes(user?.profileImage ?? ''))
   })
 
   void it('POST profile image URL redirects even for invalid image URL', async () => {
@@ -98,6 +104,33 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST unreachable profile image URL stores the parsed URL, never injected directives', async () => {
+    const { token } = await login(app, {
+      email: `jim@${config.get<string>('application.domain')}`,
+      password: 'ncc-1701'
+    })
+    const email = `jim@${config.get<string>('application.domain')}`
+    await UserModel.update({ profileImage: '/assets/public/images/uploads/default.svg' }, { where: { email } })
+
+    let res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', "https://x.png; script-src 'unsafe-inline'")
+      .redirects(0)
+    assert.equal(res.status, 302)
+    let user = await UserModel.findOne({ where: { email } })
+    assert.equal(user?.profileImage, '/assets/public/images/uploads/default.svg')
+
+    res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'HTTPS://Unreachable.invalid/ab')
+      .redirects(0)
+    assert.equal(res.status, 302)
+    user = await UserModel.findOne({ where: { email } })
+    assert.equal(user?.profileImage, 'https://unreachable.invalid/ab')
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
@@ -127,5 +160,41 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 500)
     assert.ok(res.text.includes('Unexpected end of form'))
+  })
+})
+
+void describe('profile image uploads from another origin', () => {
+  const email = `jim@${config.get<string>('application.domain')}`
+
+  void it('POST profile image URL is blocked for cross-origin requests', async () => {
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const before = await UserModel.findOne({ where: { email } })
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .set('Origin', 'https://attacker.example')
+      .type('form')
+      .send({ imageUrl: 'https://attacker.example/cat.png' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    const after = await UserModel.findOne({ where: { email } })
+    assert.equal(after?.profileImage, before?.profileImage)
+  })
+
+  void it('POST profile image file is blocked for cross-origin requests', async () => {
+    const { token } = await login(app, { email, password: 'ncc-1701' })
+    const before = await UserModel.findOne({ where: { email } })
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .set('Sec-Fetch-Site', 'cross-site')
+      .attach('file', path.resolve(__dirname, '../files/validProfileImage.jpg'))
+
+    assert.equal(res.status, 403)
+    const after = await UserModel.findOne({ where: { email } })
+    assert.equal(after?.profileImage, before?.profileImage)
   })
 })
