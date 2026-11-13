@@ -298,7 +298,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(rateLimit({
     windowMs: 60 * 1000,
     max: 1000,
-    keyGenerator: (req: Request) => req.socket.remoteAddress ?? 'unknown',
+    keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
     validate: { trustProxy: false, xForwardedForHeader: false }
   }))
 
