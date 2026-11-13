@@ -56,6 +56,22 @@ export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+export const revokedTokens = new Set<string>()
+export const verifiedPayload = (token?: string): ResponseWithUser | null => {
+  if (!token || revokedTokens.has(token)) return null
+  const parts = token.split('.')
+  if (parts.length !== 3) return null
+  const [header, payload, signature] = parts
+  try {
+    if (JSON.parse(Buffer.from(header, 'base64url').toString('utf8'))?.alg !== 'RS256') return null
+    if (!crypto.verify('RSA-SHA256', Buffer.from(header + '.' + payload), publicKey, Buffer.from(signature, 'base64url'))) return null
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
+    if (typeof decoded?.exp === 'number' && Date.now() / 1000 >= decoded.exp) return null
+    return decoded?.data ? decoded : null
+  } catch {
+    return null
+  }
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -187,15 +203,10 @@ export const appendUserId = () => {
 
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  const decoded = verifiedPayload(token)
+  if (decoded && authenticatedUsers.get(token) === undefined) {
+    authenticatedUsers.put(token, decoded)
+    res.cookie('token', token)
   }
   next()
 }
