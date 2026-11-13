@@ -47,6 +47,13 @@ void describe('file system access rate limiting', () => {
     assert.equal(res.headers['x-ratelimit-limit'], '200')
   })
 
+  void it('charges a request that falls through to the client fallback only once', async () => {
+    const first = await request(app).get('/.well-known/does-not-exist')
+    assert.equal(first.status, 200)
+    const second = await request(app).get('/.well-known/does-not-exist')
+    assert.equal(Number(first.headers['x-ratelimit-remaining']) - Number(second.headers['x-ratelimit-remaining']), 1)
+  })
+
   void it('rejects requests to /ftp/:file with 429 once the limit is exceeded', async () => {
     const first = await request(app).get('/ftp/acquisitions.md')
     assert.equal(first.status, 200)

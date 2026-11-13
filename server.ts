@@ -265,7 +265,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }
 
   /* Rate limiting for routes that access the file system */
-  const fileAccessRateLimit = rateLimit({ windowMs: 60 * 1000, max: 200, validate: { trustProxy: false } })
+  const fileAccessRateLimitOptions = { windowMs: 60 * 1000, max: 200, validate: { trustProxy: false } }
+  const fileAccessRateLimit = rateLimit(fileAccessRateLimitOptions)
+  const angularClientRateLimit = rateLimit(fileAccessRateLimitOptions)
   app.use([
     '/ftp',
     '/.well-known',
@@ -692,7 +694,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
   app.post('/snippets/fixes', utils.asyncHandler(checkCorrectFix()))
 
-  app.use(fileAccessRateLimit, utils.asyncHandler(serveAngularClient()))
+  app.use(angularClientRateLimit, utils.asyncHandler(serveAngularClient()))
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
