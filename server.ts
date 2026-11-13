@@ -616,8 +616,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/track-order/:id', trackOrder())
   app.get('/rest/country-mapping', utils.asyncHandler(countryMapping()))
   app.get('/rest/saveLoginIp', utils.asyncHandler(saveLoginIp()))
-  app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(verifyImageCaptcha()))
-  app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(dataExport()))
+  app.post('/rest/user/data-export',
+    rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 20,
+      validate: false,
+      keyGenerator: (req: Request) => {
+        const userId = security.authenticatedUsers.from(req)?.data?.id
+        return userId !== undefined ? `user:${userId}` : `ip:${req.socket.remoteAddress}`
+      }
+    }),
+    security.appendUserId(),
+    utils.asyncHandler(verifyImageCaptcha()),
+    utils.asyncHandler(dataExport())
+  )
   app.get('/rest/languages', utils.asyncHandler(getLanguageList()))
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
