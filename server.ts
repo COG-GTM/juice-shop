@@ -294,6 +294,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/vendor/material-icons', express.static(path.resolve('node_modules/material-icons/iconfont')))
   app.use('/vendor/fontsource-roboto', express.static(path.resolve('node_modules/@fontsource/roboto')))
 
+  /* Per-client request ceiling for all API and route handlers registered below */
+  app.use(rateLimit({
+    windowMs: 60 * 1000,
+    max: 1000,
+    keyGenerator: (req: Request) => req.socket.remoteAddress ?? 'unknown',
+    validate: { trustProxy: false, xForwardedForHeader: false }
+  }))
+
   /* Configure and enable backend-side i18n */
   i18n.configure({
     locales: locales.map((locale: { key: string }) => locale.key),
