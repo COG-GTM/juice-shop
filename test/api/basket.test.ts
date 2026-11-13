@@ -134,7 +134,7 @@ async function ownOrderDetails () {
 }
 
 async function withFilledBasket1<T> (fn: () => Promise<T>) {
-  const item = await BasketItemModel.create({ BasketId: 1, ProductId: 1, quantity: 1 })
+  const item = await BasketItemModel.create({ BasketId: 1, ProductId: 3, quantity: 1 })
   try {
     return await fn()
   } finally {
