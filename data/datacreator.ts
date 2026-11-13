@@ -186,19 +186,23 @@ async function createUsers () {
   const users = await loadStaticUserData()
 
   await Promise.all(
-    users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
+    users.map(async ({ username, email, password, oauth, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: oauth === true ? security.externalLoginPassword() : password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
           totpSecret,
           lastLoginIp
         })
+        if (oauth === true) {
+          user.setDataValue('password', security.externalLoginPassword())
+          await user.save()
+        }
         datacache.users[key] = user
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)

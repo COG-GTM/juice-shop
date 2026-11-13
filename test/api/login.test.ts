@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { loginWithGoogle } from './helpers/auth'
 
 let app: Express
 
@@ -138,7 +139,7 @@ void describe('/rest/user/login', () => {
     assert.equal(res.body.status, 'totp_token_required')
   })
 
-  void it('POST login as bjoern.kimminich@gmail.com with known password', async () => {
+  void it('POST login as bjoern.kimminich@gmail.com with base64-encoded reversed email as password is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -147,9 +148,8 @@ void describe('/rest/user/login', () => {
         password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+    assert.equal(res.body.authentication, undefined)
   })
 
   void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
@@ -237,20 +237,12 @@ void describe('/rest/user/login', () => {
 
 void describe('/rest/saveLoginIp', () => {
   void it('GET last login IP will be saved as True-Client-IP header value', async () => {
-    const loginRes = await request(app)
-      .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-      })
-
-    assert.equal(loginRes.status, 200)
+    const authentication = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
     const res = await request(app)
       .get('/rest/saveLoginIp')
       .set({
-        Authorization: 'Bearer ' + loginRes.body.authentication.token,
+        Authorization: 'Bearer ' + authentication.token,
         'true-client-ip': '1.2.3.4'
       })
 
@@ -259,20 +251,12 @@ void describe('/rest/saveLoginIp', () => {
   })
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
-    const loginRes = await request(app)
-      .post('/rest/user/login')
-      .set({ 'content-type': 'application/json' })
-      .send({
-        email: 'bjoern.kimminich@gmail.com',
-        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
-      })
-
-    assert.equal(loginRes.status, 200)
+    const authentication = await loginWithGoogle(app, 'bjoern.kimminich@gmail.com')
 
     const res = await request(app)
       .get('/rest/saveLoginIp')
       .set({
-        Authorization: 'Bearer ' + loginRes.body.authentication.token
+        Authorization: 'Bearer ' + authentication.token
       })
 
     assert.equal(res.status, 200)

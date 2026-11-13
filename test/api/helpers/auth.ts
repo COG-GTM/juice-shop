@@ -6,6 +6,7 @@
 import request from 'supertest'
 import { generateSync } from 'otplib'
 import type { Express } from 'express'
+import config from 'config'
 import * as security from '../../../lib/insecurity'
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -79,4 +80,33 @@ export async function register (app: Express, { email, password, totpSecret }: {
   }
 
   return res
+}
+
+export async function withGoogleTokenInfo<T> (tokenInfo: Record<string, unknown> | null, fn: () => Promise<T>): Promise<T> {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => tokenInfo === null
+    ? new Response('{"error":"invalid_token"}', { status: 400 })
+    : new Response(JSON.stringify(tokenInfo), { status: 200, headers: { 'content-type': 'application/json' } })
+  try {
+    return await fn()
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+}
+
+export function validGoogleTokenInfo (email: string) {
+  return { aud: config.get<string>('application.googleOauth.clientId'), email, email_verified: 'true', expires_in: '3599' }
+}
+
+export async function loginWithGoogle (app: Express, email: string) {
+  const res = await withGoogleTokenInfo(validGoogleTokenInfo(email), async () => await request(app)
+    .post('/rest/user/oauth')
+    .set(jsonHeader)
+    .send({ accessToken: 'ya29.test-access-token' }))
+
+  if (res.status !== 200) {
+    throw new Error(`Failed to login '${email}' via Google: ${res.status}`)
+  }
+
+  return res.body.authentication
 }

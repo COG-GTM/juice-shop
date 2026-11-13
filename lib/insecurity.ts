@@ -41,6 +41,9 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+const externalLoginPasswordPrefix = 'oauth:'
+export const externalLoginPassword = () => externalLoginPasswordPrefix + crypto.randomBytes(32).toString('hex')
+export const isExternalLoginPassword = (storedPassword?: string) => typeof storedPassword === 'string' && storedPassword.startsWith(externalLoginPasswordPrefix)
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
