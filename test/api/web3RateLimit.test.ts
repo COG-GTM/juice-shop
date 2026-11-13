@@ -17,10 +17,11 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/web3/walletNFTVerify', () => {
-  void it('POST is rate limited after 100 requests per window', async () => {
+  void it('POST is rate limited after 100 requests per window even with rotating X-Forwarded-For', async () => {
     for (let i = 0; i < 100; i++) {
       const res = await request(app)
         .post('/rest/web3/walletNFTVerify')
+        .set('X-Forwarded-For', `10.0.${Math.floor(i / 256)}.${i % 256}`)
         .send({ walletAddress: `0x${i.toString(16).padStart(40, '0')}` })
       assert.equal(res.status, 200)
       assert.equal(res.body.success, false)
@@ -28,6 +29,7 @@ void describe('/rest/web3/walletNFTVerify', () => {
 
     const res = await request(app)
       .post('/rest/web3/walletNFTVerify')
+      .set('X-Forwarded-For', '10.1.0.1')
       .send({ walletAddress: '0x8343d2eb2B13A2495De435a1b15e85b98115Ce05' })
     assert.equal(res.status, 429)
   })
