@@ -6,7 +6,7 @@
 import chai from 'chai'
 import sinon from 'sinon'
 import http from 'node:http'
-import { type AddressInfo } from 'node:net'
+import net, { type AddressInfo } from 'node:net'
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
 import { fetchExternalImage, isBlockedAddress, profileImageUrlUpload } from '../../routes/profileImageUrlUpload'
@@ -22,7 +22,18 @@ describe('profileImageUrlUpload', () => {
     hits = 0
     server = http.createServer((req, res) => {
       hits++
-      res.end('internal')
+      if (req.url === '/redirect-internal') {
+        res.writeHead(302, { Location: 'http://169.254.169.254/latest/meta-data/' })
+        res.end()
+      } else if (req.url === '/redirect-image') {
+        res.writeHead(302, { Location: '/image.png' })
+        res.end()
+      } else if (req.url === '/empty') {
+        res.writeHead(204)
+        res.end()
+      } else {
+        res.end('internal')
+      }
     }).listen(0, '127.0.0.1', () => {
       port = (server.address() as AddressInfo).port
       done()
@@ -76,9 +87,52 @@ describe('profileImageUrlUpload', () => {
         } catch (err) {
           error = err
         }
-        expect(error).to.be.instanceOf(Error)
+        expect((error as Error).message).to.match(/^Blocked request to disallowed address/)
         expect(hits).to.equal(0)
       })
+    })
+  })
+
+  describe('when the initial host is allowed', () => {
+    let check: sinon.SinonStub
+
+    beforeEach(() => {
+      check = sinon.stub(net.BlockList.prototype, 'check').callsFake(function (this: net.BlockList, address: string, type?: string) {
+        if (address === '127.0.0.1') return false
+        return check.wrappedMethod.call(this, address, type)
+      })
+    })
+
+    afterEach(() => {
+      check.restore()
+    })
+
+    it('should block redirects to internal destinations', async () => {
+      let error: unknown
+      try {
+        await fetchExternalImage(`http://127.0.0.1:${port}/redirect-internal`)
+      } catch (err) {
+        error = err
+      }
+      expect((error as Error).message).to.equal('Blocked request to disallowed address 169.254.169.254')
+      expect(hits).to.equal(1)
+    })
+
+    it('should follow redirects to allowed destinations', async () => {
+      const response = await fetchExternalImage(`http://127.0.0.1:${port}/redirect-image`)
+      response.resume()
+      expect(response.statusCode).to.equal(200)
+      expect(hits).to.equal(2)
+    })
+
+    it('should reject responses without a body', async () => {
+      let error: unknown
+      try {
+        await fetchExternalImage(`http://127.0.0.1:${port}/empty`)
+      } catch (err) {
+        error = err
+      }
+      expect((error as Error).message).to.match(/empty body/)
     })
   })
 
