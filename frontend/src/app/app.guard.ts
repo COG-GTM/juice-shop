@@ -8,6 +8,24 @@ import { jwtDecode } from 'jwt-decode'
 import { roles } from './roles'
 import { Injectable, NgZone, inject } from '@angular/core'
 
+const sessionLifetimeInSeconds = 6 * 60 * 60
+
+const expiryOf = (payload: any): number | undefined => {
+  if (typeof payload?.exp === 'number') return payload.exp
+  if (typeof payload?.iat === 'number') return payload.iat + sessionLifetimeInSeconds
+  return undefined
+}
+
+export function endExpiredSession (payload: any): boolean {
+  const exp = expiryOf(payload)
+  if (exp === undefined || exp * 1000 > Date.now()) return false
+  if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
+    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
+  }
+  localStorage.removeItem('token')
+  return true
+}
+
 @Injectable()
 export class LoginGuard implements CanActivate {
   private readonly router = inject(Router)
@@ -15,13 +33,7 @@ export class LoginGuard implements CanActivate {
 
 
   canActivate () {
-    const payload = this.tokenDecode()
-    if (typeof payload?.exp === 'number' && payload.exp * 1000 <= Date.now()) {
-      if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
-        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
-      }
-      localStorage.removeItem('token')
-    }
+    endExpiredSession(this.tokenDecode())
     if (localStorage.getItem('token')) {
       return true
     } else {
@@ -58,7 +70,7 @@ export class AdminGuard implements CanActivate {
 
   canActivate () {
     const payload = this.loginGuard.tokenDecode()
-    if (payload?.data && payload.data.role === roles.admin) {
+    if (!endExpiredSession(payload) && payload?.data && payload.data.role === roles.admin) {
       return true
     } else {
       this.loginGuard.forbidRoute()
@@ -74,7 +86,7 @@ export class AccountingGuard implements CanActivate {
 
   canActivate () {
     const payload = this.loginGuard.tokenDecode()
-    if (payload?.data && payload.data.role === roles.accounting) {
+    if (!endExpiredSession(payload) && payload?.data && payload.data.role === roles.accounting) {
       return true
     } else {
       this.loginGuard.forbidRoute()

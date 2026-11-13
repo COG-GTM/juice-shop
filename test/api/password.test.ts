@@ -149,6 +149,26 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
+  void it('GET password change updates the password of the kept cookie session', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'cookie@sess.ion', password: 'cookieSession1' })
+      .expect(201)
+    const { token: bearer } = await login(app, { email: 'cookie@sess.ion', password: 'cookieSession1' })
+    const { token: cookie } = await login(app, { email: 'cookie@sess.ion', password: 'cookieSession1' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=cookieSession1&new=cookieSession2&repeat=cookieSession2')
+      .set({ Authorization: 'Bearer ' + bearer, Cookie: 'token=' + cookie })
+      .expect(200)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=cookieSession2&new=cookieSession3&repeat=cookieSession3')
+      .set({ Authorization: 'Bearer ' + cookie })
+    assert.equal(res.status, 200)
+  })
+
   void it('GET password change is rejected for a token past its lifetime', async () => {
     await request(app)
       .post('/api/Users')
