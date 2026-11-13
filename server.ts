@@ -666,7 +666,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
-  app.use('/snippets', rateLimit({ windowMs: 5 * 60 * 1000, max: 300, validate: false }))
+  app.use('/snippets', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 300,
+    validate: false,
+    keyGenerator: (req: Request) => req.socket.remoteAddress ?? 'unknown' // req.ip honors X-Forwarded-For because 'trust proxy' is enabled
+  }))
   app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))
   app.post('/snippets/verdict', utils.asyncHandler(checkVulnLines()))
   app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
