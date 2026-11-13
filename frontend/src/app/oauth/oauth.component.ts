@@ -59,6 +59,7 @@ export class OAuthComponent implements OnInit {
   invalidateSession (error: Error) {
     console.log(error)
     endSession()
+    this.userService.logout().subscribe({ error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
   }
 
