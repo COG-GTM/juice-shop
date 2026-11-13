@@ -282,6 +282,14 @@ void describe('/file-upload', () => {
     assert.equal(fs.existsSync(path.resolve('uploads/complaints/stored-plain-evidence.txt')), false)
   })
 
+  void itIfFileWriteEnabled('POST empty zip file is rejected instead of hanging', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', Buffer.alloc(0), 'empty.zip')
+    assert.equal(res.status, 400)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
