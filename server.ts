@@ -390,9 +390,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* SecurityQuestions: Only GET list of questions allowed. */
   app.post('/api/SecurityQuestions', security.denyAll())
   app.use('/api/SecurityQuestions/:id', security.denyAll())
-  /* SecurityAnswers: Only POST of answer allowed. */
-  app.get('/api/SecurityAnswers', security.denyAll())
-  app.use('/api/SecurityAnswers/:id', security.denyAll())
+  /* SecurityAnswers: Only created server-side during user registration. */
+  app.use('/api/SecurityAnswers', security.denyAll())
   /* REST API */
   app.use('/rest/user/authentication-details', security.isAuthorized())
   app.use('/rest/basket/:id', security.isAuthorized())
@@ -515,6 +514,29 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
       }) // vuln-code-snippet neutral-line registerAdminChallenge
     } // vuln-code-snippet neutral-line registerAdminChallenge
     // vuln-code-snippet end registerAdminChallenge
+
+    // store the security answer chosen during registration for the newly created user
+    if (name === 'User') {
+      const securityAnswerFrom = (req: Request) => {
+        const securityQuestionId = req.body.securityQuestion?.id
+        const answer = req.body.securityAnswer
+        return securityQuestionId !== undefined && typeof answer === 'string' && answer.length > 0 ? { securityQuestionId, answer } : null
+      }
+      resource.create.write.before(async (req: Request, res: Response, context: { error: any, continue: any }) => {
+        const securityAnswer = securityAnswerFrom(req)
+        if (securityAnswer !== null && await SecurityQuestionModel.findByPk(securityAnswer.securityQuestionId) === null) {
+          return context.error(400, 'Invalid security question')
+        }
+        return context.continue
+      })
+      resource.create.write.after(async (req: Request, res: Response, context: { instance: { id: number }, continue: any }) => {
+        const securityAnswer = securityAnswerFrom(req)
+        if (securityAnswer !== null) {
+          await SecurityAnswerModel.create({ UserId: context.instance.id, SecurityQuestionId: securityAnswer.securityQuestionId, answer: securityAnswer.answer })
+        }
+        return context.continue
+      })
+    }
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
