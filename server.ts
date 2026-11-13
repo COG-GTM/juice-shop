@@ -647,7 +647,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', b2bOrder())
 
   /* File Serving */
-  const fileServingRateLimit = rateLimit({ windowMs: 5 * 60 * 1000, max: 300, validate: { trustProxy: false } })
+  const fileServingRateLimit = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 300,
+    keyGenerator: (req: Request) => req.socket.remoteAddress ?? '',
+    validate: { trustProxy: false }
+  })
   app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileServingRateLimit, serveEasterEgg())
   app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', fileServingRateLimit, servePremiumContent())
   app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', fileServingRateLimit, servePrivacyPolicyProof())

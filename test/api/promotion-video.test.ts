@@ -48,12 +48,12 @@ void describe('/video', () => {
 })
 
 void describe('File serving rate limit', () => {
-  void it('GET file-serving routes respond with 429 once the per-IP limit is exhausted', async () => {
+  void it('GET file-serving routes respond with 429 once the per-IP limit is exhausted, regardless of X-Forwarded-For', async () => {
     const easterEgg = '/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg'
-    let res = await request(app).get(easterEgg)
+    let res = await request(app).get(easterEgg).set('X-Forwarded-For', '10.0.0.0')
     let requests = 1
     while (res.status !== 429 && requests <= 1000) {
-      res = await request(app).get(easterEgg)
+      res = await request(app).get(easterEgg).set('X-Forwarded-For', `10.0.${Math.floor(requests / 256)}.${requests % 256}`)
       requests++
     }
     assert.equal(res.status, 429)
