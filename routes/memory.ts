@@ -10,7 +10,7 @@ import fileType from 'file-type'
 import { MemoryModel } from '../models/memory'
 import { UserModel } from '../models/user'
 
-const allowedImageTypes = ['image/png', 'image/jpeg']
+const allowedImageTypes = ['image/png', 'image/apng', 'image/jpeg']
 
 export function ensureMemoryImageContent () {
   return async (req: Request, res: Response, next: NextFunction) => {
