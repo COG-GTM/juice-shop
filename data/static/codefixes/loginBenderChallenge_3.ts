@@ -12,6 +12,11 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
+    const { email, password } = req.body
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      res.status(401).send(res.__('Invalid email or password.'))
+      return
+    }
     models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,
       { replacements: { mail: req.body.email }, model: models.User, plain: true })
       .then((authenticatedUser) => {

@@ -12,6 +12,11 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
+    const { email, password } = req.body
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      res.status(401).send(res.__('Invalid email or password.'))
+      return
+    }
     if (req.body.email.match(/.*['-;].*/) || req.body.password.match(/.*['-;].*/)) {
       res.status(451).send(res.__('SQL Injection detected.'))
     }
