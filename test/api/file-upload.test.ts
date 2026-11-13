@@ -147,3 +147,15 @@ void describe('/file-upload', () => {
     assert.ok(res.text.includes('Unexpected end of form'))
   })
 })
+
+void describe('/file-upload rate limiting', () => {
+  void it('POST is rejected with 429 once the request limit is exceeded', async () => {
+    const statuses: number[] = []
+    for (let i = 0; i < 101; i++) {
+      const res = await request(app).post('/file-upload')
+      statuses.push(res.status)
+    }
+    assert.equal(statuses[0], 400)
+    assert.equal(statuses[statuses.length - 1], 429)
+  })
+})
