@@ -14,6 +14,7 @@ import { login } from './helpers/auth'
 import * as db from '../../data/mongodb'
 import * as security from '../../lib/insecurity'
 import { challenges } from '../../data/datacache'
+import { UserModel } from '../../models/user'
 
 const MOCK_LLM_PORT = 43210
 
@@ -278,25 +279,34 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
   })
 
   void it('POST does not derive a customer identity from a forged JWT', { timeout: 15000 }, async () => {
-    const forgedToken = [
-      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
-      Buffer.from(JSON.stringify({ data: { id: 1, username: 'admin' } })).toString('base64url'),
-      ''
-    ].join('.')
+    const victim = await UserModel.findOne({ where: { username: 'bkimminich' } })
+    assert.ok(victim)
 
-    let parsedBody: any
-    onLlmRequest = (_req, body, res) => {
-      parsedBody = JSON.parse(body)
-      sendSSE(res, [contentChunk('How can I help you?'), finishChunk()])
+    async function systemPromptFor (token: string): Promise<string> {
+      let parsedBody: any
+      onLlmRequest = (_req, body, res) => {
+        parsedBody = JSON.parse(body)
+        sendSSE(res, [contentChunk('How can I help you?'), finishChunk()])
+      }
+      const res = await request(app)
+        .post('/rest/chat')
+        .set({ 'content-type': 'application/json', Authorization: `Bearer ${token}` })
+        .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+      assert.equal(res.status, 200)
+      return parsedBody.messages[0].content
     }
 
-    const res = await request(app)
-      .post('/rest/chat')
-      .set({ 'content-type': 'application/json', Authorization: `Bearer ${forgedToken}` })
-      .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+    const validToken = security.authorize({ data: { id: victim.id, email: victim.email } })
+    assert.ok((await systemPromptFor(validToken)).includes('currently chatting with is bkimminich'))
 
-    assert.equal(res.status, 200)
-    assert.ok(!parsedBody.messages[0].content.includes('The customer you are currently chatting with'))
+    const forgedToken = [
+      Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url'),
+      Buffer.from(JSON.stringify({ data: { id: victim.id } })).toString('base64url'),
+      ''
+    ].join('.')
+    const forgedPrompt = await systemPromptFor(forgedToken)
+    assert.ok(!forgedPrompt.includes('The customer you are currently chatting with'))
+    assert.ok(!forgedPrompt.includes('bkimminich'))
   })
 
   void it('POST rejects getOrderById for a forged JWT', { timeout: 30000 }, async () => {
