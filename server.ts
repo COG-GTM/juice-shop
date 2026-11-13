@@ -652,7 +652,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
-  app.use('/dataerasure', dataErasure)
+  app.use('/dataerasure', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 100,
+    keyGenerator: (req: Request) => {
+      const user = security.authenticatedUsers.get(req.cookies?.token)
+      return user ? `user:${user.data.id}` : `ip:${req.socket.remoteAddress ?? ''}`
+    },
+    validate: { trustProxy: false }
+  }), dataErasure)
 
   /* Route for redirects */
   app.get('/redirect', performRedirect())
