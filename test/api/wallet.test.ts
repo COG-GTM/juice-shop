@@ -126,6 +126,12 @@ void describe('/api/Wallets', () => {
     await assertTopUpRejected({ balance: 10.5, paymentId: 2 }, 400)
   })
 
+  void it('PUT charge wallet rejects free-credit amounts without crediting the wallet', async () => {
+    for (const balance of [-5, 1.5, 'abc', 1000000000000, 1000000]) {
+      await assertTopUpRejected({ balance, paymentId: 2 }, 400)
+    }
+  })
+
   void it('PUT charge wallet from foreign credit card is forbidden', async () => {
     await assertTopUpRejected({ balance: 10, paymentId: 1 }, 402)
   })
