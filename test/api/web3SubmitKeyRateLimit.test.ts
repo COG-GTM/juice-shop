@@ -17,16 +17,18 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/rest/web3/submitKey rate limiting', () => {
-  void it('POST is rejected with 429 after 100 attempts within the window', async () => {
+  void it('POST is rejected with 429 after 100 attempts within the window, even with rotating X-Forwarded-For', async () => {
     for (let i = 0; i < 100; i++) {
       const res = await request(app)
         .post('/rest/web3/submitKey')
+        .set('X-Forwarded-For', `198.51.100.${i % 250}`)
         .send({ privateKey: `guess-${i}` })
       assert.equal(res.status, 401)
     }
 
     const res = await request(app)
       .post('/rest/web3/submitKey')
+      .set('X-Forwarded-For', '203.0.113.7')
       .send({ privateKey: 'guess-100' })
     assert.equal(res.status, 429)
   })
