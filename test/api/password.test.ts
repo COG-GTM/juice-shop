@@ -89,7 +89,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change for Bender without current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
@@ -99,7 +99,51 @@ void describe('/rest/user/change-password', () => {
       .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+  })
+
+  void it('GET password change with forged unsigned token registered via whoami is rejected', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ status: 'success', data: { id: 1, email: 'admin@' + config.get<string>('application.domain') }, iat: 1508639612 })).toString('base64url')
+    const forgedToken = header + '.' + payload + '.'
+
+    await request(app)
+      .get('/rest/user/whoami')
+      .set({ Authorization: 'Bearer ' + forgedToken })
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=whatever&new=pwned123&repeat=pwned123')
+      .set({ Authorization: 'Bearer ' + forgedToken })
+
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+
+    await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+  })
+
+  void it('GET password change invalidates other sessions of the same user', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'sessions@be.rt', password: 'firstPassw0rd' })
+      .expect(201)
+
+    const { token: firstToken } = await login(app, { email: 'sessions@be.rt', password: 'firstPassw0rd' })
+    await new Promise(resolve => setTimeout(resolve, 1100))
+    const { token: secondToken } = await login(app, { email: 'sessions@be.rt', password: 'firstPassw0rd' })
+    assert.notEqual(firstToken, secondToken)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=firstPassw0rd&new=secondPassw0rd&repeat=secondPassw0rd')
+      .set({ Authorization: 'Bearer ' + secondToken })
     assert.equal(res.status, 200)
+
+    const staleRes = await request(app)
+      .get('/rest/user/change-password?current=secondPassw0rd&new=thirdPassw0rd&repeat=thirdPassw0rd')
+      .set({ Authorization: 'Bearer ' + firstToken })
+    assert.equal(staleRes.status, 500)
+    assert.ok(staleRes.text.includes('Error: Blocked illegal activity'))
   })
 })
 

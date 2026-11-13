@@ -4,10 +4,9 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
   return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
@@ -24,35 +23,33 @@ export function changePassword () {
       return
     }
 
-    const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null) {
+    const token = headers.authorization ? utils.unquote(headers.authorization.substr('Bearer='.length)) : null
+    const loggedInUser = token ? security.authenticatedUsers.get(token) : undefined
+    const verifiedUser = token ? security.verifiedPayload(token) : null
+    if (!token || !loggedInUser || !verifiedUser || verifiedUser.data.id !== loggedInUser.data.id) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    const loggedInUser = security.authenticatedUsers.get(token)
-    if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
       return
     }
 
     try {
-      const user = await UserModel.findByPk(loggedInUser.data.id)
+      const user = await UserModel.findByPk(verifiedUser.data.id)
       if (!user) {
         res.status(404).send(res.__('User not found.'))
         return
       }
 
+      if (!currentPassword || security.hash(currentPassword) !== user.password) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
       await user.update({ password: newPasswordInString })
-      challengeUtils.solveIf(
-        challenges.changePasswordBenderChallenge,
-        () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')
-      )
+      for (const [otherToken, entry] of Object.entries(security.authenticatedUsers.tokenMap)) {
+        if (otherToken !== token && entry?.data?.id === user.id) {
+          delete security.authenticatedUsers.tokenMap[otherToken]
+        }
+      }
+      security.authenticatedUsers.idMap[user.id] = token
       res.json({ user })
     } catch (error) {
       next(error)
