@@ -6,6 +6,7 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import crypto from 'node:crypto'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -281,6 +282,29 @@ void describe('/rest/user/whoami', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.deepEqual(res.body.user, {})
+  })
+
+  void it('GET who-am-i request returns nothing for an unsigned token with alg "none"', async () => {
+    const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'none' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${header}.${payload}.` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
+    assert.equal(res.headers['set-cookie'], undefined)
+  })
+
+  void it('GET who-am-i request returns nothing for an HS256 token signed with the public key', async () => {
+    const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'HS256' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+    const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: `token=${header}.${payload}.${signature}` })
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.user, {})
+    assert.equal(res.headers['set-cookie'], undefined)
   })
 
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {
