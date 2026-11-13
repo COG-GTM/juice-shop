@@ -149,10 +149,12 @@ export function placeOrder () {
             return
           }
 
+          let walletCharged = false
           if (req.body.orderDetails?.paymentId === 'wallet') {
             const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
             if ((wallet != null) && wallet.balance >= totalPrice) {
               await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+              walletCharged = true
             } else {
               next(new Error('Insufficient wallet balance.'))
               return
@@ -167,6 +169,9 @@ export function placeOrder () {
               }
             }
           } catch (error: unknown) {
+            if (walletCharged) {
+              await WalletModel.increment({ balance: totalPrice }, { where: { UserId: req.body.UserId } }).catch(() => {})
+            }
             next(error)
             return
           }
