@@ -32,10 +32,22 @@ before(async () => {
   const lookalike = await login(app, { email: lookalikeEmail, password: 'lookalike123' })
   lookalikeHeader = { Authorization: 'Bearer ' + lookalike.token, 'content-type': 'application/json' }
 
+  orderId = await placeOrder()
+}, { timeout: 60000 })
+
+async function placeOrder () {
   const res = await request(app).post('/rest/basket/2/checkout').set(jimHeader)
   assert.equal(res.status, 200)
-  orderId = res.body.orderConfirmation
-}, { timeout: 60000 })
+  return res.body.orderConfirmation as string
+}
+
+async function assertOnlyOwnerCanGetConfirmation (otherHeader: Record<string, string>) {
+  const id = await placeOrder()
+  const other = await request(app).get(`/rest/order-history/${id}/confirmation`).set(otherHeader)
+  assert.equal(other.status, 404)
+  const own = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
+  assert.equal(own.status, 200)
+}
 
 function findLookalikeEmail (email: string) {
   const vowels = 'aeiouAEIOU'
@@ -69,19 +81,18 @@ void describe('order confirmation PDF', () => {
   })
 
   void it('GET own confirmation returns the PDF', async () => {
-    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(jimHeader)
+    const id = await placeOrder()
+    const res = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
   })
 
   void it('GET confirmation of another customer is not found', async () => {
-    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(benderHeader)
-    assert.equal(res.status, 404)
+    await assertOnlyOwnerCanGetConfirmation(benderHeader)
   })
 
   void it('GET confirmation of another customer with the same masked email and hash prefix is not found', async () => {
-    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(lookalikeHeader)
-    assert.equal(res.status, 404)
+    await assertOnlyOwnerCanGetConfirmation(lookalikeHeader)
   })
 
   void it('GET confirmation with malformed order id is not found', async () => {
