@@ -371,4 +371,41 @@ void describe('/rest/user/logout', () => {
     assert.ok(cookie?.includes('Expires=Thu, 01 Jan 1970 00:00:00 GMT'))
     assertSessionCookieFlags(cookie, { secure: false })
   })
+
+  void it('POST logout revokes the bearer token server-side', async () => {
+    const { token, bid } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const bearer = { Authorization: `Bearer ${token}` }
+    assert.equal((await request(app).get(`/rest/basket/${bid}`).set(bearer)).status, 200)
+
+    assert.equal((await request(app).post('/rest/user/logout').set(bearer)).status, 204)
+
+    assert.equal((await request(app).get(`/rest/basket/${bid}`).set(bearer)).status, 401)
+    assert.equal((await request(app).get('/api/Cards').set(bearer)).status, 401)
+    const whoami = await request(app).get('/rest/user/whoami').set(bearer)
+    assert.equal(whoami.body.user.id, undefined)
+  })
+
+  void it('POST logout revokes a token sent only as session cookie', async () => {
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set(jsonHeader)
+      .send({ email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const cookie = sessionCookie(loginRes)!.split(';')[0]
+    const bid = loginRes.body.authentication.bid
+
+    assert.equal((await request(app).post('/rest/user/logout').set({ Cookie: cookie })).status, 204)
+
+    assert.equal((await request(app).get(`/rest/basket/${bid}`).set({ Cookie: cookie })).status, 401)
+    assert.equal((await request(app).get(`/rest/basket/${bid}`).set({ Authorization: `Bearer ${loginRes.body.authentication.token}` })).status, 401)
+  })
+
+  void it('POST logout does not affect other sessions of the same user', async () => {
+    const first = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    await new Promise((resolve) => setTimeout(resolve, 1100)) // JWTs issued within the same second are identical
+    const second = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+
+    await request(app).post('/rest/user/logout').set({ Authorization: `Bearer ${first.token}` })
+
+    assert.equal((await request(app).get(`/rest/basket/${second.bid}`).set({ Authorization: `Bearer ${second.token}` })).status, 200)
+  })
 })

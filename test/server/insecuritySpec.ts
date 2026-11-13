@@ -132,6 +132,33 @@ describe('insecurity', () => {
     })
   })
 
+  describe('revokeToken', () => {
+    it('removes a verified token from authenticatedUsers and marks it revoked', () => {
+      const token = security.authorize({ data: { id: 4711 } })
+      security.authenticatedUsers.put(token, { data: { id: 4711 } as unknown as UserModel })
+
+      security.revokeToken(token)
+
+      expect(security.isRevoked(token)).to.equal(true)
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(security.authenticatedUsers.tokenOf({ id: 4711 } as unknown as UserModel)).to.equal(undefined)
+    })
+
+    it('does not let a revoked token be re-added to authenticatedUsers', () => {
+      const token = security.authorize({ data: { id: 4712 } })
+      security.revokeToken(token)
+
+      security.authenticatedUsers.put(token, { data: { id: 4712 } as unknown as UserModel })
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+    })
+
+    it('ignores tokens that do not verify', () => {
+      security.revokeToken('not-a-jwt')
+      expect(security.isRevoked('not-a-jwt')).to.equal(false)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

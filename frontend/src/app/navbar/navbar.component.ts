@@ -57,6 +57,7 @@ import { MatButtonModule } from '@angular/material/button'
 
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
 import { endSession, isLoggedIn } from '../Services/auth-session'
+import { finalize } from 'rxjs/operators'
 
 library.add(faLanguage, faSearch, faSignInAlt, faSignOutAlt, faComment, faBomb, faTrophy, faInfoCircle, faShoppingCart, faUserSecret, faRecycle, faMapMarker, faUserCircle, faGithub, faComments, faThermometerEmpty, faThermometerQuarter, faThermometerHalf, faThermometerThreeQuarters, faThermometerFull)
 
@@ -237,9 +238,10 @@ export class NavbarComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    this.userService.saveLastLoginIp().pipe(finalize(() => {
+      this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    })).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     endSession()
-    this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
