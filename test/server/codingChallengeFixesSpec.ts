@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
-import { readFixes, isKnownFixKey } from '../../routes/vulnCodeFixes'
+import { retrieveChallengesWithCodeSnippet, checkVulnLines } from '../../routes/vulnCodeSnippet'
+import { readFixes, isKnownFixKey, checkCorrectFix } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
 import yaml from 'js-yaml'
@@ -44,6 +44,36 @@ describe('codingChallengeFixes', () => {
     for (const file of fs.readdirSync('./data/static/codefixes').filter((f: string) => f.endsWith('.info.yml'))) {
       expect(() => yaml.safeLoad(fs.readFileSync('./data/static/codefixes/' + file, 'utf8')), `${file} is not safe-loadable`).to.not.throw()
     }
+  })
+
+  describe('with an info YAML file containing an unsafe tag', () => {
+    const unsafeYaml = 'fixes: !!js/function "function () { return 42 }"\nhints: !!js/function "function () { return 42 }"\n'
+    let readFile: sinon.SinonStub
+    beforeEach(() => {
+      readFixes('resetPasswordBenderChallenge')
+      const original = nodeFs.readFileSync
+      readFile = sinon.stub(nodeFs, 'readFileSync').callsFake(((path: string, ...args: unknown[]) =>
+        typeof path === 'string' && path.endsWith('.info.yml') ? unsafeYaml : (original as (...a: unknown[]) => unknown)(path, ...args)) as typeof nodeFs.readFileSync)
+    })
+    afterEach(() => {
+      readFile.restore()
+    })
+
+    const res = () => ({ __: (s: string) => s, status: sinon.stub().returnsThis(), json: sinon.spy() })
+
+    it('should refuse to deserialize it when checking a fix', async () => {
+      const req: any = { body: { key: 'resetPasswordBenderChallenge', selectedFix: 0 } }
+      let error: unknown
+      try { await checkCorrectFix()(req, res() as any, () => {}) } catch (e) { error = e }
+      expect(String(error)).to.match(/unknown tag/)
+    })
+
+    it('should refuse to deserialize it when checking vulnerable lines', async () => {
+      const req: any = { body: { key: 'resetPasswordBenderChallenge', selectedLines: [] } }
+      let error: unknown
+      try { await checkVulnLines()(req, res() as any, () => {}) } catch (e) { error = e }
+      expect(String(error)).to.match(/unknown tag/)
+    })
   })
 
   it('should only accept keys of existing coding challenge fixes', () => {
