@@ -9,8 +9,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import chai from 'chai'
+import sinon from 'sinon'
 import * as security from '../../lib/insecurity'
-import type { UserModel } from 'models/user'
+import { UserModel } from '../../models/user'
 import type { Request } from 'express'
 import jwt from 'jsonwebtoken'
 const expect = chai.expect
@@ -394,23 +395,61 @@ describe('insecurity', () => {
       const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
       return `${header}.${payload}.${sign(`${header}.${payload}`)}`
     }
-    const register = (token: string) => {
+    const dbUsers: Record<number, any> = {
+      1: { id: 1, email: 'admin@juice-sh.op', role: 'admin' },
+      2: { id: 2, email: 'jim@juice-sh.op', role: 'customer' }
+    }
+    let findByPk: sinon.SinonStub
+
+    beforeEach(() => {
+      findByPk = sinon.stub(UserModel, 'findByPk').callsFake(async (id: any) => {
+        const row = dbUsers[id]
+        return row ? { email: row.email, get: () => ({ ...row }) } as any : null
+      })
+    })
+
+    afterEach(() => {
+      findByPk.restore()
+    })
+
+    const register = async (token: string) => {
       const res: any = { cookie: () => {} }
-      security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as any, res, () => {})
+      await security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as any, res, () => {})
       return security.authenticatedUsers.get(token)
     }
 
-    it('registers RS256 tokens issued by authorize()', () => {
+    it('registers RS256 tokens issued by authorize()', async () => {
       const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op' } })
-      expect(register(token)?.data.email).to.equal('admin@juice-sh.op')
+      expect((await register(token))?.data.email).to.equal('admin@juice-sh.op')
     })
 
-    it('does not register unsigned "none" tokens', () => {
-      expect(register(forgedAdmin('none', () => ''))).to.equal(undefined)
+    it('does not register unsigned "none" tokens', async () => {
+      expect(await register(forgedAdmin('none', () => ''))).to.equal(undefined)
     })
 
-    it('does not register HS256 tokens HMAC-signed with the public RSA key', () => {
-      expect(register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
+    it('does not register HS256 tokens HMAC-signed with the public RSA key', async () => {
+      expect(await register(forgedAdmin('HS256', (input) => crypto.createHmac('sha256', security.publicKey).update(input).digest('base64url')))).to.equal(undefined)
+    })
+
+    it('does not register RS256 tokens signed with a key other than the configured one', async () => {
+      const otherKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+      expect(await register(forgedAdmin('RS256', (input) => crypto.sign('RSA-SHA256', Buffer.from(input), otherKey).toString('base64url')))).to.equal(undefined)
+    })
+
+    it('stores the user as loaded from the database instead of the token claims', async () => {
+      const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'admin', password: 'x' } })
+      const session = await register(token)
+      expect(findByPk.calledWith(2)).to.equal(true)
+      expect(session?.data.role).to.equal('customer')
+      expect(session?.data.password).to.equal(undefined)
+    })
+
+    it('does not register tokens for user ids that do not exist', async () => {
+      expect(await register(security.authorize({ data: { id: 4711, email: 'ghost@juice-sh.op', role: 'admin' } }))).to.equal(undefined)
+    })
+
+    it('does not register tokens whose email does not match the user id', async () => {
+      expect(await register(security.authorize({ data: { id: 1, email: 'jim@juice-sh.op' } }))).to.equal(undefined)
     })
   })
 })

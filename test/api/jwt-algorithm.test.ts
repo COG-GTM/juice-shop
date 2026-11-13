@@ -117,4 +117,28 @@ void describe('updateAuthenticatedUsers middleware', () => {
     assert.equal(res.body.user.id, undefined)
     assert.equal(security.authenticatedUsers.get(token), undefined)
   })
+
+  void it('does not create a session for an RS256 token signed with a key other than the configured one', async () => {
+    const otherKey = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey
+    const token = forge('RS256', admin, (input) => crypto.sign('RSA-SHA256', Buffer.from(input), otherKey).toString('base64url'))
+    const whoami = await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + token)
+    assert.equal(whoami.body.user.id, undefined)
+    assert.equal(security.authenticatedUsers.get(token), undefined)
+    const users = await request(app).get('/api/Users').set(bearer(token))
+    assert.equal(users.status, 401)
+  })
+
+  void it('stores the database user, not the token claims, for a validly signed token', async () => {
+    const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'admin' } })
+    const res = await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + token)
+    assert.equal(res.body.user.id, 2)
+    assert.equal(security.authenticatedUsers.get(token)?.data.role, 'customer')
+  })
+
+  void it('does not create a session for a validly signed token naming a user id that does not exist', async () => {
+    const token = security.authorize({ data: { id: 4711, email: 'ghost@juice-sh.op', role: 'admin' } })
+    const res = await request(app).get('/rest/user/whoami').set('Cookie', 'token=' + token)
+    assert.equal(res.body.user.id, undefined)
+    assert.equal(security.authenticatedUsers.get(token), undefined)
+  })
 })

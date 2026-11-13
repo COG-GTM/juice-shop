@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
-import { type UserModel } from 'models/user'
+import { UserModel } from '../models/user'
 import { expressjwt, UnauthorizedError } from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
@@ -242,17 +242,17 @@ export const appendUserId = () => {
   }
 }
 
-export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
+export const updateAuthenticatedUsers = () => async (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, { algorithms: jwtAlgorithms }, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
+  if (token && authenticatedUsers.get(token) === undefined) {
+    try {
+      const decoded: any = jwt.verify(token, publicKey, { algorithms: jwtAlgorithms })
+      const user = await UserModel.findByPk(decoded?.data?.id)
+      if (user && user.email === decoded.data.email) {
+        authenticatedUsers.put(token, { ...decoded, data: user.get({ plain: true }) })
+        res.cookie('token', token)
       }
-    })
+    } catch {}
   }
   next()
 }
