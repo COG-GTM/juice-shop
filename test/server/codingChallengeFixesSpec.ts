@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
-import { readFixes, isKnownFixKey } from '../../routes/vulnCodeFixes'
+import { retrieveChallengesWithCodeSnippet, checkVulnLines } from '../../routes/vulnCodeSnippet'
+import { readFixes, isKnownFixKey, checkCorrectFix } from '../../routes/vulnCodeFixes'
 import chai from 'chai'
 import fs from 'graceful-fs'
 import yaml from 'js-yaml'
@@ -70,6 +70,34 @@ describe('codingChallengeFixes', () => {
       expect(readFile).to.have.callCount(0)
     } finally {
       readdir.restore()
+      readFile.restore()
+    }
+  })
+
+  it('should not load unsafe YAML tags from coding challenge info files on verdict requests', async () => {
+    const payload = "!!js/function 'function () { globalThis.unsafeCodefixYamlLoaded = true }'"
+    const exists = sinon.stub(nodeFs, 'existsSync').callThrough()
+    const readFile = sinon.stub(nodeFs, 'readFileSync').callThrough()
+    exists.withArgs(sinon.match(/\.info\.yml$/)).returns(true)
+    readFile.withArgs(sinon.match(/\.info\.yml$/)).returns(`fixes: { find: ${payload} }\nhints: { length: ${payload} }\n`)
+    const res: any = { __: (s: string) => s, status () { return this }, json: sinon.spy() }
+    const verdict = async (handler: any, body: Record<string, unknown>) => {
+      try {
+        await handler({ body }, res, sinon.spy())
+        return null
+      } catch (error) {
+        return error as Error
+      }
+    }
+    try {
+      const fixError = await verdict(checkCorrectFix(), { key: 'accessLogDisclosureChallenge', selectedFix: 1 })
+      const snippetError = await verdict(checkVulnLines(), { key: 'accessLogDisclosureChallenge', selectedLines: [1] })
+      expect(fixError?.message).to.match(/unknown tag/)
+      expect(snippetError?.message).to.match(/unknown tag/)
+      expect((globalThis as any).unsafeCodefixYamlLoaded).to.equal(undefined)
+      expect(res.json).to.have.callCount(0)
+    } finally {
+      exists.restore()
       readFile.restore()
     }
   })
