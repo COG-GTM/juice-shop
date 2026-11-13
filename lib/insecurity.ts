@@ -185,17 +185,24 @@ export const appendUserId = () => {
   }
 }
 
+export const verifiedSessionFrom = (token: unknown): ResponseWithUser | undefined => {
+  try {
+    const [, signingInput, signature] = (token as string).match(/^([\w-]+\.[\w-]+)\.([\w-]+)$/) as RegExpMatchArray
+    const hasValidSignature = crypto.verify('RSA-SHA256', Buffer.from(signingInput), publicKey, Buffer.from(signature, 'base64url'))
+    const session = decode(token as string)
+    const isExpired = session?.exp !== undefined && !(Date.now() / 1000 < session.exp)
+    return hasValidSignature && !isExpired && typeof session?.data === 'object' ? session : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
-  if (token) {
-    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
-        if (authenticatedUsers.get(token) === undefined) {
-          authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
-        }
-      }
-    })
+  const session = verifiedSessionFrom(token)
+  if (session !== undefined && authenticatedUsers.get(token) === undefined) {
+    authenticatedUsers.put(token, session)
+    res.cookie('token', token)
   }
   next()
 }

@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -108,6 +110,78 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    const base64url = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+    let res: any
+    let next: sinon.SinonSpy
+
+    beforeEach(() => {
+      res = { cookie: sinon.spy() }
+      next = sinon.spy()
+    })
+
+    const update = (token: string) => {
+      security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, res, next)
+    }
+
+    it('registers a session for a token signed by the server', () => {
+      const token = security.authorize({ data: { id: 4711, email: 'valid@juice-sh.op' } })
+
+      update(token)
+
+      expect(security.authenticatedUsers.get(token)?.data).to.deep.equal({ id: 4711, email: 'valid@juice-sh.op' })
+      expect(res.cookie.calledOnceWith('token', token)).to.equal(true)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('does not register an unsigned token with alg "none"', () => {
+      const token = `${base64url({ typ: 'JWT', alg: 'none' })}.${base64url({ data: { id: 4712, email: 'jwtn3d@juice-sh.op' } })}.`
+
+      update(token)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(res.cookie.called).to.equal(false)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('does not register an HS256 token signed with the public key', () => {
+      const signingInput = `${base64url({ typ: 'JWT', alg: 'HS256' })}.${base64url({ data: { id: 4713, email: 'rsa_lord@juice-sh.op' } })}`
+      const token = `${signingInput}.${crypto.createHmac('sha256', security.publicKey).update(signingInput).digest('base64url')}`
+
+      update(token)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(res.cookie.called).to.equal(false)
+      expect(next.calledOnce).to.equal(true)
+    })
+
+    it('does not register an expired token', () => {
+      const token = security.authorize({ data: { id: 4714 }, exp: Math.floor(Date.now() / 1000) - 60 })
+
+      update(token)
+
+      expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      expect(res.cookie.called).to.equal(false)
+    })
+
+    it('does not overwrite an already registered session', () => {
+      const token = security.authorize({ data: { id: 4715, username: 'original' } })
+      security.authenticatedUsers.put(token, { data: { id: 4715, username: 'updated' } as unknown as UserModel })
+
+      update(token)
+
+      expect(security.authenticatedUsers.get(token)?.data).to.deep.equal({ id: 4715, username: 'updated' })
+      expect(res.cookie.called).to.equal(false)
+    })
+
+    it('ignores requests without a token', () => {
+      security.updateAuthenticatedUsers()({ cookies: {}, headers: {} } as unknown as Request, res, next)
+
+      expect(res.cookie.called).to.equal(false)
+      expect(next.calledOnce).to.equal(true)
     })
   })
 
