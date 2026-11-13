@@ -7,7 +7,7 @@ import chai from 'chai'
 import sinon from 'sinon'
 import dns from 'node:dns'
 import http from 'node:http'
-import { type AddressInfo } from 'node:net'
+import net, { type AddressInfo } from 'node:net'
 import { fetchProfileImage, isPublicAddress, parseProfileImageUrl, ProfileImageFetchError, MAX_PROFILE_IMAGE_BYTES } from '../../lib/profileImageFetch'
 
 const expect = chai.expect
@@ -129,6 +129,18 @@ describe('profileImageFetch', () => {
     it('does not follow redirects', async () => {
       await expectRejected(fetchProfileImage(`${baseUrl}/redirect.png`, allowLocalHttp), /status 302/)
       expect(hits).to.deep.equal(['/redirect.png'])
+    })
+
+    it('rejects protocol upgrade responses instead of hanging', async () => {
+      const upgradeServer = net.createServer((socket) => {
+        socket.once('data', () => socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n'))
+      })
+      await new Promise<void>((resolve) => upgradeServer.listen(0, '127.0.0.1', resolve))
+      try {
+        await expectRejected(fetchProfileImage(`http://127.0.0.1:${(upgradeServer.address() as AddressInfo).port}/upgrade.png`, { ...allowLocalHttp, timeoutMs: 1000 }), /status 101/)
+      } finally {
+        upgradeServer.close()
+      }
     })
 
     it('rejects non-image responses, disguised content, SVG and oversized bodies', async () => {
