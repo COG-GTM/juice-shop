@@ -7,7 +7,6 @@ import crypto from 'node:crypto'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
-import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -97,7 +96,10 @@ void describe('/rest/order-confirmation/:orderId', () => {
   })
 
   void it('GET with a registered but unverifiable token is denied', async () => {
-    const forgedToken = jwt.sign({ data: { id: 2 } }, crypto.randomBytes(32).toString('hex'))
+    const b64 = (value: string | Buffer) => Buffer.from(value).toString('base64url')
+    const { privateKey: attackerKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const unsigned = `${b64('{"alg":"RS256","typ":"JWT"}')}.${b64('{"data":{"id":2}}')}`
+    const forgedToken = `${unsigned}.${b64(crypto.sign('sha256', Buffer.from(unsigned), attackerKey))}`
     security.authenticatedUsers.put(forgedToken, { data: { id: 2 } } as any)
     const res = await request(app)
       .get(`/rest/order-confirmation/${orderId}`)
