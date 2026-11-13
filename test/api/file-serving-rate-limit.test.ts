@@ -17,16 +17,14 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('File serving rate limiting', () => {
-  void it('GET /ftp/legal.md returns 429 once 100 requests per minute are exceeded', async () => {
+  void it('GET /ftp/legal.md exhausts the shared file serving budget after 100 requests per minute', async () => {
     for (let i = 0; i < 100; i++) {
       const res = await request(app).get('/ftp/legal.md')
       assert.equal(res.status, 200)
     }
     const res = await request(app).get('/ftp/legal.md')
     assert.equal(res.status, 429)
-  })
 
-  void it('rate limit budget is shared by all file system backed routes', async () => {
     for (const path of ['/ftp', '/ftp/quarantine/juicy_malware_linux_amd_64.url', '/.well-known/csaf/provider-metadata.json', '/encryptionkeys/jwt.pub', '/support/logs']) {
       const res = await request(app).get(path)
       assert.equal(res.status, 429, path)
