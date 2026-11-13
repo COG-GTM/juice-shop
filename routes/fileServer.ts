@@ -34,8 +34,15 @@ export function servePublicFiles () {
       return
     }
 
+    const filePath = path.resolve(ftpRoot, file)
+    if (!filePath.startsWith(ftpRoot + path.sep)) {
+      res.status(403)
+      next(new Error('File names must resolve inside the /ftp folder!'))
+      return
+    }
+
     try {
-      if (!(await fs.lstat(path.join(ftpRoot, file))).isFile()) {
+      if (!(await fs.lstat(filePath)).isFile()) {
         res.status(404)
         next(new Error('File not found!'))
         return
@@ -52,7 +59,7 @@ export function servePublicFiles () {
 
     challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
 
-    res.sendFile(file, { root: ftpRoot, dotfiles: 'deny' })
+    res.sendFile(filePath, { dotfiles: 'deny' })
   }
 
   // Express has already URL-decoded the parameter once, so a remaining '%' indicates double encoding such as %2500
