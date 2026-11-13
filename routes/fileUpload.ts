@@ -92,6 +92,7 @@ function createExtractionBudget () {
 }
 
 const complaintStoreError = 'Could not store the attached ZIP archive'
+const invalidZipError = 'Invalid ZIP archive'
 
 interface StagedComplaintEntry { tempPath: string, targetPath: string }
 
@@ -194,6 +195,11 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
             removeStaged(entries)
             return
           }
+          if (encryptedEntrySeen && entries.length > 0) {
+            removeStaged(entries)
+            respond(400, invalidZipError)
+            return
+          }
           if (storeFailed || !complaintsDirectoryIsSafe()) {
             removeStaged(entries)
             respond(500, complaintStoreError)
@@ -264,7 +270,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
         if (encryptedEntrySeen && staged.length === 0) abort(`encrypted entry: ${utils.getErrorMessage(err)}`, 204)
-        else abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
+        else abort(utils.getErrorMessage(err), 400, invalidZipError)
       })
     } else {
       res.status(204).end()
