@@ -4,6 +4,7 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import * as challengeUtils from '../lib/challengeUtils'
 import { WalletModel } from '../models/wallet'
@@ -13,6 +14,8 @@ import { UserModel } from '../models/user'
 import { CardModel } from '../models/card'
 import * as utils from '../lib/utils'
 
+const deluxeMembershipCost = 49
+
 export function upgradeToDeluxe () {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -21,14 +24,17 @@ export function upgradeToDeluxe () {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
         return
       }
+      let walletDebited = false
       if (req.body.paymentMode === 'wallet') {
-        const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-        if ((wallet != null) && wallet.balance < 49) {
+        const [debitedWallets] = await WalletModel.update(
+          { balance: literal(`balance - ${deluxeMembershipCost}`) },
+          { where: { UserId: user.id, balance: { [Op.gte]: deluxeMembershipCost } } }
+        )
+        if (debitedWallets !== 1) {
           res.status(400).json({ status: 'error', error: 'Insuffienct funds in Wallet' })
           return
-        } else {
-          await WalletModel.decrement({ balance: 49 }, { where: { UserId: req.body.UserId } })
         }
+        walletDebited = true
       }
 
       if (req.body.paymentMode === 'card') {
@@ -39,8 +45,20 @@ export function upgradeToDeluxe () {
         }
       }
 
+      let upgraded = false
       try {
-        const updatedUser = await user.update({ role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) })
+        const [upgradedUsers] = await UserModel.update(
+          { role: security.roles.deluxe, deluxeToken: security.deluxeToken(user.email) },
+          { where: { id: user.id, role: security.roles.customer } }
+        )
+        upgraded = upgradedUsers === 1
+        if (!upgraded) {
+          throw new Error('User is no longer a customer')
+        }
+        const updatedUser = await UserModel.findByPk(user.id)
+        if (updatedUser == null) {
+          throw new Error('Upgraded user not found')
+        }
         challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
           return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
         })
@@ -49,6 +67,9 @@ export function upgradeToDeluxe () {
         security.authenticatedUsers.put(updatedToken, userWithStatus)
         res.status(200).json({ status: 'success', data: { confirmation: 'Congratulations! You are now a deluxe member!', token: updatedToken } })
       } catch (error) {
+        if (walletDebited && !upgraded) {
+          await WalletModel.increment({ balance: deluxeMembershipCost }, { where: { UserId: user.id } })
+        }
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
       }
     } catch (err: unknown) {
