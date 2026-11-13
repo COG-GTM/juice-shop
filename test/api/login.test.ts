@@ -240,6 +240,9 @@ void describe('/rest/user/login', () => {
       .set({ 'content-type': 'application/json' })
       .send({ email: `jim@${domain}`, password: 'ncc-1701' })
     assert.equal(victimLogin.status, 200)
+
+    const [rows] = await sequelize.query('SELECT password FROM Users WHERE id = 2')
+    assert.match((rows as Array<{ password: string }>)[0].password, /^scrypt\$/)
   })
 
   void it('POST login with query-breaking SQL Injection attack', async () => {
