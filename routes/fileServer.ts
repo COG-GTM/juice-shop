@@ -55,7 +55,7 @@ export function servePublicFiles () {
   }
 
   function isOrderConfirmation (file: string) {
-    return /^order_.*\.pdf$/i.test(file)
+    return /^order_.*\.pdf$/i.test(path.win32.basename(file))
   }
 
   function endsWithAllowlistedFileType (param: string) {

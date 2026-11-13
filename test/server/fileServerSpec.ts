@@ -27,7 +27,7 @@ describe('fileServer', () => {
     })
   })
 
-  for (const file of ['order_5267-f9cd5882f54c75a3.pdf', 'ORDER_5267-f9cd5882f54c75a3.PDF', 'order_5267-f9cd5882f54c75a3.pdf%00.md']) {
+  for (const file of ['order_5267-f9cd5882f54c75a3.pdf', 'ORDER_5267-f9cd5882f54c75a3.PDF', 'order_5267-f9cd5882f54c75a3.pdf%00.md', '..\\orders\\2\\order_5267-f9cd5882f54c75a3.pdf']) {
     it(`should not serve order confirmation ${file} from folder /ftp`, () => {
       req.params.file = file
 
