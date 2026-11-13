@@ -29,6 +29,14 @@ void describe('/ftp', () => {
     assert.ok(res.text.includes('<title>listing directory /ftp</title>'))
   })
 
+  void it('GET listing of a subfolder rewrites only the leading parent segment of relative links', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine')
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('a href="./.."'))
+    assert.ok(res.text.includes('a href="quarantine/juicy_malware_linux_amd_64.url"'))
+  })
+
   void it('GET a non-existing Markdown file in /ftp will return a 404 error', async () => {
     const res = await request(app)
       .get('/ftp/doesnotexist.md')

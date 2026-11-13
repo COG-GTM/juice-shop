@@ -6,6 +6,7 @@
 /* jslint node: true */
 import packageJson from '../package.json'
 import fs from 'node:fs'
+import path from 'node:path'
 import logger from './logger'
 import config from 'config'
 import download from 'download'
@@ -44,7 +45,18 @@ export const endsWith = (str?: string, suffix?: string) => (str && suffix) ? str
 export const contains = (str: string, element: string) => str ? str.includes(element) : false // TODO Inline all usages as this function is not adding any functionality to String.includes
 
 export const containsEscaped = function (str: string, element: string) {
-  return contains(str, element.replace(/"/g, '\\"'))
+  return contains(str, element.replace(/\\/g, '\\\\').replace(/"/g, '\\"'))
+}
+
+export const toRelativeDirectoryListingHref = (reqPath: string, matchedUrl: string) => {
+  const currentFolder = reqPath.split('/').pop()!
+  const relativePath = path.posix.relative(reqPath, matchedUrl)
+  if (relativePath === '') {
+    return currentFolder
+  } else if (!relativePath.startsWith('.') && currentFolder !== '') {
+    return currentFolder + '/' + relativePath
+  }
+  return relativePath.replace(/^\.\./, '.')
 }
 
 export const containsOrEscaped = function (str: string, element: string) {
