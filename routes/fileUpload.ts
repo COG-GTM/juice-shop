@@ -263,7 +263,7 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         limiter.on('error', discard)
         entry.pipe(limiter).pipe(output)
       }).on('error', function (err: unknown) {
-        if (encryptedEntrySeen) abort(`encrypted entry: ${utils.getErrorMessage(err)}`, 204)
+        if (encryptedEntrySeen && staged.length === 0) abort(`encrypted entry: ${utils.getErrorMessage(err)}`, 204)
         else abort(utils.getErrorMessage(err), 400, 'Invalid ZIP archive')
       })
     } else {
