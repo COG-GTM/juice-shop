@@ -266,15 +266,15 @@ void describe('/rest/user/data-export', () => {
     assert.ok(parsedData.memories[0].imageUrl.includes('assets/public/images/uploads/valid-image'))
   })
 
-  void it('Rate-limits repeated data export requests', async () => {
-    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+  void it('Rate-limits data exports per user regardless of X-Forwarded-For', async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
     const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
 
-    let res = await request(app).post('/rest/user/data-export').set(authHeader).send({ format: '1' })
-    assert.ok(res.headers['ratelimit-limit'] ?? res.headers['x-ratelimit-limit'])
-    for (let i = 0; i < 20 && res.status !== 429; i++) {
-      res = await request(app).post('/rest/user/data-export').set(authHeader).send({ format: '1' })
+    for (let i = 0; i < 20; i++) {
+      const res = await request(app).post('/rest/user/data-export').set(authHeader).set('X-Forwarded-For', `10.0.0.${i}`).send({ format: '1' })
+      assert.equal(res.status, 200, `request ${i + 1} should be allowed`)
     }
+    const res = await request(app).post('/rest/user/data-export').set(authHeader).set('X-Forwarded-For', '10.0.1.1').send({ format: '1' })
     assert.equal(res.status, 429)
   })
 })
