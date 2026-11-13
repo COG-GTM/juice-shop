@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import jwt from 'jsonwebtoken'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +109,45 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('denyAll', () => {
+    const deny = (headers: Record<string, string>) => new Promise<any>((resolve) => {
+      security.denyAll()({ method: 'GET', headers } as unknown as Request, {} as unknown as Response, resolve)
+    })
+
+    it('rejects requests without a token', async () => {
+      const err = await deny({})
+      expect(err).to.have.property('status', 401)
+    })
+
+    it('rejects requests carrying a validly signed RS256 token', async () => {
+      const err = await deny({ authorization: `Bearer ${security.authorize({ data: { id: 1 } })}` })
+      expect(err).to.have.property('status', 401)
+    })
+
+    it('rejects requests carrying an unsigned alg:none token', async () => {
+      const unsigned = `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify({ data: { id: 1 } })).toString('base64url')}.`
+      const err = await deny({ authorization: `Bearer ${unsigned}` })
+      expect(err).to.have.property('status', 401)
+    })
+
+    it('rejects tokens signed with any guessable HMAC secret', async () => {
+      const err = await deny({ authorization: `Bearer ${jwt.sign({ data: { id: 1 } }, '0.5')}` })
+      expect(err).to.have.property('status', 401)
+    })
+
+    it('does not depend on Math.random', async () => {
+      const original = Math.random
+      let calls = 0
+      Math.random = () => { calls++; return 0.5 }
+      try {
+        await deny({})
+      } finally {
+        Math.random = original
+      }
+      expect(calls).to.equal(0)
     })
   })
 
