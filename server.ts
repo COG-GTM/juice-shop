@@ -357,8 +357,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/api/Addresss', rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 300,
-    keyGenerator ({ socket }: { socket: any }) { return socket.remoteAddress ?? '' },
-    validate: false
+    keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
+    validate: { trustProxy: false, xForwardedForHeader: false }
   }))
 
   // vuln-code-snippet start changeProductChallenge
