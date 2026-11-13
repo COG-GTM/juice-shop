@@ -30,16 +30,19 @@ void describe('/snippets rate limiting', () => {
     assert.equal(responses[3].headers['ratelimit-remaining'], '116')
   })
 
-  void it('shares one budget across the routes and rejects requests beyond it with 429', async () => {
-    for (let i = 0; i < 116; i++) {
+  void it('shares one budget across the routes and rejects requests beyond it with 429, regardless of X-Forwarded-For', async () => {
+    const first = await request(app).get('/snippets/fixes/doesNotExist')
+    assert.equal(first.status, 404)
+    const remaining = Number(first.headers['ratelimit-remaining'])
+    for (let i = 0; i < remaining; i++) {
       const res = await request(app).get(`/snippets/fixes/doesNotExist${i}`)
       assert.equal(res.status, 404)
     }
     const blocked = [
       await request(app).get('/snippets/fixes/resetPasswordBenderChallenge'),
-      await request(app).get('/snippets/resetPasswordBenderChallenge'),
-      await request(app).post('/snippets/verdict').send({ key: 'resetPasswordBenderChallenge', selectedLines: [] }),
-      await request(app).post('/snippets/fixes').send({ key: 'resetPasswordBenderChallenge', selectedFix: 0 })
+      await request(app).get('/snippets/resetPasswordBenderChallenge').set('X-Forwarded-For', '10.0.0.1'),
+      await request(app).post('/snippets/verdict').set('X-Forwarded-For', '10.0.0.2').send({ key: 'resetPasswordBenderChallenge', selectedLines: [] }),
+      await request(app).post('/snippets/fixes').set('X-Forwarded-For', '10.0.0.3').send({ key: 'resetPasswordBenderChallenge', selectedFix: 0 })
     ]
     for (const res of blocked) {
       assert.equal(res.status, 429)

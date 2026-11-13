@@ -666,7 +666,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
-  const codingChallengeRateLimit = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, validate: false })
+  const codingChallengeRateLimit = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false, validate: false, keyGenerator: (req) => req.socket.remoteAddress ?? 'unknown' })
   app.get('/snippets/:challenge', codingChallengeRateLimit, utils.asyncHandler(serveCodeSnippet()))
   app.post('/snippets/verdict', codingChallengeRateLimit, utils.asyncHandler(checkVulnLines()))
   app.get('/snippets/fixes/:key', codingChallengeRateLimit, utils.asyncHandler(serveCodeFixes()))
