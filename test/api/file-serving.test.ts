@@ -253,4 +253,19 @@ void describe('Hidden URL', () => {
       .set('Authorization', `Bearer ${customerToken}`)
     assert.equal(res.status, 403)
   })
+
+  void it('GET access log directory listing as admin via token cookie', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+      .set('Cookie', `token=${adminToken}`)
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('<title>listing directory /support/logs</title>'))
+  })
+
+  void it('GET access log file is forbidden for non-admin token cookie', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Cookie', `token=${customerToken}`)
+    assert.equal(res.status, 403)
+  })
 })

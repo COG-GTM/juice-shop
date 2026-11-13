@@ -271,5 +271,22 @@ describe('insecurity', () => {
       expect(next.callCount).to.equal(0)
       expect(res.status.firstCall.args).to.deep.equal([403])
     })
+
+    it('accepts an admin token from the token cookie used by browser navigation', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })
+      security.isAdmin()({ headers: { cookie: `language=en; token=${token}; welcomebanner_status=dismiss` } } as unknown as Request, res as any, next)
+      expect(next.callCount).to.equal(1)
+    })
+
+    it('responds 403 for a non-admin token cookie', () => {
+      const res = responseSpy()
+      const next = sinon.spy()
+      const token = security.authorize({ data: { email: 'jim@juice-sh.op', role: 'customer' } })
+      security.isAdmin()({ headers: { cookie: `token=${token}` } } as unknown as Request, res as any, next)
+      expect(next.callCount).to.equal(0)
+      expect(res.status.firstCall.args).to.deep.equal([403])
+    })
   })
 })
