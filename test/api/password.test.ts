@@ -124,6 +124,31 @@ void describe('/rest/user/change-password', () => {
     assert.equal(await loginStatus('twosessions@be.rt', 'hijacked'), 401)
   })
 
+  void it('POST password change keeps the session usable for endpoints that confirm the new password', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: 'sessionhash@be.rt',
+        password: 'before-secret'
+      })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'sessionhash@be.rt', password: 'before-secret' })
+
+    await request(app)
+      .post('/rest/user/change-password')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ current: 'before-secret', new: 'after-secret', repeat: 'after-secret' })
+      .expect(200)
+
+    await request(app)
+      .post('/rest/2fa/disable')
+      .set({ ...jsonHeader, Authorization: 'Bearer ' + token })
+      .send({ password: 'after-secret' })
+      .expect(200)
+  })
+
   void it('GET password change via query string is no longer supported', async () => {
     await request(app)
       .post('/api/Users')
