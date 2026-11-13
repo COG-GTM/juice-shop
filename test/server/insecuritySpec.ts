@@ -6,9 +6,11 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import sinon from 'sinon'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +110,55 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const forgeUnsigned = (payload: object) =>
+      `${Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.`
+    const forgeHs256WithPublicKey = (payload: object) => {
+      const unsigned = `${Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`
+      return `${unsigned}.${crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')}`
+    }
+    const forgedPayload = { data: { id: 1, email: 'admin@juice-sh.op', role: security.roles.accounting }, iat: 1508639612, exp: 9999999999 }
+
+    it('accepts tokens issued by authorize', () => {
+      const token = security.authorize({ data: { id: 1, role: security.roles.accounting } })
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data).to.deep.equal({ id: 1, role: security.roles.accounting })
+    })
+
+    it('rejects unsigned tokens with alg "none"', () => {
+      const token = forgeUnsigned(forgedPayload)
+      expect(security.verify(token)).to.equal(false)
+      expect(security.decode(token)).to.equal(undefined)
+    })
+
+    it('rejects HS256 tokens signed with the public RSA key', () => {
+      const token = forgeHs256WithPublicKey(forgedPayload)
+      expect(security.verify(token)).to.equal(false)
+      expect(security.decode(token)).to.equal(undefined)
+    })
+
+    it('does not grant accounting role to forged tokens', () => {
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      for (const token of [forgeUnsigned(forgedPayload), forgeHs256WithPublicKey(forgedPayload)]) {
+        security.isAccounting()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, res as unknown as Response, next)
+      }
+      expect(next.called).to.equal(false)
+      expect(res.status.alwaysCalledWith(403)).to.equal(true)
+    })
+
+    it('does not register forged tokens as authenticated users', () => {
+      for (const token of [forgeUnsigned(forgedPayload), forgeHs256WithPublicKey(forgedPayload)]) {
+        const res = { cookie: sinon.spy() }
+        const next = sinon.spy()
+        security.updateAuthenticatedUsers()({ cookies: { token }, headers: {} } as unknown as Request, res as unknown as Response, next)
+        expect(next.calledOnce).to.equal(true)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(res.cookie.called).to.equal(false)
+      }
     })
   })
 
