@@ -15,6 +15,7 @@ void describe('containsLink', () => {
     assert.ok(containsLink(`<a href="${paste}" rel="nofollow">${paste}</a>`, paste))
     assert.ok(containsLink(`&lt;a href=&quot;${paste}&quot;&gt;`, paste))
     assert.ok(containsLink(`(${paste})`, paste))
+    assert.ok(containsLink(`&lt;a href=&#39;${paste}&#39;&gt;`, paste))
   })
 
   void it('rejects the URL embedded in another host or path', () => {
@@ -24,6 +25,8 @@ void describe('containsLink', () => {
     assert.equal(containsLink('https://pastebin.com/4U1V1UjUx', paste), false)
     assert.equal(containsLink('http://pastebin.com/4U1V1UjU', paste), false)
     assert.equal(containsLink('https://user@evil.example/?u=https://pastebin.com/4U1V1UjU', paste), false)
+    assert.equal(containsLink('https://evil.example/?x=1&u=https://pastebin.com/4U1V1UjU', paste), false)
+    assert.equal(containsLink('<a href="https://evil.example/?x=1&amp;u=https://pastebin.com/4U1V1UjU">', paste), false)
   })
 
   void it('rejects bodies without the link', () => {

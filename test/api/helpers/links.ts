@@ -3,7 +3,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-const urlCandidate = /https?:\/\/[^\s"'<>&]+/g
+const urlCandidate = /https?:\/\/[^\s"'<>]+/g
+
+function decodeEntities (body: string): string {
+  return body
+    .replace(/&quot;/g, '"')
+    .replace(/&#0*39;|&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+}
 
 function parse (value: string): URL | null {
   try {
@@ -15,7 +24,7 @@ function parse (value: string): URL | null {
 
 export function containsLink (body: string, expected: string): boolean {
   const target = new URL(expected)
-  return (body.match(urlCandidate) ?? []).some((candidate) => {
+  return (decodeEntities(body).match(urlCandidate) ?? []).some((candidate) => {
     const url = parse(candidate)
     return url !== null &&
       url.protocol === target.protocol &&
