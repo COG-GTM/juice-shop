@@ -223,6 +223,31 @@ void describe('/file-upload', () => {
     assert.doesNotMatch(res.text, /root:.*:0:0:/)
   })
 
+  void itWhenXxeEnabled('POST XML whose internal entity replacement text is malformed does not solve the file disclosure challenge', async () => {
+    const challenge = challenges.xxeFileDisclosureChallenge
+    const wasSolved = challenge.solved
+    challenge.solved = false
+    try {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd"><!ENTITY bad "<x>&xxe;">]><foo>&bad;</foo>')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'malformedReplacement.xml')
+      assert.equal(res.status, 410)
+      assert.equal(challenge.solved, false)
+    } finally {
+      challenge.solved = wasSolved
+    }
+  })
+
+  void itWhenXxeEnabled('POST XML whose internal entity replacement text is well-formed markup solves the challenge without disclosing the file', async () => {
+    const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd"><!ENTITY ok "<x>&xxe;</x>">]><foo>&ok;</foo>')
+    const res = await uploadSolvesFileDisclosure(async () => await request(app)
+      .post('/file-upload')
+      .attach('file', payload, 'wellFormedReplacement.xml'))
+    assert.equal(res.status, 410)
+    assert.doesNotMatch(res.text, /root:.*:0:0:/)
+  })
+
   void itWhenXxeEnabled('POST XML with dev/random entity referenced through a hex character reference in an internal entity is treated as an attack', async () => {
     const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random"><!ENTITY wrap "&#x26;xxe;">]><foo>&wrap;</foo>')
     const res = await request(app)
