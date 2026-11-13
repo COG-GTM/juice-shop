@@ -89,6 +89,21 @@ void describe('/rest/user/login rate limiting', () => {
     assert.equal((await login('reset@rate.limit', 'right-password')).status, 200)
   })
 
+  void it('does not reset the account counter on a malformed login request', { timeout: 60000 }, async () => {
+    await register('malformed@rate.limit', 'right-password')
+
+    for (let i = 0; i < 9; i++) {
+      assert.equal((await login('malformed@rate.limit', 'wrong')).status, 401)
+    }
+    const malformed = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'malformed@rate.limit', password: { a: 1 } })
+    assert.notEqual(malformed.status, 200)
+    assert.equal((await login('malformed@rate.limit', 'wrong')).status, 401)
+    assert.equal((await login('malformed@rate.limit', 'right-password')).status, 429)
+  })
+
   void it('does not count correct passwords of 2FA users as failures', { timeout: 60000 }, async () => {
     for (let i = 0; i < 12; i++) {
       const res = await login(`wurstbrot@${config.get<string>('application.domain')}`, 'EinBelegtesBrotMitSchinkenSCHINKEN!')

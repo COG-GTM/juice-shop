@@ -36,6 +36,7 @@ const markPasswordValid = (req: Request, res: Response, next: NextFunction) => {
 }
 
 const passwordWasValid = (req: Request, res: Response) => res.statusCode !== 401 || res.locals.loginPasswordValid === true
+const passwordWasVerified = (res: Response) => res.statusCode < 400 || res.locals.loginPasswordValid === true
 
 export function loginRateLimit (): RequestHandler[] {
   const perClient = rateLimit({
@@ -67,7 +68,7 @@ export function loginRateLimit (): RequestHandler[] {
     const key = loginAccountKey(req)
     if (key !== undefined) {
       res.on('finish', () => {
-        if (passwordWasValid(req, res)) {
+        if (passwordWasVerified(res)) {
           void perAccount.resetKey(key)
         }
       })
