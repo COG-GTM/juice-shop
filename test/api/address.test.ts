@@ -186,3 +186,26 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data, 'Malicious activity detected.')
   })
 })
+
+void describe('/api/Addresss rate limiting', () => {
+  void it('returns 429 after 100 requests within the window for the same user', async () => {
+    const { token } = await login(app, {
+      email: 'amy@juice-sh.op',
+      password: 'K1f.....................'
+    })
+    const amyHeader = { Authorization: 'Bearer ' + token }
+    for (let i = 0; i < 100; i++) {
+      const res = await request(app).get('/api/Addresss').set(amyHeader)
+      assert.equal(res.status, 200)
+    }
+    const limited = await request(app).get('/api/Addresss').set(amyHeader)
+    assert.equal(limited.status, 429)
+    const limitedById = await request(app).delete('/api/Addresss/1').set(amyHeader)
+    assert.equal(limitedById.status, 429)
+  })
+
+  void it('does not share the limit between users', async () => {
+    const res = await request(app).get('/api/Addresss').set(authHeader)
+    assert.equal(res.status, 200)
+  })
+})

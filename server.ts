@@ -346,6 +346,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
+  app.use('/api/Addresss', rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 100,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: { trustProxy: false },
+    keyGenerator (req: Request) {
+      const user = security.authenticatedUsers.from(req)
+      return user?.data?.id !== undefined ? `user:${user.data.id}` : `ip:${req.socket.remoteAddress ?? ''}`
+    }
+  }))
 
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
