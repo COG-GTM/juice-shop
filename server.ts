@@ -264,7 +264,15 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
-  const fileAccessRateLimit = rateLimit({ windowMs: 60 * 1000, max: 300, validate: false })
+  const fileAccessLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, validate: false })
+  const fileAccessRateLimit = (req: Request, res: Response, next: NextFunction) => {
+    if (res.locals.fileAccessRateLimited) {
+      next()
+      return
+    }
+    res.locals.fileAccessRateLimited = true
+    void fileAccessLimiter(req, res, next)
+  }
   app.use(['/ftp', '/encryptionkeys', '/support/logs'], fileAccessRateLimit)
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge

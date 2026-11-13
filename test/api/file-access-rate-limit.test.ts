@@ -44,6 +44,15 @@ void describe('File access rate limiting', () => {
     }
   })
 
+  void it('counts a request only once when it falls through several limited routes', async () => {
+    for (let i = 0; i < LIMIT; i++) {
+      const res = await request(app).get('/dataerasure/doesnotexist').set('X-Forwarded-For', '203.0.113.5')
+      assert.notEqual(res.status, 429, `request ${i + 1} was rate limited`)
+    }
+    const res = await request(app).get('/dataerasure/doesnotexist').set('X-Forwarded-For', '203.0.113.5')
+    assert.equal(res.status, 429)
+  })
+
   void it('does not limit other clients or non-file routes', async () => {
     await exhaust('203.0.113.3', '/ftp/doesnotexist.md')
     const other = await request(app).get('/ftp/doesnotexist.md').set('X-Forwarded-For', '203.0.113.4')
