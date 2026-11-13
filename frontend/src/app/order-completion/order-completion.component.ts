@@ -94,9 +94,13 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
+    const pdfWindow = window.open('', '_blank')
     this.orderHistoryService.getConfirmation(this.orderId).subscribe({
-      next: (pdf: Blob) => { window.open(URL.createObjectURL(pdf), '_blank') },
-      error: (err) => { console.log(err) }
+      next: (pdf: Blob) => { if (pdfWindow) pdfWindow.location.href = URL.createObjectURL(pdf) },
+      error: (err) => {
+        pdfWindow?.close()
+        console.log(err)
+      }
     })
   }
 
