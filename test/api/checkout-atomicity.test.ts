@@ -39,8 +39,8 @@ async function customerWithBasket (email: string, quantity: number) {
   }
 }
 
-async function stock () {
-  return (await QuantityModel.findOne({ where: { ProductId } }))!.quantity
+async function stock (id = ProductId) {
+  return (await QuantityModel.findOne({ where: { ProductId: id } }))!.quantity
 }
 
 async function balance (UserId: number) {
@@ -91,5 +91,22 @@ void describe('/rest/basket/:id/checkout stock and wallet consistency', () => {
     assert.equal(res.body.error, 'We are out of stock! Sorry for the inconvenience.')
     assert.equal(await stock(), 2)
     assert.equal(await balance(UserId), price * 10)
+  })
+
+  void it('restores stock already reserved for earlier basket items when a later item is out of stock', async () => {
+    const { UserId, bid, authHeader } = await customerWithBasket('checkout-partial-stock@juice-sh.op', 3)
+    const otherProductId = ProductId === 1 ? 2 : 1
+    await BasketItemModel.create({ BasketId: bid, ProductId: otherProductId, quantity: 1 })
+    await WalletModel.update({ balance: price * 10 }, { where: { UserId } })
+    await QuantityModel.update({ quantity: 50 }, { where: { ProductId: otherProductId } })
+    await QuantityModel.update({ quantity: 2 }, { where: { ProductId } })
+
+    const res = await checkout(bid, authHeader)
+
+    assert.equal(res.status, 400)
+    assert.equal(await stock(otherProductId), 50)
+    assert.equal(await stock(), 2)
+    assert.equal(await balance(UserId), price * 10)
+    assert.equal(await BasketItemModel.count({ where: { BasketId: bid } }), 2)
   })
 })
