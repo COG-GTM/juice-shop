@@ -19,7 +19,7 @@ import * as utils from './utils'
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import * as z85 from 'z85'
 
-const loadJwtSigningKey = () => {
+export const loadJwtSigningKey = () => {
   const configuredKey = process.env.JWT_PRIVATE_KEY?.replace(/\\n/g, '\n')
   if (configuredKey) {
     return crypto.createPrivateKey(configuredKey)
