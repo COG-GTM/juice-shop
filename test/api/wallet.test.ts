@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { sessionLifetimeInSeconds } from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -44,6 +45,24 @@ void describe('/api/Wallets', () => {
     await request(app).post('/rest/user/logout').set(header).expect(204)
 
     await request(app).get('/rest/user/whoami').set(header)
+    const res = await request(app).get('/rest/wallet/balance').set(header)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET wallet is rejected for a token past its lifetime', async () => {
+    const { token } = await login(app, { email: 'demo', password: 'demo' })
+    const header = { Authorization: `Bearer ${token}` }
+    await request(app).get('/rest/wallet/balance').set(header).expect(200)
+
+    const now = Date.now()
+    const clock = mock.method(Date, 'now', () => now + (sessionLifetimeInSeconds + 1) * 1000)
+    try {
+      const res = await request(app).get('/rest/wallet/balance').set(header)
+      assert.equal(res.status, 401)
+    } finally {
+      clock.mock.restore()
+    }
+
     const res = await request(app).get('/rest/wallet/balance').set(header)
     assert.equal(res.status, 401)
   })

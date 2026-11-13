@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { sessionLifetimeInSeconds } from '../../lib/insecurity'
 
 let app: Express
 
@@ -146,6 +147,33 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('GET password change is rejected for a token past its lifetime', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'stale@to.ken', password: 'staleToken1' })
+      .expect(201)
+    const { token } = await login(app, { email: 'stale@to.ken', password: 'staleToken1' })
+
+    const now = Date.now()
+    const clock = mock.method(Date, 'now', () => now + (sessionLifetimeInSeconds + 1) * 1000)
+    try {
+      const res = await request(app)
+        .get('/rest/user/change-password?new=hijacked1&repeat=hijacked1')
+        .set({ Authorization: 'Bearer ' + token })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    } finally {
+      clock.mock.restore()
+    }
+
+    const res = await request(app)
+      .get('/rest/user/change-password?new=hijacked1&repeat=hijacked1')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 500)
+    await login(app, { email: 'stale@to.ken', password: 'staleToken1' })
   })
 
   void it('GET password change for Bender without current password using GET request', async () => {
