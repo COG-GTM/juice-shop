@@ -203,4 +203,23 @@ void describe('/rest/products/search', () => {
     assert.ok(searchRes.headers['content-type']?.includes('application/json'))
     assert.equal(searchRes.body.data.length, products.length)
   })
+
+  void it('GET product search with array search parameter ignores it and returns all products', async () => {
+    const productsRes = await request(app)
+      .get('/api/Products')
+    const products = productsRes.body.data
+
+    const searchRes = await request(app)
+      .get('/rest/products/search?q[]=o-saft')
+    assert.equal(searchRes.status, 200)
+    assert.ok(searchRes.headers['content-type']?.includes('application/json'))
+    assert.equal(searchRes.body.data.length, products.length)
+  })
+
+  void it('GET product search with object search parameter does not cause server error', async () => {
+    const res = await request(app)
+      .get('/rest/products/search?q[foo]=o-saft')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
 })
