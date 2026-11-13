@@ -264,6 +264,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  const fileAccessRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    validate: false,
+    skip: (req: Request, res: Response) => {
+      if (res.locals.fileAccessRateLimited) return true
+      res.locals.fileAccessRateLimited = true
+      return false
+    }
+  })
+  app.use(['/ftp', '/encryptionkeys', '/support/logs'], fileAccessRateLimit)
+
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
@@ -306,10 +318,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   app.use(bodyParser.urlencoded({ extended: true }))
   /* File Upload */
-  app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
+  app.post('/file-upload', fileAccessRateLimit, uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
+  app.use('/profile', fileAccessRateLimit)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
   app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
-  app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
+  app.post('/rest/memories', fileAccessRateLimit, uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
   app.use(function jsonParser (req: Request, res: Response, next: NextFunction) {
@@ -600,7 +613,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/user/authentication-details', utils.asyncHandler(authenticatedUsers()))
   app.get('/rest/products/search', utils.asyncHandler(searchProducts()))
   app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
-  app.post('/rest/basket/:id/checkout', placeOrder())
+  app.post('/rest/basket/:id/checkout', fileAccessRateLimit, placeOrder())
   app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
@@ -618,7 +631,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/saveLoginIp', utils.asyncHandler(saveLoginIp()))
   app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(verifyImageCaptcha()))
   app.post('/rest/user/data-export', security.appendUserId(), utils.asyncHandler(dataExport()))
-  app.get('/rest/languages', utils.asyncHandler(getLanguageList()))
+  app.get('/rest/languages', fileAccessRateLimit, utils.asyncHandler(getLanguageList()))
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
@@ -647,31 +660,32 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.post('/b2b/v2/orders', b2bOrder())
 
   /* File Serving */
+  app.use(['/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', '/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility'], fileAccessRateLimit)
   app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
   app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
   app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
-  app.use('/dataerasure', dataErasure)
+  app.use('/dataerasure', fileAccessRateLimit, dataErasure)
 
   /* Route for redirects */
   app.get('/redirect', performRedirect())
 
   /* Routes for promotion video page */
-  app.get('/promotion', promotionVideo())
-  app.get('/video', getVideo())
+  app.get('/promotion', fileAccessRateLimit, promotionVideo())
+  app.get('/video', fileAccessRateLimit, getVideo())
 
   /* Routes for profile page */
   app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
-  app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))
-  app.post('/snippets/verdict', utils.asyncHandler(checkVulnLines()))
-  app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
-  app.post('/snippets/fixes', utils.asyncHandler(checkCorrectFix()))
+  app.get('/snippets/:challenge', fileAccessRateLimit, utils.asyncHandler(serveCodeSnippet()))
+  app.post('/snippets/verdict', fileAccessRateLimit, utils.asyncHandler(checkVulnLines()))
+  app.get('/snippets/fixes/:key', fileAccessRateLimit, utils.asyncHandler(serveCodeFixes()))
+  app.post('/snippets/fixes', fileAccessRateLimit, utils.asyncHandler(checkCorrectFix()))
 
-  app.use(utils.asyncHandler(serveAngularClient()))
+  app.use(fileAccessRateLimit, utils.asyncHandler(serveAngularClient()))
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
