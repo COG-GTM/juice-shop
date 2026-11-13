@@ -51,7 +51,16 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const isAuthorized = () => {
+  const checkJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (isRevoked(utils.jwtFrom(req))) {
+      res.status(401).json({ status: 'error', message: 'Session has been logged out' })
+      return
+    }
+    checkJwt(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
@@ -66,6 +75,33 @@ export const bearerTokenFromSessionCookie = () => (req: Request, res: Response, 
     req.headers.authorization = `Bearer ${req.cookies.token}`
   }
   next()
+}
+
+const revokedTokens = new Map<string, number>()
+
+export const isRevoked = (token?: string) => {
+  const now = Date.now()
+  for (const [revoked, expiresAt] of revokedTokens) {
+    if (expiresAt <= now) revokedTokens.delete(revoked)
+  }
+  return token ? revokedTokens.has(utils.unquote(token)) : false
+}
+
+export const revokeToken = (token?: string) => {
+  if (!token) return
+  token = utils.unquote(token)
+  try {
+    if (!verify(token)) return
+  } catch {
+    return
+  }
+  const exp = decode(token)?.exp
+  revokedTokens.set(token, typeof exp === 'number' ? exp * 1000 : Date.now() + 6 * 60 * 60 * 1000)
+  const user = authenticatedUsers.tokenMap[token]
+  delete authenticatedUsers.tokenMap[token]
+  if (user?.data?.id !== undefined && authenticatedUsers.idMap[user.data.id] === token) {
+    delete authenticatedUsers.idMap[user.data.id]
+  }
 }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
@@ -84,6 +120,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
+    if (isRevoked(token)) return
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
@@ -200,7 +237,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
     jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
-      if (err === null) {
+      if (err === null && !isRevoked(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           setSessionCookie(res, token)
