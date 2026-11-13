@@ -100,6 +100,19 @@ void describe('/rest/memories', () => {
     assert.deepEqual(uploadedFiles('disguised'), filesBefore)
   })
 
+  void it('POST new memory with a truncated PNG is rejected and not kept on disk', async () => {
+    const token = await jimsToken()
+    const filesBefore = uploadedFiles('truncated')
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', Buffer.from('89504e470d0a1a0a', 'hex'), { filename: 'truncated.png', contentType: 'image/png' })
+      .field('caption', 'Truncated Image')
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Uploaded file is not a PNG or JPEG image')
+    assert.deepEqual(uploadedFiles('truncated'), filesBefore)
+  })
+
   void it('POST new memory image file invalid type', async () => {
     const file = path.resolve(__dirname, '../files/invalidProfileImageType.docx')
     const { token } = await login(app, {
