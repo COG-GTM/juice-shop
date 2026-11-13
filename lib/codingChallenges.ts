@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises'
+import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import yaml from 'js-yaml'
 import logger from './logger'
 
 export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data', './data/static/web3-snippets', './frontend/src/app', './models'])
@@ -109,4 +111,23 @@ export async function getCodeChallenges (): Promise<Map<string, CachedCodeChalle
     }
   }
   return _internalCodeChallenges
+}
+
+export interface CodingChallengeInfo {
+  fixes?: Array<{ id: number, explanation?: string }>
+  hints?: string[]
+}
+
+let codingChallengeInfoFiles: Map<string, string> | undefined
+const codingChallengeInfos = new Map<string, CodingChallengeInfo | null>()
+export function getCodingChallengeInfo (challengeKey: string): CodingChallengeInfo | null {
+  codingChallengeInfoFiles ??= new Map(readdirSync('./data/static/codefixes')
+    .filter(file => file.endsWith('.info.yml'))
+    .map(file => [file.slice(0, -'.info.yml'.length), path.join('./data/static/codefixes', file)]))
+  if (!codingChallengeInfos.has(challengeKey)) {
+    const infoFile = codingChallengeInfoFiles.get(challengeKey)
+    if (infoFile === undefined) return null
+    codingChallengeInfos.set(challengeKey, (yaml.load(readFileSync(infoFile, 'utf8')) ?? null) as CodingChallengeInfo | null)
+  }
+  return codingChallengeInfos.get(challengeKey) ?? null
 }
