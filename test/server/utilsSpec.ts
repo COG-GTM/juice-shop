@@ -5,12 +5,42 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import path from 'node:path'
+
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
 const expect = chai.expect
 
 describe('utils', () => {
+  describe('isPlainFileName', () => {
+    it('accepts plain file names', () => {
+      expect(utils.isPlainFileName('access.log.2026-10-26')).to.equal(true)
+      expect(utils.isPlainFileName('coupons_2013.md.bak%00.md')).to.equal(true)
+    })
+
+    it('rejects path separators, drive letters and null bytes', () => {
+      expect(utils.isPlainFileName('../package.json')).to.equal(false)
+      expect(utils.isPlainFileName('..\\package.json')).to.equal(false)
+      expect(utils.isPlainFileName('C:package.json')).to.equal(false)
+      expect(utils.isPlainFileName('package.json\0.md')).to.equal(false)
+    })
+
+    it('rejects Windows rooted names that path.win32.resolve would place outside the base folder', () => {
+      for (const name of ['\\Windows\\win.ini', 'C:\\Windows\\win.ini']) {
+        const base = path.win32.resolve('C:\\juice-shop\\encryptionkeys')
+        expect(path.win32.resolve(base, name).startsWith(base + path.win32.sep)).to.equal(false)
+        expect(utils.isPlainFileName(name)).to.equal(false)
+      }
+    })
+
+    it('rejects empty and dot-only names', () => {
+      expect(utils.isPlainFileName('')).to.equal(false)
+      expect(utils.isPlainFileName('.')).to.equal(false)
+      expect(utils.isPlainFileName('..')).to.equal(false)
+    })
+  })
+
   describe('toSimpleIpAddress', () => {
     it('returns ipv6 address unchanged', () => {
       expect(utils.toSimpleIpAddress('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).to.equal('2001:0db8:85a3:0000:0000:8a2e:0370:7334')

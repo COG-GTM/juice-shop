@@ -167,6 +167,20 @@ void describe('/ftp', () => {
     assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
   })
 
+  void it('GET a file whose name contains a "\\" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/..%5Cdata%5Cjuiceshop.sqlite%2500.md')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Invalid file name!'))
+  })
+
+  void it('GET a quarantined file whose name contains a "\\" fails with a 403 error', async () => {
+    const res = await request(app)
+      .get('/ftp/quarantine/..%5C..%5Cpackage.json')
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Invalid file name!'))
+  })
+
   void it('GET an accessible file directly from file system path on server', async () => {
     const res = await request(app)
       .get('/ftp/legal.md')
