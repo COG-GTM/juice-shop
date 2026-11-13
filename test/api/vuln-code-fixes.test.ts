@@ -93,6 +93,20 @@ void describe('/snippets/fixes', () => {
     assert.equal(res.body.error, 'No fixes found for the snippet!')
   })
 
+  for (const key of ['__proto__', 'constructor', 'toString', 'accessLogDisclosureChallenge_1', ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }]) {
+    void it(`POST fix for key ${JSON.stringify(key)} that is not a coding challenge is rejected`, async () => {
+      const res = await request(app)
+        .post('/snippets/fixes')
+        .send({
+          key,
+          selectedFix: 0
+        })
+
+      assert.equal(res.status, 404)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    })
+  }
+
   void it('POST wrong fix for existing challenge key gives negative verdict and explanation', async () => {
     const res = await request(app)
       .post('/snippets/fixes')
