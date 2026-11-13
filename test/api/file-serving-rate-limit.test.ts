@@ -30,9 +30,12 @@ void describe('File serving rate limit', () => {
 
   void it('GET on file serving routes is rejected with 429 once 300 requests per minute are exceeded', async () => {
     const paths = ['/ftp/legal.md', '/.well-known/csaf/provider-metadata.json', '/encryptionkeys/jwt.pub', '/support/logs']
-    for (let i = 1; i < 300; i++) {
+    let remaining = Infinity
+    for (let i = 0; remaining > 0; i++) {
+      assert.ok(i < 300, 'rate limit allowed more than 300 requests')
       const res = await request(server).get(paths[i % paths.length])
-      assert.notEqual(res.status, 429, `request ${i + 1} to ${paths[i % paths.length]} was rate limited`)
+      assert.notEqual(res.status, 429, `request to ${paths[i % paths.length]} was rate limited with ${remaining} requests remaining`)
+      remaining = Number(/remaining=(\d+)/.exec(res.headers.ratelimit ?? '')?.[1])
     }
     for (const path of paths) {
       const res = await request(server).get(path)
