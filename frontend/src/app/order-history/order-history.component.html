@@ -71,7 +71,7 @@
                 <ng-container matColumnDef="review">
                   <mat-header-cell *matHeaderCellDef></mat-header-cell>
                   <mat-cell *matCellDef="let element">
-                    <button mat-icon-button aria-label="Print order confirmation" matTooltip="{{ 'WRITE_REVIEW' | translate }}" matTooltipPosition="below"
+                    <button mat-icon-button [attr.aria-label]="'WRITE_REVIEW' | translate" matTooltip="{{ 'WRITE_REVIEW' | translate }}" matTooltipPosition="below"
                       (click)="showDetail(element.id)">
                       <mat-icon>rate_review</mat-icon>
                     </button>
