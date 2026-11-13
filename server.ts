@@ -305,6 +305,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(i18n.init)
 
   app.use(bodyParser.urlencoded({ extended: true }))
+  /* Shared limit for database-backed profile and data erasure routes */
+  const profileRateLimit = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 100,
+    keyGenerator: (req: Request) => utils.rateLimitClientKey(req.socket.remoteAddress),
+    validate: false
+  })
+  app.use(['/profile', '/dataerasure'], profileRateLimit)
   /* File Upload */
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))

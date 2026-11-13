@@ -29,6 +29,30 @@ describe('utils', () => {
     })
   })
 
+  describe('rateLimitClientKey', () => {
+    it('returns ipv4 address unchanged', () => {
+      expect(utils.rateLimitClientKey('192.0.2.1')).to.equal('192.0.2.1')
+    })
+
+    it('returns ipv4-mapped address unchanged', () => {
+      expect(utils.rateLimitClientKey('::ffff:192.0.2.1')).to.equal('::ffff:192.0.2.1')
+    })
+
+    it('groups ipv6 addresses of the same /64 prefix under one key', () => {
+      expect(utils.rateLimitClientKey('2001:db8:85a3:1:aaaa::1')).to.equal('2001:db8:85a3:1::/64')
+      expect(utils.rateLimitClientKey('2001:0DB8:85a3:0001:ffff:ffff:ffff:ffff')).to.equal('2001:db8:85a3:1::/64')
+    })
+
+    it('expands compressed ipv6 addresses before taking the /64 prefix', () => {
+      expect(utils.rateLimitClientKey('2001:db8::1')).to.equal('2001:db8:0:0::/64')
+      expect(utils.rateLimitClientKey('::1')).to.equal('0:0:0:0::/64')
+    })
+
+    it('returns empty string for missing address', () => {
+      expect(utils.rateLimitClientKey(undefined)).to.equal('')
+    })
+  })
+
   describe('extractFilename', () => {
     it('returns standalone filename unchanged', () => {
       expect(utils.extractFilename('test.exe')).to.equal('test.exe')
