@@ -104,7 +104,6 @@
   "INVALID_MESSAGE_LENGTH": "Text length must be {{length}} characters.",
   "INVALID_FILE_SIZE": "File too large. Maximum {{size}} allowed.",
   "INVALID_FILE_TYPE": "Forbidden file type. Only {{type}} allowed.",
-  "FILE_UPLOAD_REJECTED": "The attached file was rejected. ZIP archives may contain at most 100 files and 10 MB uncompressed.",
   "LABEL_CUSTOMER": "Customer",
   "LABEL_MESSAGE": "Message",
   "LABEL_INVOICE": "Invoice",
