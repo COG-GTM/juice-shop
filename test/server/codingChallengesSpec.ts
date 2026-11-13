@@ -31,6 +31,19 @@ describe('codingChallenges', () => {
     expect(matches.find(match => match.path.endsWith('a.ts'))?.content).to.equal('// vuln-code' + '-snippet start aChallenge\n')
   })
 
+  it('should not follow symlinks to files outside the snippet paths', async function () {
+    if (process.platform === 'win32') this.skip()
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'codingChallenges-outside-'))
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.ts'), '// vuln-code' + '-snippet start leaked\n')
+      fs.symlinkSync(path.join(outside, 'secret.ts'), path.join(dir, 'link.ts'))
+      const matches = await findFilesWithCodeChallenges([dir])
+      expect(matches.map(match => path.relative(dir, match.path)).sort()).to.deep.equal(['a.ts', path.join('sub', 'b.py')])
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   it('should skip paths that do not exist', async () => {
     const matches = await findFilesWithCodeChallenges([path.join(dir, 'missing.ts'), path.join(dir, 'a.ts')])
     expect(matches.map(match => path.relative(dir, match.path))).to.deep.equal(['a.ts'])

@@ -22,6 +22,8 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
     try {
       handle = await fs.open(currPath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0))
       if ((await handle.stat()).isDirectory()) {
+        await handle.close()
+        handle = undefined
         const files = await fs.readdir(currPath)
         const moreMatches = await findFilesWithCodeChallenges(
           files.map(file => path.resolve(currPath, file))
