@@ -13,17 +13,17 @@ import * as utils from '../lib/utils'
 
 export function createProductReviews () {
   return async (req: Request, res: Response) => {
-    const user = security.authenticatedUsers.from(req)
-    challengeUtils.solveIf(
-      challenges.forgedReviewChallenge,
-      () => user?.data?.email !== req.body.author
-    )
+    const author = security.authenticatedUsers.from(req)?.data?.email
+    if (!author) {
+      return res.status(401).json({ status: 'error', message: 'Unauthorized' })
+    }
+    challengeUtils.solveIf(challenges.forgedReviewChallenge, () => typeof req.body.author === 'string' && req.body.author !== 'Anonymous' && req.body.author !== author)
 
     try {
       await reviewsCollection.insert({
         product: req.params.id,
         message: req.body.message,
-        author: req.body.author,
+        author,
         likesCount: 0,
         likedBy: []
       })
