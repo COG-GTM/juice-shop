@@ -61,6 +61,7 @@ void describe('/rest/basket/:id', () => {
   })
 
   void it('GET basket of another user is not allowed but still solves "View Basket"', async () => {
+    challenges.basketAccessChallenge.solved = false
     const res = await request(app).get('/rest/basket/1').set(authHeader)
     assert.equal(res.status, 403)
     assert.equal(res.body.data, undefined)
