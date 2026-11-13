@@ -147,3 +147,27 @@ void describe('/file-upload', () => {
     assert.ok(res.text.includes('Unexpected end of form'))
   })
 })
+
+void describe('/file-upload rate limiting', () => {
+  void it('POST allows 100 requests per window and rejects the next one with 429', async () => {
+    const first = await request(app).post('/file-upload')
+    assert.equal(first.status, 400)
+    assert.equal(first.headers['x-ratelimit-limit'], '100')
+    const remaining = Number(first.headers['x-ratelimit-remaining'])
+    assert.ok(remaining > 0)
+    for (let i = 0; i < remaining; i++) {
+      const res = await request(app).post('/file-upload')
+      assert.equal(res.status, 400)
+    }
+    const res = await request(app).post('/file-upload')
+    assert.equal(res.status, 429)
+  })
+
+  for (const route of ['/profile/image/file', '/profile/image/url', '/rest/memories']) {
+    void it(`POST ${route} is rate-limited to 100 requests per window`, async () => {
+      const res = await request(app).post(route)
+      assert.equal(res.headers['x-ratelimit-limit'], '100')
+      assert.ok(Number(res.headers['x-ratelimit-remaining']) < 100)
+    })
+  }
+})
