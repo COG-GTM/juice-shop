@@ -6,6 +6,7 @@
 import chai from 'chai'
 import sinon from 'sinon'
 import http from 'node:http'
+import dns from 'node:dns'
 import net, { type AddressInfo } from 'node:net'
 import * as security from '../../lib/insecurity'
 import { UserModel } from '../../models/user'
@@ -134,6 +135,23 @@ describe('profileImageUrlUpload', () => {
       }
       expect((error as Error).message).to.match(/empty body/)
     })
+  })
+
+  it('should block hostnames resolving to any disallowed address', async () => {
+    const lookup = sinon.stub(dns, 'lookup').callsFake(((hostname: string, options: unknown, callback: (err: Error | null, addresses: dns.LookupAddress[]) => void) => {
+      callback(null, [{ address: '8.8.8.8', family: 4 }, { address: '127.0.0.1', family: 4 }])
+    }) as any)
+    let error: unknown
+    try {
+      await fetchExternalImage(`http://mixed.example.test:${port}/`)
+    } catch (err) {
+      error = err
+    } finally {
+      lookup.restore()
+    }
+    expect(lookup.calledWith('mixed.example.test')).to.equal(true)
+    expect((error as Error).message).to.equal('Blocked request to disallowed address of mixed.example.test')
+    expect(hits).to.equal(0)
   })
 
   it('should block non-HTTP protocols', async () => {
