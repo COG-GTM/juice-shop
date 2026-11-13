@@ -264,6 +264,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     next()
   }
 
+  /* Rate limiting for file system backed routes */
+  const fileServingRateLimit = rateLimit({ windowMs: 60 * 1000, max: 100 })
+  app.use('/ftp', fileServingRateLimit)
+  app.use('/.well-known', fileServingRateLimit)
+  app.use('/encryptionkeys', fileServingRateLimit)
+  app.use('/support/logs', fileServingRateLimit)
+
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
