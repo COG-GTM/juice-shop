@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
+import { checkVulnLines, retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
 import { checkCorrectFix, readFixes } from '../../routes/vulnCodeFixes'
 import { getCodingChallengeInfo, loadCodingChallengeInfos, parseCodingChallengeInfo } from '../../lib/codingChallenges'
 import chai from 'chai'
@@ -152,5 +152,39 @@ describe('checkCorrectFix', () => {
   it('should reject non-string keys', async () => {
     const result = await callCheckCorrectFix({ toString: () => 'resetPasswordBenderChallenge' } as any, 0)
     expect(result.status).to.equal(404)
+  })
+})
+
+describe('checkVulnLines', () => {
+  const infoFile = './data/static/codefixes/loginAdminChallenge.info.yml'
+  const maliciousInfo = 'hints:\n  length:\n    valueOf: !!js/function "function () { globalThis.__checkVulnLinesExecuted = true; return 0 }"\n'
+
+  const callCheckVulnLines = async (key: string, selectedLines: number[]) => {
+    const result: { status?: number, body?: any } = {}
+    const res: any = {
+      __: (text: string) => text,
+      status (code: number) { result.status = code; return this },
+      json (body: unknown) { result.body = body; return this }
+    }
+    await checkVulnLines()({ body: { key, selectedLines } } as any, res, () => {})
+    return result
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).__checkVulnLinesExecuted
+  })
+
+  it('should not execute a !!js/function valueOf planted as hints.length in an existing info file', async () => {
+    const original = fs.readFileSync(infoFile, 'utf8')
+    try {
+      fs.writeFileSync(infoFile, maliciousInfo)
+      const result = await callCheckVulnLines('loginAdminChallenge', [])
+      expect((globalThis as any).__checkVulnLinesExecuted).to.equal(undefined)
+      expect(result.status).to.equal(200)
+      expect(result.body.verdict).to.equal(false)
+      expect(getCodingChallengeInfo('loginAdminChallenge')?.hints).to.deep.equal(parseCodingChallengeInfo(original).hints)
+    } finally {
+      fs.writeFileSync(infoFile, original)
+    }
   })
 })
