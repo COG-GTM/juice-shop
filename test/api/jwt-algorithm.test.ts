@@ -157,12 +157,17 @@ void describe('forged tokens on account takeover routes', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('does not let a forged token registered via /rest/user/whoami change the victim password', async () => {
-    for (const token of [unsigned(jim), hs256WithPublicKey(jim)]) {
+  void it('does not let a forged token registered via /rest/user/whoami change the administrator password', async () => {
+    const admin = { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+    for (const token of [unsigned(admin), hs256WithPublicKey(admin)]) {
       await request(app).get('/rest/user/whoami').set(bearer(token))
-      const res = await request(app).get('/rest/user/change-password?new=hacked123&repeat=hacked123').set(bearer(token))
-      assert.notEqual(res.status, 200)
       assert.equal(security.authenticatedUsers.get(token), undefined)
+      for (const body of [{ new: 'hacked123', repeat: 'hacked123' }, { current: 'admin123', new: 'hacked123', repeat: 'hacked123' }]) {
+        const res = await request(app).post('/rest/user/change-password').set(bearer(token)).send(body)
+        assert.equal(res.status, 401)
+      }
     }
+    const login = await request(app).post('/rest/user/login').set('content-type', 'application/json').send({ email: admin.email, password: 'admin123' })
+    assert.equal(login.status, 200)
   })
 })

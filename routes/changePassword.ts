@@ -12,7 +12,7 @@ import * as utils from '../lib/utils'
 
 export function changePassword () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const { body, headers, connection } = req
+    const { body, headers } = req
     const currentPassword: string | null = typeof body?.current === 'string' ? body.current : null
     const newPassword = typeof body?.new === 'string' ? body.new : ''
     const repeatPassword = body?.repeat
@@ -26,14 +26,9 @@ export function changePassword () {
     }
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
-    if (token === null || !security.verify(token)) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
-      return
-    }
-
-    const loggedInUser = security.authenticatedUsers.get(token)
-    if (!loggedInUser) {
-      next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
+    const loggedInUser = token !== null && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    if (token === null || !loggedInUser) {
+      res.status(401).send('Invalid or expired authentication token.')
       return
     }
 

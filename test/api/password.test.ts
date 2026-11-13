@@ -313,10 +313,7 @@ void describe('/rest/user/change-password', () => {
       .set(jsonHeader)
       .send({ new: 'foo', repeat: 'foo' })
 
-    assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(res.status, 401)
   })
 
   void it('POST password change with passing unrecognized authorization token', async () => {
@@ -325,10 +322,7 @@ void describe('/rest/user/change-password', () => {
       .set({ ...jsonHeader, Authorization: 'Bearer unknown' })
       .send({ new: 'foo', repeat: 'foo' })
 
-    assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.equal(res.status, 401)
   })
 
   void it('POST password change for Bender without current password is rejected', async () => {

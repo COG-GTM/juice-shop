@@ -68,7 +68,11 @@ export const denyAll = () => (req: Request, res: Response, next: NextFunction) =
   next(new UnauthorizedError('invalid_token', { message: 'Access denied' }))
 }
 const tokenLifetimeSeconds = 6 * 60 * 60
-export const authorize = (user = {}) => jwt.sign({ exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user, jti: crypto.randomUUID() }, privateKey, { algorithm: 'RS256', allowInsecureKeySizes: true })
+export const authorize = (user = {}) => {
+  const claims: Record<string, unknown> = { exp: Math.floor(Date.now() / 1000) + tokenLifetimeSeconds, ...user, jti: crypto.randomUUID() }
+  if (claims.exp === undefined) delete claims.exp
+  return jwt.sign(claims, privateKey, { algorithm: 'RS256', allowInsecureKeySizes: true })
+}
 export const verify = (token: string) => {
   if (!token || isRevoked(token) || isExpired(token)) return false
   try {
