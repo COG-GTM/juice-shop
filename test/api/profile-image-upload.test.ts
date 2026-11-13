@@ -9,8 +9,10 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 
@@ -71,6 +73,10 @@ void describe('/profile/image/file', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+    const uploads = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+    const userId = security.authenticatedUsers.get(token)?.data.id
+    assert.ok(fs.existsSync(path.join(uploads, `${userId}.png`)))
+    assert.ok(!fs.existsSync(path.join(uploads, `${userId}.jpg`)))
   })
 
   void it('POST profile image file rejects image types outside the allowlist', async () => {
