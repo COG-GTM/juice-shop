@@ -12,10 +12,17 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND password = '${security.hash(req.body.password || '')}' AND deletedAt IS NULL`,
+    models.sequelize.query(`SELECT * FROM Users WHERE email = :mail AND deletedAt IS NULL`,
       { replacements: { mail: req.body.email }, model: models.User, plain: true })
-      .then((authenticatedUser) => {
+      .then(async (authenticatedUser) => {
         const user = utils.queryResultToJson(authenticatedUser)
+        if (!security.verifyPassword(req.body.password, user.data?.password)) {
+          res.status(401).send(res.__('Invalid email or password.'))
+          return
+        }
+        if (user.data && security.isLegacyPasswordHash(user.data.password)) {
+          await upgradeLegacyPasswordHash(user.data, req.body.password)
+        }
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
             status: 'totp_token_required',

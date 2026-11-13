@@ -7,14 +7,18 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import config from 'config'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+let sequelize: Sequelize
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
 
 void describe('/rest/user/login', () => {
@@ -152,7 +156,7 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
+  void it('POST login rejects WHERE-clause disabling SQL injection attack without the correct password', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -161,12 +165,10 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
-  void it('POST login with known email "admin@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login rejects known email "admin@juice-sh.op" in SQL injection attack without the correct password', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -175,12 +177,10 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
-  void it('POST login with known email "jim@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login rejects known email "jim@juice-sh.op" in SQL injection attack without the correct password', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -189,12 +189,10 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
-  void it('POST login with known email "bender@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login rejects known email "bender@juice-sh.op" in SQL injection attack without the correct password', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -203,12 +201,10 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
-  void it('POST login with non-existing email "acc0unt4nt@juice-sh.op" via UNION SELECT injection attack', async () => {
+  void it('POST login rejects non-existing email "acc0unt4nt@juice-sh.op" via UNION SELECT injection attack without the correct password', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -217,9 +213,36 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST login with UNION SELECT injected legacy hash does not overwrite the real legacy password of the referenced user', async () => {
+    const domain = config.get<string>('application.domain')
+    const md5 = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+    const injectedHash = md5('hacked')
+    await sequelize.query(`UPDATE Users SET password = '${md5('ncc-1701')}' WHERE id = 2`)
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: `' UNION SELECT * FROM (SELECT 2 as 'id', '' as 'username', 'jim@${domain}' as 'email', '${injectedHash}' as 'password', 'customer' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
+        password: 'hacked'
+      })
+
+    const attackerLogin = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `jim@${domain}`, password: 'hacked' })
+    assert.equal(attackerLogin.status, 401)
+
+    const victimLogin = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `jim@${domain}`, password: 'ncc-1701' })
+    assert.equal(victimLogin.status, 200)
+
+    const [rows] = await sequelize.query('SELECT password FROM Users WHERE id = 2')
+    assert.match((rows as Array<{ password: string }>)[0].password, /^scrypt\$/)
   })
 
   void it('POST login with query-breaking SQL Injection attack', async () => {
