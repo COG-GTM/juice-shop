@@ -1,4 +1,4 @@
-import fs from 'node:fs/promises'
+import fs, { type FileHandle } from 'node:fs/promises'
 import path from 'node:path'
 import logger from './logger'
 
@@ -18,15 +18,24 @@ interface CachedCodeChallenge {
 export const findFilesWithCodeChallenges = async (paths: readonly string[]): Promise<FileMatch[]> => {
   const matches = []
   for (const currPath of paths) {
+    let handle: FileHandle | undefined
     try {
-      if ((await fs.lstat(currPath)).isDirectory()) {
+      handle = await fs.open(currPath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0))
+      const stats = await handle.stat({ bigint: true })
+      const linkStats = await fs.lstat(currPath, { bigint: true })
+      if (linkStats.isSymbolicLink() || linkStats.dev !== stats.dev || linkStats.ino !== stats.ino) {
+        throw new Error(`${currPath} is a link or was replaced while being read`)
+      }
+      if (stats.isDirectory()) {
+        await handle.close()
+        handle = undefined
         const files = await fs.readdir(currPath)
         const moreMatches = await findFilesWithCodeChallenges(
           files.map(file => path.resolve(currPath, file))
         )
         matches.push(...moreMatches)
       } else {
-        const code = await fs.readFile(currPath, 'utf8')
+        const code = await handle.readFile('utf8')
         if (
           // strings are split so that it doesn't find itself...
           code.includes('// vuln-code' + '-snippet start') ||
@@ -37,6 +46,8 @@ export const findFilesWithCodeChallenges = async (paths: readonly string[]): Pro
       }
     } catch (e) {
       logger.warn(`File ${currPath} could not be read. it might have been moved or deleted. If coding challenges are contained in the file, they will not be available.`)
+    } finally {
+      await handle?.close()
     }
   }
 

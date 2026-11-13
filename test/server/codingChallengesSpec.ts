@@ -1,0 +1,73 @@
+/*
+ * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
+ * SPDX-License-Identifier: MIT
+ */
+
+import chai from 'chai'
+import sinon from 'sinon'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { findFilesWithCodeChallenges } from '../../lib/codingChallenges'
+const expect = chai.expect
+
+describe('codingChallenges', () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'codingChallenges-'))
+    fs.writeFileSync(path.join(dir, 'a.ts'), '// vuln-code' + '-snippet start aChallenge\n')
+    fs.writeFileSync(path.join(dir, 'plain.ts'), 'const x = 1\n')
+    fs.mkdirSync(path.join(dir, 'sub'))
+    fs.writeFileSync(path.join(dir, 'sub', 'b.py'), '# vuln-code' + '-snippet start bChallenge\n')
+  })
+
+  afterEach(() => {
+    sinon.restore()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('should find files with code challenges in nested directories', async () => {
+    const matches = await findFilesWithCodeChallenges([dir])
+    expect(matches.map(match => path.relative(dir, match.path)).sort()).to.deep.equal(['a.ts', path.join('sub', 'b.py')])
+    expect(matches.find(match => match.path.endsWith('a.ts'))?.content).to.equal('// vuln-code' + '-snippet start aChallenge\n')
+  })
+
+  it('should not follow symlinks to files outside the snippet paths', async function () {
+    if (process.platform === 'win32') this.skip()
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'codingChallenges-outside-'))
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.ts'), '// vuln-code' + '-snippet start leaked\n')
+      fs.symlinkSync(path.join(outside, 'secret.ts'), path.join(dir, 'link.ts'))
+      const matches = await findFilesWithCodeChallenges([dir])
+      expect(matches.map(match => path.relative(dir, match.path)).sort()).to.deep.equal(['a.ts', path.join('sub', 'b.py')])
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('should not follow directory links or junctions to outside directories', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'codingChallenges-outside-'))
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.ts'), '// vuln-code' + '-snippet start leaked\n')
+      fs.symlinkSync(outside, path.join(dir, 'linkedDir'), 'junction')
+      const matches = await findFilesWithCodeChallenges([dir])
+      expect(matches.map(match => path.relative(dir, match.path)).sort()).to.deep.equal(['a.ts', path.join('sub', 'b.py')])
+    } finally {
+      fs.rmSync(path.join(dir, 'linkedDir'), { force: true })
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('should read file content from the checked file handle instead of re-reading the path', async () => {
+    const readFileByPath = sinon.stub(fs.promises, 'readFile').resolves('// vuln-code' + '-snippet start swapped\n')
+    const matches = await findFilesWithCodeChallenges([path.join(dir, 'a.ts')])
+    expect(matches.map(match => match.content)).to.deep.equal(['// vuln-code' + '-snippet start aChallenge\n'])
+    expect(readFileByPath.called).to.equal(false)
+  })
+
+  it('should skip paths that do not exist', async () => {
+    const matches = await findFilesWithCodeChallenges([path.join(dir, 'missing.ts'), path.join(dir, 'a.ts')])
+    expect(matches.map(match => path.relative(dir, match.path))).to.deep.equal(['a.ts'])
+  })
+})
