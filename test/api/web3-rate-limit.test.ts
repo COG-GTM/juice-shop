@@ -32,6 +32,14 @@ void describe('/rest/web3 rate limiting', () => {
     assert.equal(res.status, 429)
   })
 
+  void it('rotating X-Forwarded-For does not reset the limit', async () => {
+    const res = await request(app)
+      .post('/rest/web3/walletNFTVerify')
+      .set('X-Forwarded-For', '203.0.113.42')
+      .send({ walletAddress: '0x0000000000000000000000000000000000000000' })
+    assert.equal(res.status, 429)
+  })
+
   void it('limit is shared across all /rest/web3 endpoints', async () => {
     const res = await request(app)
       .get('/rest/web3/nftUnlocked')
