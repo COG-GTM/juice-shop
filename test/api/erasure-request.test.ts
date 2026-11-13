@@ -87,6 +87,19 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST erasure request ignores template options injected via request body', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .send({ settings: { 'view options': { layout: '../package.json' } } })
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('Sorry to see you leave!'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
+
   void it('POST erasure request with non-existing file path as layout parameter throws error', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
