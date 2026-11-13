@@ -26,9 +26,14 @@ void describe('file-serving rate limit', () => {
   })
 
   void it('blocks file-serving routes once the shared per-client limit is exhausted, even with rotating X-Forwarded-For', async () => {
-    for (let i = 2; i < LIMIT; i++) {
-      const res = await request(app).get(EASTER_EGG).set('X-Forwarded-For', `10.0.${Math.floor(i / 256)}.${i % 256}`)
-      assert.equal(res.status, 200, `request ${i + 1} should not be limited`)
+    const first = await request(app).get(EASTER_EGG).set('X-Forwarded-For', '10.0.0.1')
+    assert.equal(first.status, 200)
+    assert.equal(Number(first.headers['x-ratelimit-limit']), LIMIT)
+    const remaining = Number(first.headers['x-ratelimit-remaining'])
+
+    for (let i = 0; i < remaining; i++) {
+      const res = await request(app).get(EASTER_EGG).set('X-Forwarded-For', `10.1.${Math.floor(i / 256)}.${i % 256}`)
+      assert.equal(res.status, 200, `request ${i + 2} after the first should not be limited`)
     }
 
     for (const path of ['/promotion', '/video', EASTER_EGG]) {
