@@ -267,6 +267,15 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.body.lastLoginIp, '1.2.3.4')
   })
 
+  void it('GET last login IP keeps IPv4-mapped IPv6 True-Client-IP values valid', async () => {
+    const dotted = await saveLoginIp({ 'true-client-ip': '::ffff:1.2.3.4' })
+    assert.equal(dotted.body.lastLoginIp, '1.2.3.4')
+
+    const hex = await saveLoginIp({ 'true-client-ip': '::ffff:c000:280' })
+    assert.equal(hex.body.lastLoginIp, '::ffff:c000:280')
+    assert.notEqual(isIP(hex.body.lastLoginIp), 0)
+  })
+
   void it('GET last login IP falls back to remote IP when True-Client-IP is not a valid IP address', async () => {
     const remoteIp = (await saveLoginIp()).body.lastLoginIp
     const res = await saveLoginIp({ 'true-client-ip': '1.2.3.4, 5.6.7.8' })
