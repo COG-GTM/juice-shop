@@ -5,6 +5,8 @@
 
 import type { ChallengeModel } from 'models/challenge'
 
+import path from 'node:path'
+
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
@@ -22,6 +24,14 @@ describe('utils', () => {
       expect(utils.isPlainFileName('..\\package.json')).to.equal(false)
       expect(utils.isPlainFileName('C:package.json')).to.equal(false)
       expect(utils.isPlainFileName('package.json\0.md')).to.equal(false)
+    })
+
+    it('rejects Windows rooted names that path.win32.resolve would place outside the base folder', () => {
+      for (const name of ['\\Windows\\win.ini', 'C:\\Windows\\win.ini']) {
+        const base = path.win32.resolve('C:\\juice-shop\\encryptionkeys')
+        expect(path.win32.resolve(base, name).startsWith(base + path.win32.sep)).to.equal(false)
+        expect(utils.isPlainFileName(name)).to.equal(false)
+      }
     })
 
     it('rejects empty and dot-only names', () => {

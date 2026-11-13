@@ -137,4 +137,16 @@ describe('fileServer', () => {
     expect(res.sendFile).to.have.been.calledWith('suspicious_errors.yml', sinon.match.has('root', sinon.match(/ftp$/)))
     expect(challenges.misplacedSignatureFileChallenge.solved).to.equal(true)
   })
+
+  for (const rootedName of ['\\Windows\\win.ini', 'C:\\Windows\\win.ini', '\\juice-shop\\data\\juiceshop.sqlite']) {
+    it(`should raise error for Windows rooted filename ${rootedName}`, () => {
+      req.params.file = rootedName + '%00.md'
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(403)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
 })
