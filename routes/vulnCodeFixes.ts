@@ -13,13 +13,15 @@ interface codeFix {
   correct: number
 }
 
-type cache = Record<string, codeFix>
+const CodeFixes = new Map<string, codeFix>()
 
-const CodeFixes: cache = {}
-
-export const readFixes = (key: string) => {
-  if (CodeFixes[key]) {
-    return CodeFixes[key]
+export const readFixes = (key: string): codeFix => {
+  if (typeof key !== 'string') {
+    return { fixes: [], correct: -1 }
+  }
+  const cached = CodeFixes.get(key)
+  if (cached) {
+    return cached
   }
   const files = fs.readdirSync(FixesDir)
   const fixes: string[] = []
@@ -37,11 +39,11 @@ export const readFixes = (key: string) => {
     }
   }
 
-  CodeFixes[key] = {
-    fixes,
-    correct
+  const fixData = { fixes, correct }
+  if (fixes.length > 0) {
+    CodeFixes.set(key, fixData)
   }
-  return CodeFixes[key]
+  return fixData
 }
 
 interface FixesRequestParams {
