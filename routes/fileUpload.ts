@@ -185,7 +185,11 @@ function areReplacementsWellFormed (keys: string[], declarations: Map<string, { 
   }
 }
 
+const reachingExternalCache = new WeakMap<Map<string, { external: boolean, value: string }>, Set<string>>()
+
 function entitiesReachingExternal (declarations: Map<string, { external: boolean, value: string }>) {
+  const cached = reachingExternalCache.get(declarations)
+  if (cached !== undefined) return cached
   const referrers = new Map<string, string[]>()
   const reaching = new Set<string>()
   const pending: string[] = []
@@ -210,17 +214,14 @@ function entitiesReachingExternal (declarations: Map<string, { external: boolean
       }
     }
   }
+  reachingExternalCache.set(declarations, reaching)
   return reaching
 }
 
 const entityReferenceAt = /&([^\s;&%#<>"'[\]]+);/y
 
 function stripDeclaredReferences (text: string, declarations: Map<string, { external: boolean, value: string }>) {
-  let reachingExternal: Set<string> | undefined
-  const isExternal = (key: string) => {
-    reachingExternal ??= entitiesReachingExternal(declarations)
-    return reachingExternal.has(key)
-  }
+  const isExternal = (key: string) => entitiesReachingExternal(declarations).has(key)
   let result = ''
   let index = 0
   while (index < text.length) {

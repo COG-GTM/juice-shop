@@ -239,6 +239,19 @@ void describe('/file-upload', () => {
     }
   })
 
+  void itWhenXxeEnabled('POST XML with many internal entities containing attribute references is validated in linear time', async () => {
+    const count = 4000
+    const declarations = Array.from({ length: count }, (_, i) => `<!ENTITY e${i} "<x a='&v;'/>">`).join('')
+    const references = Array.from({ length: count }, (_, i) => `&e${i};`).join('')
+    const payload = Buffer.from(`<?xml version="1.0"?><!DOCTYPE f [<!ENTITY v "x">${declarations}<!ENTITY xxe SYSTEM "file:///etc/passwd">]><f>${references}&xxe;</f>`)
+    const start = Date.now()
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', payload, 'manyAttributeReferences.xml')
+    assert.equal(res.status, 410)
+    assert.ok(Date.now() - start < 3000, `validation took ${Date.now() - start}ms`)
+  })
+
   void itWhenXxeEnabled('POST XML whose internal entity replacement text is well-formed markup solves the challenge without disclosing the file', async () => {
     const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd"><!ENTITY ok "<x>&xxe;</x>">]><foo>&ok;</foo>')
     const res = await uploadSolvesFileDisclosure(async () => await request(app)
