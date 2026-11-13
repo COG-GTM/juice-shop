@@ -18,10 +18,31 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
-    const res = await request(app).get('/')
+  void it('response must echo an allowed origin in the CORS header', async () => {
+    const trustedOrigin = config.get<string>('server.baseUrl')
+    const res = await request(app).get('/').set('Origin', trustedOrigin)
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.equal(res.headers['access-control-allow-origin'], trustedOrigin)
+  })
+
+  void it('response must not contain CORS header for an untrusted origin', async () => {
+    const res = await request(app).get('/rest/products/search?q=').set('Origin', 'https://attacker.example')
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('preflight from an untrusted origin must not be approved', async () => {
+    const res = await request(app).options('/rest/memories').set('Origin', 'https://attacker.example').set('Access-Control-Request-Method', 'GET')
+    assert.equal(res.status, 204)
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+    assert.equal(res.headers['access-control-allow-methods'], undefined)
+  })
+
+  void it('preflight from a trusted origin must be approved', async () => {
+    const trustedOrigin = config.get<string>('server.baseUrl')
+    const res = await request(app).options('/rest/memories').set('Origin', trustedOrigin).set('Access-Control-Request-Method', 'GET')
+    assert.equal(res.status, 204)
+    assert.equal(res.headers['access-control-allow-origin'], trustedOrigin)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {
@@ -30,7 +51,7 @@ void describe('HTTP', () => {
     assert.equal(res.headers['x-frame-options'], 'SAMEORIGIN')
   })
 
-  void it('response must contain CORS header allowing all origins', async () => {
+  void it('response must contain nosniff content type options header', async () => {
     const res = await request(app).get('/')
     assert.equal(res.status, 200)
     assert.equal(res.headers['x-content-type-options'], 'nosniff')

@@ -55,6 +55,7 @@ import * as utils from './lib/utils'
 import * as antiCheat from './lib/antiCheat'
 import * as security from './lib/insecurity'
 import validateConfig from './lib/startup/validateConfig'
+import { corsOptions } from './lib/corsOptions'
 import cleanupFtpFolder from './lib/startup/cleanupFtpFolder'
 import customizeEasterEgg from './lib/startup/customizeEasterEgg' // vuln-code-snippet hide-line
 import customizeApplication from './lib/startup/customizeApplication'
@@ -178,9 +179,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to trusted origins (CORS_ALLOWED_ORIGINS) */
+  const trustedOriginsCors = cors(corsOptions())
+  app.options('*', trustedOriginsCors, (req: Request, res: Response) => { res.sendStatus(204) })
+  app.use(trustedOriginsCors)
 
   /* Security middleware */
   app.use(helmet.noSniff())
