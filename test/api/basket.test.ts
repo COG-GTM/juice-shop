@@ -10,6 +10,11 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketModel } from '../../models/basket'
+import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
+import { QuantityModel } from '../../models/quantity'
+import { WalletModel } from '../../models/wallet'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -17,6 +22,9 @@ let authHeader: { Authorization: string, 'content-type': string }
 const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
+const overDiscountCoupon = security.generateCoupon(150000)
+// zero-padded so the z85 payload stays a multiple of 4 bytes
+const fullDiscountCoupon = security.generateCoupon('000100' as unknown as number)
 
 before(
   async () => {
@@ -136,14 +144,71 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a negative quantity to reach a negative order total is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+  void it('POST placing a wallet order for a basket containing a stored negative quantity is rejected', async () => {
+    const item = await BasketItemModel.create({ BasketId: 2, ProductId: 6, quantity: -1000 }, { validate: false })
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = await QuantityModel.findOne({ where: { ProductId: 6 } })
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = await QuantityModel.findOne({ where: { ProductId: 6 } })
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.equal(stockAfter?.quantity, stockBefore?.quantity)
+    } finally {
+      await item.destroy()
+    }
+  })
+
+  void it('POST placing a wallet order with positive quantities but a negative total is rejected', async () => {
+    const couponRes = await request(app)
+      .put('/rest/basket/2/coupon/' + encodeURIComponent(overDiscountCoupon))
+      .set(authHeader)
+    assert.equal(couponRes.status, 200)
+    assert.equal(couponRes.body.discount, 150000)
+
+    const walletBefore = await WalletModel.findOne({ where: { UserId: 2 } })
+    const stockBefore = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
+    try {
+      const res = await request(app)
+        .post('/rest/basket/2/checkout')
+        .set(authHeader)
+        .send({ UserId: 2, orderDetails: { paymentId: 'wallet' } })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Order total must not be negative.')
+
+      const walletAfter = await WalletModel.findOne({ where: { UserId: 2 } })
+      const stockAfter = (await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })).map(row => row.quantity)
+      assert.equal(walletAfter?.balance, walletBefore?.balance)
+      assert.deepEqual(stockAfter, stockBefore)
+      assert.ok(await BasketItemModel.count({ where: { BasketId: 2 } }) > 0)
+    } finally {
+      await BasketModel.update({ coupon: null }, { where: { id: 2 } })
+    }
+  })
+
+  void it('POST placing an order with a 100% discount is not rejected by float rounding', async () => {
+    const shirt = await ProductModel.findOne({ where: { name: 'OWASP Juice Shop T-Shirt' } })
+    assert.ok(shirt)
+    assert.equal(security.discountFromCoupon(fullDiscountCoupon), 100)
+    const basket = await BasketModel.create({ UserId: 2, coupon: fullDiscountCoupon })
+    await BasketItemModel.create({ BasketId: basket.id, ProductId: shirt.id, quantity: 5 })
+
+    const res = await request(app).post('/rest/basket/' + basket.id + '/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
