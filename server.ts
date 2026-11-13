@@ -524,6 +524,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     // vuln-code-snippet end registerAdminChallenge
 
     if (name === 'BasketItem') {
+      resource.list.fetch.before(basketItems.deferOffsetUntilOwnBasketItemsFiltered())
       resource.list.fetch.after(basketItems.onlyOwnBasketItemsInList())
     }
 

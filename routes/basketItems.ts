@@ -75,8 +75,24 @@ async function findOwnBasketItem (req: Request, userId: number) {
   return basket != null ? item : null
 }
 
+interface BasketItemListContext {
+  instance: Array<{ BasketId?: number | null }>
+  continue: any
+  ownListOffset?: number
+}
+
+export function deferOffsetUntilOwnBasketItemsFiltered () {
+  return (req: Request, res: Response, context: BasketItemListContext) => {
+    const count = Number(req.query.count) || 100
+    context.ownListOffset = (Number(req.query.offset) || 0) + (Number(req.query.page) * count || 0)
+    delete req.query.offset
+    delete req.query.page
+    return context.continue
+  }
+}
+
 export function onlyOwnBasketItemsInList () {
-  return async (req: Request, res: Response, context: { instance: Array<{ BasketId?: number | null }>, continue: any }) => {
+  return async (req: Request, res: Response, context: BasketItemListContext) => {
     const userId = security.authenticatedUsers.from(req)?.data?.id
     if (userId == null) {
       context.instance = []
@@ -84,7 +100,9 @@ export function onlyOwnBasketItemsInList () {
     }
     const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
     const ownBasketIds = new Set(baskets.map(({ id }) => id))
-    context.instance = context.instance.filter(item => item.BasketId != null && ownBasketIds.has(item.BasketId))
+    context.instance = context.instance
+      .filter(item => item.BasketId != null && ownBasketIds.has(item.BasketId))
+      .slice(Math.max(context.ownListOffset ?? 0, 0))
     return context.continue
   }
 }
