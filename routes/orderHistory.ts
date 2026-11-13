@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { ordersCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
+import { orderConfirmationsDir } from './order'
 
 export function orderHistory () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -19,6 +21,27 @@ export function orderHistory () {
     } else {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
     }
+  }
+}
+
+export function orderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const email = security.authenticatedUsers.from(req)?.data?.email
+    const orderId = req.params.id
+    if (!email || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId) || !orderId.startsWith(security.hash(email).slice(0, 4))) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    const order = await ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
+    if (order == null) {
+      res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(path.resolve(orderConfirmationsDir, `order_${orderId}.pdf`), (err) => {
+      if (err && !res.headersSent) {
+        res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
+      }
+    })
   }
 }
 
