@@ -36,7 +36,8 @@ export function showProductReviews () {
     // Measure how long the query takes, to check if there was a nosql dos attack
     const t0 = new Date().getTime()
 
-    db.reviewsCollection.find({ product: { $in: [id, String(id)] } }).then((reviews: Review[]) => {
+    db.reviewsCollection.find({}).then((allReviews: Array<Review & { product: number | string }>) => {
+      const reviews = allReviews.filter((review) => Number(review.product) === id)
       const t1 = new Date().getTime()
       challengeUtils.solveIf(challenges.noSqlCommandChallenge, () => { return (t1 - t0) > 2000 })
       const user = security.authenticatedUsers.from(req)

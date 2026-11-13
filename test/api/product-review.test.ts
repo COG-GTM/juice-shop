@@ -56,7 +56,7 @@ void describe('/rest/products/:id/reviews', () => {
 
   void it('PUT single product review can be created', async () => {
     const res = await request(app)
-      .put('/rest/products/1/reviews')
+      .put('/rest/products/01/reviews')
       .send({
         message: 'Lorem Ipsum',
         author: 'Anonymous'
@@ -64,9 +64,11 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
 
-    const reviews = await request(app)
-      .get('/rest/products/1/reviews')
-    assert.ok(reviews.body.data.some((review: { product: unknown, message: string }) => review.product === '1' && review.message === 'Lorem Ipsum'))
+    for (const id of ['1', '01']) {
+      const reviews = await request(app)
+        .get(`/rest/products/${id}/reviews`)
+      assert.ok(reviews.body.data.some((review: { message: string }) => review.message === 'Lorem Ipsum'))
+    }
   })
 })
 
