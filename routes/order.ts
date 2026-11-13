@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { type Request, type Response, type NextFunction } from 'express'
+import { Op, literal } from 'sequelize'
 
 import { challenges, products } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
@@ -18,6 +19,7 @@ import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 import * as db from '../data/mongodb'
 
 interface Product {
@@ -67,19 +69,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: StockUpdate[] = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -139,22 +133,37 @@ export function placeOrder () {
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+          const reservedStock: StockUpdate[] = []
+          try {
+            for (const stockUpdate of stockUpdates) {
+              if (!await reserveStock(stockUpdate)) {
+                throw new OutOfStockError()
+              }
+              reservedStock.push(stockUpdate)
+            }
+            if (req.body.UserId) {
+              if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
+                if (!await chargeWallet(req.body.UserId, totalPrice, totalPoints)) {
+                  throw new Error('Insufficient wallet balance.')
+                }
               } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
+                await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
               }
             }
-            try {
-              await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
-            } catch (error: unknown) {
-              next(error)
+          } catch (error: unknown) {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+            const unrestored = await restoreStock(reservedStock)
+            if (unrestored.length > 0) {
+              logger.error(`Checkout failed and stock could not be restored for product(s) ${unrestored.join(', ')}`)
+            }
+            if (error instanceof OutOfStockError) {
+              res.status(400).json({ error: res.__('We are out of stock! Sorry for the inconvenience.') })
               return
             }
+            next(error)
+            return
           }
 
           db.ordersCollection.insert({
@@ -179,6 +188,43 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+interface StockUpdate {
+  ProductId: number
+  quantity: number
+}
+
+class OutOfStockError extends Error {}
+
+async function reserveStock ({ ProductId, quantity }: StockUpdate) {
+  if (!Number.isSafeInteger(quantity)) {
+    return false
+  }
+  const [updatedRows] = await QuantityModel.update(
+    { quantity: literal(`quantity - (${quantity})`) },
+    { where: { ProductId, quantity: { [Op.gte]: quantity } } }
+  )
+  if (updatedRows === 1) {
+    return true
+  }
+  return await QuantityModel.findOne({ where: { ProductId } }) == null
+}
+
+async function restoreStock (stockUpdates: StockUpdate[]) {
+  const results = await Promise.allSettled(stockUpdates.map(async ({ ProductId, quantity }) => await QuantityModel.increment({ quantity }, { where: { ProductId } })))
+  return stockUpdates.filter((_, i) => results[i].status === 'rejected').map(({ ProductId }) => ProductId)
+}
+
+async function chargeWallet (UserId: number, totalPrice: number, bonusPoints: number) {
+  if (!Number.isFinite(totalPrice) || !Number.isFinite(bonusPoints)) {
+    return false
+  }
+  const [updatedRows] = await WalletModel.update(
+    { balance: literal(`balance - (${totalPrice}) + (${bonusPoints})`) },
+    { where: { UserId, balance: { [Op.gte]: totalPrice } } }
+  )
+  return updatedRows === 1
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {
