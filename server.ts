@@ -646,10 +646,13 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* B2B Order API */
   app.post('/b2b/v2/orders', b2bOrder())
 
+  /* Rate limiting for routes reading from the file system */
+  const fileAccessRateLimit = () => rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false, validate: false })
+
   /* File Serving */
-  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
-  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
-  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
+  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileAccessRateLimit(), serveEasterEgg())
+  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', fileAccessRateLimit(), servePremiumContent())
+  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', fileAccessRateLimit(), servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
   app.use('/dataerasure', dataErasure)
@@ -658,20 +661,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/redirect', performRedirect())
 
   /* Routes for promotion video page */
-  app.get('/promotion', promotionVideo())
-  app.get('/video', getVideo())
+  app.get('/promotion', fileAccessRateLimit(), promotionVideo())
+  app.get('/video', fileAccessRateLimit(), getVideo())
 
   /* Routes for profile page */
   app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
   app.post('/profile', utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
-  app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))
-  app.post('/snippets/verdict', utils.asyncHandler(checkVulnLines()))
-  app.get('/snippets/fixes/:key', utils.asyncHandler(serveCodeFixes()))
-  app.post('/snippets/fixes', utils.asyncHandler(checkCorrectFix()))
+  app.get('/snippets/:challenge', fileAccessRateLimit(), utils.asyncHandler(serveCodeSnippet()))
+  app.post('/snippets/verdict', fileAccessRateLimit(), utils.asyncHandler(checkVulnLines()))
+  app.get('/snippets/fixes/:key', fileAccessRateLimit(), utils.asyncHandler(serveCodeFixes()))
+  app.post('/snippets/fixes', fileAccessRateLimit(), utils.asyncHandler(checkCorrectFix()))
 
-  app.use(utils.asyncHandler(serveAngularClient()))
+  app.use(fileAccessRateLimit(), utils.asyncHandler(serveAngularClient()))
 
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
