@@ -414,6 +414,42 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(parsedBody.max_tokens, 2048)
   })
 
+  void it('POST stops the LLM stream when the client disconnects', { timeout: 15000 }, async () => {
+    let callCount = 0
+    let upstreamClosed: () => void
+    const upstreamClosedPromise = new Promise<void>((resolve) => { upstreamClosed = resolve })
+    onLlmRequest = (req, _body, res) => {
+      callCount++
+      res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' })
+      res.write(sseData(contentChunk('Hello')))
+      const timer = setInterval(() => res.write(sseData(contentChunk(' and more'))), 50)
+      res.on('close', () => {
+        clearInterval(timer)
+        upstreamClosed()
+      })
+    }
+
+    const server = app.listen(0)
+    try {
+      const { port } = server.address() as { port: number }
+      await new Promise<void>((resolve, reject) => {
+        const clientReq = http.request({ port, method: 'POST', path: '/rest/chat', headers: authHeader }, (clientRes) => {
+          assert.equal(clientRes.statusCode, 200)
+          clientRes.once('data', () => {
+            clientReq.destroy()
+            resolve()
+          })
+        })
+        clientReq.on('error', (err: NodeJS.ErrnoException) => { if (err.code !== 'ECONNRESET') reject(err) })
+        clientReq.end(JSON.stringify({ messages: [{ role: 'user', content: 'Talk forever' }] }))
+      })
+      await upstreamClosedPromise
+      assert.equal(callCount, 1)
+    } finally {
+      server.close()
+    }
+  })
+
   void it('POST is rate limited per user', { timeout: 30000 }, async () => {
     const token = security.authorize({ data: { id: 3, email: 'bender@juice-sh.op' } })
     const benderHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
