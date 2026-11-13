@@ -162,4 +162,12 @@ void describe('/file-upload rate limiting', () => {
     const res = await request(app).post('/file-upload')
     assert.equal(res.status, 429)
   })
+
+  for (const route of ['/profile/image/file', '/profile/image/url', '/rest/memories']) {
+    void it(`POST ${route} is rate-limited to 100 requests per window`, async () => {
+      const res = await request(app).post(route)
+      assert.equal(res.headers['x-ratelimit-limit'], '100')
+      assert.ok(Number(res.headers['x-ratelimit-remaining']) < 100)
+    })
+  }
 })
