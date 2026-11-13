@@ -20,7 +20,7 @@ export function ensureMemoryImageContent () {
       res.status(400).json({ error: 'Invalid upload path' })
       return
     }
-    const detectedType = filePath ? await fileType.fromFile(filePath) : undefined
+    const detectedType = filePath ? await fileType.fromFile(filePath).catch(() => undefined) : undefined
     if (detectedType && allowedImageTypes.includes(detectedType.mime)) {
       next()
       return
