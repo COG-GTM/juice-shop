@@ -7,15 +7,18 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import config from 'config'
 import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+let sequelize: Sequelize
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
 
 void describe('/rest/user/login', () => {
@@ -213,9 +216,11 @@ void describe('/rest/user/login', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST login with UNION SELECT injected legacy hash does not overwrite the real password of the referenced user', async () => {
+  void it('POST login with UNION SELECT injected legacy hash does not overwrite the real legacy password of the referenced user', async () => {
     const domain = config.get<string>('application.domain')
-    const injectedHash = crypto.createHash('md5').update('hacked').digest('hex')
+    const md5 = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+    const injectedHash = md5('hacked')
+    await sequelize.query(`UPDATE Users SET password = '${md5('ncc-1701')}' WHERE id = 2`)
     await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
