@@ -646,10 +646,18 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* B2B Order API */
   app.post('/b2b/v2/orders', b2bOrder())
 
+  /* Keyed on the socket address so a spoofed X-Forwarded-For cannot reset the bucket */
+  const fileServingRateLimit = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    keyGenerator: ({ socket }: Request) => socket.remoteAddress ?? 'unknown',
+    validate: false
+  })
+
   /* File Serving */
-  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', serveEasterEgg())
-  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', servePremiumContent())
-  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
+  app.get('/the/devs/are/so/funny/they/hid/an/easter/egg/within/the/easter/egg', fileServingRateLimit, serveEasterEgg())
+  app.get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us', fileServingRateLimit, servePremiumContent())
+  app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', fileServingRateLimit, servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
   app.use('/dataerasure', dataErasure)
@@ -658,8 +666,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/redirect', performRedirect())
 
   /* Routes for promotion video page */
-  app.get('/promotion', promotionVideo())
-  app.get('/video', getVideo())
+  app.get('/promotion', fileServingRateLimit, promotionVideo())
+  app.get('/video', fileServingRateLimit, getVideo())
 
   /* Routes for profile page */
   app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
