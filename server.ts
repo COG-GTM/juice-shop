@@ -305,10 +305,17 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(i18n.init)
 
   app.use(bodyParser.urlencoded({ extended: true }))
+  /* Shared limit for database-backed profile and data erasure routes */
+  const profileRateLimit = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 100,
+    keyGenerator: (req: Request) => req.socket.remoteAddress ?? '',
+    validate: false
+  })
   /* File Upload */
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
-  app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
-  app.post('/profile/image/url', uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
+  app.post('/profile/image/file', profileRateLimit, uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))
+  app.post('/profile/image/url', profileRateLimit, uploadToMemory.single('file'), utils.asyncHandler(profileImageUrlUpload()))
   app.post('/rest/memories', uploadToDisk.single('image'), ensureFileIsPassed, security.appendUserId(), metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(addMemory()))
 
   app.use(bodyParser.text({ type: '*/*' }))
@@ -652,7 +659,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/we/may/also/instruct/you/to/refuse/all/reasonably/necessary/responsibility', servePrivacyPolicyProof())
 
   /* Route for dataerasure page */
-  app.use('/dataerasure', dataErasure)
+  app.use('/dataerasure', profileRateLimit, dataErasure)
 
   /* Route for redirects */
   app.get('/redirect', performRedirect())
@@ -662,8 +669,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/video', getVideo())
 
   /* Routes for profile page */
-  app.get('/profile', security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
-  app.post('/profile', utils.asyncHandler(updateUserProfile()))
+  app.get('/profile', profileRateLimit, security.updateAuthenticatedUsers(), utils.asyncHandler(getUserProfile()))
+  app.post('/profile', profileRateLimit, utils.asyncHandler(updateUserProfile()))
 
   /* Route for vulnerable code snippets */
   app.get('/snippets/:challenge', utils.asyncHandler(serveCodeSnippet()))
