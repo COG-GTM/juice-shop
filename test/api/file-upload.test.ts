@@ -192,6 +192,19 @@ void describe('/file-upload', () => {
       assert.ok(!res.text.includes('root:'))
     })
 
+    void it('POST XML with many attributes referencing a shared entity chain is rejected quickly', async () => {
+      const count = 2500
+      const declarations = Array.from({ length: count }, (_, i) => `<!ENTITY e${i} "&e${i + 1};">`).join('')
+      const attributes = Array.from({ length: count }, (_, i) => `a${i}="&e${i};"`).join(' ')
+      const payload = Buffer.from(`<?xml version="1.0"?><!DOCTYPE f [${declarations}<!ENTITY e${count} "x">]><f ${attributes}/>`)
+      const start = Date.now()
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'sharedEntityChain.xml')
+      assert.equal(res.status, 410)
+      assert.ok(Date.now() - start < 2000)
+    })
+
     void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
       const res = await request(app)

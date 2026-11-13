@@ -164,28 +164,37 @@ function reachableExternalEntities (data: string) {
   return externalTargets
 }
 
-function referencesExternalEntity (key: string, declarations: Map<string, { external: boolean, value: string }>) {
-  const pending = [key]
-  const visited = new Set<string>()
-  while (pending.length > 0) {
-    const current = pending.pop() as string
-    const declaration = declarations.get(current)
-    if (declaration === undefined || visited.has(current)) continue
-    if (declaration.external) return true
-    visited.add(current)
-    for (const [, name] of declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)) pending.push('&' + name)
+function entitiesReferencingExternal (declarations: Map<string, { external: boolean, value: string }>) {
+  const referrers = new Map<string, string[]>()
+  const reaching = new Set<string>()
+  const pending: string[] = []
+  for (const [key, declaration] of declarations) {
+    if (declaration.external) {
+      reaching.add(key)
+      pending.push(key)
+    } else {
+      for (const [, name] of declaration.value.matchAll(/&([^\s;&%#<>"'[\]]+);/g)) {
+        const referenced = '&' + name
+        if (!referrers.has(referenced)) referrers.set(referenced, [])
+        referrers.get(referenced)?.push(key)
+      }
+    }
   }
-  return false
+  while (pending.length > 0) {
+    for (const referrer of referrers.get(pending.pop() as string) ?? []) {
+      if (!reaching.has(referrer)) {
+        reaching.add(referrer)
+        pending.push(referrer)
+      }
+    }
+  }
+  return reaching
 }
 
 const entityReferenceAt = /&([^\s;&%#<>"'[\]]+);/y
 
 function stripDeclaredReferences (text: string, declarations: Map<string, { external: boolean, value: string }>) {
-  const externalReferences = new Map<string, boolean>()
-  const isExternal = (key: string) => {
-    if (!externalReferences.has(key)) externalReferences.set(key, referencesExternalEntity(key, declarations))
-    return externalReferences.get(key) === true
-  }
+  const externalReferences = entitiesReferencingExternal(declarations)
   let result = ''
   let index = 0
   while (index < text.length) {
@@ -215,7 +224,7 @@ function stripDeclaredReferences (text: string, declarations: Map<string, { exte
         tagEnd++
       }
       if (tagEnd >= text.length) return result + text.slice(index)
-      result += text.slice(index, tagEnd + 1).replace(/&([^\s;&%#<>"'[\]]+);/g, (reference: string, name: string) => declarations.has('&' + name) && !isExternal('&' + name) ? '' : reference)
+      result += text.slice(index, tagEnd + 1).replace(/&([^\s;&%#<>"'[\]]+);/g, (reference: string, name: string) => declarations.has('&' + name) && !externalReferences.has('&' + name) ? '' : reference)
       index = tagEnd + 1
       continue
     }
