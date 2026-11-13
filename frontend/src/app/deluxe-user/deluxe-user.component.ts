@@ -13,6 +13,12 @@ import { MatButtonModule } from '@angular/material/button'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
+const imageFileNamePattern = /^[\w-]+\.(?:png|jpe?g|gif|svg)$/i
+
+function isImageFileName (value: unknown): value is string {
+  return typeof value === 'string' && imageFileNamePattern.test(value)
+}
+
 @Component({
   selector: 'app-deluxe-user',
   templateUrl: './deluxe-user.component.html',
@@ -65,7 +71,7 @@ export class DeluxeUserComponent implements OnInit {
             if (logo.substring(0, 4) === 'http') {
               logo = decodeURIComponent(logo.substring(logo.lastIndexOf('/') + 1))
             }
-            this.logoSrc = `assets/public/images/${decalParam || logo}`
+            this.logoSrc = `assets/public/images/${isImageFileName(decalParam) ? decalParam : logo}`
           }
         }
         if (decalParam) {
