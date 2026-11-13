@@ -243,7 +243,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     const origEnd = res.end
     // @ts-expect-error FIXME assignment broken due to seemingly void return value
     res.end = function () {
-      if (arguments.length) {
+      if (arguments.length && typeof arguments[0] === 'string') {
         const reqPath = req.originalUrl.replace(/\?.*$/, '')
 
         const currentFolder = reqPath.split('/').pop()!
