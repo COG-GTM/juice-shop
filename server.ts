@@ -29,6 +29,7 @@ import { IpFilter } from 'express-ipfilter'
 // @ts-expect-error FIXME due to non-existing type definitions for express-security.txt
 import securityTxt from 'express-security.txt'
 import { rateLimit } from 'express-rate-limit'
+import { globalRateLimit } from './lib/rateLimiting'
 import { getStream } from 'file-stream-rotator'
 import type { Request, Response, NextFunction } from 'express'
 
@@ -207,6 +208,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Increase request counter metric for every request */
   app.use(metrics.observeRequestMetricsMiddleware())
+
+  /* Per-client request budget for every route registered below */
+  app.use(globalRateLimit())
 
   /* Security Policy */
   const securityTxtExpiration = new Date()
