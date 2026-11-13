@@ -58,13 +58,19 @@ export function login () {
   // vuln-code-snippet end loginAdminChallenge loginBenderChallenge loginJimChallenge
 
   function verifyPreLoginChallenges (req: Request) {
-    challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return demoCredentialsEnabled() && req.body.email === 'admin@' + config.get<string>('application.domain') && req.body.password === 'admin123' })
-    challengeUtils.solveIf(challenges.loginSupportChallenge, () => { return demoCredentialsEnabled() && req.body.email === 'support@' + config.get<string>('application.domain') && req.body.password === 'J6aVjTgOpRs@?5l!Zkq2AYnCE@RF$P' })
-    challengeUtils.solveIf(challenges.loginRapperChallenge, () => { return req.body.email === 'mc.safesearch@' + config.get<string>('application.domain') && req.body.password === 'Mr. N00dles' })
-    challengeUtils.solveIf(challenges.loginAmyChallenge, () => { return req.body.email === 'amy@' + config.get<string>('application.domain') && req.body.password === 'K1f.....................' })
-    challengeUtils.solveIf(challenges.dlpPasswordSprayingChallenge, () => { return demoCredentialsEnabled() && req.body.email === 'J12934@' + config.get<string>('application.domain') && req.body.password === '0Y8rMnww$*9VFYE§59-!Fg1L6t&6lB' })
-    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return demoCredentialsEnabled() && req.body.email === 'bjoern.kimminich@gmail.com' && req.body.password === 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
-    challengeUtils.solveIf(challenges.exposedCredentialsChallenge, () => { return demoCredentialsEnabled() && req.body.email === 'testing@' + config.get<string>('application.domain') && req.body.password === 'IamUsedForTesting' })
+    challengeUtils.solveIf(challenges.weakPasswordChallenge, () => { return demoCredentialsEnabled() && isSeedCredentialLogin('admin', req) })
+    challengeUtils.solveIf(challenges.loginSupportChallenge, () => { return demoCredentialsEnabled() && isSeedCredentialLogin('support', req) })
+    challengeUtils.solveIf(challenges.loginRapperChallenge, () => { return isSeedCredentialLogin('rapper', req) })
+    challengeUtils.solveIf(challenges.loginAmyChallenge, () => { return isSeedCredentialLogin('amy', req) })
+    challengeUtils.solveIf(challenges.dlpPasswordSprayingChallenge, () => { return demoCredentialsEnabled() && isSeedCredentialLogin('jannik', req) })
+    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return demoCredentialsEnabled() && isSeedCredentialLogin('bjoernGoogle', req) })
+    challengeUtils.solveIf(challenges.exposedCredentialsChallenge, () => { return demoCredentialsEnabled() && isSeedCredentialLogin('LetUsTest', req) })
+  }
+
+  function isSeedCredentialLogin (userKey: string, req: Request) {
+    const seededUser = users[userKey]
+    return seededUser != null && typeof req.body.email === 'string' && typeof req.body.password === 'string' &&
+      req.body.email === seededUser.email && security.hash(req.body.password) === seededUser.password
   }
 
   function verifyPostLoginChallenges (user: { data: User }) {
