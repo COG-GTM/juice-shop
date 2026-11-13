@@ -23,9 +23,10 @@ export function isCrossSiteRequest (req: Request) {
   }
   try {
     const sourceUrl = new URL(source)
-    const targetUrl = new URL(`${req.protocol}://${host}`)
     // An HTTPS origin is accepted for an HTTP request to support TLS-terminating proxies that omit X-Forwarded-Proto
-    return sourceUrl.host !== targetUrl.host || (sourceUrl.protocol === 'http:' && targetUrl.protocol === 'https:')
+    const targetProtocol = sourceUrl.protocol === 'https:' ? 'https' : req.protocol
+    const targetUrl = new URL(`${targetProtocol}://${host}`)
+    return sourceUrl.host !== targetUrl.host || sourceUrl.protocol !== targetUrl.protocol
   } catch {
     return true
   }

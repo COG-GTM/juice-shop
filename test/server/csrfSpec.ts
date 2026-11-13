@@ -109,6 +109,18 @@ describe('csrfProtection', () => {
     expect(next).to.have.been.calledWith()
   })
 
+  it('passes HTTPS origin behind a TLS-terminating proxy that forwards Host with :443', () => {
+    req = withHeaders('POST', { host: 'shop.example:443', origin: 'https://shop.example' }, false, 'http')
+    csrfProtection()(req, res, next)
+    expect(next).to.have.been.calledWith()
+  })
+
+  it('rejects HTTPS origin on a different port behind a TLS-terminating proxy', () => {
+    req = withHeaders('POST', { host: 'shop.example:8443', origin: 'https://shop.example' }, false, 'http')
+    csrfProtection()(req, res, next)
+    expect(res.status).to.have.been.calledWith(403)
+  })
+
   it('rejects cross-site POST with cookie even when a Bearer header is present', () => {
     req = withHeaders('POST', { host: 'localhost:3000', origin: 'https://evil.example', authorization: 'Bearer forged' })
     csrfProtection()(req, res, next)
