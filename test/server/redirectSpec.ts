@@ -50,6 +50,25 @@ describe('redirect', () => {
     expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
   })
 
+  it('should reject an array of target URLs', () => {
+    req.query.to = ['http://kimminich.de', 'https://github.com/juice-shop/juice-shop']
+
+    performRedirect()(req, res, next)
+
+    expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(400)
+    expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+  })
+
+  it('should reject an object as target URL', () => {
+    req.query.to = { toString: () => 'https://github.com/juice-shop/juice-shop' }
+
+    performRedirect()(req, res, next)
+
+    expect(res.redirect).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.status).to.have.been.calledWith(400)
+  })
+
   it('redirecting to https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm should solve the "redirectCryptoCurrencyChallenge"', () => {
     req.query.to = 'https://blockchain.info/address/1AbKfgvw9psQ41NbLi8kufDQTezwG8DRZm'
     challenges.redirectCryptoCurrencyChallenge = { solved: false, save } as unknown as Challenge
