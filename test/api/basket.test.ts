@@ -311,4 +311,16 @@ void describe('/rest/basket/:id/checkout rollback', { concurrency: false }, () =
     assert.ok(res.text.includes('order insert failed'))
     assert.deepEqual(await checkoutState(), before)
   })
+
+  void it('POST checkout leaves stock unchanged for basket items with null quantity', async () => {
+    const stockOf = async (ProductId: number) => (await request(app).get('/api/Quantitys').set(adminHeader)).body.data
+      .find((row: { ProductId: number }) => row.ProductId === ProductId).quantity
+    const stockBefore = await stockOf(7)
+    const item = await request(app).post('/api/BasketItems').set(adminHeader).send({ BasketId: 1, ProductId: 7, quantity: null })
+    assert.equal(item.status, 200)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.equal(await stockOf(7), stockBefore)
+  })
 })

@@ -73,7 +73,9 @@ export function placeOrder () {
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              stockReductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
+              if (BasketItem.quantity != null) {
+                stockReductions.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
+              }
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
