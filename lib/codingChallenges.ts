@@ -4,6 +4,14 @@ import logger from './logger'
 
 export const SNIPPET_PATHS = Object.freeze(['./server.ts', './routes', './lib', './data', './data/static/web3-snippets', './frontend/src/app', './models'])
 
+export const getCodingChallengeInfoPath = (challengeKey: unknown): string | null => {
+  if (typeof challengeKey !== 'string') return null
+  const codefixesDir = path.resolve('./data/static/codefixes')
+  const infoPath = path.resolve(codefixesDir, `${challengeKey}.info.yml`)
+  if (!infoPath.startsWith(codefixesDir + path.sep) || path.dirname(infoPath) !== codefixesDir) return null
+  return infoPath
+}
+
 interface FileMatch {
   path: string
   content: string
