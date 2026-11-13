@@ -11,15 +11,16 @@ import { challenges } from '../data/datacache'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
-    // Truncate id to avoid unintentional RCE
-    const id = !utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? String(req.params.id).replace(/[^\w-]+/g, '') : utils.trunc(req.params.id, 60)
+    const rawId = String(req.params.id)
+    const id = rawId.replace(/[^\w-]+/g, '')
+    const reflectedId = utils.isChallengeEnabled(challenges.reflectedXssChallenge) ? utils.trunc(rawId, 60) : id
 
-    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
-    db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
+    challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(reflectedId, '<iframe src="javascript:alert(`xss`)">') })
+    const orders = id === rawId ? db.ordersCollection.find({ orderId: id }) : Promise.resolve([])
+    orders.then((order: any) => {
       const result = utils.queryResultToJson(order)
-      challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
-        result.data[0] = { orderId: id }
+        result.data[0] = { orderId: reflectedId }
       }
       res.json(result)
     }, () => {
