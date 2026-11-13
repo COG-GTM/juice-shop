@@ -208,6 +208,16 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Increase request counter metric for every request */
   app.use(metrics.observeRequestMetricsMiddleware())
 
+  /* Rate limiting for all routes, keyed by socket address so it cannot be bypassed via X-Forwarded-For */
+  app.use(rateLimit({
+    windowMs: config.get<number>('server.rateLimit.windowMs'),
+    limit: config.get<number>('server.rateLimit.max'),
+    keyGenerator: (req: Request) => req.socket.remoteAddress ?? '',
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    validate: { trustProxy: false, xForwardedForHeader: false }
+  }))
+
   /* Security Policy */
   const securityTxtExpiration = new Date()
   securityTxtExpiration.setFullYear(securityTxtExpiration.getFullYear() + 1)

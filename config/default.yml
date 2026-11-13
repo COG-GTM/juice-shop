@@ -2,6 +2,9 @@ server:
   port: 3000
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
+  rateLimit: # requests per client IP across all routes
+    windowMs: 60000
+    max: 1000
 application:
   domain: juice-sh.op # for pre-loaded email users
   name: 'OWASP Juice Shop'
