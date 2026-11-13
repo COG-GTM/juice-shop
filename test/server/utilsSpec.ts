@@ -195,6 +195,27 @@ describe('utils', () => {
     })
   })
 
+  describe('containsOrEscaped', () => {
+    it('finds element verbatim', () => {
+      expect(utils.containsOrEscaped('Bla Blubb', 'la Bl')).to.equal(true)
+    })
+
+    it('finds element with quotes as escaped by JSON.stringify', () => {
+      const element = 'CREATE TABLE `Users` (`role` VARCHAR(255) DEFAULT "customer")'
+      expect(utils.containsOrEscaped(JSON.stringify([{ sql: element }]), element)).to.equal(true)
+    })
+
+    it('finds element with backslashes and quotes as escaped by JSON.stringify', () => {
+      const element = 'C:\\Users\\"admin"\\'
+      expect(utils.containsOrEscaped(JSON.stringify([{ email: element }]), element)).to.equal(true)
+    })
+
+    it('escapes backslashes before quotes', () => {
+      expect(utils.containsEscaped(JSON.stringify(['a\\"b']), 'a\\"b')).to.equal(true)
+      expect(utils.containsEscaped(JSON.stringify(['a"b']), 'a\\"b')).to.equal(false)
+    })
+  })
+
   describe('toISO8601', () => {
     it('converts date to ISO 8601 representation', () => {
       expect(utils.toISO8601(new Date('2025-12-15T00:00:00Z'))).to.equal('2025-12-15')
