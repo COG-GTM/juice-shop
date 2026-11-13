@@ -34,11 +34,13 @@ describe('OAuthComponent', () => {
         userService = {
             oauthLogin: vi.fn().mockName("UserService.oauthLogin"),
             login: vi.fn().mockName("UserService.login"),
-            save: vi.fn().mockName("UserService.save")
+            save: vi.fn().mockName("UserService.save"),
+            logout: vi.fn().mockName("UserService.logout")
         }
         userService.oauthLogin.mockReturnValue(of({ email: '' }))
         userService.login.mockReturnValue(of({}))
         userService.save.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -84,6 +86,7 @@ describe('OAuthComponent', () => {
         component.ngOnInit()
         expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
+        expect(userService.logout).toHaveBeenCalled()
     })
 
     it('will create regular user account with base64 encoded reversed email as password', () => {
@@ -105,5 +108,6 @@ describe('OAuthComponent', () => {
         component.login({ email: '' })
         expect(isLoggedIn()).toBe(false)
         expect(sessionStorage.getItem('bid')).toBeNull()
+        expect(userService.logout).toHaveBeenCalled()
     })
 })
