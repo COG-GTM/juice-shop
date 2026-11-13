@@ -88,6 +88,7 @@ void describe('/rest/user/data-export', () => {
     await request(app)
       .post('/rest/basket/4/checkout')
       .set(authHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })
 
     const res = await request(app)
       .post('/rest/user/data-export')
@@ -170,6 +171,7 @@ void describe('/rest/user/data-export', () => {
     await request(app)
       .post('/rest/basket/4/checkout')
       .set(authHeader)
+      .send({ orderDetails: { paymentId: 'wallet' } })
 
     const captchaRes = await request(app)
       .get('/rest/image-captcha')
