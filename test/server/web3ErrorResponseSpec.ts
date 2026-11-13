@@ -26,14 +26,28 @@ describe('web3 error responses', () => {
     expect(res.json).to.have.been.calledOnceWith('Internal Server Error')
   }
 
-  it('contractExploitListener does not expose error details', async () => {
-    await contractExploitListener()({ body: { walletAddress: '0x0' } } as any, res)
-    expectGenericError()
-  })
+  describe('when the WebSocket provider cannot be created', () => {
+    let alchemyApiKey: string | undefined
 
-  it('nftMintListener does not expose error details', async () => {
-    await nftMintListener()({} as any, res)
-    expectGenericError()
+    beforeEach(() => {
+      alchemyApiKey = process.env.ALCHEMY_API_KEY
+      process.env.ALCHEMY_API_KEY = '#invalid'
+    })
+
+    afterEach(() => {
+      if (alchemyApiKey === undefined) delete process.env.ALCHEMY_API_KEY
+      else process.env.ALCHEMY_API_KEY = alchemyApiKey
+    })
+
+    it('contractExploitListener does not expose error details', async () => {
+      await contractExploitListener()({ body: { walletAddress: '0x0' } } as any, res)
+      expectGenericError()
+    })
+
+    it('nftMintListener does not expose error details', async () => {
+      await nftMintListener()({} as any, res)
+      expectGenericError()
+    })
   })
 
   it('walletNFTVerify does not expose error details', () => {
