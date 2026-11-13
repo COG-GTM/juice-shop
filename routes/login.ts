@@ -65,7 +65,7 @@ export function login () {
 
   async function upgradeLegacyPasswordHash (user: User, password: string) {
     const userModel = await UserModel.findByPk(user.id)
-    if (userModel != null) {
+    if (userModel != null && security.isLegacyPasswordHash(userModel.password) && security.verifyPassword(password, userModel.password)) {
       await userModel.update({ password })
       user.password = userModel.password
     }

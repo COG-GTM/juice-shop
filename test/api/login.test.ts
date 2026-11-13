@@ -8,6 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import crypto from 'node:crypto'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -210,6 +211,30 @@ void describe('/rest/user/login', () => {
       })
 
     assert.equal(res.status, 401)
+  })
+
+  void it('POST login with UNION SELECT injected legacy hash does not overwrite the real password of the referenced user', async () => {
+    const domain = config.get<string>('application.domain')
+    const injectedHash = crypto.createHash('md5').update('hacked').digest('hex')
+    await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: `' UNION SELECT * FROM (SELECT 2 as 'id', '' as 'username', 'jim@${domain}' as 'email', '${injectedHash}' as 'password', 'customer' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
+        password: 'hacked'
+      })
+
+    const attackerLogin = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `jim@${domain}`, password: 'hacked' })
+    assert.equal(attackerLogin.status, 401)
+
+    const victimLogin = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: `jim@${domain}`, password: 'ncc-1701' })
+    assert.equal(victimLogin.status, 200)
   })
 
   void it('POST login with query-breaking SQL Injection attack', async () => {
