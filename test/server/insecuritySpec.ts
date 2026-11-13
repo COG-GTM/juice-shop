@@ -278,6 +278,20 @@ describe('insecurity', () => {
     })
   })
 
+  describe('consumeSecondFactorToken', () => {
+    it('accepts a temporary token only once', () => {
+      const tmpToken = security.authorize({ userId: 1, expiresAt: security.secondFactorTokenExpiry(), type: 'password_valid_needs_second_factor_token' })
+      expect(security.consumeSecondFactorToken(tmpToken, security.secondFactorTokenExpiry())).to.equal(true)
+      expect(security.consumeSecondFactorToken(tmpToken, security.secondFactorTokenExpiry())).to.equal(false)
+    })
+
+    it('forgets used tokens once they have expired', () => {
+      expect(security.consumeSecondFactorToken('expired-token', Date.now() - 1)).to.equal(true)
+      expect(security.consumeSecondFactorToken('another-token', security.secondFactorTokenExpiry())).to.equal(true)
+      expect(security.consumeSecondFactorToken('expired-token', security.secondFactorTokenExpiry())).to.equal(true)
+    })
+  })
+
   describe('denyAll', () => {
     it('rejects requests carrying a valid RS256 token', () => {
       let error: any
