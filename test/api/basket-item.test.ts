@@ -70,12 +70,17 @@ void describe('/api/BasketItems', () => {
   })
 
   void it('GET basket items applies query filters within the caller\'s own basket only', async () => {
-    const filtered = await request(app).get('/api/BasketItems?ProductId=1').set(authHeader)
+    const filtered = await request(app).get('/api/BasketItems?ProductId=4').set(authHeader)
     assert.equal(filtered.status, 200)
+    assert.ok(filtered.body.data.length > 0)
     for (const item of filtered.body.data) {
-      assert.equal(item.ProductId, 1)
+      assert.equal(item.ProductId, 4)
       assert.equal(item.BasketId, 2)
     }
+
+    const otherProduct = await request(app).get('/api/BasketItems?ProductId=1').set(authHeader)
+    assert.equal(otherProduct.status, 200)
+    assert.equal(otherProduct.body.data.length, 0)
 
     const widened = await request(app).get('/api/BasketItems?BasketId=1').set(authHeader)
     assert.equal(widened.status, 200)
