@@ -257,6 +257,11 @@ export function chat () {
 
     const systemPrompt = buildSystemPrompt(userName)
 
+    const abortController = new AbortController()
+    res.on('close', () => {
+      if (!res.writableEnded) abortController.abort()
+    })
+
     try {
       const result = streamText({
         model: provider(model),
@@ -266,12 +271,14 @@ export function chat () {
         maxRetries: config.get<number>('application.chatBot.llmMaxRetries'),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
         stopWhen: stepCountIs(MAX_CHAT_STEPS),
+        abortSignal: abortController.signal,
         onError: ({ error }) => {
           logger.warn('Chatbot stream error: ' + summarizeLlmError(error))
         }
       })
 
       for await (const event of result.fullStream) {
+        if (abortController.signal.aborted) break
         switch (event.type) {
           case 'text-delta':
             res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: event.text } }] })}\n\n`)
@@ -316,9 +323,11 @@ export function chat () {
         }
       }
 
+      if (abortController.signal.aborted) return
       res.write('data: [DONE]\n\n')
       res.end()
     } catch (error) {
+      if (abortController.signal.aborted) return
       logger.warn('Chatbot connection error: ' + summarizeLlmError(error))
       res.write(`data: ${JSON.stringify({ error: 'LLM API is not reachable' })}\n\n`)
       res.write('data: [DONE]\n\n')
