@@ -337,4 +337,33 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(user.role, 'customer')
     assert.equal(await WalletModel.count({ where: { UserId: user.id } }), 0)
   })
+
+  void it('POST upgrade deluxe membership refunds the wallet when the role upgrade fails', async (t) => {
+    const email = `deluxe.rollback@${config.get<string>('application.domain')}`
+    const password = 'r0llb4ck'
+    await register(app, { email, password })
+    const user = await UserModel.findOne({ where: { email } })
+    assert.ok(user)
+    for (let i = 0; i < 50 && await WalletModel.count({ where: { UserId: user.id } }) === 0; i++) {
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    assert.deepEqual(await WalletModel.update({ balance: 100 }, { where: { UserId: user.id } }), [1])
+
+    const { token } = await login(app, { email, password })
+    t.mock.method(UserModel, 'update', async () => [0])
+    const res = await request(app)
+      .post('/rest/deluxe-membership')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        paymentMode: 'wallet'
+      })
+    t.mock.restoreAll()
+
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Something went wrong. Please try again!')
+    await user.reload()
+    assert.equal(user.role, 'customer')
+    const wallet = await WalletModel.findOne({ where: { UserId: user.id } })
+    assert.equal(wallet?.balance, 100)
+  })
 })
