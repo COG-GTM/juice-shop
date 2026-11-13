@@ -149,6 +149,16 @@ export function placeOrder () {
             return
           }
 
+          if (req.body.orderDetails?.paymentId === 'wallet') {
+            const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+            if ((wallet != null) && wallet.balance >= totalPrice) {
+              await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+            } else {
+              next(new Error('Insufficient wallet balance.'))
+              return
+            }
+          }
+
           try {
             for (const { ProductId, quantity } of stockUpdates) {
               const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
@@ -162,15 +172,6 @@ export function placeOrder () {
           }
 
           if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
-              }
-            }
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
