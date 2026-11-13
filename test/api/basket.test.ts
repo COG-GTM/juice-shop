@@ -12,6 +12,7 @@ import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import { BasketModel } from '../../models/basket'
 import { BasketItemModel } from '../../models/basketitem'
+import { ProductModel } from '../../models/product'
 import { QuantityModel } from '../../models/quantity'
 import { WalletModel } from '../../models/wallet'
 
@@ -22,6 +23,7 @@ const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
 const overDiscountCoupon = security.generateCoupon(150000)
+const fullDiscountCoupon = security.generateCoupon(100)
 
 before(
   async () => {
@@ -196,6 +198,17 @@ void describe('/rest/basket/:id/checkout', () => {
     } finally {
       await BasketModel.update({ coupon: null }, { where: { id: 2 } })
     }
+  })
+
+  void it('POST placing an order with a 100% discount is not rejected by float rounding', async () => {
+    const shirt = await ProductModel.findOne({ where: { name: 'OWASP Juice Shop T-Shirt' } })
+    assert.ok(shirt)
+    const basket = await BasketModel.create({ UserId: 2, coupon: fullDiscountCoupon })
+    await BasketItemModel.create({ BasketId: basket.id, ProductId: shirt.id, quantity: 5 })
+
+    const res = await request(app).post('/rest/basket/' + basket.id + '/checkout').set(authHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.orderConfirmation !== undefined)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
