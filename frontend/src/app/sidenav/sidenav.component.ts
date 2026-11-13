@@ -22,6 +22,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatNavList, MatListSubheaderCssMatStyler, MatListItem } from '@angular/material/list'
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
 import { endSession, isLoggedIn } from '../Services/auth-session'
+import { finalize } from 'rxjs/operators'
 
 @Component({
   selector: 'sidenav',
@@ -90,9 +91,10 @@ export class SidenavComponent implements OnInit {
   }
 
   logout () {
-    this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    this.userService.saveLastLoginIp().pipe(finalize(() => {
+      this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    })).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     endSession()
-    this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
