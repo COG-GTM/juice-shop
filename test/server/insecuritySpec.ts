@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -201,6 +203,40 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('authorize', () => {
+    it('signs tokens that verify against the published public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+      expect(security.verify(token)).to.equal(true)
+    })
+
+    it('rejects RS256 tokens signed with any other private key', () => {
+      const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        privateKeyEncoding: { type: 'pkcs1', format: 'pem' },
+        publicKeyEncoding: { type: 'pkcs1', format: 'pem' }
+      })
+      const forged = jwt.sign({ data: { email: 'admin@juice-sh.op' } }, privateKey, { algorithm: 'RS256' })
+      expect(security.verify(forged)).to.equal(false)
+    })
+
+    it('does not use the formerly hardcoded and leaked RSA keypair', () => {
+      const leakedPublicKeyFingerprint = 'b03e0bd15881d52c061a4d27025dabc5f983ad6676a882915fc60a03545ee1ac'
+      const activeFingerprint = crypto.createHash('sha256').update(crypto.createPublicKey(security.publicKey).export({ type: 'spki', format: 'der' })).digest('hex')
+      expect(activeFingerprint).to.not.equal(leakedPublicKeyFingerprint)
+    })
+  })
+
+  describe('deluxeToken', () => {
+    it('is stable for the same email and differs between emails', () => {
+      expect(security.deluxeToken('a@juice-sh.op')).to.equal(security.deluxeToken('a@juice-sh.op'))
+      expect(security.deluxeToken('a@juice-sh.op')).to.not.equal(security.deluxeToken('b@juice-sh.op'))
+    })
+
+    it('is not keyed with the formerly hardcoded and leaked RSA private key', () => {
+      expect(security.deluxeToken('bjoern@owasp.org')).to.not.equal('efe2f1599e2d93440d5243a1ffaf5a413b70cf3ac97156bd6fab9b5ddfcbe0e4')
     })
   })
 })
