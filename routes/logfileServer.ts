@@ -12,16 +12,16 @@ function isPlainFileName (file: string) {
   return !/[/\\:\0]/.test(file) &&
     file !== '.' && file !== '..' &&
     path.posix.basename(file) === file &&
-    path.win32.basename(file) === file &&
-    path.resolve(logsDir, file).startsWith(logsDir + path.sep)
+    path.win32.basename(file) === file
 }
 
 export function serveLogFiles () {
   return ({ params }: Request, res: Response, next: NextFunction) => {
     const file = params.file
+    const filePath = path.resolve(logsDir, file)
 
-    if (isPlainFileName(file)) {
-      res.sendFile(file, { root: logsDir })
+    if (isPlainFileName(file) && filePath.startsWith(logsDir + path.sep)) {
+      res.sendFile(filePath)
     } else {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))

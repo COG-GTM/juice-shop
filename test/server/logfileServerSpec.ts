@@ -6,6 +6,7 @@
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
+import path from 'node:path'
 import { serveLogFiles } from '../../routes/logfileServer'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -26,7 +27,7 @@ describe('logfileServer', () => {
 
     serveLogFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith('access.log.2026-10-26', sinon.match({ root: sinon.match(/logs$/) }))
+    expect(res.sendFile).to.have.been.calledWith(path.resolve('logs', 'access.log.2026-10-26'))
     expect(next).to.have.not.been.calledWith(sinon.match.any)
   })
 
