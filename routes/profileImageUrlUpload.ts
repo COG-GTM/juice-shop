@@ -8,7 +8,7 @@ import dns from 'node:dns'
 import net from 'node:net'
 import http from 'node:http'
 import https from 'node:https'
-import { finished } from 'node:stream/promises'
+import { pipeline } from 'node:stream/promises'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -75,9 +75,9 @@ export async function fetchExternalImage (imageUrl: string, redirectsLeft = MAX_
     if (redirectsLeft <= 0) throw new Error('Too many redirects')
     return await fetchExternalImage(new URL(response.headers.location, url).toString(), redirectsLeft - 1)
   }
-  if (status < 200 || status >= 300) {
+  if (status < 200 || status >= 300 || status === 204 || status === 205) {
     response.resume()
-    throw new Error('url returned a non-OK status code')
+    throw new Error('url returned a non-OK status code or an empty body')
   }
   return response
 }
@@ -93,7 +93,7 @@ export function profileImageUrlUpload () {
           const response = await fetchExternalImage(url)
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await finished(response.pipe(fileStream))
+          await pipeline(response, fileStream)
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
