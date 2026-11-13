@@ -272,6 +272,16 @@ void describe('/file-upload', () => {
     assert.equal(fs.existsSync(path.resolve('uploads/complaints/mixed-plain-evidence.txt')), false)
   })
 
+  void itIfFileWriteEnabled('POST zip file mixing plaintext and stored encrypted entries is rejected without persisting any entry', async () => {
+    const file = path.resolve(__dirname, '../files/mixedStoredEncryptedComplaint.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .set(authHeader)
+      .attach('file', file)
+    assert.equal(res.status, 400)
+    assert.equal(fs.existsSync(path.resolve('uploads/complaints/stored-plain-evidence.txt')), false)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
