@@ -45,15 +45,15 @@ void describe('/rest/web3 rate limiting', () => {
   })
 
   void it('limit is shared across all /rest/web3 endpoints', async () => {
-    const probes = [
-      request(app).post('/rest/web3/submitKey').send({ privateKey: '0x0' }),
-      request(app).get('/rest/web3/nftUnlocked'),
-      request(app).get('/rest/web3/nftMintListen'),
-      request(app).post('/rest/web3/walletExploitAddress').send({ walletAddress })
+    const probes: Array<[string, () => request.Test]> = [
+      ['POST /rest/web3/submitKey', () => request(app).post('/rest/web3/submitKey').send({ privateKey: '0x0' })],
+      ['GET /rest/web3/nftUnlocked', () => request(app).get('/rest/web3/nftUnlocked')],
+      ['GET /rest/web3/nftMintListen', () => request(app).get('/rest/web3/nftMintListen')],
+      ['POST /rest/web3/walletExploitAddress', () => request(app).post('/rest/web3/walletExploitAddress').send({ walletAddress })]
     ]
-    for (const probe of probes) {
-      const res = await probe
-      assert.equal(res.status, 429, `${res.req.method} ${res.req.path}`)
+    for (const [route, probe] of probes) {
+      const res = await probe()
+      assert.equal(res.status, 429, route)
     }
   })
 
