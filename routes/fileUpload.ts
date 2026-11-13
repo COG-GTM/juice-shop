@@ -203,7 +203,7 @@ function stripDeclaredReferences (text: string, declarations: Map<string, { exte
       entityReferenceAt.lastIndex = index
       const reference = entityReferenceAt.exec(text)
       if (reference !== null) {
-        if (!declarations.has('&' + reference[1])) result += reference[0]
+        result += declarations.has('&' + reference[1]) ? '_' : reference[0]
         index += reference[0].length
         continue
       }

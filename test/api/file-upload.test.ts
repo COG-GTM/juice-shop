@@ -205,6 +205,14 @@ void describe('/file-upload', () => {
       assert.ok(Date.now() - start < 2000)
     })
 
+    void it('POST XML with dev/random entity referenced after the root element is not treated as an attack', async () => {
+      const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo/>&xxe;')
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', payload, 'trailingReference.xml')
+      assert.equal(res.status, 410)
+    })
+
     void it('POST XML with dev/random entity referenced only inside CDATA is not treated as an attack', async () => {
       const payload = Buffer.from('<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///dev/random">]><foo><![CDATA[&xxe;]]></foo>')
       const res = await request(app)
