@@ -23,7 +23,8 @@ const validCoupon = security.generateCoupon(15)
 const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
 const forgedCoupon = security.generateCoupon(99)
 const overDiscountCoupon = security.generateCoupon(150000)
-const fullDiscountCoupon = security.generateCoupon(100)
+// zero-padded so the z85 payload stays a multiple of 4 bytes
+const fullDiscountCoupon = security.generateCoupon('000100' as unknown as number)
 
 before(
   async () => {
@@ -203,6 +204,7 @@ void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order with a 100% discount is not rejected by float rounding', async () => {
     const shirt = await ProductModel.findOne({ where: { name: 'OWASP Juice Shop T-Shirt' } })
     assert.ok(shirt)
+    assert.equal(security.discountFromCoupon(fullDiscountCoupon), 100)
     const basket = await BasketModel.create({ UserId: 2, coupon: fullDiscountCoupon })
     await BasketItemModel.create({ BasketId: basket.id, ProductId: shirt.id, quantity: 5 })
 
