@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
@@ -33,7 +34,7 @@ describe('fileServer', () => {
 
     await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith('announcement_encrypted.md', sinon.match({ root: sinon.match(/ftp$/) }))
+    expect(res.sendFile).to.have.been.calledWith(path.resolve('ftp', 'announcement_encrypted.md'))
   })
 
   it('should serve incident-support.kdbx files from folder /ftp', async () => {
@@ -41,7 +42,7 @@ describe('fileServer', () => {
 
     await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith('incident-support.kdbx', sinon.match({ root: sinon.match(/ftp$/) }))
+    expect(res.sendFile).to.have.been.calledWith(path.resolve('ftp', 'incident-support.kdbx'))
   })
 
   it('should serve PDF files from folder /ftp', async () => {
@@ -54,7 +55,7 @@ describe('fileServer', () => {
       lstat.restore()
     }
 
-    expect(res.sendFile).to.have.been.calledWith('order_1234.pdf', sinon.match({ root: sinon.match(/ftp$/) }))
+    expect(res.sendFile).to.have.been.calledWith(path.resolve('ftp', 'order_1234.pdf'))
   })
 
   it('should respond 404 for allowlisted file types that do not exist in /ftp', async () => {
@@ -100,7 +101,7 @@ describe('fileServer', () => {
 
     await servePublicFiles()(req, res, next)
 
-    expect(res.sendFile).to.have.been.calledWith('acquisitions.md', sinon.match({ root: sinon.match(/ftp$/) }))
+    expect(res.sendFile).to.have.been.calledWith(path.resolve('ftp', 'acquisitions.md'))
     expect(challenges.directoryListingChallenge.solved).to.equal(true)
   })
 
