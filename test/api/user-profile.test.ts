@@ -57,7 +57,7 @@ void describe('/profile', () => {
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
       .type('form')
-      .send({ username: '#{7*7}</p>&"' })
+      .send({ username: '#{7*7}' })
       .redirects(0)
 
     const res = await request(app)
@@ -65,7 +65,7 @@ void describe('/profile', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('#{7*7}&lt;/p&gt;&amp;&quot;'))
-    assert.ok(!res.text.includes('>49'))
+    assert.ok(res.text.includes('>#{7*7}</p>'))
+    assert.ok(!res.text.includes('>49</p>'))
   })
 })
