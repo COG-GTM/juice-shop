@@ -8,7 +8,7 @@ import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
-import { clearPasswordChangeRequirement, isPasswordChangeRequired, requirePasswordChange } from '../lib/passwordRotation'
+import { beginPasswordRotation, clearPasswordChangeRequirement, endPasswordRotation, isPasswordChangeRequired } from '../lib/passwordRotation'
 
 const MIN_PASSWORD_LENGTH = 12
 const MAX_PASSWORD_LENGTH = 40
@@ -50,16 +50,15 @@ export function rotateInitialPassword () {
         return
       }
 
-      if (!isPasswordChangeRequired(user.id)) {
-        res.status(401).send(res.__('Invalid email or password.'))
+      if (!beginPasswordRotation(user.id)) {
+        res.status(409).send(res.__('Invalid email or password.'))
         return
       }
-      clearPasswordChangeRequirement(user.id)
       try {
         await user.update({ password: newPassword })
-      } catch (error) {
-        requirePasswordChange(user.id)
-        throw error
+        clearPasswordChangeRequirement(user.id)
+      } finally {
+        endPasswordRotation(user.id)
       }
 
       const plainUser = utils.queryResultToJson(user)
@@ -69,6 +68,7 @@ export function rotateInitialPassword () {
       plainUser.bid = basket.id
       security.authenticatedUsers.put(token, plainUser)
 
+      res.set('Cache-Control', 'no-store')
       res.json({ authentication: { token, bid: basket.id, umail: user.email } })
     } catch (error) {
       next(error)
