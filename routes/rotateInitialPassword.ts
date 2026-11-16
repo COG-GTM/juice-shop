@@ -8,10 +8,11 @@ import { BasketModel } from '../models/basket'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
-import { clearPasswordChangeRequirement, isPasswordChangeRequired } from '../lib/passwordRotation'
+import { clearPasswordChangeRequirement, isPasswordChangeRequired, requirePasswordChange } from '../lib/passwordRotation'
 
 const MIN_PASSWORD_LENGTH = 12
-const MAX_PASSWORD_LENGTH = 128
+const MAX_PASSWORD_LENGTH = 40
+const ROTATION_TOKEN_LIFETIME_SECONDS = 15 * 60
 
 export function rotateInitialPassword () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -20,7 +21,7 @@ export function rotateInitialPassword () {
     let userId: number | undefined
     try {
       const payload = security.verify(tmpToken) && security.decode(tmpToken)
-      if (payload?.type !== 'password_valid_needs_rotation') {
+      if (payload?.type !== 'password_valid_needs_rotation' || typeof payload.iat !== 'number' || Date.now() / 1000 - payload.iat > ROTATION_TOKEN_LIFETIME_SECONDS) {
         throw new Error('Invalid token type')
       }
       userId = payload.userId
@@ -49,8 +50,17 @@ export function rotateInitialPassword () {
         return
       }
 
-      await user.update({ password: newPassword })
+      if (!isPasswordChangeRequired(user.id)) {
+        res.status(401).send(res.__('Invalid email or password.'))
+        return
+      }
       clearPasswordChangeRequirement(user.id)
+      try {
+        await user.update({ password: newPassword })
+      } catch (error) {
+        requirePasswordChange(user.id)
+        throw error
+      }
 
       const plainUser = utils.queryResultToJson(user)
       const [basket] = await BasketModel.findOrCreate({ where: { UserId: user.id } })

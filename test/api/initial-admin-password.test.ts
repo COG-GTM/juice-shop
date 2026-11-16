@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -68,6 +68,20 @@ void describe('initial administrator credential', () => {
     const tmpToken = security.authorize({ userId: user.id, type: 'password_valid_needs_second_factor_token' })
     const res = await request(app).post('/rest/user/rotate-initial-password').set(jsonHeader).send({ tmpToken, new: rotatedPassword, repeat: rotatedPassword })
     assert.equal(res.status, 401)
+  })
+
+  void it('rejects rotation with a stale rotation token', async () => {
+    const user = await adminUser()
+    const tmpToken = security.authorize({ userId: user.id, type: 'password_valid_needs_rotation' })
+    const now = Date.now()
+    const clock = mock.method(Date, 'now', () => now + 60 * 60 * 1000)
+    try {
+      const res = await request(app).post('/rest/user/rotate-initial-password').set(jsonHeader).send({ tmpToken, new: rotatedPassword, repeat: rotatedPassword })
+      assert.equal(res.status, 401)
+    } finally {
+      clock.mock.restore()
+    }
+    assert.ok(isPasswordChangeRequired(user.id))
   })
 
   void it('rejects rotation to a short, mismatching or unchanged password', async () => {
