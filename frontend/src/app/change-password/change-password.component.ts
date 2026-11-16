@@ -11,6 +11,10 @@ import {
   ReactiveFormsModule
 } from '@angular/forms'
 import { UserService } from '../Services/user.service'
+import { CookieService } from 'ngy-cookie'
+import { BasketService } from '../Services/basket.service'
+import { catchError } from 'rxjs/operators'
+import { of } from 'rxjs'
 import { Component, inject, OnInit } from '@angular/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
@@ -51,6 +55,8 @@ export class ChangePasswordComponent implements OnInit {
   private readonly userService = inject(UserService)
   private readonly formSubmitService = inject(FormSubmitService)
   private readonly translate = inject(TranslateService)
+  private readonly cookieService = inject(CookieService)
+  private readonly basketService = inject(BasketService)
 
   public passwordControl: UntypedFormControl = new UntypedFormControl('', [
     Validators.required
@@ -74,8 +80,17 @@ export class ChangePasswordComponent implements OnInit {
 
   public error: any
   public confirmation: any
+  public rotationToken: string | null = this.userService.passwordRotationToken
+  public passwordLength = '5-40'
 
   ngOnInit (): void {
+    if (this.rotationToken) {
+      this.passwordControl.clearValidators()
+      this.passwordControl.updateValueAndValidity()
+      this.passwordLength = '12-40'
+      this.newPasswordControl.setValidators([Validators.required, Validators.minLength(12), Validators.maxLength(40)])
+      this.newPasswordControl.updateValueAndValidity()
+    }
     this.formSubmitService.attachEnterKeyHandler(
       'password-form',
       'changeButton',
@@ -96,14 +111,27 @@ export class ChangePasswordComponent implements OnInit {
         'Parola echipei de asistență nu respectă politica corporativă pentru conturile privilegiate! Vă rugăm să schimbați parola în consecință!'
       )
     }
-    this.userService
-      .changePassword({
+    const passwordChange = this.rotationToken
+      ? this.userService.rotateInitialPassword({
+        tmpToken: this.rotationToken,
+        new: this.newPasswordControl.value,
+        repeat: this.repeatNewPasswordControl.value
+      })
+      : this.userService.changePassword({
         current: this.passwordControl.value,
         new: this.newPasswordControl.value,
         repeat: this.repeatNewPasswordControl.value
       })
+    passwordChange
       .subscribe({
-        next: () => {
+        next: (authentication: any) => {
+          if (this.rotationToken) {
+            this.userService.passwordRotationToken = null
+            this.rotationToken = null
+            this.storeSession(authentication)
+            this.passwordControl.setValidators([Validators.required])
+            this.passwordControl.updateValueAndValidity()
+          }
           this.error = undefined
           this.translate.get('PASSWORD_SUCCESSFULLY_CHANGED').subscribe({
             next: (passwordSuccessfullyChanged) => {
@@ -122,6 +150,17 @@ export class ChangePasswordComponent implements OnInit {
           this.resetPasswords()
         }
       })
+  }
+
+  storeSession (authentication: { token: string, bid: number }) {
+    localStorage.setItem('token', authentication.token)
+    const expires = new Date()
+    expires.setHours(expires.getHours() + 8)
+    this.cookieService.put('token', authentication.token, { expires })
+    sessionStorage.setItem('bid', authentication.bid?.toString())
+    this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)
+      .pipe(catchError(() => of(void 0)))
+      .subscribe(() => { this.userService.isLoggedIn.next(true) })
   }
 
   resetForm () {

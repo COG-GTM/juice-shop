@@ -22,6 +22,7 @@ export class UserService {
   private readonly http = inject(HttpClient)
 
   public isLoggedIn = new Subject<any>()
+  public passwordRotationToken: string | null = null
   private readonly hostServer = environment.hostServer
   private readonly host = this.hostServer + '/api/Users'
 
@@ -53,6 +54,10 @@ export class UserService {
   changePassword (passwords: Passwords) {
     return this.http.get(this.hostServer + '/rest/user/change-password?current=' + passwords.current + '&new=' +
     passwords.new + '&repeat=' + passwords.repeat).pipe(map((response: any) => response.user), catchError((err) => { throw err.error }))
+  }
+
+  rotateInitialPassword (params: { tmpToken: string, new: string, repeat: string }) {
+    return this.http.post(this.hostServer + '/rest/user/rotate-initial-password', params).pipe(map((response: any) => response.authentication), catchError((err) => { throw err.error }))
   }
 
   resetPassword (params: any) {

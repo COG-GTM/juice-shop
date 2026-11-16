@@ -50,9 +50,6 @@ ctf:
     unionSqlInjectionChallenge:
       name: Slovakia
       code: SK
-    weakPasswordChallenge:
-      name: Madagascar
-      code: MG
     feedbackChallenge:
       name: Belize
       code: BZ

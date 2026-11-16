@@ -28,6 +28,10 @@ import { getCodeChallenges } from '../lib/codingChallenges'
 import type { Memory as MemoryConfig, Product as ProductConfig } from '../lib/config.types'
 import config from 'config'
 import * as utils from '../lib/utils'
+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import { requirePasswordChange } from '../lib/passwordRotation'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
 import type { CreationAttributes } from 'sequelize'
@@ -182,6 +186,19 @@ async function createChallenges () {
   }
 }
 
+function initialAdminCredential (email: string) {
+  const configuredPassword = process.env.JUICE_SHOP_ADMIN_PASSWORD
+  if (configuredPassword) {
+    return { password: configuredPassword, passwordChangeRequired: false }
+  }
+  const password = crypto.randomBytes(24).toString('base64url')
+  const passwordFile = path.resolve('data/initial-admin-password')
+  fs.writeFileSync(passwordFile, password + '\n', { mode: 0o600 })
+  fs.chmodSync(passwordFile, 0o600)
+  logger.warn(`Generated initial password for administrator ${email} in ${passwordFile} (must be changed on first login; set JUICE_SHOP_ADMIN_PASSWORD to provide your own)`)
+  return { password, passwordChangeRequired: true }
+}
+
 async function createUsers () {
   const users = await loadStaticUserData()
 
@@ -189,10 +206,11 @@ async function createUsers () {
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const credential = key === 'admin' ? initialAdminCredential(completeEmail) : { password, passwordChangeRequired: false }
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: credential.password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
@@ -200,6 +218,7 @@ async function createUsers () {
           lastLoginIp
         })
         datacache.users[key] = user
+        if (credential.passwordChangeRequired) requirePasswordChange(user.id)
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
         if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)

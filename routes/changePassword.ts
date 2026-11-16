@@ -8,6 +8,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import { clearPasswordChangeRequirement } from '../lib/passwordRotation'
 
 export function changePassword () {
   return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
@@ -49,6 +50,7 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
+      clearPasswordChangeRequirement(user.id)
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')

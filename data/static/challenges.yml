@@ -822,23 +822,6 @@
   mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html'
   key: redirectCryptoCurrencyChallenge
 -
-  name: 'Password Strength'
-  category: 'Broken Authentication'
-  tags:
-    - Brute Force
-    - Tutorial
-  description: 'Log in with the administrator''s user credentials without previously changing them or applying SQL Injection.'
-  difficulty: 2
-  hints:
-    - 'This challenge can be solved with three different approaches.'
-    - 'Guessing might work just fine.'
-    - 'If you harvested the admin’s password hash, you can try to attack that.'
-    - 'In case you use some hacker tool, you can also go for a brute force attack using a generic password list.'
-  mitigationUrl: 'https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html'
-  key: weakPasswordChallenge
-  tutorial:
-    order: 9
--
   name: 'Payback Time'
   category: 'Improper Input Validation'
   description: 'Place an order that makes you rich.'

@@ -12,7 +12,6 @@ import { PrivacyPolicyInstruction } from './challenges/privacyPolicy'
 import { LoginJimInstruction } from './challenges/loginJim'
 import { ViewBasketInstruction } from './challenges/viewBasket'
 import { ForgedFeedbackInstruction } from './challenges/forgedFeedback'
-import { PasswordStrengthInstruction } from './challenges/passwordStrength'
 import { BonusPayloadInstruction } from './challenges/bonusPayload'
 import { LoginBenderInstruction } from './challenges/loginBender'
 import { TutorialUnavailableInstruction } from './tutorialUnavailable'
@@ -29,7 +28,6 @@ const challengeInstructions: ChallengeInstruction[] = [
   PrivacyPolicyInstruction,
   ViewBasketInstruction,
   ForgedFeedbackInstruction,
-  PasswordStrengthInstruction,
   BonusPayloadInstruction,
   LoginBenderInstruction,
   CodingChallengesInstruction,

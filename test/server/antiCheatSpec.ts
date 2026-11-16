@@ -12,8 +12,8 @@ describe('antiCheat', () => {
 
   describe('calculateCheatScore', () => {
     it('should return cheat score of 0 if challenge is tightly coupled to the previously solved one', () => {
-      const challenge1: Challenge = { key: 'loginAdminChallenge', difficulty: 1 } as any
-      const challenge2: Challenge = { key: 'weakPasswordChallenge', difficulty: 1 } as any
+      const challenge1: Challenge = { key: 'nullByteChallenge', difficulty: 1 } as any
+      const challenge2: Challenge = { key: 'forgottenBackupChallenge', difficulty: 1 } as any
 
       antiCheat.calculateCheatScore(challenge1)
       const score = antiCheat.calculateCheatScore(challenge2)

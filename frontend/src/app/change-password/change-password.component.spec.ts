@@ -16,6 +16,8 @@ import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatCardModule } from '@angular/material/card'
 import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { CookieModule } from 'ngy-cookie'
+import { BasketService } from '../Services/basket.service'
 
 describe('ChangePasswordComponent', () => {
     let component: ChangePasswordComponent
@@ -24,19 +26,21 @@ describe('ChangePasswordComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            changePassword: vi.fn().mockName("UserService.changePassword")
+            changePassword: vi.fn().mockName("UserService.changePassword"),
+            rotateInitialPassword: vi.fn().mockName("UserService.rotateInitialPassword")
         }
         userService.changePassword.mockReturnValue(of({}))
 
         await TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
+                CookieModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
                 MatInputModule,
                 MatButtonModule,
                 ChangePasswordComponent],
-            providers: [{ provide: UserService, useValue: userService }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [{ provide: UserService, useValue: userService }, { provide: BasketService, useValue: { mergeGuestBasketIntoUserBasket: vi.fn().mockReturnValue(of(undefined)) } }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })
@@ -117,5 +121,28 @@ describe('ChangePasswordComponent', () => {
         expect(component.error).toBe('Error')
         expect(console.log).toHaveBeenCalledWith('Error')
         expect(component.resetPasswords).toHaveBeenCalled()
+    })
+
+    it('should rotate initial password without current password when rotation token is present', () => {
+        userService.passwordRotationToken = 'tmpToken'
+        userService.isLoggedIn = { next: vi.fn() }
+        userService.rotateInitialPassword.mockReturnValue(of({ token: 'sessionToken', bid: 42 }))
+        fixture = TestBed.createComponent(ChangePasswordComponent)
+        component = fixture.componentInstance
+        fixture.detectChanges()
+        expect(component.passwordControl.valid).toBe(true)
+        component.newPasswordControl.setValue('short')
+        expect(component.newPasswordControl.valid).toBeFalsy()
+        component.newPasswordControl.setValue('long enough password')
+        component.repeatNewPasswordControl.setValue('long enough password')
+        component.changePassword()
+        expect(userService.rotateInitialPassword).toHaveBeenCalledWith({ tmpToken: 'tmpToken', new: 'long enough password', repeat: 'long enough password' })
+        expect(userService.changePassword).not.toHaveBeenCalled()
+        expect(component.rotationToken).toBeNull()
+        expect(userService.passwordRotationToken).toBeNull()
+        expect(localStorage.getItem('token')).toBe('sessionToken')
+        expect(sessionStorage.getItem('bid')).toBe('42')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
+        expect(component.confirmation).toBeDefined()
     })
 })

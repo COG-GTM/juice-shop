@@ -2,7 +2,7 @@ describe('/#/complain', () => {
   beforeEach(() => {
     cy.login({
       email: 'admin',
-      password: 'admin123'
+      password: Cypress.env('adminPassword')
     })
 
     cy.visit('/#/complain')

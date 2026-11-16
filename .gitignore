@@ -67,3 +67,4 @@ config/*.yml
 
 # System Files
 .DS_Store
+/data/initial-admin-password
