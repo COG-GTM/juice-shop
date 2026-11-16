@@ -29,6 +29,8 @@ import type { Memory as MemoryConfig, Product as ProductConfig } from '../lib/co
 import config from 'config'
 import * as utils from '../lib/utils'
 import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
 import { requirePasswordChange } from '../lib/passwordRotation'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
@@ -190,7 +192,10 @@ function initialAdminCredential (email: string) {
     return { password: configuredPassword, passwordChangeRequired: false }
   }
   const password = crypto.randomBytes(24).toString('base64url')
-  logger.warn(`Generated initial password for administrator ${email}: ${password} (must be changed on first login; set JUICE_SHOP_ADMIN_PASSWORD to provide your own)`)
+  const passwordFile = path.resolve('data/initial-admin-password')
+  fs.writeFileSync(passwordFile, password + '\n', { mode: 0o600 })
+  fs.chmodSync(passwordFile, 0o600)
+  logger.warn(`Generated initial password for administrator ${email} in ${passwordFile} (must be changed on first login; set JUICE_SHOP_ADMIN_PASSWORD to provide your own)`)
   return { password, passwordChangeRequired: true }
 }
 
