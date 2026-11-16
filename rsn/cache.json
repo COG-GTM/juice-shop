@@ -1333,7 +1333,9 @@
 	},
 	"web3WalletChallenge_1.sol": {
 		"added": [],
-		"removed": []
+		"removed": [
+			32
+		]
 	},
 	"web3WalletChallenge_2.sol": {
 		"added": [],
