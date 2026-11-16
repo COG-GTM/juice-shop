@@ -16,6 +16,7 @@ import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatCardModule } from '@angular/material/card'
 import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { CookieModule } from 'ngy-cookie'
 
 describe('ChangePasswordComponent', () => {
     let component: ChangePasswordComponent
@@ -31,6 +32,7 @@ describe('ChangePasswordComponent', () => {
 
         await TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
+                CookieModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
@@ -121,8 +123,9 @@ describe('ChangePasswordComponent', () => {
     })
 
     it('should rotate initial password without current password when rotation token is present', () => {
-        sessionStorage.setItem('password_rotation_tmp_token', 'tmpToken')
-        userService.rotateInitialPassword.mockReturnValue(of({}))
+        userService.passwordRotationToken = 'tmpToken'
+        userService.isLoggedIn = { next: vi.fn() }
+        userService.rotateInitialPassword.mockReturnValue(of({ token: 'sessionToken', bid: 42 }))
         fixture = TestBed.createComponent(ChangePasswordComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
@@ -135,7 +138,10 @@ describe('ChangePasswordComponent', () => {
         expect(userService.rotateInitialPassword).toHaveBeenCalledWith({ tmpToken: 'tmpToken', new: 'long enough password', repeat: 'long enough password' })
         expect(userService.changePassword).not.toHaveBeenCalled()
         expect(component.rotationToken).toBeNull()
-        expect(sessionStorage.getItem('password_rotation_tmp_token')).toBeNull()
+        expect(userService.passwordRotationToken).toBeNull()
+        expect(localStorage.getItem('token')).toBe('sessionToken')
+        expect(sessionStorage.getItem('bid')).toBe('42')
+        expect(userService.isLoggedIn.next).toHaveBeenCalledWith(true)
         expect(component.confirmation).toBeDefined()
     })
 })

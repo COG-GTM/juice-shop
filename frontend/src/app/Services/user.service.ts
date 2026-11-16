@@ -22,6 +22,7 @@ export class UserService {
   private readonly http = inject(HttpClient)
 
   public isLoggedIn = new Subject<any>()
+  public passwordRotationToken: string | null = null
   private readonly hostServer = environment.hostServer
   private readonly host = this.hostServer + '/api/Users'
 

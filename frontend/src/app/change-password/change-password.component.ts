@@ -11,6 +11,7 @@ import {
   ReactiveFormsModule
 } from '@angular/forms'
 import { UserService } from '../Services/user.service'
+import { CookieService } from 'ngy-cookie'
 import { Component, inject, OnInit } from '@angular/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
@@ -51,6 +52,7 @@ export class ChangePasswordComponent implements OnInit {
   private readonly userService = inject(UserService)
   private readonly formSubmitService = inject(FormSubmitService)
   private readonly translate = inject(TranslateService)
+  private readonly cookieService = inject(CookieService)
 
   public passwordControl: UntypedFormControl = new UntypedFormControl('', [
     Validators.required
@@ -74,7 +76,7 @@ export class ChangePasswordComponent implements OnInit {
 
   public error: any
   public confirmation: any
-  public rotationToken: string | null = sessionStorage.getItem('password_rotation_tmp_token')
+  public rotationToken: string | null = this.userService.passwordRotationToken
   public passwordLength = '5-40'
 
   ngOnInit (): void {
@@ -118,10 +120,11 @@ export class ChangePasswordComponent implements OnInit {
       })
     passwordChange
       .subscribe({
-        next: () => {
+        next: (authentication: any) => {
           if (this.rotationToken) {
-            sessionStorage.removeItem('password_rotation_tmp_token')
+            this.userService.passwordRotationToken = null
             this.rotationToken = null
+            this.storeSession(authentication)
             this.passwordControl.setValidators([Validators.required])
             this.passwordControl.updateValueAndValidity()
           }
@@ -143,6 +146,15 @@ export class ChangePasswordComponent implements OnInit {
           this.resetPasswords()
         }
       })
+  }
+
+  storeSession (authentication: { token: string, bid: number }) {
+    localStorage.setItem('token', authentication.token)
+    const expires = new Date()
+    expires.setHours(expires.getHours() + 8)
+    this.cookieService.put('token', authentication.token, { expires })
+    sessionStorage.setItem('bid', authentication.bid?.toString())
+    this.userService.isLoggedIn.next(true)
   }
 
   resetForm () {
