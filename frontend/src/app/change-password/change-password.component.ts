@@ -74,8 +74,17 @@ export class ChangePasswordComponent implements OnInit {
 
   public error: any
   public confirmation: any
+  public rotationToken: string | null = sessionStorage.getItem('password_rotation_tmp_token')
+  public passwordLength = '5-40'
 
   ngOnInit (): void {
+    if (this.rotationToken) {
+      this.passwordControl.clearValidators()
+      this.passwordControl.updateValueAndValidity()
+      this.passwordLength = '12-40'
+      this.newPasswordControl.setValidators([Validators.required, Validators.minLength(12), Validators.maxLength(40)])
+      this.newPasswordControl.updateValueAndValidity()
+    }
     this.formSubmitService.attachEnterKeyHandler(
       'password-form',
       'changeButton',
@@ -96,14 +105,26 @@ export class ChangePasswordComponent implements OnInit {
         'Parola echipei de asistență nu respectă politica corporativă pentru conturile privilegiate! Vă rugăm să schimbați parola în consecință!'
       )
     }
-    this.userService
-      .changePassword({
+    const passwordChange = this.rotationToken
+      ? this.userService.rotateInitialPassword({
+        tmpToken: this.rotationToken,
+        new: this.newPasswordControl.value,
+        repeat: this.repeatNewPasswordControl.value
+      })
+      : this.userService.changePassword({
         current: this.passwordControl.value,
         new: this.newPasswordControl.value,
         repeat: this.repeatNewPasswordControl.value
       })
+    passwordChange
       .subscribe({
         next: () => {
+          if (this.rotationToken) {
+            sessionStorage.removeItem('password_rotation_tmp_token')
+            this.rotationToken = null
+            this.passwordControl.setValidators([Validators.required])
+            this.passwordControl.updateValueAndValidity()
+          }
           this.error = undefined
           this.translate.get('PASSWORD_SUCCESSFULLY_CHANGED').subscribe({
             next: (passwordSuccessfullyChanged) => {

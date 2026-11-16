@@ -10,6 +10,12 @@ import * as security from '../../../lib/insecurity'
 
 const jsonHeader = { 'content-type': 'application/json' }
 
+export function adminPassword (): string {
+  const password = process.env.JUICE_SHOP_ADMIN_PASSWORD
+  if (!password) throw new Error('JUICE_SHOP_ADMIN_PASSWORD must be set for API tests')
+  return password
+}
+
 export async function login (app: Express, { email, password, totpSecret }: { email: string, password: string, totpSecret?: string }) {
   const loginRes = await request(app)
     .post('/rest/user/login')

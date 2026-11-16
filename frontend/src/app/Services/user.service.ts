@@ -55,6 +55,10 @@ export class UserService {
     passwords.new + '&repeat=' + passwords.repeat).pipe(map((response: any) => response.user), catchError((err) => { throw err.error }))
   }
 
+  rotateInitialPassword (params: { tmpToken: string, new: string, repeat: string }) {
+    return this.http.post(this.hostServer + '/rest/user/rotate-initial-password', params).pipe(map((response: any) => response.authentication), catchError((err) => { throw err.error }))
+  }
+
   resetPassword (params: any) {
     return this.http.post(this.hostServer + '/rest/user/reset-password', params).pipe(map((response: any) => response.user), catchError((err) => { throw err }))
   }

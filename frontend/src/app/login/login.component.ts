@@ -125,6 +125,11 @@ export class LoginComponent implements OnInit {
           this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
           return
         }
+        if (error.status && error.data && error.status === 'password_change_required') {
+          sessionStorage.setItem('password_rotation_tmp_token', error.data.tmpToken)
+          this.ngZone.run(async () => await this.router.navigate(['/privacy-security/change-password']))
+          return
+        }
         localStorage.removeItem('token')
         this.cookieService.remove('token')
         sessionStorage.removeItem('bid')

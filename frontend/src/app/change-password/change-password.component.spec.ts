@@ -24,7 +24,8 @@ describe('ChangePasswordComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            changePassword: vi.fn().mockName("UserService.changePassword")
+            changePassword: vi.fn().mockName("UserService.changePassword"),
+            rotateInitialPassword: vi.fn().mockName("UserService.rotateInitialPassword")
         }
         userService.changePassword.mockReturnValue(of({}))
 
@@ -117,5 +118,24 @@ describe('ChangePasswordComponent', () => {
         expect(component.error).toBe('Error')
         expect(console.log).toHaveBeenCalledWith('Error')
         expect(component.resetPasswords).toHaveBeenCalled()
+    })
+
+    it('should rotate initial password without current password when rotation token is present', () => {
+        sessionStorage.setItem('password_rotation_tmp_token', 'tmpToken')
+        userService.rotateInitialPassword.mockReturnValue(of({}))
+        fixture = TestBed.createComponent(ChangePasswordComponent)
+        component = fixture.componentInstance
+        fixture.detectChanges()
+        expect(component.passwordControl.valid).toBe(true)
+        component.newPasswordControl.setValue('short')
+        expect(component.newPasswordControl.valid).toBeFalsy()
+        component.newPasswordControl.setValue('long enough password')
+        component.repeatNewPasswordControl.setValue('long enough password')
+        component.changePassword()
+        expect(userService.rotateInitialPassword).toHaveBeenCalledWith({ tmpToken: 'tmpToken', new: 'long enough password', repeat: 'long enough password' })
+        expect(userService.changePassword).not.toHaveBeenCalled()
+        expect(component.rotationToken).toBeNull()
+        expect(sessionStorage.getItem('password_rotation_tmp_token')).toBeNull()
+        expect(component.confirmation).toBeDefined()
     })
 })

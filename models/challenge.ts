@@ -72,7 +72,6 @@ const CHALLENGE_KEYS = [
   'noSqlOrdersChallenge',
   'noSqlReviewsChallenge',
   'redirectCryptoCurrencyChallenge',
-  'weakPasswordChallenge',
   'negativeOrderChallenge',
   'premiumPaywallChallenge',
   'privacyPolicyChallenge',

@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { adminPassword } from './helpers/auth'
 
 let app: Express
 
@@ -73,7 +74,7 @@ void describe('/rest/user/login', () => {
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'admin@' + config.get<string>('application.domain'),
-        password: 'admin123'
+        password: adminPassword()
       })
 
     assert.equal(res.status, 200)

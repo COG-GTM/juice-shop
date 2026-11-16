@@ -48,19 +48,6 @@ describe('/#/login', () => {
     })
   })
 
-  describe('challenge "adminCredentials"', () => {
-    it('should be able to log in with original (weak) admin credentials', () => {
-      cy.task<string>('GetFromConfig', 'application.domain').then(
-        (appDomain: string) => {
-          cy.get('#email').type(`admin@${appDomain}`)
-          cy.get('#password').type('admin123')
-          cy.get('#loginButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Password Strength' })
-    })
-  })
-
   describe('challenge "loginSupport"', () => {
     it('should be able to log in with original support-team credentials', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(

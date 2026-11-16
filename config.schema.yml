@@ -263,11 +263,6 @@ ctf:
         type: string
       code:
         type: string
-    weakPasswordChallenge:
-      name:
-        type: string
-      code:
-        type: string
     feedbackChallenge:
       name:
         type: string
