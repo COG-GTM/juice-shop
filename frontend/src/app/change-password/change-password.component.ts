@@ -12,6 +12,9 @@ import {
 } from '@angular/forms'
 import { UserService } from '../Services/user.service'
 import { CookieService } from 'ngy-cookie'
+import { BasketService } from '../Services/basket.service'
+import { catchError } from 'rxjs/operators'
+import { of } from 'rxjs'
 import { Component, inject, OnInit } from '@angular/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
@@ -53,6 +56,7 @@ export class ChangePasswordComponent implements OnInit {
   private readonly formSubmitService = inject(FormSubmitService)
   private readonly translate = inject(TranslateService)
   private readonly cookieService = inject(CookieService)
+  private readonly basketService = inject(BasketService)
 
   public passwordControl: UntypedFormControl = new UntypedFormControl('', [
     Validators.required
@@ -154,7 +158,9 @@ export class ChangePasswordComponent implements OnInit {
     expires.setHours(expires.getHours() + 8)
     this.cookieService.put('token', authentication.token, { expires })
     sessionStorage.setItem('bid', authentication.bid?.toString())
-    this.userService.isLoggedIn.next(true)
+    this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)
+      .pipe(catchError(() => of(void 0)))
+      .subscribe(() => { this.userService.isLoggedIn.next(true) })
   }
 
   resetForm () {

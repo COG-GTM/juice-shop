@@ -17,6 +17,7 @@ import { MatCardModule } from '@angular/material/card'
 import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { CookieModule } from 'ngy-cookie'
+import { BasketService } from '../Services/basket.service'
 
 describe('ChangePasswordComponent', () => {
     let component: ChangePasswordComponent
@@ -39,7 +40,7 @@ describe('ChangePasswordComponent', () => {
                 MatInputModule,
                 MatButtonModule,
                 ChangePasswordComponent],
-            providers: [{ provide: UserService, useValue: userService }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [{ provide: UserService, useValue: userService }, { provide: BasketService, useValue: { mergeGuestBasketIntoUserBasket: vi.fn().mockReturnValue(of(undefined)) } }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })
