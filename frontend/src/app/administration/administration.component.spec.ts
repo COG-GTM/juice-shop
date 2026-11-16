@@ -91,6 +91,15 @@ describe('AdministrationComponent', () => {
         expect(component.userDataSource.data[1].email.toString()).toContain('User2')
     })
 
+    it('should render user emails as text instead of HTML', () => {
+        userService.find.mockReturnValue(of([{ email: '<iframe src="javascript:alert(`xss`)">' }]))
+        component.findAllUsers()
+        fixture.detectChanges()
+        const cell: HTMLElement = fixture.nativeElement.querySelector('.user-table mat-cell.cell-middle span')
+        expect(cell.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
+        expect(fixture.nativeElement.querySelector('iframe')).toBeNull()
+    })
+
     it('should give an error if UserService fails to find all users', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.find.mockReturnValue(throwError('Error'))
