@@ -6,6 +6,8 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -197,10 +199,21 @@ describe('insecurity', () => {
   })
 
   describe('hmac', () => {
-    it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
-      expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
-      expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
-      expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    it('returns a deterministic SHA-256 HMAC for any input string', () => {
+      expect(security.hmac('admin123')).to.match(/^[0-9a-f]{64}$/)
+      expect(security.hmac('admin123')).to.equal(security.hmac('admin123'))
+      expect(security.hmac('admin123')).to.not.equal(security.hmac('password'))
+    })
+
+    it('does not use the formerly hardcoded key', () => {
+      expect(security.hmac('admin123')).to.not.equal(crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update('admin123').digest('hex'))
+    })
+
+    it('uses the key from SECURITY_ANSWER_HMAC_KEY when configured', () => {
+      const output = execFileSync(process.execPath, ['--import', 'tsx', '-e', "import('./lib/insecurity.ts').then(s => process.stdout.write(s.hmac('admin123')))"], {
+        env: { ...process.env, SECURITY_ANSWER_HMAC_KEY: 'test-key' }
+      }).toString()
+      expect(output).to.equal(crypto.createHmac('sha256', 'test-key').update('admin123').digest('hex'))
     })
   })
 })
