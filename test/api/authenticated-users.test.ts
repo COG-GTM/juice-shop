@@ -66,7 +66,18 @@ void describe('/rest/user/authentication-details', () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')
 
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 401)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET rejects expired admin tokens', async () => {
+    const expiredToken = security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin }, exp: Math.floor(Date.now() / 1000) - 60 })
+
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set({ Authorization: `Bearer ${expiredToken}` })
+
+    assert.equal(res.status, 401)
     assert.equal(res.body.data, undefined)
   })
 })
