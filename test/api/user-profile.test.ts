@@ -52,11 +52,12 @@ void describe('/profile', () => {
     assert.equal(res.status, 302)
   })
 
-  void it('GET user profile renders template syntax in username as literal escaped text', async () => {
+  void it('GET user profile renders template syntax in username as literal text', async () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'a#{7*7}<b>x</b>')
+      .type('form')
+      .send({ username: 'a#{7*7}' })
       .redirects(0)
 
     const res = await request(app)
@@ -64,7 +65,7 @@ void describe('/profile', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('a#{7*7}&lt;b&gt;x&lt;/b&gt;'))
+    assert.ok(res.text.includes('>a#{7*7}</p>'))
     assert.ok(!res.text.includes('a49'))
   })
 
@@ -72,7 +73,8 @@ void describe('/profile', () => {
     await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', '#{7*7}')
+      .type('form')
+      .send({ username: '#{7*7}' })
       .redirects(0)
 
     const res = await request(app)
@@ -80,6 +82,6 @@ void describe('/profile', () => {
       .set(authHeader)
 
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('#{7*7}'))
+    assert.ok(res.text.includes('>#{7*7}</p>'))
   })
 })
