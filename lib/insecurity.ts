@@ -41,6 +41,18 @@ interface IAuthenticatedUsers {
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
+export const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(16).toString('hex')
+  const derivedKey = crypto.scryptSync(password, salt, 64).toString('hex')
+  return `scrypt$${salt}$${derivedKey}`
+}
+export const verifyPassword = (password: unknown, storedHash: unknown) => {
+  if (typeof password !== 'string' || typeof storedHash !== 'string') return false
+  const [scheme, salt, derivedKey] = storedHash.split('$')
+  if (scheme !== 'scrypt' || !salt || !/^(?:[0-9a-f]{2})+$/.test(derivedKey ?? '')) return false
+  const expectedKey = Buffer.from(derivedKey, 'hex')
+  return crypto.timingSafeEqual(crypto.scryptSync(password, salt, expectedKey.length), expectedKey)
+}
 export const hmac = (data: string) => crypto.createHmac('sha256', 'pa4qacea4VK9t9nGv7yZtwmj').update(data).digest('hex')
 
 export const cutOffPoisonNullByte = (str: string) => {
