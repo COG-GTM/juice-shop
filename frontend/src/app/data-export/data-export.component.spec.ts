@@ -110,6 +110,18 @@ describe('DataExportComponent', () => {
         expect(component.resetForm).toHaveBeenCalled()
     })
 
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+        expect(component.presenceOfCaptcha).toBe(true)
+    })
+
+    it('should request a new captcha if exporting data fails', () => {
+        dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Error' }))
+        imageCaptchaService.getCaptcha.mockClear()
+        component.save()
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+    })
+
     it('should clear the form and display error if exporting data fails', () => {
         dataSubjectService.dataExport.mockReturnValue(throwError({ error: 'Error' }))
         vi.spyOn(component, 'resetFormError')
