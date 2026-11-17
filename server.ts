@@ -167,6 +167,12 @@ void collectDurationPromise('validatePreconditions', validatePreconditions)()
 void collectDurationPromise('cleanupFtpFolder', cleanupFtpFolder)()
 void collectDurationPromise('validateConfig', validateConfig)({})
 
+function allowedCorsOrigins (): string[] {
+  const origins = new Set(config.get<string[]>('server.corsAllowedOrigins'))
+  origins.add(new URL(config.get<string>('server.baseUrl')).origin)
+  return [...origins]
+}
+
 function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Locals */
   app.locals.captchaId = 0
@@ -178,9 +184,10 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Compression for all requests */
   app.use(compression())
 
-  /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
-  app.use(cors())
+  /* CORS restricted to the shop's own origins */
+  const corsOptions: cors.CorsOptions = { origin: allowedCorsOrigins() }
+  app.options('*', cors(corsOptions))
+  app.use(cors(corsOptions))
 
   /* Security middleware */
   app.use(helmet.noSniff())

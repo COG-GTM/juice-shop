@@ -18,10 +18,22 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('HTTP', () => {
-  void it('response must contain CORS header allowing all origins', async () => {
-    const res = await request(app).get('/')
+  void it('response must not allow CORS from foreign origins', async () => {
+    const res = await request(app).get('/').set('Origin', 'https://evil.example')
     assert.equal(res.status, 200)
-    assert.equal(res.headers['access-control-allow-origin'], '*')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
+  })
+
+  void it('response must allow CORS from the shop origin', async () => {
+    const origin = new URL(config.get<string>('server.baseUrl')).origin
+    const res = await request(app).get('/').set('Origin', origin)
+    assert.equal(res.status, 200)
+    assert.equal(res.headers['access-control-allow-origin'], origin)
+  })
+
+  void it('preflight must not allow CORS from foreign origins', async () => {
+    const res = await request(app).options('/rest/user/login').set('Origin', 'https://evil.example').set('Access-Control-Request-Method', 'POST')
+    assert.equal(res.headers['access-control-allow-origin'], undefined)
   })
 
   void it('response must contain sameorigin frameguard header', async () => {

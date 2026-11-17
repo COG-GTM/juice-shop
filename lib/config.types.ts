@@ -5,6 +5,7 @@ export interface ServerConfig {
   port: number
   basePath: string
   baseUrl: string
+  corsAllowedOrigins: string[]
 }
 
 export interface ApplicationConfig {
