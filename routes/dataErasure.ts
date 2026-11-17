@@ -85,7 +85,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
         deletionRequested: true
       })
 
-      res.clearCookie('token')
+      security.clearAuthCookie(res)
 
       const themeKey = config.get<string>('application.theme') as keyof typeof themes
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']

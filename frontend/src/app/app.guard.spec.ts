@@ -29,39 +29,35 @@ describe('LoginGuard', () => {
     it('should open for authenticated users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'TOKEN')
+        localStorage.setItem('session', '{"data":{}}')
         expect(guard.canActivate()).toBe(true)
     })
 
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         expect(guard.canActivate()).toBe(false)
     })
 
-    it('returns payload from decoding a valid JWT', () => {
+    it('returns stored session claims', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c')
-        expect(guard.tokenDecode()).toEqual({
-            sub: '1234567890',
-            name: 'John Doe',
-            iat: 1516239022
-        })
+        localStorage.setItem('session', JSON.stringify({ data: { email: 'john@juice-sh.op', role: 'customer' } }))
+        expect(guard.tokenDecode()).toEqual({ data: { email: 'john@juice-sh.op', role: 'customer' } })
     })
 
-    it('returns nothing when decoding an invalid JWT', () => {
+    it('returns nothing for a corrupted session', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', '12345.abcde')
+        localStorage.setItem('session', '12345.abcde')
         expect(guard.tokenDecode()).toBeNull()
     })
 
-    it('returns nothing when decoding an non-existing JWT', () => {
+    it('returns nothing for a non-existing session', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         expect(guard.tokenDecode()).toBeNull()
     })
 })

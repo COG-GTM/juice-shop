@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { clearSession, hasSession } from '../session'
 import { Component, EventEmitter, NgZone, type OnInit, Output, inject } from '@angular/core'
 import { environment } from '../../environments/environment'
 import { ChallengeService } from '../Services/challenge.service'
@@ -147,7 +148,7 @@ export class NavbarComponent implements OnInit {
       error: (err) => { console.log(err) }
     })
 
-    if (localStorage.getItem('token')) {
+    if (hasSession()) {
       this.getUserDetails()
     } else {
       this.userEmail = ''
@@ -232,18 +233,22 @@ export class NavbarComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return hasSession()
   }
 
   logout () {
     this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    localStorage.removeItem('token')
-    this.cookieService.remove('token')
-    sessionStorage.removeItem('bid')
-    sessionStorage.removeItem('itemTotal')
-    sessionStorage.removeItem('guestBasket')
-    this.userService.isLoggedIn.next(false)
-    this.ngZone.run(async () => await this.router.navigate(['/']))
+    this.userService.logout().subscribe({
+      next: () => {
+        clearSession()
+        sessionStorage.removeItem('bid')
+        sessionStorage.removeItem('itemTotal')
+        sessionStorage.removeItem('guestBasket')
+        this.userService.isLoggedIn.next(false)
+        this.ngZone.run(async () => await this.router.navigate(['/']))
+      },
+      error: (err) => { console.log(err) }
+    })
   }
 
   changeLanguage (langKey: string) {

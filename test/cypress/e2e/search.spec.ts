@@ -117,9 +117,6 @@ describe('/rest/products/search', () => {
                       cache: 'no-cache',
                       headers: {
                         'Content-type': 'application/json',
-                        Authorization: `Bearer ${localStorage.getItem(
-                          'token'
-                        )}`
                       },
                       body: JSON.stringify({
                         BasketId: `${sessionStorage.getItem('bid')}`,

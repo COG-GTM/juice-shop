@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { hasSession } from '../session'
 import { Component, NgZone, inject } from '@angular/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faCartArrowDown } from '@fortawesome/free-solid-svg-icons'
@@ -28,7 +29,7 @@ export class BasketComponent {
   public bonus = 0
 
   checkout (): void {
-    if (localStorage.getItem('token') == null) {
+    if (!hasSession()) {
       this.ngZone.run(async () => await this.router.navigate(['/login'], {
         queryParams: {
           redirectUrl: '/basket'

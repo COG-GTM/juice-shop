@@ -70,7 +70,8 @@ describe('NavbarComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout").mockReturnValue(of({}))
         }
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
@@ -143,7 +144,7 @@ describe('NavbarComponent', () => {
     beforeEach(() => {
         fixture = TestBed.createComponent(NavbarComponent)
         component = fixture.componentInstance
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         fixture.detectChanges()
     })
 
@@ -195,13 +196,13 @@ describe('NavbarComponent', () => {
 
     it('should set user email on page reload if user is authenticated', () => {
         userService.whoAmI.mockReturnValue(of({ email: 'dummy@dummy.com' }))
-        localStorage.setItem('token', 'token')
+        localStorage.setItem('session', '{"data":{}}')
         component.ngOnInit()
         expect(component.userEmail).toBe('dummy@dummy.com')
     })
 
     it('should set user email on getting logged in', () => {
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.whoAmI.mockReturnValue(of({ email: 'dummy@dummy.com' }))
         component.ngOnInit()
@@ -258,15 +259,24 @@ describe('NavbarComponent', () => {
         expect(location.path()).toBe(encodeURI('/search'))
     })
 
-    it('should remove authentication token from localStorage', () => {
+    it('should remove session from localStorage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
-        expect(removeItemSpy).toHaveBeenCalledWith('token')
+        expect(removeItemSpy).toHaveBeenCalledWith('session')
     })
 
-    it('should remove authentication token from cookies', () => {
+    it('should ask the server to clear the authentication cookie', () => {
         component.logout()
-        expect(cookieService.remove).toHaveBeenCalledWith('token')
+        expect(userService.logout).toHaveBeenCalled()
+    })
+
+    it('should keep session when the server fails to clear the authentication cookie', () => {
+        userService.logout.mockReturnValue(throwError(() => new Error('Error')))
+        console.log = vi.fn()
+        localStorage.setItem('session', '{"data":{}}')
+        component.logout()
+        expect(localStorage.getItem('session')).not.toBeNull()
+        localStorage.removeItem('session')
     })
 
     it('should remove basket id from session storage', () => {

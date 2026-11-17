@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { hasSession } from '../session'
 import { environment } from '../../environments/environment'
 import { Injectable, inject } from '@angular/core'
 import { HttpClient } from '@angular/common/http'
@@ -61,7 +62,7 @@ export class BasketService {
   }
 
   updateNumberOfCartItems () {
-    if (localStorage.getItem('token')) {
+    if (hasSession()) {
       this.find(parseInt(sessionStorage.getItem('bid'), 10)).subscribe({
         next: (basket) => {
           this.itemTotal.next(basket.Products.reduce((itemTotal, product) => itemTotal + product.BasketItem.quantity, 0))
