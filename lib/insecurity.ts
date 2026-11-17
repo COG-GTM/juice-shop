@@ -60,7 +60,7 @@ export const decode = (token: string) => { return jws.decode(token)?.payload }
 const authCookieOptions = { httpOnly: true, sameSite: 'strict' as const, maxAge: 8 * 60 * 60 * 1000 }
 
 export const setAuthCookie = (res: Response, token: string) => {
-  res.cookie('token', token, authCookieOptions)
+  res.cookie('token', token, { ...authCookieOptions, secure: Boolean(res.req?.secure) })
 }
 
 export const clearAuthCookie = (res: Response) => {

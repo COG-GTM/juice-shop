@@ -207,11 +207,18 @@ describe('insecurity', () => {
   describe('setAuthCookie', () => {
     it('sets the token as an HttpOnly cookie', () => {
       const cookies: any[] = []
-      const res = { cookie: (...args: any[]) => cookies.push(args) } as unknown as Response
+      const res = { cookie: (...args: any[]) => cookies.push(args), req: { secure: false } } as unknown as Response
       security.setAuthCookie(res, 'TOKEN')
       expect(cookies[0][0]).to.equal('token')
       expect(cookies[0][1]).to.equal('TOKEN')
-      expect(cookies[0][2]).to.include({ httpOnly: true, sameSite: 'strict' })
+      expect(cookies[0][2]).to.include({ httpOnly: true, sameSite: 'strict', secure: false })
+    })
+
+    it('marks the cookie as Secure for HTTPS requests', () => {
+      const cookies: any[] = []
+      const res = { cookie: (...args: any[]) => cookies.push(args), req: { secure: true } } as unknown as Response
+      security.setAuthCookie(res, 'TOKEN')
+      expect(cookies[0][2]).to.include({ secure: true })
     })
   })
 
