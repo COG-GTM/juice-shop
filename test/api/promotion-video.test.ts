@@ -30,11 +30,23 @@ void describe('/promotion', () => {
     assert.ok(res.text.includes('<source src="./video" type="video/mp4">'))
   })
 
-  void it('GET promotion video page contains subtitles as <script>', async () => {
+  void it('GET promotion video page references subtitles instead of embedding them', async () => {
     const res = await request(app)
       .get('/promotion')
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">'))
+    assert.ok(res.text.includes('<div id="subtitle" data-src="./promotion/subtitles" data-label="English" data-lang="en" hidden>'))
+    assert.ok(!res.text.includes('WEBVTT'))
+  })
+})
+
+void describe('/promotion/subtitles', () => {
+  void it('GET promotion video subtitles are served as text/vtt', async () => {
+    const res = await request(app)
+      .get('/promotion/subtitles')
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('text/vtt'))
+    assert.equal(res.headers['x-content-type-options'], 'nosniff')
+    assert.ok(res.text.startsWith('WEBVTT'))
   })
 })
 

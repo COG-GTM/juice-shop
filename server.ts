@@ -106,7 +106,7 @@ import { securityQuestion } from './routes/securityQuestion'
 import { servePremiumContent } from './routes/premiumReward'
 import { contractExploitListener } from './routes/web3Wallet'
 import { updateUserProfile } from './routes/updateUserProfile'
-import { getVideo, promotionVideo } from './routes/videoHandler'
+import { getVideo, promotionSubtitles, promotionVideo } from './routes/videoHandler'
 import { likeProductReviews } from './routes/likeProductReviews'
 import { repeatNotification } from './routes/repeatNotification'
 import { serveQuarantineFiles } from './routes/quarantineServer'
@@ -659,6 +659,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Routes for promotion video page */
   app.get('/promotion', promotionVideo())
+  app.get('/promotion/subtitles', promotionSubtitles())
   app.get('/video', getVideo())
 
   /* Routes for profile page */

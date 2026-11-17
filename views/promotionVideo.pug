@@ -47,7 +47,7 @@ html(lang='en')
             video(controls='controls')
                source(src='./video', type='video/mp4')
 
-        script#subtitle.
+        div#subtitle(data-src='./promotion/subtitles', data-label='English', data-lang='en', hidden)
 
 
         script.
@@ -105,8 +105,10 @@ html(lang='en')
             var subtitle = document.getElementById('subtitle');
             var track = video.addTextTrack('subtitles', subtitle.dataset.label, subtitle.dataset.lang);
             track.mode = "showing";
-            quick_and_dirty_vtt_or_srt_parser(subtitle.innerHTML).map(function(cue) {
+            fetch(subtitle.dataset.src).then(function(res) { return res.text(); }).then(function(vtt) {
+            quick_and_dirty_vtt_or_srt_parser(vtt).map(function(cue) {
             track.addCue(cue);
+            });
             });
             }
             init();
