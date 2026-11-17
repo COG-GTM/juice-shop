@@ -18,7 +18,7 @@ import { OrderCompletionComponent } from './order-completion.component'
 import { TrackOrderService } from '../Services/track-order.service'
 import { ActivatedRoute, convertToParamMap } from '@angular/router'
 import { MatIconModule } from '@angular/material/icon'
-import { BasketService } from '../Services/basket.service'
+import { OrderHistoryService } from '../Services/order-history.service'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { AddressService } from '../Services/address.service'
 import { ConfigurationService } from '../Services/configuration.service'
@@ -36,7 +36,7 @@ describe('OrderCompletionComponent', () => {
     let fixture: ComponentFixture<OrderCompletionComponent>
     let trackOrderService: any
     let activatedRoute: any
-    let basketService: any
+    let orderHistoryService: any
     let addressService: any
     let configurationService: any
 
@@ -54,6 +54,9 @@ describe('OrderCompletionComponent', () => {
             getById: vi.fn().mockName("AddressService.getById")
         }
         addressService.getById.mockReturnValue(of([]))
+        orderHistoryService = {
+            openConfirmation: vi.fn().mockName("OrderHistoryService.openConfirmation")
+        }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
@@ -70,7 +73,7 @@ describe('OrderCompletionComponent', () => {
             providers: [
                 { provide: TrackOrderService, useValue: trackOrderService },
                 { provide: ActivatedRoute, useValue: activatedRoute },
-                { provide: BasketService, useValue: basketService },
+                { provide: OrderHistoryService, useValue: orderHistoryService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: AddressService, useValue: addressService },
                 provideHttpClient(withInterceptorsFromDi()),
@@ -162,5 +165,11 @@ describe('OrderCompletionComponent', () => {
         console.log = vi.fn()
         component.ngOnInit()
         expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    it('should open order confirmation through order history service', () => {
+        component.orderId = 'ad9b-96017e7cb1ae7bf9'
+        component.openConfirmationPDF()
+        expect(orderHistoryService.openConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
     })
 })

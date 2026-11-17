@@ -3,10 +3,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import { ordersCollection } from '../data/mongodb'
 import * as security from '../lib/insecurity'
+import { orderConfirmationsDir } from './order'
 
 export function orderHistory () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -35,5 +38,22 @@ export function toggleDeliveryStatus () {
     const eta = deliveryStatus ? '0' : '1'
     await ordersCollection.update({ _id: req.params.id }, { $set: { delivered: deliveryStatus, eta } })
     res.status(200).json({ status: 'success' })
+  }
+}
+
+export function orderConfirmation () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const loggedInUser = security.authenticatedUsers.from(req)
+    const orderId = req.params.orderId
+    if (!loggedInUser?.data?.id || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+    const pdfFile = path.resolve(orderConfirmationsDir, String(loggedInUser.data.id), `order_${orderId}.pdf`)
+    if (!pdfFile.startsWith(orderConfirmationsDir + path.sep) || !fs.existsSync(pdfFile)) {
+      res.status(404).json({ error: 'Order confirmation not found' })
+      return
+    }
+    res.sendFile(pdfFile, { headers: { 'Content-Type': 'application/pdf', 'Cache-Control': 'no-store' } })
   }
 }

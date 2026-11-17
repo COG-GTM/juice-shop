@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -131,5 +131,63 @@ void describe('/rest/order-history/:id/delivery-status', () => {
       .send({ delivered: false })
 
     assert.equal(res.status, 200)
+  })
+})
+
+void describe('/rest/order-history/:orderId/confirmation', () => {
+  let orderId: string
+  let ownerHeader: { Authorization: string, 'content-type': string }
+  let otherHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const owner = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const other = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    ownerHeader = { Authorization: 'Bearer ' + owner.token, 'content-type': 'application/json' }
+    otherHeader = { Authorization: 'Bearer ' + other.token, 'content-type': 'application/json' }
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(ownerHeader)
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('GET order confirmation PDF is not served from public /ftp folder', async () => {
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF is not allowed without authentication', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET own order confirmation PDF', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(ownerHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF of another user is not possible', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(otherHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF with malformed order id is forbidden', async () => {
+    const res = await request(app).get(`/rest/order-history/${encodeURIComponent('../package.json')}/confirmation`).set(ownerHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET order confirmation PDF of another user with colliding email mask and hash prefix is not possible', async () => {
+    const password = 'collision123'
+    const sessions: Array<{ token: string, bid: number }> = []
+    for (const email of ['aaaaiuou@example.com', 'aaaaoeoa@example.com']) {
+      await register(app, { email, password })
+      sessions.push(await login(app, { email, password }))
+    }
+    const checkout = await request(app).post(`/rest/basket/${sessions[0].bid}/checkout`).set({ Authorization: 'Bearer ' + sessions[0].token, 'content-type': 'application/json' })
+    assert.equal(checkout.status, 200)
+    const collidingOrderId = checkout.body.orderConfirmation
+
+    const res = await request(app).get(`/rest/order-history/${collidingOrderId}/confirmation`).set({ Authorization: 'Bearer ' + sessions[1].token })
+    assert.equal(res.status, 404)
   })
 })

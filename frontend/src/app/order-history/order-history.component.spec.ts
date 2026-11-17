@@ -43,7 +43,8 @@ describe('AccountingComponent', () => {
         }
         productService.get.mockReturnValue(of({}))
         orderHistoryService = {
-            get: vi.fn().mockName("OrderHistoryService.get")
+            get: vi.fn().mockName("OrderHistoryService.get"),
+            openConfirmation: vi.fn().mockName("OrderHistoryService.openConfirmation")
         }
         orderHistoryService.get.mockReturnValue(of([]))
 
@@ -123,5 +124,10 @@ describe('AccountingComponent', () => {
                 productData: { id: 42, name: 'A', description: 'B', image: 'C', price: 10, deluxePrice: undefined, points: 1 }
             }
         })
+    })
+
+    it('should open order confirmation through order history service', () => {
+        component.openConfirmationPDF('5267-f9cd5882f54c75a3')
+        expect(orderHistoryService.openConfirmation).toHaveBeenCalledWith('5267-f9cd5882f54c75a3')
     })
 })
