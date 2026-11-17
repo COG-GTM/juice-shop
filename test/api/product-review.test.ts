@@ -169,6 +169,20 @@ void describe('/rest/products/reviews', () => {
     assert.ok(reviews.body.data.every((review: { message: string }) => review.message !== 'trololololololololololololololololololololololololololol'))
   })
 
+  void it('PATCH product review with a $where selector is rejected', async () => {
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set(reviewAuthorHeader)
+      .send({
+        id: { $where: 'this.message = "pwned"; return true' },
+        message: 'pwned via $where'
+      })
+    assert.equal(res.status, 400)
+
+    const reviews = await request(app).get('/rest/products/2/reviews')
+    assert.ok(reviews.body.data.every((review: { message: string }) => review.message !== 'pwned' && review.message !== 'pwned via $where'))
+  })
+
   void it('PATCH product review with a non-string message is rejected', async () => {
     const res = await request(app)
       .patch('/rest/products/reviews')
