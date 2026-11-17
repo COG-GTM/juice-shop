@@ -22,7 +22,7 @@ export interface StaticUser {
   walletBalance?: number
   lastLoginIp?: string
   deletedFlag?: boolean
-  totpSecret?: string
+  totpEnabled?: boolean
   customDomain?: boolean
   securityQuestion?: StaticUserSecurityQuestion
   feedback?: StaticUserFeedback
