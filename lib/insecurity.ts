@@ -92,10 +92,6 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   }
 }
 
-export const userEmailFrom = ({ headers }: any) => {
-  return headers ? headers['x-user-email'] : undefined
-}
-
 export const generateCoupon = (discount: number, date = new Date()) => {
   const coupon = utils.toMMMYY(date) + '-' + discount
   return z85.encode(coupon)
