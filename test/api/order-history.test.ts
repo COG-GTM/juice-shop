@@ -46,6 +46,7 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+    assert.equal(res.body.data[0].UserId, undefined)
   })
 
   void it('GET order history does not include orders of a user with a colliding masked email', async () => {
