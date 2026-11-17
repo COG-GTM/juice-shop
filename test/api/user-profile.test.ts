@@ -7,7 +7,6 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
@@ -27,9 +26,7 @@ void describe('/profile', () => {
       .get('/profile')
 
     assert.equal(res.status, 500)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`<h1>${config.get<string>('application.name')} (Express`))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.deepEqual(res.body, { error: 'Internal Server Error' })
   })
 
   void it('GET user profile of authenticated user', async () => {

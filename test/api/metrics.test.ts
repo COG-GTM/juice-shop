@@ -10,18 +10,23 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 
 let app: Express
+let adminAuth: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  const admin = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+  adminAuth = { Authorization: 'Bearer ' + admin.token }
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
-  void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET metrics as admin that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
@@ -40,7 +45,7 @@ void describe('/metrics', () => {
     assert.match(res.text, /^http_requests_count{status_code="[0-9]XX",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload metrics as admin', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
 
     await request(app)
@@ -50,13 +55,14 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
     assert.match(res.text, /^file_uploads_count{file_type=".*",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload error metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload error metrics as admin', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
 
     await request(app)
@@ -66,6 +72,7 @@ void describe('/metrics', () => {
 
     const res = await request(app)
       .get('/metrics')
+      .set(adminAuth)
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))

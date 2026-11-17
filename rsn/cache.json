@@ -1,21 +1,32 @@
 {
 	"accessLogDisclosureChallenge_1_correct.ts": {
-		"added": [
-			16
-		],
+		"added": [],
 		"removed": []
 	},
 	"accessLogDisclosureChallenge_2.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			9,
+			10,
+			11,
+			12
+		]
 	},
 	"accessLogDisclosureChallenge_3.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			9,
+			10,
+			11
+		]
 	},
 	"accessLogDisclosureChallenge_4.ts": {
 		"added": [],
-		"removed": []
+		"removed": [
+			9,
+			10,
+			11
+		]
 	},
 	"adminSectionChallenge_1_correct.ts": {
 		"added": [
@@ -717,8 +728,8 @@
 	"exposedMetricsChallenge_2.ts": {
 		"added": [
 			2,
-			17,
-			38
+			16,
+			37
 		],
 		"removed": []
 	},

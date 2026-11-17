@@ -5,6 +5,8 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import path from 'node:path'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
@@ -132,32 +134,17 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
-  })
-
-  void it('GET a non-existing file in will return a 404 error', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/doesnotexist.md')
-    assert.equal(res.status, 404)
-  })
-
-  void it('GET the Premium Content AES key', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/premium.key')
-    assert.equal(res.status, 200)
-  })
-
-  void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
-    const res = await request(app)
-      .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
-    assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
-  })
+  for (const url of ['/encryptionkeys', '/encryptionkeys/', '/encryptionkeys/premium.key', '/encryptionkeys/jwt.pub']) {
+    void it(`GET ${url} does not serve a directory listing or key material`, async () => {
+      const res = await request(app)
+        .get(url)
+      assert.ok(!res.text.includes('listing directory'))
+      assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+      for (const key of ['premium.key', 'jwt.pub']) {
+        assert.ok(!res.text.includes(fs.readFileSync(path.resolve('encryptionkeys', key), 'utf8').trim()))
+      }
+    })
+  }
 })
 
 void describe('Hidden URL', () => {
@@ -201,10 +188,12 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
-    const res = await request(app)
-      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  void it('GET access log files is not possible via /support/logs', async () => {
+    for (const url of ['/support/logs', '/support/logs/access.log.' + utils.toISO8601(new Date())]) {
+      const res = await request(app)
+        .get(url)
+      assert.ok(!res.text.includes('listing directory'))
+      assert.ok(!res.headers['content-type']?.includes('application/octet-stream'))
+    }
   })
 })
