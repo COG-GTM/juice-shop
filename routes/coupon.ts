@@ -8,8 +8,9 @@ import { BasketModel } from '../models/basket'
 import * as security from '../lib/insecurity'
 
 export function applyCoupon () {
-  return async ({ params }: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const { params } = req
       const id = params.id
       let coupon: string | undefined | null = params.coupon ? decodeURIComponent(params.coupon) : undefined
       const discount = security.discountFromCoupon(coupon)
@@ -19,6 +20,11 @@ export function applyCoupon () {
       if (!basket) {
         next(new Error(`Basket with id=${id} does not exist.`))
         return
+      }
+
+      const user = security.authenticatedUsers.from(req)
+      if (!user || user.data?.id !== basket.UserId) {
+        return res.status(403).send('You are not allowed to apply a coupon to this basket.')
       }
 
       await basket.update({ coupon: coupon?.toString() })
