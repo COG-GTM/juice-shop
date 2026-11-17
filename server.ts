@@ -399,6 +399,12 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/basket/:id/order', security.isAuthorized())
   /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
   app.post('/api/Feedbacks', verify.forgedFeedbackChallenge())
+  app.post('/api/Feedbacks', (req: Request, res: Response, next: NextFunction) => {
+    if (req.body) {
+      req.body.UserId = security.authenticatedUsers.from(req)?.data?.id
+    }
+    next()
+  })
   /* Captcha verification before finale takes over */
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
   /* Captcha Bypass challenge verification */

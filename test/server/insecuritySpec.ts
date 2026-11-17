@@ -22,17 +22,6 @@ describe('insecurity', () => {
     })
   })
 
-  describe('userEmailFrom', () => {
-    it('returns content of "x-user-email" header if present', () => {
-      expect(security.userEmailFrom({ headers: { 'x-user-email': 'test@bla.blubb' } })).to.equal('test@bla.blubb')
-    })
-
-    it('returns undefined if header "x-user-email" is not present', () => {
-      expect(security.userEmailFrom({ headers: {} })).to.equal(undefined)
-      expect(security.userEmailFrom({})).to.equal(undefined)
-    })
-  })
-
   describe('generateCoupon', () => {
     it('returns base85-encoded month, year and discount as coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))

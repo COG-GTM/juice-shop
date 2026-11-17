@@ -58,6 +58,42 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('PUT product review uses authenticated user as author instead of passed author', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        message: 'Forged review',
+        author: 'bender@juice-sh.op'
+      })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === 'Forged review')
+    assert.equal(review.author, 'bjoern.kimminich@gmail.com')
+  })
+
+  void it('PUT product review by anonymous user is attributed to Anonymous', async () => {
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({
+        message: 'Anonymous forged review',
+        author: 'bender@juice-sh.op'
+      })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === 'Anonymous forged review')
+    assert.equal(review.author, 'Anonymous')
+  })
 })
 
 void describe('/rest/products/reviews', () => {
@@ -124,7 +160,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 3)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
