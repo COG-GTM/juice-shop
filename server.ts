@@ -397,8 +397,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/rest/user/authentication-details', security.isAuthorized())
   app.use('/rest/basket/:id', security.isAuthorized())
   app.use('/rest/basket/:id/order', security.isAuthorized())
-  /* Challenge evaluation before finale takes over */ // vuln-code-snippet hide-start
-  app.post('/api/Feedbacks', verify.forgedFeedbackChallenge())
+  /* Feedback author is always the logged-in user (or anonymous) */ // vuln-code-snippet hide-start
+  app.post('/api/Feedbacks', security.appendUserIdIfAuthenticated())
   /* Captcha verification before finale takes over */
   app.post('/api/Feedbacks', utils.asyncHandler(verifyCaptcha()))
   /* Captcha Bypass challenge verification */

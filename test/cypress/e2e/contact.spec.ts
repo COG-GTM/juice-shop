@@ -6,42 +6,6 @@ describe('/#/contact', () => {
     solveNextCaptcha()
   })
 
-  describe('challenge "forgedFeedback"', () => {
-    beforeEach(() => {
-      cy.login({ email: 'admin', password: 'admin123' })
-      cy.visit('/#/contact')
-      solveNextCaptcha()
-    })
-
-    it('should be possible to provide feedback as another user', () => {
-      cy.get('#userId').then(function ($element) {
-        $element[0].removeAttribute('hidden')
-        $element[0].removeAttribute('class')
-      })
-
-      cy.get('#userId').clear().type('2')
-      cy.get('#rating').type('{rightarrow}{rightarrow}{rightarrow}')
-      cy.get('#comment').type('Picard stinks!')
-      cy.get('#submitButton').should('not.be.disabled').click()
-
-      cy.visit('/#/administration')
-
-      cy.get(
-        '.customer-table > .mat-mdc-table > :nth-child(8) > .cdk-column-user'
-      ).then(($val) => {
-        if ($val.text() !== ' 2') {
-          cy.get(
-            '.customer-table > .mat-mdc-table > :nth-child(9) > .cdk-column-user'
-          ).should('contain.text', '2')
-        } else {
-          expect($val.text()).contain('2')
-        }
-      })
-
-      cy.expectChallengeSolved({ challenge: 'Forged Feedback' })
-    })
-  })
-
   describe('challenge "persistedXssFeedback"', () => {
     beforeEach(() => {
       cy.login({ email: 'admin', password: 'admin123' })

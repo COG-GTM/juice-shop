@@ -25,15 +25,6 @@ export const emptyUserRegistration = () => (req: Request, res: Response, next: N
   next()
 }
 
-export const forgedFeedbackChallenge = () => (req: Request, res: Response, next: NextFunction) => {
-  challengeUtils.solveIf(challenges.forgedFeedbackChallenge, () => {
-    const user = security.authenticatedUsers.from(req)
-    const userId = user?.data ? user.data.id : undefined
-    return req.body?.UserId && req.body.UserId != userId // eslint-disable-line eqeqeq
-  })
-  next()
-}
-
 export const captchaBypassChallenge = () => (req: Request, res: Response, next: NextFunction) => {
   if (challengeUtils.notSolved(challenges.captchaBypassChallenge)) {
     if (req.app.locals.captchaReqId >= 10) {
