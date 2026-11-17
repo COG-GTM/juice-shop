@@ -44,8 +44,9 @@ export function placeOrder () {
           const { default: PDFDocument } = await import('pdfkit')
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
-          await fs.promises.mkdir(orderConfirmationsDir, { recursive: true })
-          const fileWriter = doc.pipe(fs.createWriteStream(path.join(orderConfirmationsDir, pdfFile)))
+          const userConfirmationsDir = path.join(orderConfirmationsDir, String(req.body.UserId))
+          await fs.promises.mkdir(userConfirmationsDir, { recursive: true })
+          const fileWriter = doc.pipe(fs.createWriteStream(path.join(userConfirmationsDir, pdfFile)))
 
           fileWriter.on('finish', () => {
             void (async () => {
@@ -165,7 +166,6 @@ export function placeOrder () {
             paymentId: req.body.orderDetails ? req.body.orderDetails.paymentId : null,
             addressId: req.body.orderDetails ? req.body.orderDetails.addressId : null,
             orderId,
-            UserId: req.body.UserId,
             delivered: false,
             email: (email ? email.replace(/[aeiou]/gi, '*') : undefined),
             totalPrice,

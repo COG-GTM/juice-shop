@@ -49,12 +49,7 @@ export function orderConfirmation () {
       res.status(403).json({ error: 'Forbidden' })
       return
     }
-    const order = await ordersCollection.findOne({ orderId, UserId: loggedInUser.data.id })
-    if (!order) {
-      res.status(404).json({ error: 'Order not found' })
-      return
-    }
-    const pdfFile = path.resolve(orderConfirmationsDir, `order_${orderId}.pdf`)
+    const pdfFile = path.resolve(orderConfirmationsDir, String(loggedInUser.data.id), `order_${orderId}.pdf`)
     if (!pdfFile.startsWith(orderConfirmationsDir + path.sep) || !fs.existsSync(pdfFile)) {
       res.status(404).json({ error: 'Order confirmation not found' })
       return
