@@ -10,13 +10,15 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
+import z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
 
-const validCoupon = security.generateCoupon(15)
-const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1))
-const forgedCoupon = security.generateCoupon(99)
+const validCoupon = security.generateCoupon(15) as string
+const outdatedCoupon = security.generateCoupon(20, new Date(2001, 0, 1)) as string
+const forgedCoupon = security.generateCoupon(99) as string
 
 before(
   async () => {
@@ -182,6 +184,15 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
   void it('PUT apply outdated coupon is not accepted', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(outdatedCoupon))
+      .set(authHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('PUT apply forged coupon without valid signature is not accepted', async () => {
+    const now = new Date()
+    const unsignedCoupon = z85.encode(Buffer.from([now.getMonth(), now.getFullYear() % 100, 99, 0, 0, 0, 0, 0]))
+    const res = await request(app)
+      .put('/rest/basket/1/coupon/' + encodeURIComponent(unsignedCoupon))
       .set(authHeader)
     assert.equal(res.status, 404)
   })

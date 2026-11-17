@@ -34,13 +34,13 @@ describe('insecurity', () => {
   })
 
   describe('generateCoupon', () => {
-    it('returns base85-encoded month, year and discount as coupon code', () => {
+    it('returns 10 character z85-encoded coupon code', () => {
       const coupon = security.generateCoupon(20, new Date('1980-01-02'))
-      expect(coupon).to.equal('n<MiifFb4l')
-      expect(z85.decode(coupon).toString()).to.equal('JAN80-20')
+      expect(coupon).to.have.length(10)
+      expect(z85.decode(coupon)).to.have.length(8)
     })
 
-    it('uses current month and year if not specified', () => {
+    it('uses current month as default', () => {
       const coupon = security.generateCoupon(20)
       expect(coupon).to.equal(security.generateCoupon(20, new Date()))
     })
@@ -50,6 +50,12 @@ describe('insecurity', () => {
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 01, 1999 01:00:00')))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 02, 1999')))
       expect(coupon).to.equal(security.generateCoupon(10, new Date('December 31, 1999 23:59:59')))
+    })
+
+    it('returns null for discount outside of 10-99%', () => {
+      expect(security.generateCoupon(9)).to.equal(null)
+      expect(security.generateCoupon(100)).to.equal(null)
+      expect(security.generateCoupon(10.5)).to.equal(null)
     })
   })
 
@@ -62,23 +68,34 @@ describe('insecurity', () => {
       expect(security.discountFromCoupon('')).to.equal(undefined)
       expect(security.discountFromCoupon('x')).to.equal(undefined)
       expect(security.discountFromCoupon('___')).to.equal(undefined)
+      expect(security.discountFromCoupon('xxxxxxxxxx')).to.equal(undefined)
     })
 
-    it('returns undefined for coupon code not according to expected pattern', () => {
-      expect(security.discountFromCoupon(z85.encode('Test'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('XXX00-10'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-999'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC18-1'))).to.equal(undefined)
-      expect(security.discountFromCoupon(z85.encode('DEC2018-10'))).to.equal(undefined)
+    it('returns undefined for legacy unsigned coupon code', () => {
+      const now = new Date()
+      const month = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'][now.getMonth()]
+      expect(security.discountFromCoupon(z85.encode(`${month}${now.getFullYear().toString().substring(2, 4)}-99`))).to.equal(undefined)
+    })
+
+    it('returns undefined for forged coupon code without valid signature', () => {
+      const now = new Date()
+      const forged = Buffer.from([now.getMonth(), now.getFullYear() % 100, 99, 0, 0, 0, 0, 0])
+      expect(security.discountFromCoupon(z85.encode(forged))).to.equal(undefined)
+    })
+
+    it('returns undefined for tampered coupon code', () => {
+      const decoded = Buffer.from(z85.decode(security.generateCoupon(10)))
+      decoded[2] = 99
+      expect(security.discountFromCoupon(z85.encode(decoded))).to.equal(undefined)
     })
 
     it('returns undefined for expired coupon code', () => {
-      expect(security.discountFromCoupon(z85.encode('SEP14-50'))).to.equal(undefined)
+      expect(security.discountFromCoupon(security.generateCoupon(50, new Date('September 01, 2014')) as string)).to.equal(undefined)
     })
 
     it('returns discount from valid coupon code', () => {
-      expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
-      expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+      expect(security.discountFromCoupon(security.generateCoupon(10) as string)).to.equal(10)
+      expect(security.discountFromCoupon(security.generateCoupon(99) as string)).to.equal(99)
     })
   })
 
