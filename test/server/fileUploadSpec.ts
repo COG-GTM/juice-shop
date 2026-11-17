@@ -80,6 +80,7 @@ describe('fileUpload', () => {
       '../../ftp/legal.md',
       '../../ftp/zipslip-test.md',
       '../../ftp/x.md',
+      '../../ftp/test.md',
       '../../i18n/en.json',
       '../../data/static/codefixes/x.info.yml',
       '../../frontend/dist/frontend/index.html',
