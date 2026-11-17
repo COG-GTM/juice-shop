@@ -29,40 +29,36 @@ describe('LoginGuard', () => {
     it('should open for authenticated users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'TOKEN')
+        localStorage.setItem('session', JSON.stringify({ id: 1 }))
         expect(guard.canActivate()).toBe(true)
     })
 
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         expect(guard.canActivate()).toBe(false)
     })
 
-    it('returns payload from decoding a valid JWT', () => {
+    it('returns payload from stored session', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c')
-        expect(guard.tokenDecode()).toEqual({
-            sub: '1234567890',
-            name: 'John Doe',
-            iat: 1516239022
-        })
+        localStorage.setItem('session', JSON.stringify({ id: 1, role: 'admin' }))
+        expect(guard.sessionPayload()).toEqual({ data: { id: 1, role: 'admin' } })
     })
 
-    it('returns nothing when decoding an invalid JWT', () => {
+    it('returns nothing for an unreadable session', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', '12345.abcde')
-        expect(guard.tokenDecode()).toBeNull()
+        localStorage.setItem('session', '12345.abcde')
+        expect(guard.sessionPayload()).toBeNull()
     })
 
-    it('returns nothing when decoding an non-existing JWT', () => {
+    it('returns nothing without a session', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.removeItem('token')
-        expect(guard.tokenDecode()).toBeNull()
+        localStorage.removeItem('session')
+        expect(guard.sessionPayload()).toBeNull()
     })
 })
 
@@ -71,7 +67,7 @@ describe('AdminGuard', () => {
 
     beforeEach(() => {
         loginGuard = {
-            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
+            sessionPayload: vi.fn().mockName("LoginGuard.sessionPayload"),
             forbidRoute: vi.fn().mockName("LoginGuard.forbidRoute")
         }
 
@@ -97,14 +93,14 @@ describe('AdminGuard', () => {
     it('should open for admins', () => {
         const guard = TestBed.inject(AdminGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'admin' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'admin' } })
         expect(guard.canActivate()).toBe(true)
     })
 
     it('should close for regular customers', () => {
         const guard = TestBed.inject(AdminGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'customer' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'customer' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -112,7 +108,7 @@ describe('AdminGuard', () => {
     it('should close for deluxe customers', () => {
         const guard = TestBed.inject(AdminGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'deluxe' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'deluxe' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -120,7 +116,7 @@ describe('AdminGuard', () => {
     it('should close for accountants', () => {
         const guard = TestBed.inject(AdminGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'accounting' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'accounting' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -131,7 +127,7 @@ describe('AccountingGuard', () => {
 
     beforeEach(() => {
         loginGuard = {
-            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode"),
+            sessionPayload: vi.fn().mockName("LoginGuard.sessionPayload"),
             forbidRoute: vi.fn().mockName("LoginGuard.forbidRoute")
         }
 
@@ -157,14 +153,14 @@ describe('AccountingGuard', () => {
     it('should open for accountants', () => {
         const guard = TestBed.inject(AccountingGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'accounting' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'accounting' } })
         expect(guard.canActivate()).toBe(true)
     })
 
     it('should close for regular customers', () => {
         const guard = TestBed.inject(AccountingGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'customer' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'customer' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -172,7 +168,7 @@ describe('AccountingGuard', () => {
     it('should close for deluxe customers', () => {
         const guard = TestBed.inject(AccountingGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'deluxe' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'deluxe' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -180,7 +176,7 @@ describe('AccountingGuard', () => {
     it('should close for admins', () => {
         const guard = TestBed.inject(AccountingGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'admin' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'admin' } })
         expect(guard.canActivate()).toBe(false)
         expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
@@ -191,7 +187,7 @@ describe('DeluxeGuard', () => {
 
     beforeEach(() => {
         loginGuard = {
-            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode")
+            sessionPayload: vi.fn().mockName("LoginGuard.sessionPayload")
         }
 
         TestBed.configureTestingModule({
@@ -216,28 +212,28 @@ describe('DeluxeGuard', () => {
     it('should open for deluxe customers', () => {
         const guard = TestBed.inject(DeluxeGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'deluxe' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'deluxe' } })
         expect(guard.isDeluxe()).toBe(true)
     })
 
     it('should close for regular customers', () => {
         const guard = TestBed.inject(DeluxeGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'customer' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'customer' } })
         expect(guard.isDeluxe()).toBe(false)
     })
 
     it('should close for admins', () => {
         const guard = TestBed.inject(DeluxeGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'admin' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'admin' } })
         expect(guard.isDeluxe()).toBe(false)
     })
 
     it('should close for accountants', () => {
         const guard = TestBed.inject(DeluxeGuard)
 
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: 'accounting' } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: 'accounting' } })
         expect(guard.isDeluxe()).toBe(false)
     })
 })

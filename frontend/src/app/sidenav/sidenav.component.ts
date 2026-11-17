@@ -10,7 +10,6 @@ import { SocketIoService } from '../Services/socket-io.service'
 import { AdministrationService } from '../Services/administration.service'
 import { Router, RouterLink } from '@angular/router'
 import { UserService } from '../Services/user.service'
-import { CookieService } from 'ngy-cookie'
 import { ConfigurationService } from '../Services/configuration.service'
 import { LoginGuard } from '../app.guard'
 import { roles } from '../roles'
@@ -22,6 +21,7 @@ import { TranslateModule } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatNavList, MatListSubheaderCssMatStyler, MatListItem } from '@angular/material/list'
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
+import { clearSession, hasSession } from '../Services/auth-session'
 
 @Component({
   selector: 'sidenav',
@@ -35,7 +35,6 @@ export class SidenavComponent implements OnInit {
   private readonly ngZone = inject(NgZone)
   private readonly io = inject(SocketIoService)
   private readonly userService = inject(UserService)
-  private readonly cookieService = inject(CookieService)
   private readonly router = inject(Router)
   private readonly configurationService = inject(ConfigurationService)
   private readonly loginGuard = inject(LoginGuard)
@@ -64,7 +63,7 @@ export class SidenavComponent implements OnInit {
     this.getApplicationDetails()
     this.getScoreBoardStatus()
 
-    if (localStorage.getItem('token')) {
+    if (hasSession()) {
       this.getUserDetails()
     } else {
       this.userEmail = ''
@@ -87,13 +86,13 @@ export class SidenavComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return hasSession()
   }
 
   logout () {
     this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    localStorage.removeItem('token')
-    this.cookieService.remove('token')
+    clearSession()
+    this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
@@ -154,7 +153,7 @@ export class SidenavComponent implements OnInit {
   }
 
   isAccounting () {
-    const payload = this.loginGuard.tokenDecode()
+    const payload = this.loginGuard.sessionPayload()
     return payload?.data?.role === roles.accounting
   }
 

@@ -44,9 +44,11 @@ describe('TwoFactorAuthEnterComponent', () => {
 
     beforeEach(async () => {
         userService = {
-            login: vi.fn().mockName("UserService.login")
+            login: vi.fn().mockName("UserService.login"),
+            refreshSession: vi.fn().mockName("UserService.refreshSession")
         }
         userService.login.mockReturnValue(of({}))
+        userService.refreshSession.mockReturnValue(of({}))
         userService.isLoggedIn = {
             next: vi.fn().mockName("userService.isLoggedIn.next")
         }
@@ -101,18 +103,19 @@ describe('TwoFactorAuthEnterComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should store authentication token in cookie', () => {
+    it('should not store authentication token in a script-readable cookie', () => {
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(cookieService.get('token')).toBe('TOKEN')
+        expect(cookieService.get('token')).toBeUndefined()
     })
 
-    it('should store authentication token in local storage', () => {
+    it('should not store authentication token in local storage', () => {
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(localStorage.getItem('token')).toBe('TOKEN')
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(userService.refreshSession).toHaveBeenCalled()
     })
 
     it('should store basket ID in session storage', () => {

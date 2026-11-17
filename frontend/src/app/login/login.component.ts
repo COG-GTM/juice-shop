@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { CookieService } from 'ngy-cookie'
 import { WindowRefService } from '../Services/window-ref.service'
 import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
@@ -23,9 +22,10 @@ import { MatInputModule } from '@angular/material/input'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatFormFieldModule, MatLabel, MatError, MatSuffix } from '@angular/material/form-field'
 import { of } from 'rxjs'
-import { catchError } from 'rxjs/operators'
+import { catchError, switchMap } from 'rxjs/operators'
 
 import { MatCardModule } from '@angular/material/card'
+import { clearSession } from '../Services/auth-session'
 
 library.add(faKey, faEye, faEyeSlash, faGoogle)
 
@@ -42,7 +42,6 @@ export class LoginComponent implements OnInit {
   private readonly configurationService = inject(ConfigurationService)
   private readonly userService = inject(UserService)
   private readonly windowRefService = inject(WindowRefService)
-  private readonly cookieService = inject(CookieService)
   private readonly router = inject(Router)
   private readonly route = inject(ActivatedRoute)
   private readonly formSubmitService = inject(FormSubmitService)
@@ -102,14 +101,11 @@ export class LoginComponent implements OnInit {
     this.userService.login(this.user).subscribe({
       next: (authentication: any) => {
         const redirectUrl = this.route.snapshot.queryParamMap.get('redirectUrl') ?? '/search'
-        localStorage.setItem('token', authentication.token)
-        const expires = new Date()
-        expires.setHours(expires.getHours() + 8)
-        this.cookieService.put('token', authentication.token, { expires })
         sessionStorage.setItem('bid', authentication.bid)
 
-        this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)
+        this.userService.refreshSession()
           .pipe(
+            switchMap(() => this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)),
             catchError((err) => {
               console.log(err)
               return of(void 0)
@@ -125,8 +121,7 @@ export class LoginComponent implements OnInit {
           this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
           return
         }
-        localStorage.removeItem('token')
-        this.cookieService.remove('token')
+        clearSession()
         sessionStorage.removeItem('bid')
         this.error = error
         this.userService.isLoggedIn.next(false)

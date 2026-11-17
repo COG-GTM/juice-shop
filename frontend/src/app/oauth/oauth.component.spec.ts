@@ -33,8 +33,12 @@ describe('OAuthComponent', () => {
         userService = {
             oauthLogin: vi.fn().mockName("UserService.oauthLogin"),
             login: vi.fn().mockName("UserService.login"),
-            save: vi.fn().mockName("UserService.save")
+            save: vi.fn().mockName("UserService.save"),
+            refreshSession: vi.fn().mockName("UserService.refreshSession"),
+            logout: vi.fn().mockName("UserService.logout")
         }
+        userService.refreshSession.mockReturnValue(of({}))
+        userService.logout.mockReturnValue(of({}))
         userService.oauthLogin.mockReturnValue(of({ email: '' }))
         userService.login.mockReturnValue(of({}))
         userService.save.mockReturnValue(of({}))
@@ -77,11 +81,11 @@ describe('OAuthComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('removes authentication token and basket id on failed OAuth login attempt', () => {
+    it('removes session and basket id on failed OAuth login attempt', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockReturnValue(throwError({ error: 'Error' }))
         component.ngOnInit()
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(localStorage.getItem('session')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
@@ -98,11 +102,12 @@ describe('OAuthComponent', () => {
         expect(userService.login).toHaveBeenCalledWith({ email: 'test@test.com', password: 'bW9jLnRzZXRAdHNldA==', oauth: true })
     })
 
-    it('removes authentication token and basket id on failed subsequent regular login attempt', () => {
+    it('removes session and basket id on failed subsequent regular login attempt', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.login.mockReturnValue(throwError({ error: 'Error' }))
         component.login({ email: '' })
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(localStorage.getItem('session')).toBeNull()
+        expect(userService.logout).toHaveBeenCalled()
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 })

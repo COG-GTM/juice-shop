@@ -279,3 +279,45 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.body.lastLoginIp, '127.0.0.1')
   })
 })
+
+void describe('/rest/user/login auth cookie', () => {
+  void it('POST login sets the token as HttpOnly cookie', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        password: 'ncc-1701'
+      })
+
+    assert.equal(res.status, 200)
+    const tokenCookie = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find((cookie) => cookie.startsWith('token='))
+    assert.ok(tokenCookie)
+    assert.ok(tokenCookie.includes(`token=${res.body.authentication.token}`))
+    assert.ok(tokenCookie.includes('HttpOnly'))
+    assert.ok(tokenCookie.includes('SameSite=Lax'))
+  })
+
+  void it('GET protected API with token cookie only', async () => {
+    const agent = request.agent(app)
+    await agent
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        password: 'ncc-1701'
+      })
+      .expect(200)
+
+    await agent.get('/api/Cards').expect(200)
+  })
+
+  void it('POST logout clears the token cookie', async () => {
+    const res = await request(app).post('/rest/user/logout')
+
+    assert.equal(res.status, 204)
+    const tokenCookie = ([] as string[]).concat(res.headers['set-cookie'] ?? []).find((cookie) => cookie.startsWith('token=;'))
+    assert.ok(tokenCookie)
+    assert.ok(tokenCookie.includes('HttpOnly'))
+  })
+})

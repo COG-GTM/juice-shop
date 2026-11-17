@@ -57,6 +57,23 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
+const authCookieOptions = { httpOnly: true, sameSite: 'lax' as const, maxAge: 8 * 60 * 60 * 1000 }
+
+export const setAuthCookie = (res: Response, token: string) => {
+  res.cookie('token', token, authCookieOptions)
+}
+
+export const clearAuthCookie = (res: Response) => {
+  res.clearCookie('token', { httpOnly: true, sameSite: 'lax' })
+}
+
+export const tokenFromCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!req.headers.authorization && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
+
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
@@ -192,7 +209,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          setAuthCookie(res, token)
         }
       }
     })

@@ -56,6 +56,7 @@ import { MatTooltip } from '@angular/material/tooltip'
 import { MatButtonModule } from '@angular/material/button'
 
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
+import { clearSession, hasSession } from '../Services/auth-session'
 
 library.add(faLanguage, faSearch, faSignInAlt, faSignOutAlt, faComment, faBomb, faTrophy, faInfoCircle, faShoppingCart, faUserSecret, faRecycle, faMapMarker, faUserCircle, faGithub, faComments, faThermometerEmpty, faThermometerQuarter, faThermometerHalf, faThermometerThreeQuarters, faThermometerFull)
 
@@ -147,7 +148,7 @@ export class NavbarComponent implements OnInit {
       error: (err) => { console.log(err) }
     })
 
-    if (localStorage.getItem('token')) {
+    if (hasSession()) {
       this.getUserDetails()
     } else {
       this.userEmail = ''
@@ -232,13 +233,13 @@ export class NavbarComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return hasSession()
   }
 
   logout () {
     this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    localStorage.removeItem('token')
-    this.cookieService.remove('token')
+    clearSession()
+    this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
@@ -300,7 +301,7 @@ export class NavbarComponent implements OnInit {
   }
 
   isAccounting () {
-    const payload = this.loginGuard.tokenDecode()
+    const payload = this.loginGuard.sessionPayload()
     return payload?.data && payload.data.role === roles.accounting
   }
 }

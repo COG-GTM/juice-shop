@@ -6,8 +6,9 @@
 import { environment } from '../../environments/environment'
 import { Injectable, inject } from '@angular/core'
 import { HttpClient } from '@angular/common/http'
-import { catchError, map } from 'rxjs/operators'
+import { catchError, map, tap } from 'rxjs/operators'
 import { Subject } from 'rxjs'
+import { type AuthSession, clearSession, sessionFields, storeSession } from './auth-session'
 
 interface Passwords {
   current?: string
@@ -44,6 +45,20 @@ export class UserService {
   login (params: any) {
     this.isLoggedIn.next(true)
     return this.http.post(this.hostServer + '/rest/user/login', params).pipe(map((response: any) => response.authentication), catchError((err) => { throw err }))
+  }
+
+  logout () {
+    return this.http.post(this.hostServer + '/rest/user/logout', {}).pipe(catchError((err) => { throw err }))
+  }
+
+  refreshSession () {
+    return this.whoAmI(sessionFields).pipe(tap((user: AuthSession) => {
+      if (user?.id) {
+        storeSession(user)
+      } else {
+        clearSession()
+      }
+    }))
   }
 
   getLoggedInState () {

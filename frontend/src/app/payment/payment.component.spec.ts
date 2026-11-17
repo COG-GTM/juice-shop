@@ -94,8 +94,10 @@ describe('PaymentComponent', () => {
         userService = {
             deluxeStatus: vi.fn().mockName("UserService.deluxeStatus"),
             upgradeToDeluxe: vi.fn().mockName("UserService.upgradeToDeluxe"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            refreshSession: vi.fn().mockName("UserService.refreshSession")
         }
+        userService.refreshSession.mockReturnValue(of({}))
         userService.deluxeStatus.mockReturnValue(of({}))
         userService.upgradeToDeluxe.mockReturnValue(of({}))
         userService.isLoggedIn = {
@@ -345,12 +347,13 @@ describe('PaymentComponent', () => {
         expect(removeItemSpy).toHaveBeenCalledWith('walletTotal')
     })
 
-    it('should add token to local storage and cookie on calling choosePayment in deluxe mode', () => {
+    it('should refresh session without storing the token on calling choosePayment in deluxe mode', () => {
         component.mode = 'deluxe'
         userService.upgradeToDeluxe.mockReturnValue(of({ token: 'tokenValue' }))
         const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
         component.choosePayment()
-        expect(setItemSpy).toHaveBeenCalledWith('token', 'tokenValue')
-        expect(cookieService.put).toHaveBeenCalledWith('token', 'tokenValue')
+        expect(userService.refreshSession).toHaveBeenCalled()
+        expect(setItemSpy).not.toHaveBeenCalledWith('token', 'tokenValue')
+        expect(cookieService.put).not.toHaveBeenCalledWith('token', 'tokenValue')
     })
 })
