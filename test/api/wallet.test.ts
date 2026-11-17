@@ -9,6 +9,8 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { CardModel } from '../../models/card'
+import { UserModel } from '../../models/user'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -106,6 +108,23 @@ void describe('/api/Wallets', () => {
       .put('/rest/wallet/balance')
       .set(authHeader)
       .send({ balance: -500, paymentId: 2 })
+    const after = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    assert.equal(after.body.data, before.body.data)
+  })
+
+  void it('PUT charge wallet from expired credit card of requesting user is forbidden', async () => {
+    const user = await UserModel.findOne({ where: { email: 'demo' } })
+    const expiredCard = await CardModel.create({ UserId: user!.id, fullName: 'Demo', cardNum: 4111111111111111, expMonth: 1, expYear: 2020 }, { validate: false })
+    const before = await request(app)
+      .get('/rest/wallet/balance')
+      .set(authHeader)
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 10, paymentId: expiredCard.id })
+    assert.equal(res.status, 402)
     const after = await request(app)
       .get('/rest/wallet/balance')
       .set(authHeader)
