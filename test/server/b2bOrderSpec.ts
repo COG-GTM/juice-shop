@@ -38,6 +38,15 @@ describe('b2bOrder', () => {
     expect(res.json).to.have.been.calledWithMatch({ cid: 'JS0815DE' })
   })
 
+  it('accepts customer-specific fields in addition to the documented ones', () => {
+    req.body.orderLinesData = '{"productId": 12,"quantity": 1,"deliveryNote": "Gate 3"}'
+
+    b2bOrder()(req, res)
+
+    expect(res.status).to.have.callCount(0)
+    expect(res.json).to.have.been.calledWithMatch({ cid: 'JS0815DE' })
+  })
+
   it('accepts an order without order lines data', () => {
     b2bOrder()(req, res)
 
@@ -77,7 +86,6 @@ describe('b2bOrder', () => {
       '{"productId": 12, "quantity": 0}',
       '{"productId": 12, "quantity": 1.5}',
       '{"productId": 12, "quantity": 1, "customerReference": [1]}',
-      '{"productId": 12, "quantity": 1, "__proto__": {"polluted": true}}',
       '[]',
       '42',
       'null'

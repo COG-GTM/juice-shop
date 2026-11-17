@@ -7,8 +7,6 @@ import { type Request, type Response } from 'express'
 
 import * as security from '../lib/insecurity'
 
-const ALLOWED_ORDER_LINE_KEYS = new Set(['productId', 'quantity', 'customerReference', 'couponCode'])
-
 export function b2bOrder () {
   return ({ body }: Request, res: Response) => {
     const orderLinesData = body.orderLinesData
@@ -44,8 +42,7 @@ function isValidOrderLinesData (orderLinesData: string) {
 function isValidOrderLine (orderLine: unknown) {
   if (typeof orderLine !== 'object' || orderLine === null || Array.isArray(orderLine)) return false
   const { productId, quantity, customerReference, couponCode } = orderLine as Record<string, unknown>
-  return Object.keys(orderLine).every(key => ALLOWED_ORDER_LINE_KEYS.has(key)) &&
-    Number.isInteger(productId) &&
+  return Number.isInteger(productId) &&
     Number.isInteger(quantity) && (quantity as number) >= 1 &&
     (customerReference === undefined || typeof customerReference === 'string' ||
       (Array.isArray(customerReference) && customerReference.every(ref => typeof ref === 'string'))) &&
