@@ -69,6 +69,10 @@ export function placeOrder () {
           let totalPoints = 0
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
+              if (!Number.isInteger(BasketItem.quantity) || BasketItem.quantity < 1) {
+                next(new Error(`Invalid quantity for product ${BasketItem.ProductId} in basket.`))
+                return
+              }
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
