@@ -168,8 +168,7 @@ const hasValidRs256Signature = (token: string) => {
   const [header, payload, signature] = token.split('.')
   if (!header || !payload || !signature) return false
   try {
-    return JSON.parse(Buffer.from(header, 'base64url').toString()).alg === 'RS256' &&
-      crypto.createVerify('RSA-SHA256').update(`${header}.${payload}`).verify(publicKey, signature, 'base64url')
+    return crypto.createVerify('RSA-SHA256').update(`${header}.${payload}`).verify(publicKey, signature, 'base64url')
   } catch {
     return false
   }

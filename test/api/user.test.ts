@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import config from 'config'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -48,6 +49,14 @@ void describe('/api/Users', () => {
     const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
     const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })).toString('base64url')
     const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${header}.${payload}.` })
+    assert.notEqual(res.status, 200)
+  })
+
+  void it('GET all users is forbidden with an HS256 admin token signed with the public key', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })).toString('base64url')
+    const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${header}.${payload}.${signature}` })
     assert.notEqual(res.status, 200)
   })
 
