@@ -775,8 +775,12 @@
 		"removed": []
 	},
 	"loginAdminChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18
+		],
+		"removed": [
+			18
+		]
 	},
 	"loginAdminChallenge_4_correct.ts": {
 		"added": [],
@@ -810,8 +814,12 @@
 		"removed": []
 	},
 	"loginJimChallenge_3.ts": {
-		"added": [],
-		"removed": []
+		"added": [
+			18
+		],
+		"removed": [
+			18
+		]
 	},
 	"loginJimChallenge_4.ts": {
 		"added": [],
