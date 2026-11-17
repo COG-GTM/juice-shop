@@ -7,7 +7,7 @@ import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { retrieveLoggedInUser } from '../../routes/currentUser'
-import { authenticatedUsers } from '../../lib/insecurity'
+import { authenticatedUsers, authorize } from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 const expect = chai.expect
 chai.use(sinonChai)
@@ -39,5 +39,26 @@ describe('currentUser', () => {
     retrieveLoggedInUser()(req, res)
 
     expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } })
+  })
+
+  it('should not return fields outside the allowlist even if requested', () => {
+    const user = { id: 1, email: 'admin@juice-sh.op', password: '0192023a7bbd73250516f069df18b500', totpSecret: 'secret', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' }
+    req.cookies.token = authorize({ data: user })
+    req.query.fields = 'id,email,password,totpSecret'
+    authenticatedUsers.put(req.cookies.token, { data: user as unknown as UserModel })
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op' } })
+  })
+
+  it('should respond with plain JSON even if a callback is requested', () => {
+    req.cookies.token = ''
+    req.query.callback = 'func'
+    res.jsonp = sinon.spy()
+
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.jsonp).to.have.not.been.calledWith(sinon.match.any)
+    expect(res.json).to.have.been.calledWith({ user: { id: undefined, email: undefined, lastLoginIp: undefined, profileImage: undefined } })
   })
 })
