@@ -203,4 +203,27 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+  describe('hasRole', () => {
+    const run = (authorization?: string) => {
+      let nextCalled = false
+      let statusCode: number | undefined
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = { status: (code: number) => { statusCode = code; return { json: () => {} } } } as any
+      security.hasRole(security.roles.admin, security.roles.accounting)(req, res, () => { nextCalled = true })
+      return { nextCalled, statusCode }
+    }
+
+    it('allows requests with a valid token of an allowed role', () => {
+      expect(run('Bearer ' + security.authorize({ data: { role: security.roles.admin } }))).to.deep.equal({ nextCalled: true, statusCode: undefined })
+      expect(run('Bearer ' + security.authorize({ data: { role: security.roles.accounting } }))).to.deep.equal({ nextCalled: true, statusCode: undefined })
+    })
+
+    it('rejects requests with a token of another role', () => {
+      expect(run('Bearer ' + security.authorize({ data: { role: security.roles.customer } }))).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+
+    it('rejects requests without a token', () => {
+      expect(run()).to.deep.equal({ nextCalled: false, statusCode: 403 })
+    })
+  })
 })
