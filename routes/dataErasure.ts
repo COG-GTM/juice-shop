@@ -16,8 +16,10 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { ordersDirectory } from './orderConfirmation'
 
 const entities = new Entities()
+const restrictedDirectory = path.resolve('data/static/restricted').toLowerCase()
 
 const router = express.Router()
 
@@ -102,7 +104,9 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 
       if (req.body.layout) {
         const filePath: string = path.resolve(req.body.layout).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
+        const viewRoots: string[] = [req.app.get('views') ?? 'views'].flat()
+        const layoutPaths: string[] = [filePath, ...viewRoots.map(root => path.resolve(root, req.body.layout as string).toLowerCase())]
+        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys') || layoutPaths.some(layoutPath => layoutPath.startsWith(restrictedDirectory) || layoutPath.startsWith(ordersDirectory.toLowerCase())))
         if (!isForbiddenFile) {
           res.render('dataErasureResult', {
             ...req.body,
