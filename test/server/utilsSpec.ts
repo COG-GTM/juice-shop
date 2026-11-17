@@ -6,6 +6,11 @@
 import type { ChallengeModel } from 'models/challenge'
 
 import * as utils from '../../lib/utils'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 
 import chai from 'chai'
 const expect = chai.expect
@@ -206,6 +211,52 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('downloadToFile', () => {
+    let server: http.Server
+    let baseUrl: string
+    let tmpDir: string
+
+    before((done) => {
+      server = http.createServer((req, res) => {
+        if (req.url === '/file.bin') {
+          res.writeHead(200, { 'Content-Type': 'application/octet-stream' })
+          res.end(Buffer.from([0, 1, 2, 255]))
+        } else {
+          res.writeHead(404)
+          res.end()
+        }
+      })
+      server.listen(0, '127.0.0.1', () => {
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+        done()
+      })
+    })
+
+    after((done) => {
+      server.close(done)
+    })
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-download-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('writes the downloaded content to the destination file', async () => {
+      const dest = path.join(tmpDir, 'file.bin')
+      await utils.downloadToFile(`${baseUrl}/file.bin`, dest)
+      expect(fs.readFileSync(dest)).to.deep.equal(Buffer.from([0, 1, 2, 255]))
+    })
+
+    it('does not create the destination file on non-successful response', async () => {
+      const dest = path.join(tmpDir, 'missing.bin')
+      await utils.downloadToFile(`${baseUrl}/missing.bin`, dest)
+      expect(fs.existsSync(dest)).to.equal(false)
     })
   })
 })
