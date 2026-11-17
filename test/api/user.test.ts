@@ -283,6 +283,20 @@ void describe('/rest/user/whoami', () => {
     assert.deepEqual(res.body.user, {})
   })
 
+  void it('GET who-am-i ignores callback parameter and never responds with JSONP', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .get('/rest/user/whoami?callback=func')
+      .set({ Cookie: `token=${token}` })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.ok(!res.text.includes('func('))
+    assert.equal(res.body.user.email, 'bjoern.kimminich@gmail.com')
+  })
+
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
