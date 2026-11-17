@@ -15,8 +15,7 @@ export const ordersDirectory = path.resolve('orders')
 
 export function serveOrderConfirmation () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const token = req.cookies?.token ?? utils.jwtFrom(req)
-    const loggedInUser = security.verify(token) ? security.authenticatedUsers.get(token) : undefined
+    const loggedInUser = security.authenticatedUsers.get(req.cookies?.token ?? utils.jwtFrom(req))
     const email = loggedInUser?.data?.email
     if (!email) {
       res.status(401).json({ status: 'error', message: 'Unauthorized' })
@@ -30,8 +29,8 @@ export function serveOrderConfirmation () {
     }
 
     const order = await ordersCollection.findOne({ orderId })
-    const file = path.join(ordersDirectory, `order_${orderId}.pdf`)
-    if (!order || order.email !== email.replace(/[aeiou]/gi, '*') || !fs.existsSync(file)) {
+    const file = path.resolve(ordersDirectory, `order_${orderId}.pdf`)
+    if (!file.startsWith(ordersDirectory + path.sep) || !order || order.email !== email.replace(/[aeiou]/gi, '*') || !fs.existsSync(file)) {
       res.status(404).json({ status: 'error', message: 'Order not found' })
       return
     }
