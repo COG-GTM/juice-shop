@@ -41,7 +41,7 @@ export function genericErrorHandler () {
     const message = status < 500 && typeof err?.message === 'string' && err.message !== '' ? `Error: ${err.message}` : statusText
     const details = err instanceof Error ? (err.stack ?? err.message) : String(err)
     if (status >= 500) {
-      logger.error(`${req.method} ${req.originalUrl} failed with ${status}: ${details}`)
+      logger.error(`${req.method} ${req.path} failed with ${status}: ${details}`)
     }
     const { type, body } = renderBody(req, status, statusText, message)
     res.statusCode = status
