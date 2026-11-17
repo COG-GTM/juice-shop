@@ -83,6 +83,11 @@ describe('DataExportComponent', () => {
         expect(component.formatControl.valid).toBeFalsy()
     })
 
+    it('should always request a captcha on init', () => {
+        expect(imageCaptchaService.getCaptcha).toHaveBeenCalled()
+        expect(component.presenceOfCaptcha).toBe(true)
+    })
+
     it('should be compulsory to answer the captcha when captcha is present', () => {
         component.captchaControl.setValue('')
         expect(component.captchaControl.valid).toBeFalsy()
