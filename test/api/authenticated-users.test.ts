@@ -35,6 +35,14 @@ void describe('/rest/user/authentication-details', () => {
     assert.equal(res.status, 403)
   })
 
+  void it('GET is forbidden for expired admin tokens', async () => {
+    const expiredToken = security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set('Authorization', `Bearer ${expiredToken}`)
+    assert.equal(res.status, 401)
+  })
+
   void it('GET all users with password replaced by asterisks', async () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')

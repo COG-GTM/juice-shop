@@ -165,18 +165,19 @@ export const isAccounting = () => {
 }
 
 export const isAdmin = () => {
+  const authorized = isAuthorized()
   return (req: Request, res: Response, next: NextFunction) => {
-    const token = utils.jwtFrom(req)
-    if (!token || !verify(token)) {
-      res.status(401).json({ status: 'error', message: 'No Authorization header was found' })
-      return
-    }
-    const decodedToken = decode(token)
-    if (decodedToken?.data?.role === roles.admin) {
-      next()
-    } else {
-      res.status(403).json({ status: 'error', message: 'Forbidden' })
-    }
+    authorized(req, res, (err?: unknown) => {
+      if (err) {
+        next(err)
+        return
+      }
+      if (decode(utils.jwtFrom(req))?.data?.role === roles.admin) {
+        next()
+      } else {
+        res.status(403).json({ status: 'error', message: 'Forbidden' })
+      }
+    })
   }
 }
 
