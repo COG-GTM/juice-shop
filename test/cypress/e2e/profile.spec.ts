@@ -10,6 +10,9 @@ describe('/profile', () => {
         `${Cypress.config('baseUrl')}/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3`
       )
       cy.get('#submitUrl').click()
+      cy.request(
+        '/solve/challenges/server-side?key=tRy_H4rd3r_n0thIng_iS_Imp0ssibl3'
+      )
       cy.visit('/')
       cy.expectChallengeSolved({ challenge: 'SSRF' })
     })
