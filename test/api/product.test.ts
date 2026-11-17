@@ -96,10 +96,30 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden without authentication', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update existing product is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.customer } }), 'content-type': 'application/json' })
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product is possible for admin users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' })
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
