@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -108,6 +109,35 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    const forge = (header: object, payload: object, signature = '') =>
+      `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.${signature}`
+
+    it('accepts a token signed by authorize', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('signs tokens with RS256', () => {
+      expect(JSON.parse(Buffer.from(security.authorize({}).split('.')[0], 'base64url').toString()).alg).to.equal('RS256')
+    })
+
+    it('rejects an unsigned token with alg "none"', () => {
+      expect(security.verify(forge({ alg: 'none', typ: 'JWT' }, { data: { email: 'admin@juice-sh.op' } }))).to.equal(false)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const header = { alg: 'HS256', typ: 'JWT' }
+      const payload = { data: { email: 'admin@juice-sh.op' } }
+      const unsigned = forge(header, payload).slice(0, -1)
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(`${unsigned}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects an empty token', () => {
+      expect(security.verify('')).to.equal(false)
     })
   })
 
