@@ -74,6 +74,24 @@ void describe('/api/Recycles', () => {
     }
   })
 
+  void it('GET recycle with an array id is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/' + encodeURIComponent('[1,2,3]'))
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET recycle with an object id is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/' + encodeURIComponent('{"$gt":0}'))
+    assert.equal(res.status, 400)
+  })
+
+  void it('GET recycle with a non-numeric id is rejected', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1abc')
+    assert.equal(res.status, 400)
+  })
+
   void it('PUT update existing recycle is forbidden', async () => {
     const res = await request(app)
       .put('/api/Recycles/1')
