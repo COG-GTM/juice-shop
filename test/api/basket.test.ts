@@ -130,6 +130,28 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
+  void it('GET order confirmation PDF only for the ordering customer and never from /ftp', async () => {
+    const order = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    const orderId = order.body.orderConfirmation
+
+    const own = await request(app).get(`/rest/order/${orderId}/confirmation`).set(authHeader)
+    assert.equal(own.status, 200)
+    assert.ok(own.headers['content-type']?.includes('application/pdf'))
+
+    const anonymous = await request(app).get(`/rest/order/${orderId}/confirmation`)
+    assert.equal(anonymous.status, 401)
+
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const otherUser = await request(app).get(`/rest/order/${orderId}/confirmation`).set({ Authorization: 'Bearer ' + token })
+    assert.equal(otherUser.status, 404)
+
+    const publicFtp = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(publicFtp.status, 403)
+  })
+
   void it('POST placing an order for a non-existing basket fails', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 500)
