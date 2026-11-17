@@ -3,7 +3,7 @@ describe('/profile', () => {
     cy.login({ email: 'admin', password: 'admin123' })
   })
   describe('challenge "ssrf"', () => {
-    // FIXME Profile image URLs must be https and resolve to public addresses, so the server no longer fetches internal resources (sfind-e9d30c29)
+    // FIXME Profile image URLs must be http(s) and resolve to public addresses, so the server no longer fetches internal resources (sfind-e9d30c29)
     xit('should be possible to request internal resources using image upload URL', () => {
       cy.visit('/profile')
 
