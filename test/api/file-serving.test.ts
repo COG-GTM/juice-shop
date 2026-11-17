@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
 
@@ -201,10 +202,50 @@ void describe('Hidden URL', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('GET folder containing access log files for "Access Log" challenge', async () => {
+  void it('GET access log file as admin for "Access Log" challenge', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
     const res = await request(app)
       .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', 'Bearer ' + token)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/octet-stream'))
+  })
+
+  void it('GET access log folder listing as admin', async () => {
+    const { token } = await login(app, {
+      email: 'admin@' + config.get<string>('application.domain'),
+      password: 'admin123'
+    })
+    const res = await request(app)
+      .get('/support/logs')
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('access.log'))
+  })
+
+  void it('GET access log folder listing is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/support/logs')
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is denied without authentication', async () => {
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET access log file is denied for non-admin users', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+    const res = await request(app)
+      .get('/support/logs/access.log.' + utils.toISO8601(new Date()))
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(res.status, 403)
   })
 })

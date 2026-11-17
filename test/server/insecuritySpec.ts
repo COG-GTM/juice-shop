@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -79,6 +79,39 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const runMiddleware = (authorization?: string) => {
+      const result = { nextCalled: false, status: 0 }
+      const req = { headers: authorization ? { authorization } : {} } as unknown as Request
+      const res = {
+        status (code: number) { result.status = code; return this },
+        json () { return this }
+      } as unknown as Response
+      security.isAdmin()(req, res, () => { result.nextCalled = true })
+      return result
+    }
+
+    it('allows requests with a valid admin token', () => {
+      const token = security.authorize({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })
+      expect(runMiddleware('Bearer ' + token)).to.deep.equal({ nextCalled: true, status: 0 })
+    })
+
+    it('denies requests with a valid non-admin token', () => {
+      const token = security.authorize({ data: { email: 'jim@juice-sh.op', role: security.roles.customer } })
+      expect(runMiddleware('Bearer ' + token)).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('denies requests without a token', () => {
+      expect(runMiddleware()).to.deep.equal({ nextCalled: false, status: 403 })
+    })
+
+    it('denies requests with a tampered admin token', () => {
+      const [header, , signature] = security.authorize({ data: { role: security.roles.customer } }).split('.')
+      const payload = Buffer.from(JSON.stringify({ data: { role: security.roles.admin } })).toString('base64url')
+      expect(runMiddleware(`Bearer ${header}.${payload}.${signature}`)).to.deep.equal({ nextCalled: false, status: 403 })
     })
   })
 
