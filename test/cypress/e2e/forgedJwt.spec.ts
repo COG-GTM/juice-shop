@@ -1,6 +1,6 @@
 describe('/', () => {
   describe('challenge "jwtUnsigned"', () => {
-    it('should accept an unsigned token with email jwtn3d@juice-sh.op in the payload ', () => {
+    it('should reject an unsigned token with email jwtn3d@juice-sh.op in the payload ', () => {
       cy.window().then(() => {
         localStorage.setItem(
           'token',
@@ -8,12 +8,12 @@ describe('/', () => {
         )
       })
       cy.visit('/')
-      cy.expectChallengeSolved({ challenge: 'Unsigned JWT' })
+      cy.request('/api/Challenges/?name=Unsigned JWT').its('body.data.0.solved').should('equal', false)
     })
   })
 
   describe('challenge "jwtForged"', () => {
-    it('should accept a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
+    it('should reject a token HMAC-signed with public RSA key with email rsa_lord@juice-sh.op in the payload ', () => {
       cy.task('isWindows').then((isWindows) => {
         if (!isWindows) {
           cy.window().then(() => {
@@ -24,7 +24,7 @@ describe('/', () => {
           })
           cy.visit('/#/')
 
-          cy.expectChallengeSolved({ challenge: 'Forged Signed JWT' })
+          cy.request('/api/Challenges/?name=Forged Signed JWT').its('body.data.0.solved').should('equal', false)
         }
       })
     })

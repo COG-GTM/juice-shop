@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -30,6 +31,42 @@ describe('insecurity', () => {
     it('returns undefined if header "x-user-email" is not present', () => {
       expect(security.userEmailFrom({ headers: {} })).to.equal(undefined)
       expect(security.userEmailFrom({})).to.equal(undefined)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const base64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = base64url({ data: { email: 'jim@juice-sh.op' }, iat: 1508639612, exp: 9999999999 })
+    const unsignedToken = `${base64url({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hmacHeader = base64url({ alg: 'HS256', typ: 'JWT' })
+    const hmacToken = `${hmacHeader}.${payload}.${crypto.createHmac('sha256', security.publicKey).update(`${hmacHeader}.${payload}`).digest('base64url')}`
+
+    const runIsAuthorized = async (token: string) => await new Promise<unknown>((resolve) => {
+      void security.isAuthorized()({ headers: { authorization: `Bearer ${token}` } } as unknown as Request, {} as any, resolve)
+    })
+
+    it('verify accepts RS256 tokens signed with the private key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'jim@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('verify rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('verify rejects tokens HMAC-signed with the public key', () => {
+      expect(security.verify(hmacToken)).to.equal(false)
+    })
+
+    it('isAuthorized accepts RS256 tokens signed with the private key', async () => {
+      expect(await runIsAuthorized(security.authorize({ data: { email: 'jim@juice-sh.op' } }))).to.equal(undefined)
+    })
+
+    it('isAuthorized rejects unsigned tokens', async () => {
+      expect(await runIsAuthorized(unsignedToken)).to.have.property('status', 401)
+    })
+
+    it('isAuthorized rejects tokens HMAC-signed with the public key', async () => {
+      expect(await runIsAuthorized(hmacToken)).to.have.property('status', 401)
     })
   })
 
