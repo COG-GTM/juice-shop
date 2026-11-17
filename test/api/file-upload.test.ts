@@ -83,7 +83,7 @@ void describe('/file-upload', () => {
         .post('/file-upload')
         .attach('file', file)
       assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
+      assert.deepEqual(res.body, { error: 'Gone' })
     })
 
     void it('POST file type XML with Quadratic Blowup attack', async () => {

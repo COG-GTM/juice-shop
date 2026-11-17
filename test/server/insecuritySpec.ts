@@ -8,7 +8,8 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -79,6 +80,33 @@ describe('insecurity', () => {
     it('returns discount from valid coupon code', () => {
       expect(security.discountFromCoupon(security.generateCoupon(10))).to.equal(10)
       expect(security.discountFromCoupon(security.generateCoupon(99))).to.equal(99)
+    })
+  })
+
+  describe('isAdmin', () => {
+    const run = (headers: Record<string, string>) => {
+      const res = { status: sinon.stub().returnsThis(), json: sinon.spy() }
+      const next = sinon.spy()
+      security.isAdmin()({ headers } as unknown as Request, res as unknown as Response, next)
+      return { res, next }
+    }
+
+    it('allows requests with a valid admin token', () => {
+      const { next, res } = run({ authorization: `Bearer ${security.authorize({ data: { role: security.roles.admin } })}` })
+      expect(next.calledOnce).to.equal(true)
+      expect(res.status.called).to.equal(false)
+    })
+
+    it('rejects requests with a non-admin token', () => {
+      const { next, res } = run({ authorization: `Bearer ${security.authorize({ data: { role: security.roles.customer } })}` })
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
+    })
+
+    it('rejects requests without a token', () => {
+      const { next, res } = run({})
+      expect(next.called).to.equal(false)
+      expect(res.status.calledWith(403)).to.equal(true)
     })
   })
 
