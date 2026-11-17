@@ -153,6 +153,17 @@ export const deluxeToken = (email: string) => {
   return hmac.update(email + roles.deluxe).digest('hex')
 }
 
+export const ipAllowList = (allowedIps: string[]) => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = (req.ip ?? req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+    if (allowedIps.includes(ip)) {
+      next()
+    } else {
+      next(Object.assign(new Error('Access denied to IP address: ' + ip), { status: 403 }))
+    }
+  }
+}
+
 export const isAccounting = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))

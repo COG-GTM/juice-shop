@@ -196,6 +196,34 @@ describe('insecurity', () => {
     })
   })
 
+  describe('ipAllowList', () => {
+    const runFilter = (allowedIps: string[], ip: string) => {
+      let result: any = 'not called'
+      security.ipAllowList(allowedIps)({ ip, socket: {} } as unknown as Request, {} as any, (err?: any) => { result = err })
+      return result
+    }
+
+    it('allows requests from an allow-listed IP', () => {
+      expect(runFilter(['10.0.0.1'], '10.0.0.1')).to.equal(undefined)
+    })
+
+    it('allows requests from an allow-listed IPv4 address in IPv6-mapped notation', () => {
+      expect(runFilter(['10.0.0.1'], '::ffff:10.0.0.1')).to.equal(undefined)
+    })
+
+    it('rejects requests from any other IP with status 403', () => {
+      const err = runFilter(['10.0.0.1'], '127.0.0.1')
+      expect(err).to.be.an('error')
+      expect(err.status).to.equal(403)
+    })
+
+    it('rejects requests from private addresses not on the allow-list', () => {
+      for (const ip of ['127.0.0.1', '::1', '0x7f.1', '::ffff:7f00:1', '0']) {
+        expect(runFilter(['123.456.789'], ip).status).to.equal(403)
+      }
+    })
+  })
+
   describe('hmac', () => {
     it('returns SHA-256 HMAC with "pa4qacea4VK9t9nGv7yZtwmj" as salt any input string', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
