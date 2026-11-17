@@ -51,7 +51,7 @@
               <figure class="feedback">
                 <figcaption>
                   <p class="feedback-comment" [innerHTML]="item?.args?.comment"></p>
-                  <div class="feedback-stars">({{ item?.args?.stars }})</div>
+                  <div class="feedback-stars">(<span [innerHTML]="item?.args?.stars"></span>)</div>
                 </figcaption>
               </figure>
             }
