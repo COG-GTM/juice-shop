@@ -73,6 +73,7 @@ export function getUserProfile () {
       template = template.replace(/_username_/g, username)
     }
     template = template.replace(/_emailHash_/g, security.hash(user?.email))
+    template = template.replace(/_csrfToken_/g, security.csrfTokenFor(req.cookies.token))
     template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
     template = template.replace(/_favicon_/g, favicon())
     template = template.replace(/_bgColor_/g, theme.bgColor)
@@ -92,7 +93,8 @@ export function getUserProfile () {
       })
 
       res.set({
-        'Content-Security-Policy': CSP
+        'Content-Security-Policy': CSP,
+        'Cache-Control': 'no-store'
       })
 
       res.send(fn(user))
