@@ -18,14 +18,31 @@ export function getWalletBalance () {
   }
 }
 
+const MIN_TOP_UP = 10
+const MAX_TOP_UP = 1000
+
+function isValidTopUpAmount (amount: unknown): amount is number {
+  return typeof amount === 'number' && Number.isFinite(amount) && amount >= MIN_TOP_UP && amount <= MAX_TOP_UP
+}
+
+function isCardExpired (card: { expMonth: number, expYear: number }) {
+  const now = new Date()
+  return card.expYear < now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth < now.getMonth() + 1)
+}
+
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const amount = req.body.balance
+    if (!isValidTopUpAmount(amount)) {
+      res.status(400).json({ status: 'error', message: `Amount must be a number between ${MIN_TOP_UP} and ${MAX_TOP_UP}.` })
+      return
+    }
     const cardId = req.body.paymentId
     const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
-    if (card != null) {
+    if (card != null && !isCardExpired(card)) {
       try {
-        await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })
-        res.status(200).json({ status: 'success', data: req.body.balance })
+        await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
+        res.status(200).json({ status: 'success', data: amount })
       } catch {
         res.status(404).json({ status: 'error' })
       }
