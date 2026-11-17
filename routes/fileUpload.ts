@@ -68,15 +68,11 @@ async function checkFileType ({ file }: Request, res: Response, next: NextFuncti
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     return res.status(410).json({ error: 'B2B customer complaints via file upload have been deprecated for security reasons' })
   }
-  try {
-    const detectedType = file?.buffer != null ? await fileType.fromBuffer(file.buffer) : undefined
-    if (allowedFileTypes.includes(extension) && detectedType?.ext === extension) {
-      next()
-    } else {
-      return res.status(415).json({ error: 'Only PDF and ZIP files are allowed' })
-    }
-  } catch (err: unknown) {
-    next(err)
+  const detectedType = file?.buffer != null ? await fileType.fromBuffer(file.buffer).catch(() => undefined) : undefined
+  if (allowedFileTypes.includes(extension) && detectedType?.ext === extension) {
+    next()
+  } else {
+    return res.status(415).json({ error: 'Only PDF and ZIP files are allowed' })
   }
 }
 

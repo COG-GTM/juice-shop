@@ -88,6 +88,15 @@ describe('fileUpload', () => {
       expect(status).to.equal(415)
     })
 
+    it('should reject a truncated file instead of failing with a server error', async () => {
+      req.file = { originalname: 'invoice.pdf', buffer: Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) }
+
+      await checkFileType(req, res, next)
+
+      expect(nextCalled).to.equal(false)
+      expect(status).to.equal(415)
+    })
+
     for (const name of ['xxe.xml', 'bomb.yml', 'bomb.yaml']) {
       it(`should reject deprecated ${name} uploads without parsing them`, async () => {
         challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
