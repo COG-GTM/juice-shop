@@ -38,7 +38,8 @@ void describe('/dataerasure', () => {
       .set({ Cookie: 'token=' + token })
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: No answer found!'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('Error: No answer found!'))
   })
 
   void it('GET erasure form rendering fails on unauthenticated access', async () => {
@@ -46,7 +47,8 @@ void describe('/dataerasure', () => {
       .get('/dataerasure/')
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('Error: Blocked illegal activity'))
   })
 
   void it('POST erasure request does not actually delete the user', async () => {
@@ -73,7 +75,8 @@ void describe('/dataerasure', () => {
       .post('/dataerasure/')
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('Error: Blocked illegal activity'))
   })
 
   void it('POST erasure request with empty layout parameter returns', async () => {
@@ -96,7 +99,8 @@ void describe('/dataerasure', () => {
       .send({ layout: '../this/file/does/not/exist' })
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('no such file or directory'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('no such file or directory'))
   })
 
   void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {

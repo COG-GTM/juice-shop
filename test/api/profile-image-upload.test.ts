@@ -52,7 +52,7 @@ void describe('/profile/image/file', () => {
 
     assert.equal(res.status, 415)
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes(`${config.get<string>('application.name')} (Express`))
+    assert.ok(!res.text.includes('(Express'))
     assert.ok(res.text.includes('Error: Profile image upload does not accept this file type'))
   })
 
@@ -64,8 +64,9 @@ void describe('/profile/image/file', () => {
       .attach('file', file)
 
     assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Internal Server Error'))
     assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(!res.text.includes('Error: Blocked illegal activity'))
   })
 })
 

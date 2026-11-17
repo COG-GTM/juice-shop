@@ -133,7 +133,8 @@ void describe('/rest/basket/:id/checkout', () => {
   void it('POST placing an order for a non-existing basket fails', async () => {
     const res = await request(app).post('/rest/basket/42/checkout').set(authHeader)
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
   void it('POST placing an order for a basket with a negative total cost is possible', async () => {
