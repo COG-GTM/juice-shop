@@ -8,6 +8,11 @@ import type { ChallengeModel } from 'models/challenge'
 import * as utils from '../../lib/utils'
 
 import chai from 'chai'
+import fs from 'node:fs'
+import http from 'node:http'
+import os from 'node:os'
+import path from 'node:path'
+import type { AddressInfo } from 'node:net'
 const expect = chai.expect
 
 describe('utils', () => {
@@ -206,6 +211,75 @@ describe('utils', () => {
 
     it('prepends single-digit days with a zero', () => {
       expect(utils.toISO8601(new Date('2025-12-01T00:00:00Z'))).to.equal('2025-12-01')
+    })
+  })
+
+  describe('downloadToFile', () => {
+    let server: http.Server
+    let baseUrl: string
+    let tmpDir: string
+
+    before((done) => {
+      server = http.createServer((req, res) => {
+        if (req.url === '/image.png') {
+          res.writeHead(200, { 'Content-Type': 'image/png' })
+          res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+        } else if (req.url === '/redirect') {
+          res.writeHead(302, { Location: '/image.png' })
+          res.end()
+        } else if (req.url === '/unix-socket-redirect') {
+          res.writeHead(302, { Location: 'unix:/var/run/docker.sock:/info' })
+          res.end()
+        } else {
+          res.writeHead(404)
+          res.end('Not found')
+        }
+      }).listen(0, '127.0.0.1', () => {
+        baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+        done()
+      })
+    })
+
+    beforeEach(() => {
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'juice-shop-download-'))
+    })
+
+    afterEach(() => {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    after((done) => {
+      server.close(done)
+    })
+
+    it('writes the downloaded content to the destination file', async () => {
+      const dest = path.join(tmpDir, 'image.png')
+      await utils.downloadToFile(`${baseUrl}/image.png`, dest)
+      expect(fs.readFileSync(dest)).to.deep.equal(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    })
+
+    it('follows http redirects', async () => {
+      const dest = path.join(tmpDir, 'image.png')
+      await utils.downloadToFile(`${baseUrl}/redirect`, dest)
+      expect(fs.readFileSync(dest)).to.deep.equal(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    })
+
+    it('does not follow redirects to a UNIX socket', async () => {
+      const dest = path.join(tmpDir, 'info')
+      await utils.downloadToFile(`${baseUrl}/unix-socket-redirect`, dest)
+      expect(fs.existsSync(dest)).to.equal(false)
+    })
+
+    it('does not write a file for error responses', async () => {
+      const dest = path.join(tmpDir, 'missing.png')
+      await utils.downloadToFile(`${baseUrl}/missing.png`, dest)
+      expect(fs.existsSync(dest)).to.equal(false)
+    })
+
+    it('rejects non-http protocols', async () => {
+      const dest = path.join(tmpDir, 'passwd')
+      await utils.downloadToFile('file:///etc/passwd', dest)
+      expect(fs.existsSync(dest)).to.equal(false)
     })
   })
 })
