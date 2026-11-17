@@ -4,7 +4,6 @@
  */
 import { type Request, type Response, type NextFunction } from 'express'
 import { UserModel } from '../models/user'
-import { decode } from 'jsonwebtoken'
 import * as security from '../lib/insecurity'
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
@@ -17,7 +16,7 @@ async function retrieveUserList (req: Request, res: Response, next: NextFunction
         const userToken = security.authenticatedUsers.tokenOf(user)
         let lastLoginTime: number | null = null
         if (userToken) {
-          const parsedToken = decode(userToken, { json: true })
+          const parsedToken = security.verify(userToken) ? security.decode(userToken) : null
           lastLoginTime = parsedToken ? Math.floor(new Date(parsedToken?.iat ?? 0 * 1000).getTime()) : null
         }
 

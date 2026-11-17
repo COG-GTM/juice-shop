@@ -47,4 +47,19 @@ void describe('/rest/user/authentication-details', () => {
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
   })
+  void it('GET ignores session tokens that fail signature verification', async () => {
+    const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+    const forgedToken = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ data: { id: 3, email: `bender@${config.get<string>('application.domain')}` }, iat: Math.floor(Date.now() / 1000) })}.forged-signature`
+    security.authenticatedUsers.put(forgedToken, { data: { id: 3, email: `bender@${config.get<string>('application.domain')}` } } as any)
+
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+
+    const bender = res.body.data.find((user: any) => user.email.startsWith('bender@'))
+    assert.ok(bender, 'Expected to find bender in the user list')
+    assert.equal(bender.lastLoginTime, null)
+  })
 })
