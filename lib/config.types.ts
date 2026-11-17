@@ -5,6 +5,7 @@ export interface ServerConfig {
   port: number
   basePath: string
   baseUrl: string
+  trustProxy: string
 }
 
 export interface ApplicationConfig {
@@ -129,6 +130,15 @@ export interface CtfConfig {
   }
 }
 
+export interface MailConfig {
+  from: string
+  smtp: {
+    host: string
+    port: number
+    secure: boolean
+  }
+}
+
 export interface AppConfig {
   server: ServerConfig
   application: ApplicationConfig
@@ -137,4 +147,5 @@ export interface AppConfig {
   products: Product[]
   memories: Memory[]
   ctf: CtfConfig
+  mail: MailConfig
 }

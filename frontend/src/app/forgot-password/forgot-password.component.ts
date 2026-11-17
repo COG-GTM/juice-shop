@@ -4,13 +4,12 @@
  */
 
 import { UserService } from '../Services/user.service'
-import { SecurityQuestionService } from '../Services/security-question.service'
 import { type AbstractControl, UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Component, inject } from '@angular/core'
+import { ActivatedRoute } from '@angular/router'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
 import { faEdit } from '@fortawesome/free-regular-svg-icons'
-import { type SecurityQuestion } from '../Models/securityQuestion.model'
 import { TranslateService, TranslateModule } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { PasswordStrengthComponent } from '../password-strength/password-strength.component'
@@ -32,66 +31,22 @@ library.add(faSave, faEdit)
   imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatIconModule, MatSuffix, MatTooltip, MatError, MatHint, MatSlideToggle, PasswordStrengthComponent, PasswordStrengthInfoComponent, MatButtonModule]
 })
 export class ForgotPasswordComponent {
-  private readonly securityQuestionService = inject(SecurityQuestionService)
   private readonly userService = inject(UserService)
   private readonly translate = inject(TranslateService)
+  private readonly route = inject(ActivatedRoute)
 
+  public resetToken: string | null = this.route.snapshot.queryParamMap.get('token')
   public emailControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.email])
-  public securityQuestionControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required])
-  public passwordControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required, Validators.minLength(5)])
-  public repeatPasswordControl: UntypedFormControl = new UntypedFormControl({ disabled: true, value: '' }, [Validators.required, matchValidator(this.passwordControl)])
-  public securityQuestion?: string
+  public passwordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(5)])
+  public repeatPasswordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, matchValidator(this.passwordControl)])
   public error?: string
   public confirmation?: string
-  public timeoutDuration = 1000
-  private timeout
 
-  findSecurityQuestion () {
-    clearTimeout(this.timeout)
-    this.timeout = setTimeout(() => {
-      this.securityQuestion = undefined
-      if (this.emailControl.value) {
-        this.securityQuestionService.findBy(this.emailControl.value).subscribe({
-          next: (securityQuestion: SecurityQuestion) => {
-            if (securityQuestion) {
-              this.securityQuestion = securityQuestion.question
-              this.securityQuestionControl.enable()
-              this.passwordControl.enable()
-              this.repeatPasswordControl.enable()
-            } else {
-              this.securityQuestionControl.disable()
-              this.passwordControl.disable()
-              this.repeatPasswordControl.disable()
-            }
-          },
-          error: (error) => error
-        }
-        )
-      } else {
-        this.securityQuestionControl.disable()
-        this.passwordControl.disable()
-        this.repeatPasswordControl.disable()
-      }
-    }, this.timeoutDuration)
-  }
-
-  resetPassword () {
-    this.userService.resetPassword({
-      email: this.emailControl.value,
-      answer: this.securityQuestionControl.value,
-      new: this.passwordControl.value,
-      repeat: this.repeatPasswordControl.value
-    }).subscribe({
+  requestResetLink () {
+    this.userService.requestPasswordReset({ email: this.emailControl.value }).subscribe({
       next: () => {
         this.error = undefined
-        this.translate.get('PASSWORD_SUCCESSFULLY_CHANGED').subscribe({
-          next: (passwordSuccessfullyChanged) => {
-            this.confirmation = passwordSuccessfullyChanged
-          },
-          error: (translationId) => {
-            this.confirmation = translationId
-          }
-        })
+        this.showConfirmation('PASSWORD_RESET_LINK_SENT')
         this.resetForm()
       },
       error: (error) => {
@@ -102,27 +57,46 @@ export class ForgotPasswordComponent {
     })
   }
 
+  resetPassword () {
+    this.userService.resetPassword({
+      token: this.resetToken,
+      new: this.passwordControl.value,
+      repeat: this.repeatPasswordControl.value
+    }).subscribe({
+      next: () => {
+        this.error = undefined
+        this.showConfirmation('PASSWORD_SUCCESSFULLY_CHANGED')
+        this.resetForm()
+      },
+      error: (error) => {
+        this.error = error.error
+        this.confirmation = undefined
+        this.resetErrorForm()
+      }
+    })
+  }
+
+  private showConfirmation (translationKey: string) {
+    this.translate.get(translationKey).subscribe({
+      next: (message) => {
+        this.confirmation = message
+      },
+      error: (translationId) => {
+        this.confirmation = translationId
+      }
+    })
+  }
+
   resetForm () {
     this.emailControl.setValue('')
     this.emailControl.markAsPristine()
     this.emailControl.markAsUntouched()
-    this.securityQuestionControl.setValue('')
-    this.securityQuestionControl.markAsPristine()
-    this.securityQuestionControl.markAsUntouched()
-    this.passwordControl.setValue('')
-    this.passwordControl.markAsPristine()
-    this.passwordControl.markAsUntouched()
-    this.repeatPasswordControl.setValue('')
-    this.repeatPasswordControl.markAsPristine()
-    this.repeatPasswordControl.markAsUntouched()
+    this.resetErrorForm()
   }
 
   resetErrorForm () {
     this.emailControl.markAsPristine()
     this.emailControl.markAsUntouched()
-    this.securityQuestionControl.setValue('')
-    this.securityQuestionControl.markAsPristine()
-    this.securityQuestionControl.markAsUntouched()
     this.passwordControl.setValue('')
     this.passwordControl.markAsPristine()
     this.passwordControl.markAsUntouched()
