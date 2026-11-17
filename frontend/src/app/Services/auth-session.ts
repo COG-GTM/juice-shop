@@ -12,10 +12,12 @@ export interface AuthSession {
 
 // The JWT itself lives in an HttpOnly cookie; only non-secret user details are kept client-side.
 const SESSION_KEY = 'session'
+const LEGACY_TOKEN_KEY = 'token'
 
 export const sessionFields = ['id', 'email', 'role', 'lastLoginIp']
 
 export function storeSession (session: AuthSession) {
+  localStorage.removeItem(LEGACY_TOKEN_KEY)
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
@@ -36,5 +38,6 @@ export function hasSession (): boolean {
 }
 
 export function clearSession () {
+  localStorage.removeItem(LEGACY_TOKEN_KEY)
   localStorage.removeItem(SESSION_KEY)
 }
