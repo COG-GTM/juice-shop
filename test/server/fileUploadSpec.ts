@@ -46,21 +46,36 @@ describe('fileUpload', () => {
     expect(challenges.uploadSizeChallenge.solved).to.equal(true)
   })
 
-  it('should solve "uploadTypeChallenge" when file type is not PDF', () => {
-    challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
-    req.file.originalname = 'hack.exe'
+  describe('should reject with 415 and not call next() when file type is', () => {
+    const fileNames = ['hack.exe', 'hack.html', 'hack.pdf.exe', 'hack.svg', 'noextension']
+    fileNames.forEach(fileName => {
+      it(fileName, () => {
+        challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
+        req.file.originalname = fileName
+        let statusCode: number | undefined
+        res = { status: (code: number) => { statusCode = code; return res }, json: () => res }
+        let nextCalled = false
 
-    checkFileType(req, res, () => {})
+        checkFileType(req, res, () => { nextCalled = true })
 
-    expect(challenges.uploadTypeChallenge.solved).to.equal(true)
+        expect(statusCode).to.equal(415)
+        expect(nextCalled).to.equal(false)
+        expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+      })
+    })
   })
 
-  it('should not solve "uploadTypeChallenge" when file type is PDF', () => {
-    challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
-    req.file.originalname = 'hack.pdf'
+  describe('should accept and call next() when file type is', () => {
+    const fileNames = ['hack.pdf', 'hack.PDF', 'hack.xml', 'hack.zip', 'hack.yml', 'hack.yaml']
+    fileNames.forEach(fileName => {
+      it(fileName, () => {
+        req.file.originalname = fileName
+        let nextCalled = false
 
-    checkFileType(req, res, () => {})
+        checkFileType(req, res, () => { nextCalled = true })
 
-    expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+        expect(nextCalled).to.equal(true)
+      })
+    })
   })
 })
