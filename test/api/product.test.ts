@@ -18,6 +18,7 @@ const tamperingProductId = config.get<ProductConfig[]>('products').findIndex((pr
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const adminHeader = { Authorization: 'Bearer ' + security.authorize({ data: { role: 'admin' } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -96,10 +97,26 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
+      .send({ description: 'tampered' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update existing product is forbidden for non-admin users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(authHeader)
+      .send({ description: 'tampered' })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product as admin', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(adminHeader)
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })
