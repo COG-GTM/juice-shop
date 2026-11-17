@@ -101,11 +101,13 @@ describe('OrderHistoryService', () => {
     })
 
     it('should open order confirmation PDF fetched from the api in a new window', () => {
+        vi.useFakeTimers()
         const service = TestBed.inject(OrderHistoryService)
         const httpMock = TestBed.inject(HttpTestingController)
         const confirmationWindow = { location: { href: '' }, close: vi.fn() }
         window.open = vi.fn().mockReturnValue(confirmationWindow)
         URL.createObjectURL = vi.fn().mockReturnValue('blob:confirmation')
+        URL.revokeObjectURL = vi.fn()
 
         service.openConfirmation('ad9b-96017e7cb1ae7bf9')
         expect(window.open).toHaveBeenCalledWith('', '_blank')
@@ -113,7 +115,10 @@ describe('OrderHistoryService', () => {
         expect(req.request.responseType).toBe('blob')
         req.flush(new Blob(['%PDF'], { type: 'application/pdf' }))
         expect(confirmationWindow.location.href).toBe('blob:confirmation')
+        vi.advanceTimersByTime(60000)
+        expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:confirmation')
         httpMock.verify()
+        vi.useRealTimers()
     })
 
     it('should close the new window when order confirmation cannot be fetched', () => {

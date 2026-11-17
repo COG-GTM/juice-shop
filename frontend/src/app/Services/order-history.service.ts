@@ -39,6 +39,7 @@ export class OrderHistoryService {
         } else {
           window.open(url, '_blank')
         }
+        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
       },
       error: (err) => {
         confirmationWindow?.close()
