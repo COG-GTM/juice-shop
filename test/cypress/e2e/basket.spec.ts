@@ -76,7 +76,7 @@ describe('/#/basket', () => {
       cy.login({ email: 'jim', password: 'ncc-1701' })
     })
     describe('challenge "manipulateClock"', () => {
-      it('should be possible to enter WMNSDY2019 coupon & place order with this expired coupon', () => {
+      it('should not be possible to redeem expired WMNSDY2019 coupon by manipulating the client clock', () => {
         cy.window().then(() => {
           window.localStorage.couponPanelExpanded = false
         })
@@ -98,7 +98,7 @@ describe('/#/basket', () => {
         cy.get('.mat-mdc-radio-button').first().click()
         cy.get('.nextButton').click()
         cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Expired Coupon' })
+        cy.expectChallengeNotSolved({ challenge: 'Expired Coupon' })
       })
     })
 
@@ -131,23 +131,24 @@ describe('/#/basket', () => {
         })
       })
 
-      it('should be possible to enter a coupon that gives an 80% discount', () => {
+      it('should not be possible to enter a forged coupon that gives an 80% discount', () => {
         cy.window().then(() => {
           window.localStorage.couponPanelExpanded = false
         })
 
         cy.visit('/#/payment/shop')
         cy.get('#collapseCouponElement').click()
-        cy.task<string>('GenerateCoupon', 90).then((coupon: string) => {
+        cy.task<string>('ForgeUnsignedCoupon', 90).then((coupon: string) => {
           cy.get('#coupon').type(coupon)
           cy.get('#applyCouponButton').click()
         })
+        cy.get('.error').should('be.visible')
       })
 
-      it('should be possible to place an order with a forged coupon', () => {
+      it('should not solve the forged coupon challenge when placing an order', () => {
         cy.visit('/#/order-summary')
         cy.get('#checkoutButton').click()
-        cy.expectChallengeSolved({ challenge: 'Forged Coupon' })
+        cy.expectChallengeNotSolved({ challenge: 'Forged Coupon' })
       })
     })
   })

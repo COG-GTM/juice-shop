@@ -187,17 +187,20 @@ function calculateApplicableDiscount (basket: BasketModel, req: Request) {
     challengeUtils.solveIf(challenges.forgedCouponChallenge, () => { return (discount ?? 0) >= 80 })
     return discount
   } else if (req.body.couponData) {
-    const couponData = Buffer.from(req.body.couponData, 'base64').toString().split('-')
-    const couponCode = couponData[0]
-    const couponDate = Number(couponData[1])
-    const campaign = campaigns[couponCode as keyof typeof campaigns]
+    const couponCode = Buffer.from(String(req.body.couponData), 'base64').toString().split('-')[0]
+    const campaign = Object.prototype.hasOwnProperty.call(campaigns, couponCode) ? campaigns[couponCode as keyof typeof campaigns] : undefined
 
-    if (campaign && couponDate == campaign.validOn) { // eslint-disable-line eqeqeq
-      challengeUtils.solveIf(challenges.manipulateClockChallenge, () => { return campaign.validOn < new Date().getTime() })
+    if (campaign && isCampaignActive(campaign.validOn, Date.now())) {
       return campaign.discount
     }
   }
   return 0
+}
+
+const campaignDurationMs = 24 * 60 * 60 * 1000
+
+export function isCampaignActive (validOn: number, now: number) {
+  return now >= validOn && now < validOn + campaignDurationMs
 }
 
 const campaigns = {
