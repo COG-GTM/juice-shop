@@ -7,6 +7,7 @@ import { type Request, type Response, type NextFunction } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
+import { PasswordResetTokenModel } from '../models/passwordResetToken'
 import * as security from '../lib/insecurity'
 
 export function changePassword () {
@@ -49,6 +50,7 @@ export function changePassword () {
       }
 
       await user.update({ password: newPasswordInString })
+      await PasswordResetTokenModel.destroy({ where: { UserId: user.id, usedAt: null } })
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')

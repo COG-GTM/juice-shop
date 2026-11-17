@@ -2,6 +2,7 @@ server:
   port: 3000
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
+  trustProxy: loopback # Express 'trust proxy' setting, e.g. 'loopback', '10.0.0.0/8' or a hop count; never 'true'
 application:
   domain: juice-sh.op # for pre-loaded email users
   name: 'OWASP Juice Shop'
@@ -515,6 +516,12 @@ memories:
     image: 'everything-up-and-running!-1721152385146.jpg'
     caption: 'Everything up and running!'
     user: bjoernOwasp
+mail:
+  from: 'OWASP Juice Shop <noreply@juice-sh.op>'
+  smtp:
+    host: '' # empty disables outgoing mail; SMTP credentials are read from SMTP_USER and SMTP_PASS env vars
+    port: 587
+    secure: false
 ctf:
   showFlagsInNotifications: false
   showCountryDetailsInNotifications: none # Options: none  name  flag  both

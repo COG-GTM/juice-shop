@@ -5,6 +5,8 @@ server:
     type: string
   baseUrl:
     type: string
+  trustProxy:
+    type: string
 application:
   domain:
     type: string
@@ -191,6 +193,16 @@ memories:
       type: number
     geoStalkingVisualSecurityAnswer:
       type: string
+mail:
+  from:
+    type: string
+  smtp:
+    host:
+      type: string
+    port:
+      type: number
+    secure:
+      type: boolean
 ctf:
   showFlagsInNotifications:
     type: boolean
