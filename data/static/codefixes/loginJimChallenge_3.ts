@@ -12,10 +12,10 @@ export function login () {
   }
 
   return (req: Request, res: Response, next: NextFunction) => {
-    models.sequelize.query(`SELECT * FROM Users WHERE email = ? AND password = ? AND deletedAt IS NULL`,
-      { replacements: [ req.body.email, req.body.password ], model: models.User, plain: true })
+    models.sequelize.query(`SELECT * FROM Users WHERE email = ? AND deletedAt IS NULL`,
+      { replacements: [ req.body.email ], model: models.User, plain: true })
       .then((authenticatedUser) => {
-        const user = utils.queryResultToJson(authenticatedUser)
+        const user = utils.queryResultToJson(authenticatedUser?.password === req.body.password ? authenticatedUser : null)
         if (user.data?.id && user.data.totpSecret !== '') {
           res.status(401).json({
             status: 'totp_token_required',

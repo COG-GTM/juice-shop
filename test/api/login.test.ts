@@ -8,9 +8,13 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
+
+const unionLoginPayload = (email: string, passwordHash: string) =>
+  `' UNION SELECT id, username, email, '${passwordHash}', role, deluxeToken, lastLoginIp, profileImage, totpSecret, isActive, createdAt, updatedAt, deletedAt FROM Users WHERE email = '${email}'--`
 
 before(async () => {
   const result = await createTestApp()
@@ -152,7 +156,7 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
+  void it('POST login with WHERE-clause disabling SQL injection attack no longer bypasses password verification', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -161,12 +165,10 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.authentication.token, 'string')
+    assert.equal(res.status, 401)
   })
 
-  void it('POST login with known email "admin@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "admin@juice-sh.op" and commented-out password check is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -175,12 +177,24 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST login with known email "admin@juice-sh.op" in UNION SELECT injection attack', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: unionLoginPayload('admin@' + config.get<string>('application.domain'), security.hashPassword('injected')),
+        password: 'injected'
+      })
+
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with known email "jim@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "jim@juice-sh.op" and commented-out password check is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -189,18 +203,42 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST login with known email "jim@juice-sh.op" in UNION SELECT injection attack', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: unionLoginPayload('jim@' + config.get<string>('application.domain'), security.hashPassword('injected')),
+        password: 'injected'
+      })
+
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with known email "bender@juice-sh.op" in SQL injection attack', async () => {
+  void it('POST login with known email "bender@juice-sh.op" and commented-out password check is rejected', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
         email: 'bender@' + config.get<string>('application.domain') + '\'--',
         password: undefined
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST login with known email "bender@juice-sh.op" in UNION SELECT injection attack', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: unionLoginPayload('bender@' + config.get<string>('application.domain'), security.hashPassword('injected')),
+        password: 'injected'
       })
 
     assert.equal(res.status, 200)
@@ -213,8 +251,8 @@ void describe('/rest/user/login', () => {
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: `' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@${config.get<string>('application.domain')}' as 'email', '12345' as 'password', 'accounting' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
-        password: undefined
+        email: `' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@${config.get<string>('application.domain')}' as 'email', '${security.hashPassword('12345')}' as 'password', 'accounting' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
+        password: '12345'
       })
 
     assert.equal(res.status, 200)
