@@ -34,13 +34,15 @@ export function addBasketItem () {
     }
 
     const user = security.authenticatedUsers.from(req)
-    if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
+    if (productIds.length > 1 || basketIds.length > 1 || quantities.length > 1) {
+      res.status(400).json({ error: 'Duplicate parameters are not allowed' })
+    } else if (!user?.bid || Number(user.bid) !== Number(basketIds[0])) {
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
     } else {
       const basketItem = {
-        ProductId: productIds[productIds.length - 1],
-        BasketId: basketIds[basketIds.length - 1],
-        quantity: quantities[quantities.length - 1]
+        ProductId: productIds[0],
+        BasketId: basketIds[0],
+        quantity: quantities[0]
       }
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && basketItem.BasketId && basketItem.BasketId !== 'undefined' && user.bid != basketItem.BasketId }) // eslint-disable-line eqeqeq
 
