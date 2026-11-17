@@ -43,8 +43,8 @@ export default defineConfig({
             }
           }
         },
-        async GetPasswordResetToken (email: string) {
-          return await waitForPasswordResetToken(email)
+        async GetPasswordResetToken ({ email, since }: { email: string, since: number }) {
+          return await waitForPasswordResetToken(email, since)
         },
         GetFromConfig (variable: string) {
           return config.get(variable)

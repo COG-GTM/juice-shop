@@ -1,5 +1,8 @@
 describe('/#/photo-wall', () => {
+  let resetRequestedAfter: number
+
   beforeEach(() => {
+    resetRequestedAfter = Date.now()
     cy.visit('/#/forgot-password')
     cy.intercept('GET', '/rest/user/security-question?email=*').as('securityQuestion')
     cy.intercept('POST', '/rest/user/reset-password/request').as('resetTokenRequest')
@@ -15,7 +18,7 @@ describe('/#/photo-wall', () => {
             cy.get('#requestResetTokenButton').should('not.be.disabled').click()
             cy.wait('@resetTokenRequest')
             cy.get('#email').invoke('val').then((email) => {
-              cy.task<string>('GetPasswordResetToken', email).then((token: string) => {
+              cy.task<string>('GetPasswordResetToken', { email, since: resetRequestedAfter }).then((token: string) => {
                 cy.get('#resetToken').should('not.be.disabled').focus().type(token)
               })
             })
@@ -41,7 +44,7 @@ describe('/#/photo-wall', () => {
             cy.get('#requestResetTokenButton').should('not.be.disabled').click()
             cy.wait('@resetTokenRequest')
             cy.get('#email').invoke('val').then((email) => {
-              cy.task<string>('GetPasswordResetToken', email).then((token: string) => {
+              cy.task<string>('GetPasswordResetToken', { email, since: resetRequestedAfter }).then((token: string) => {
                 cy.get('#resetToken').should('not.be.disabled').focus().type(token)
               })
             })
