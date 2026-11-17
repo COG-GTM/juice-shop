@@ -96,28 +96,59 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
-export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+const couponSecretFile = 'data/couponSecret.key'
+const couponMacLength = 5
+const couponPayloadLength = 3
+
+function loadCouponSecret (): Buffer {
+  if (process.env.COUPON_SECRET) {
+    return Buffer.from(process.env.COUPON_SECRET)
+  }
+  try {
+    fs.writeFileSync(couponSecretFile, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
+  } catch (err: any) {
+    if (err?.code !== 'EEXIST') {
+      throw err
+    }
+  }
+  return Buffer.from(fs.readFileSync(couponSecretFile, 'utf8').trim())
+}
+
+let couponSecret: Buffer | undefined
+const couponMac = (payload: Buffer) => {
+  couponSecret ??= loadCouponSecret()
+  return crypto.createHmac('sha256', couponSecret).update(payload).digest().subarray(0, couponMacLength)
+}
+
+const couponPayload = (discount: number, date: Date) => Buffer.from([date.getMonth(), date.getFullYear() % 100, discount])
+
+const isValidCouponDiscount = (discount: number) => Number.isInteger(discount) && discount >= 10 && discount <= 99
+
+export const generateCoupon = (discount: number, date = new Date()): string | null => {
+  if (!isValidCouponDiscount(discount)) {
+    return null
+  }
+  const payload = couponPayload(discount, date)
+  return z85.encode(Buffer.concat([payload, couponMac(payload)]))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
-  if (!coupon) {
+  if (!coupon || coupon.length !== 10) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (!decoded || decoded.length !== couponPayloadLength + couponMacLength) {
+    return undefined
   }
-}
-
-function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  const payload = decoded.subarray(0, couponPayloadLength)
+  const mac = decoded.subarray(couponPayloadLength)
+  if (!crypto.timingSafeEqual(mac, couponMac(payload))) {
+    return undefined
+  }
+  const discount = payload[2]
+  if (isValidCouponDiscount(discount) && couponPayload(discount, new Date()).equals(payload)) {
+    return discount
+  }
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
