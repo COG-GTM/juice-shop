@@ -11,7 +11,21 @@ import * as security from '../lib/insecurity'
 import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
 
-const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
+// MarsDB runs find and modify as separate async steps, so updates to the same review are serialized here
+const reviewLocks = new Map<string, Promise<unknown>>()
+
+async function withReviewLock<T> (id: string, task: () => Promise<T>): Promise<T> {
+  const previous = reviewLocks.get(id) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(task)
+  reviewLocks.set(id, current)
+  try {
+    return await current
+  } finally {
+    if (reviewLocks.get(id) === current) {
+      reviewLocks.delete(id)
+    }
+  }
+}
 
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -20,43 +34,27 @@ export function likeProductReviews () {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
+    const email = user.data.email
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: id })
-      if (!review) {
-        return res.status(404).json({ error: 'Not found' })
-      }
-
-      const likedBy = review.likedBy
-      if (likedBy.includes(user.data.email)) {
-        return res.status(403).json({ error: 'Not allowed' })
-      }
-
-      await db.reviewsCollection.update(
-        { _id: id },
-        { $inc: { likesCount: 1 } }
-      )
-
-      // Artificial wait for timing attack challenge
-      await sleep(150)
-      try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
-        const updatedLikedBy = updatedReview.likedBy
-        updatedLikedBy.push(user.data.email)
-
-        const count = updatedLikedBy.filter(email => email === user.data.email).length
-        challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
-
-        const result = await db.reviewsCollection.update(
-          { _id: id },
-          { $set: { likedBy: updatedLikedBy } }
+      const result: { modified: number, updated: Review[] } = await withReviewLock(id, async () =>
+        await db.reviewsCollection.update(
+          { _id: id, likedBy: { $ne: email } },
+          { $inc: { likesCount: 1 }, $addToSet: { likedBy: email } }
         )
-        res.json(result)
-      } catch (err) {
-        res.status(500).json(err)
+      )
+      if (result.modified === 0) {
+        const review = await db.reviewsCollection.findOne({ _id: id })
+        return review ? res.status(403).json({ error: 'Not allowed' }) : res.status(404).json({ error: 'Not found' })
       }
+
+      challengeUtils.solveIf(challenges.timingAttackChallenge, () => result.updated[0].likedBy.filter(likedBy => likedBy === email).length > 2)
+      res.json(result)
     } catch (err) {
-      res.status(400).json({ error: 'Wrong Params' })
+      res.status(500).json(err)
     }
   }
 }
