@@ -199,7 +199,7 @@ describe('insecurity', () => {
   describe('ipAllowList', () => {
     const runFilter = (allowedIps: string[], ip: string) => {
       let result: any = 'not called'
-      security.ipAllowList(allowedIps)({ ip, socket: {} } as unknown as Request, {} as any, (err?: any) => { result = err })
+      security.ipAllowList(allowedIps)({ ip: '127.0.0.1', socket: { remoteAddress: ip } } as unknown as Request, {} as any, (err?: any) => { result = err })
       return result
     }
 
@@ -215,6 +215,13 @@ describe('insecurity', () => {
       const err = runFilter(['10.0.0.1'], '127.0.0.1')
       expect(err).to.be.an('error')
       expect(err.status).to.equal(403)
+    })
+
+    it('ignores the proxy-derived req.ip so X-Forwarded-For cannot spoof an allow-listed IP', () => {
+      const req = { ip: '123.456.789', headers: { 'x-forwarded-for': '123.456.789' }, socket: { remoteAddress: '127.0.0.1' } } as unknown as Request
+      let result: any = 'not called'
+      security.ipAllowList(['123.456.789'])(req, {} as any, (err?: any) => { result = err })
+      expect(result.status).to.equal(403)
     })
 
     it('rejects requests from private addresses not on the allow-list', () => {

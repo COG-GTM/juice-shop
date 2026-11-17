@@ -155,7 +155,7 @@ export const deluxeToken = (email: string) => {
 
 export const ipAllowList = (allowedIps: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = (req.ip ?? req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
+    const ip = (req.socket.remoteAddress ?? '').replace(/^::ffff:/, '')
     if (allowedIps.includes(ip)) {
       next()
     } else {
