@@ -120,11 +120,11 @@ describe('/rest/products/reviews', () => {
       cy.login({ email: 'mc.safesearch', password: 'Mr. N00dles' })
     })
 
-    it('should be possible to like reviews multiple times', () => {
+    it('should not be possible to like reviews multiple times', () => {
       cy.visit('/')
       cy.window().then(async () => {
         async function sendPostRequest (reviewId: string) {
-          const anotherResponse = await fetch(
+          return await fetch(
             `${Cypress.config('baseUrl')}/rest/products/reviews`,
             {
               method: 'POST',
@@ -135,9 +135,6 @@ describe('/rest/products/reviews', () => {
               body: JSON.stringify({ id: reviewId })
             }
           )
-          if (anotherResponse.status === 200) {
-            console.log('Success')
-          }
         }
 
         const response = await fetch(
@@ -153,12 +150,15 @@ describe('/rest/products/reviews', () => {
           const responseJson = await response.json()
           const reviewId = responseJson.data[0]._id
 
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
-          void sendPostRequest(reviewId)
+          const responses = await Promise.all([
+            sendPostRequest(reviewId),
+            sendPostRequest(reviewId),
+            sendPostRequest(reviewId)
+          ])
+          expect(responses.filter(res => res.status === 200).length).to.be.at.most(1)
         }
       })
-      cy.expectChallengeSolved({ challenge: 'Multiple Likes' })
+      cy.request('/api/Challenges/?name=Multiple Likes').its('body.data.0.solved').should('equal', false)
     })
   })
 })
