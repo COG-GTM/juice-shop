@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -174,5 +174,20 @@ void describe('/rest/order-history/:orderId/confirmation', () => {
   void it('GET order confirmation PDF with malformed order id is forbidden', async () => {
     const res = await request(app).get(`/rest/order-history/${encodeURIComponent('../package.json')}/confirmation`).set(ownerHeader)
     assert.equal(res.status, 403)
+  })
+
+  void it('GET order confirmation PDF of another user with colliding email mask and hash prefix is not possible', async () => {
+    const password = 'collision123'
+    const sessions: Array<{ token: string, bid: number }> = []
+    for (const email of ['aaaaiuou@example.com', 'aaaaoeoa@example.com']) {
+      await register(app, { email, password })
+      sessions.push(await login(app, { email, password }))
+    }
+    const checkout = await request(app).post(`/rest/basket/${sessions[0].bid}/checkout`).set({ Authorization: 'Bearer ' + sessions[0].token, 'content-type': 'application/json' })
+    assert.equal(checkout.status, 200)
+    const collidingOrderId = checkout.body.orderConfirmation
+
+    const res = await request(app).get(`/rest/order-history/${collidingOrderId}/confirmation`).set({ Authorization: 'Bearer ' + sessions[1].token })
+    assert.equal(res.status, 404)
   })
 })

@@ -45,18 +45,17 @@ export function orderConfirmation () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.from(req)
     const orderId = req.params.orderId
-    if (!loggedInUser?.data?.email || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
+    if (!loggedInUser?.data?.id || !/^[0-9a-f]{4}-[0-9a-f]{16}$/.test(orderId)) {
       res.status(403).json({ error: 'Forbidden' })
       return
     }
-    const email = loggedInUser.data.email
-    const order = await ordersCollection.findOne({ orderId, email: email.replace(/[aeiou]/gi, '*') })
-    if (!order || !orderId.startsWith(security.hash(email).slice(0, 4))) {
+    const order = await ordersCollection.findOne({ orderId, UserId: loggedInUser.data.id })
+    if (!order) {
       res.status(404).json({ error: 'Order not found' })
       return
     }
-    const pdfFile = path.join(orderConfirmationsDir, `order_${orderId}.pdf`)
-    if (!fs.existsSync(pdfFile)) {
+    const pdfFile = path.resolve(orderConfirmationsDir, `order_${orderId}.pdf`)
+    if (!pdfFile.startsWith(orderConfirmationsDir + path.sep) || !fs.existsSync(pdfFile)) {
       res.status(404).json({ error: 'Order confirmation not found' })
       return
     }
