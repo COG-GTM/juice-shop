@@ -211,7 +211,7 @@ describe('insecurity', () => {
       security.setAuthCookie(res, 'TOKEN')
       expect(cookies[0][0]).to.equal('token')
       expect(cookies[0][1]).to.equal('TOKEN')
-      expect(cookies[0][2]).to.include({ httpOnly: true, sameSite: 'lax' })
+      expect(cookies[0][2]).to.include({ httpOnly: true, sameSite: 'strict' })
     })
   })
 

@@ -57,14 +57,14 @@ export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: 
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
 
-const authCookieOptions = { httpOnly: true, sameSite: 'lax' as const, maxAge: 8 * 60 * 60 * 1000 }
+const authCookieOptions = { httpOnly: true, sameSite: 'strict' as const, maxAge: 8 * 60 * 60 * 1000 }
 
 export const setAuthCookie = (res: Response, token: string) => {
   res.cookie('token', token, authCookieOptions)
 }
 
 export const clearAuthCookie = (res: Response) => {
-  res.clearCookie('token', { httpOnly: true, sameSite: 'lax' })
+  res.clearCookie('token', { httpOnly: true, sameSite: 'strict' })
 }
 
 export const tokenFromCookie = () => (req: Request, res: Response, next: NextFunction) => {

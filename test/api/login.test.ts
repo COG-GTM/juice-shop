@@ -295,7 +295,7 @@ void describe('/rest/user/login auth cookie', () => {
     assert.ok(tokenCookie)
     assert.ok(tokenCookie.includes(`token=${res.body.authentication.token}`))
     assert.ok(tokenCookie.includes('HttpOnly'))
-    assert.ok(tokenCookie.includes('SameSite=Lax'))
+    assert.ok(tokenCookie.includes('SameSite=Strict'))
   })
 
   void it('GET protected API with token cookie only', async () => {
