@@ -1,10 +1,10 @@
 describe('/redirect', () => {
   describe('challenge "redirect"', () => {
-    it('should show error page when supplying an unrecognized target URL', () => {
-      cy.visit('/redirect?to=http://kimminich.de', {
-        failOnStatusCode: false
+    it('should show a generic error when supplying an unrecognized target URL', () => {
+      cy.request({ url: '/redirect?to=http://kimminich.de', failOnStatusCode: false }).then((response) => {
+        expect(response.status).to.equal(406)
+        expect(response.body).to.deep.equal({ error: 'Not Acceptable' })
       })
-      cy.contains('Unrecognized target URL for redirect: http://kimminich.de')
     })
   })
 
