@@ -33,6 +33,8 @@ export const queryResultToJson = <T>(
   }
 }
 
+export const withoutOwnerId = <T extends { UserId?: unknown }>({ UserId, ...rest }: T): Omit<T, 'UserId'> => rest
+
 export const isUrl = (url: string) => {
   return startsWith(url, 'http')
 }
