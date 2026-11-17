@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Request, type Response, type NextFunction, type CookieOptions } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -56,6 +56,17 @@ export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
+
+const authCookieOptions: CookieOptions = { httpOnly: true, secure: true, sameSite: 'strict', path: '/' }
+export const setAuthCookie = (res: Response, token: string) => { res.cookie('token', token, { ...authCookieOptions, maxAge: 6 * 60 * 60 * 1000 }) }
+export const clearAuthCookie = (res: Response) => { res.clearCookie('token', authCookieOptions) }
+
+export const authorizationFromCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!req.headers.authorization && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -192,7 +203,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          setAuthCookie(res, token)
         }
       }
     })

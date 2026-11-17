@@ -81,7 +81,7 @@ describe('OAuthComponent', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.oauthLogin.mockReturnValue(throwError({ error: 'Error' }))
         component.ngOnInit()
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(localStorage.getItem('session')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 
@@ -102,7 +102,7 @@ describe('OAuthComponent', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {})
         userService.login.mockReturnValue(throwError({ error: 'Error' }))
         component.login({ email: '' })
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(localStorage.getItem('session')).toBeNull()
         expect(sessionStorage.getItem('bid')).toBeNull()
     })
 })

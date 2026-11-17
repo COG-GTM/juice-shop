@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { hasSession } from '../session'
 import { ProductReviewEditComponent } from '../product-review-edit/product-review-edit.component'
 import { UserService } from '../Services/user.service'
 import { ProductReviewService } from '../Services/product-review.service'
@@ -100,6 +101,6 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return hasSession()
   }
 }

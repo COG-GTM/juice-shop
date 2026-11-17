@@ -23,6 +23,7 @@ export function login () {
         const token = security.authorize(user)
         user.bid = basket.id // keep track of original basket
         security.authenticatedUsers.put(token, user)
+        security.setAuthCookie(res, token)
         res.json({ authentication: { token, bid: basket.id, umail: user.data.email } })
       }).catch((error: Error) => {
         next(error)
@@ -80,5 +81,12 @@ export function login () {
         throw new Error('Unable to verify challenges! Try again')
       })
     }
+  }
+}
+
+export function logout () {
+  return (req: Request, res: Response) => {
+    security.clearAuthCookie(res)
+    res.status(204).send()
   }
 }

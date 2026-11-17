@@ -345,12 +345,13 @@ describe('PaymentComponent', () => {
         expect(removeItemSpy).toHaveBeenCalledWith('walletTotal')
     })
 
-    it('should add token to local storage and cookie on calling choosePayment in deluxe mode', () => {
+    it('should update session role to deluxe on calling choosePayment in deluxe mode', () => {
         component.mode = 'deluxe'
-        userService.upgradeToDeluxe.mockReturnValue(of({ token: 'tokenValue' }))
-        const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+        localStorage.setItem('session', JSON.stringify({ data: { role: 'customer' } }))
+        userService.upgradeToDeluxe.mockReturnValue(of({ confirmation: 'Congratulations!' }))
         component.choosePayment()
-        expect(setItemSpy).toHaveBeenCalledWith('token', 'tokenValue')
-        expect(cookieService.put).toHaveBeenCalledWith('token', 'tokenValue')
+        expect(JSON.parse(localStorage.getItem('session')).data.role).toBe('deluxe')
+        expect(localStorage.getItem('token')).toBeNull()
+        localStorage.removeItem('session')
     })
 })

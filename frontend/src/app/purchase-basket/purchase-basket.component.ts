@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { hasSession } from '../session'
 import { Component, EventEmitter, Input, type OnInit, Output, inject } from '@angular/core'
 import { BasketService } from '../Services/basket.service'
 import { UserService } from '../Services/user.service'
@@ -51,7 +52,7 @@ export class PurchaseBasketComponent implements OnInit {
     }
     this.load()
 
-    if (localStorage.getItem('token') == null) {
+    if (!hasSession()) {
       this.userEmail = '(anonymous)'
       return
     }
@@ -69,7 +70,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   load () {
-    if (localStorage.getItem('token') == null) {
+    if (!hasSession()) {
       this.loadGuestBasket()
       return
     }
@@ -134,7 +135,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   delete (id) {
-    if (localStorage.getItem('token') == null) {
+    if (!hasSession()) {
       this.basketService.removeGuestBasketItem(id)
       this.load()
       return
@@ -158,7 +159,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   addToQuantity (id, value) {
-    if (localStorage.getItem('token') == null) {
+    if (!hasSession()) {
       const existingGuestItem = this.basketService.getGuestBasketItems().find(item => item.ProductId === id)
       if (existingGuestItem == null) {
         return

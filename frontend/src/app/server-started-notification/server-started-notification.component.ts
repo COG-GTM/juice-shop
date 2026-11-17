@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { clearSession } from '../session'
+import { UserService } from '../Services/user.service'
 import { TranslateService, TranslateModule } from '@ngx-translate/core'
 import { ChallengeService } from '../Services/challenge.service'
 import { ChangeDetectorRef, Component, NgZone, type OnInit, inject } from '@angular/core'
@@ -30,6 +32,7 @@ export class ServerStartedNotificationComponent implements OnInit {
   private readonly cookieService = inject(CookieService)
   private readonly ref = inject(ChangeDetectorRef)
   private readonly io = inject(SocketIoService)
+  private readonly userService = inject(UserService)
 
   public hackingProgress: HackingProgress = {} as HackingProgress
 
@@ -95,10 +98,10 @@ export class ServerStartedNotificationComponent implements OnInit {
     this.cookieService.remove('continueCode')
     this.cookieService.remove('continueCodeFixIt')
     this.cookieService.remove('continueCodeFindIt')
-    this.cookieService.remove('token')
+    this.userService.logout().subscribe({ error: (err) => { console.log(err) } })
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
-    localStorage.removeItem('token')
+    clearSession()
     localStorage.removeItem('displayedDifficulties')
     localStorage.removeItem('showSolvedChallenges')
     localStorage.removeItem('showDisabledChallenges')

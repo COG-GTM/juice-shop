@@ -38,7 +38,6 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 describe('TwoFactorAuthEnterComponent', () => {
     let component: TwoFactorAuthEnterComponent
     let fixture: ComponentFixture<TwoFactorAuthEnterComponent>
-    let cookieService: any
     let userService: any
     let twoFactorAuthService: any
 
@@ -88,7 +87,6 @@ describe('TwoFactorAuthEnterComponent', () => {
             ]
         })
             .compileComponents()
-        cookieService = TestBed.inject(CookieService)
     })
 
     beforeEach(() => {
@@ -101,18 +99,12 @@ describe('TwoFactorAuthEnterComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should store authentication token in cookie', () => {
+    it('should not store authentication token in JS-accessible storage', () => {
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(cookieService.get('token')).toBe('TOKEN')
-    })
-
-    it('should store authentication token in local storage', () => {
-        twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
-        component.verify()
-
-        expect(localStorage.getItem('token')).toBe('TOKEN')
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(localStorage.getItem('session')).not.toBeNull()
     })
 
     it('should store basket ID in session storage', () => {

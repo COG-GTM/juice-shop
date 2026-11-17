@@ -61,21 +61,20 @@ describe('LastLoginIpComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should log JWT parsing error to console', () => {
-        console.log = vi.fn()
-        localStorage.setItem('token', 'definitelyInvalidJWT')
+    it('should not set Last-Login IP for a corrupted session', () => {
+        localStorage.setItem('session', 'definitelyInvalidJSON')
         component.ngOnInit()
-        expect(console.log).toHaveBeenCalled()
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
     })
 
     it('should set Last-Login IP from JWT as trusted HTML', () => {
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7Imxhc3RMb2dpbklwIjoiMS4yLjMuNCJ9fQ.RAkmdqwNypuOxv3SDjPO4xMKvd1CddKvDFYDBfUt3bg')
+        localStorage.setItem('session', JSON.stringify({ data: { lastLoginIp: '1.2.3.4' } }))
         component.ngOnInit()
         expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<small>1.2.3.4</small>')
     })
 
     it('should not set Last-Login IP if none is present in JWT', () => {
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7fX0.bVBhvll6IaeR3aUdoOeyR8YZe2S2DfhGAxTGfd9enLw')
+        localStorage.setItem('session', JSON.stringify({ data: {} }))
         component.ngOnInit()
         expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
     })

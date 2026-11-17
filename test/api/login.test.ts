@@ -41,6 +41,22 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
+
+    const cookies = [res.headers['set-cookie']].flat().join(';')
+    assert.match(cookies, /token=/)
+    assert.match(cookies, /HttpOnly/)
+    assert.match(cookies, /Secure/)
+    assert.match(cookies, /SameSite=Strict/)
+  })
+
+  void it('POST logout clears the authentication cookie', async () => {
+    const res = await request(app)
+      .post('/rest/user/logout')
+
+    assert.equal(res.status, 204)
+    const cookies = [res.headers['set-cookie']].flat().join(';')
+    assert.match(cookies, /token=;/)
+    assert.match(cookies, /HttpOnly/)
   })
 
   void it('POST login non-existing user', async () => {

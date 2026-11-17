@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+import { storeSession } from '../session'
 import { Component, NgZone, inject } from '@angular/core'
 import { UntypedFormControl, UntypedFormGroup, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { TwoFactorAuthService } from '../Services/two-factor-auth-service'
-import { CookieService } from 'ngy-cookie'
 import { UserService } from '../Services/user.service'
 import { Router } from '@angular/router'
 import { library } from '@fortawesome/fontawesome-svg-core'
@@ -34,7 +34,6 @@ interface TokenEnterFormFields {
 })
 export class TwoFactorAuthEnterComponent {
   private readonly twoFactorAuthService = inject(TwoFactorAuthService)
-  private readonly cookieService = inject(CookieService)
   private readonly userService = inject(UserService)
   private readonly router = inject(Router)
   private readonly ngZone = inject(NgZone)
@@ -50,10 +49,7 @@ export class TwoFactorAuthEnterComponent {
 
     this.twoFactorAuthService.verify(fields.token).subscribe({
       next: (authentication) => {
-        localStorage.setItem('token', authentication.token)
-        const expires = new Date()
-        expires.setHours(expires.getHours() + 8)
-        this.cookieService.put('token', authentication.token, { expires })
+        storeSession(authentication.token)
         sessionStorage.setItem('bid', authentication.bid?.toString())
         /* Use userService to notifiy if user has logged in */
         /* this.userService.isLoggedIn = true; */

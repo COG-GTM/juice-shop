@@ -5,7 +5,7 @@
 
 import { Component, inject, OnInit } from '@angular/core'
 import { DomSanitizer } from '@angular/platform-browser'
-import { jwtDecode } from 'jwt-decode'
+import { getSession } from '../session'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
@@ -30,10 +30,8 @@ export class LastLoginIpComponent implements OnInit {
   }
 
   parseAuthToken () {
-    let payload = {} as any
-    const token = localStorage.getItem('token')
-    if (token) {
-      payload = jwtDecode(token)
+    const payload = getSession()
+    if (payload) {
       if (payload.data.lastLoginIp) {
 
         this.lastLoginIp = this.sanitizer.bypassSecurityTrustHtml(`<small>${payload.data.lastLoginIp}</small>`)

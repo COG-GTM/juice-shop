@@ -14,7 +14,6 @@ describe('/dataerasure', () => {
           headers: {
             'Content-type': 'application/x-www-form-urlencoded',
             Origin: `${Cypress.config('baseUrl')}/`,
-            Cookie: `token=${localStorage.getItem('token')}`
           },
           body: params
         })
