@@ -99,4 +99,34 @@ describe('OrderHistoryService', () => {
         expect(capturedError.status).toBe(400)
         httpMock.verify()
     })
+
+    it('should open order confirmation PDF fetched from the api in a new window', () => {
+        const service = TestBed.inject(OrderHistoryService)
+        const httpMock = TestBed.inject(HttpTestingController)
+        const confirmationWindow = { location: { href: '' }, close: vi.fn() }
+        window.open = vi.fn().mockReturnValue(confirmationWindow)
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:confirmation')
+
+        service.openConfirmation('ad9b-96017e7cb1ae7bf9')
+        expect(window.open).toHaveBeenCalledWith('', '_blank')
+        const req = httpMock.expectOne('http://localhost:3000/rest/order-history/ad9b-96017e7cb1ae7bf9/confirmation')
+        expect(req.request.responseType).toBe('blob')
+        req.flush(new Blob(['%PDF'], { type: 'application/pdf' }))
+        expect(confirmationWindow.location.href).toBe('blob:confirmation')
+        httpMock.verify()
+    })
+
+    it('should close the new window when order confirmation cannot be fetched', () => {
+        const service = TestBed.inject(OrderHistoryService)
+        const httpMock = TestBed.inject(HttpTestingController)
+        const confirmationWindow = { location: { href: '' }, close: vi.fn() }
+        window.open = vi.fn().mockReturnValue(confirmationWindow)
+        console.log = vi.fn()
+
+        service.openConfirmation('ad9b-96017e7cb1ae7bf9')
+        httpMock.expectOne('http://localhost:3000/rest/order-history/ad9b-96017e7cb1ae7bf9/confirmation').flush(null, { status: 404, statusText: 'Not Found' })
+        expect(confirmationWindow.close).toHaveBeenCalled()
+        expect(console.log).toHaveBeenCalled()
+        httpMock.verify()
+    })
 })

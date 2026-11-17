@@ -94,10 +94,7 @@ export class OrderCompletionComponent implements OnInit {
   }
 
   openConfirmationPDF () {
-    this.orderHistoryService.getConfirmation(this.orderId).subscribe({
-      next: (pdf) => { window.open(URL.createObjectURL(pdf), '_blank') },
-      error: (err) => { console.log(err) }
-    })
+    this.orderHistoryService.openConfirmation(this.orderId)
   }
 
   truncateTweet = (tweet: string, maxLength = 140) => {

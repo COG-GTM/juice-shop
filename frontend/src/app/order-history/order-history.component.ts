@@ -109,10 +109,7 @@ export class OrderHistoryComponent implements OnInit {
   }
 
   openConfirmationPDF (orderId: string) {
-    this.orderHistoryService.getConfirmation(orderId).subscribe({
-      next: (pdf) => { window.open(URL.createObjectURL(pdf), '_blank') },
-      error: (err) => { console.log(err) }
-    })
+    this.orderHistoryService.openConfirmation(orderId)
   }
 
   trackOrder (orderId) {

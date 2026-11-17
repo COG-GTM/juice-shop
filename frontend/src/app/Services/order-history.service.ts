@@ -29,6 +29,24 @@ export class OrderHistoryService {
     return this.http.get(`${this.host}/${encodeURIComponent(orderId)}/confirmation`, { responseType: 'blob' }).pipe(catchError((err) => { throw err }))
   }
 
+  openConfirmation (orderId: string) {
+    const confirmationWindow = window.open('', '_blank')
+    this.getConfirmation(orderId).subscribe({
+      next: (pdf) => {
+        const url = URL.createObjectURL(pdf)
+        if (confirmationWindow) {
+          confirmationWindow.location.href = url
+        } else {
+          window.open(url, '_blank')
+        }
+      },
+      error: (err) => {
+        confirmationWindow?.close()
+        console.log(err)
+      }
+    })
+  }
+
   toggleDeliveryStatus (id: number, params) {
     return this.http.put(`${this.host}/${id}/delivery-status`, params).pipe(map((response: any) => response.data), catchError((err) => { throw err }))
   }

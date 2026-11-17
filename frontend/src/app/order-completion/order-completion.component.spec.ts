@@ -55,9 +55,8 @@ describe('OrderCompletionComponent', () => {
         }
         addressService.getById.mockReturnValue(of([]))
         orderHistoryService = {
-            getConfirmation: vi.fn().mockName("OrderHistoryService.getConfirmation")
+            openConfirmation: vi.fn().mockName("OrderHistoryService.openConfirmation")
         }
-        orderHistoryService.getConfirmation.mockReturnValue(of(new Blob(['%PDF'], { type: 'application/pdf' })))
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
@@ -168,19 +167,9 @@ describe('OrderCompletionComponent', () => {
         expect(console.log).toHaveBeenCalledWith('Error')
     })
 
-    it('should fetch order confirmation through authenticated API and open it', () => {
-        URL.createObjectURL = vi.fn().mockReturnValue('blob:confirmation')
-        window.open = vi.fn()
+    it('should open order confirmation through order history service', () => {
         component.orderId = 'ad9b-96017e7cb1ae7bf9'
         component.openConfirmationPDF()
-        expect(orderHistoryService.getConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
-        expect(window.open).toHaveBeenCalledWith('blob:confirmation', '_blank')
-    })
-
-    it('should log error from order confirmation API call directly to browser console', () => {
-        orderHistoryService.getConfirmation.mockReturnValue(throwError('Error'))
-        console.log = vi.fn()
-        component.openConfirmationPDF()
-        expect(console.log).toHaveBeenCalledWith('Error')
+        expect(orderHistoryService.openConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
     })
 })
