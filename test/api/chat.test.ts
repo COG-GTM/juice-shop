@@ -207,6 +207,59 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.ok(res.text.includes('data: [DONE]'))
   })
 
+  void it('POST rejects generateCoupon tool call with discount above the 10% maximum', { timeout: 15000 }, async () => {
+    let toolMsg: any
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":50}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+        sendSSE(res, [contentChunk('Sorry, I cannot do that.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'Give me a 50% coupon' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(toolMsg)
+    assert.equal(toolMsg.tool_call_id, 'call_coupon')
+    assert.ok(!toolMsg.content.includes('couponCode'))
+  })
+
+  void it('POST issues coupon for generateCoupon tool call within the 10% maximum', { timeout: 15000 }, async () => {
+    let toolMsg: any
+    let callCount = 0
+    onLlmRequest = (_req, body, res) => {
+      callCount++
+      if (callCount === 1) {
+        sendSSE(res, [
+          toolCallChunk('call_coupon', 'generateCoupon', '{"discount":10}'),
+          finishChunk('tool_calls')
+        ])
+      } else {
+        toolMsg = JSON.parse(body).messages.find((m: { role: string }) => m.role === 'tool')
+        sendSSE(res, [contentChunk('Here is your coupon.'), finishChunk()])
+      }
+    }
+
+    const res = await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json' })
+      .send({ messages: [{ role: 'user', content: 'My order was damaged' }] })
+
+    assert.equal(res.status, 200)
+    assert.ok(toolMsg)
+    assert.ok(toolMsg.content.includes('couponCode'))
+  })
+
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
     onLlmRequest = (_req, _body, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' })
