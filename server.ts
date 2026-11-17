@@ -748,7 +748,6 @@ export async function start (readyCallback?: () => void) {
   } catch (err: any) { // vuln-code-snippet hide-line
     logger.warn(colors.yellow(`Metrics server could not be started: ${err.message}`)) // vuln-code-snippet hide-line
   } // vuln-code-snippet hide-line
-
   server.listen(port, () => {
     logger.info(colors.cyan(`Server listening on port ${colors.bold(`${port}`)}`))
     startupGauge.set({ task: 'ready' }, (Date.now() - startTime) / 1000)
