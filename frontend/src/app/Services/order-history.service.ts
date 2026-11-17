@@ -34,12 +34,18 @@ export class OrderHistoryService {
     this.getConfirmation(orderId).subscribe({
       next: (pdf) => {
         const url = URL.createObjectURL(pdf)
-        if (confirmationWindow) {
-          confirmationWindow.location.href = url
+        let pdfWindow = confirmationWindow
+        if (pdfWindow) {
+          pdfWindow.location.href = url
         } else {
-          window.open(url, '_blank')
+          pdfWindow = window.open(url, '_blank')
         }
-        setTimeout(() => { URL.revokeObjectURL(url) }, 60000)
+        const revokeWhenClosed = setInterval(() => {
+          if (!pdfWindow || pdfWindow.closed) {
+            clearInterval(revokeWhenClosed)
+            URL.revokeObjectURL(url)
+          }
+        }, 5000)
       },
       error: (err) => {
         confirmationWindow?.close()

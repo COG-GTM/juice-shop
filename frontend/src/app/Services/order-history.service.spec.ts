@@ -104,7 +104,7 @@ describe('OrderHistoryService', () => {
         vi.useFakeTimers()
         const service = TestBed.inject(OrderHistoryService)
         const httpMock = TestBed.inject(HttpTestingController)
-        const confirmationWindow = { location: { href: '' }, close: vi.fn() }
+        const confirmationWindow = { location: { href: '' }, close: vi.fn(), closed: false }
         window.open = vi.fn().mockReturnValue(confirmationWindow)
         URL.createObjectURL = vi.fn().mockReturnValue('blob:confirmation')
         URL.revokeObjectURL = vi.fn()
@@ -116,6 +116,9 @@ describe('OrderHistoryService', () => {
         req.flush(new Blob(['%PDF'], { type: 'application/pdf' }))
         expect(confirmationWindow.location.href).toBe('blob:confirmation')
         vi.advanceTimersByTime(60000)
+        expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+        confirmationWindow.closed = true
+        vi.advanceTimersByTime(5000)
         expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:confirmation')
         httpMock.verify()
         vi.useRealTimers()
