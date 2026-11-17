@@ -106,20 +106,45 @@ function handleXmlUpload ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+const MAX_YAML_EXPANSION = 1000000
+
+class YamlExpansionLimitError extends Error {}
+
+// Charges the expanded size JSON.stringify would produce (following alias references) and stops once the budget is spent
+function exceedsExpansionBudget (root: unknown, budget: number): boolean {
+  const cost = (node: unknown) => typeof node === 'string' ? node.length + 1 : 1
+  let remaining = budget - cost(root)
+  const stack: unknown[] = [root]
+  while (stack.length > 0 && remaining >= 0) {
+    const node = stack.pop()
+    if (node !== null && typeof node === 'object') {
+      const isArray = Array.isArray(node)
+      for (const [key, child] of Object.entries(node)) {
+        remaining -= (isArray ? 0 : key.length + 1) + cost(child)
+        if (remaining < 0) return true
+        stack.push(child)
+      }
+    }
+  }
+  return remaining < 0
+}
+
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
   if (utils.endsWith(file?.originalname.toLowerCase(), '.yml') || utils.endsWith(file?.originalname.toLowerCase(), '.yaml')) {
     challengeUtils.solveIf(challenges.deprecatedInterfaceChallenge, () => { return true })
     if (((file?.buffer) != null) && utils.isChallengeEnabled(challenges.deprecatedInterfaceChallenge)) {
       const data = file.buffer.toString()
       try {
-        const sandbox = { yaml, data }
-        vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        const yamlDocument = yaml.load(data)
+        if (exceedsExpansionBudget(yamlDocument, MAX_YAML_EXPANSION)) {
+          throw new YamlExpansionLimitError()
+        }
+        const yamlString = JSON.stringify(yamlDocument)
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err)
-        if (utils.contains(errorMessage, 'Invalid string length') || utils.contains(errorMessage, 'Script execution timed out')) {
+        if (err instanceof YamlExpansionLimitError) {
           if (challengeUtils.notSolved(challenges.yamlBombChallenge)) {
             challengeUtils.solve(challenges.yamlBombChallenge)
           }

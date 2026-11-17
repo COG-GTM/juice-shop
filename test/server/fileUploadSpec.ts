@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
+import path from 'node:path'
 import chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
-import { checkUploadSize, checkFileType } from '../../routes/fileUpload'
+import { checkUploadSize, checkFileType, handleYamlUpload } from '../../routes/fileUpload'
 
 const expect = chai.expect
 
@@ -62,5 +64,62 @@ describe('fileUpload', () => {
     checkFileType(req, res, () => {})
 
     expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+  })
+
+  describe('handleYamlUpload', () => {
+    let nextError: Error | undefined
+
+    beforeEach(() => {
+      challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+      challenges.yamlBombChallenge = { solved: false, save } as unknown as Challenge
+      res = { status (code: number) { res.statusCode ??= code; return res }, end () {} }
+      nextError = undefined
+    })
+
+    it('should reject a Billion Laughs-style YAML without expanding it and solve "yamlBombChallenge"', () => {
+      req.file.originalname = 'yamlBomb.yml'
+      req.file.buffer = fs.readFileSync(path.resolve(__dirname, '../files/yamlBomb.yml'))
+
+      const start = Date.now()
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(Date.now() - start).to.be.below(1000)
+      expect(res.statusCode).to.equal(503)
+      expect(nextError?.message).to.equal('Sorry, we are temporarily not available! Please try again later.')
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should count mapping key lengths towards the expansion limit', () => {
+      const longKey = 'k'.repeat(1000)
+      req.file.originalname = 'longKeys.yml'
+      req.file.buffer = Buffer.from(`a: &a {${longKey}: 1}\nb: &b [${Array(9).fill('*a').join(',')}]\nc: &c [${Array(9).fill('*b').join(',')}]\nd: &d [${Array(9).fill('*c').join(',')}]\ne: &e [${Array(9).fill('*d').join(',')}]\n`)
+
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(res.statusCode).to.equal(503)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should reject self-referencing aliases without exhausting memory', () => {
+      req.file.originalname = 'cyclic.yml'
+      req.file.buffer = Buffer.from(`a: &a [${Array(1000).fill('*a').join(',')}]\n`)
+
+      const start = Date.now()
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(Date.now() - start).to.be.below(1000)
+      expect(res.statusCode).to.equal(503)
+    })
+
+    it('should echo regular YAML content in the deprecation error', () => {
+      req.file.originalname = 'complaint.yaml'
+      req.file.buffer = Buffer.from('a: &a [1, 2]\nb: [*a, *a]\n')
+
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(res.statusCode).to.equal(410)
+      expect(nextError?.message).to.contain('{"a":[1,2],"b":[[1,2],[1,2]]}')
+      expect(challenges.yamlBombChallenge.solved).to.equal(false)
+    })
   })
 })
