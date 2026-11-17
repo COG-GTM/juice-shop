@@ -7,7 +7,6 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import config from 'config'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -26,11 +25,21 @@ void describe('/api', () => {
 })
 
 void describe('/rest', () => {
-  void it('GET error message with information leakage when calling unrecognized path with /rest in it', async () => {
+  void it('GET generic error message without stack trace or framework version when calling unrecognized path with /rest in it', async () => {
     const res = await request(app)
       .get('/rest/unrecognized')
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
-    assert.ok(res.text.includes('Unexpected path: /rest/unrecognized'))
+    assert.ok(res.text.includes('Internal Server Error'))
+    assert.ok(!res.text.includes('Express'))
+    assert.ok(!res.text.includes('Unexpected path'))
+    assert.ok(!res.text.includes('stacktrace'))
+  })
+
+  void it('GET generic JSON error for API clients calling unrecognized path with /rest in it', async () => {
+    const res = await request(app)
+      .get('/rest/unrecognized')
+      .set('Accept', 'application/json')
+    assert.equal(res.status, 500)
+    assert.deepEqual(res.body, { error: { status: 500, message: 'Internal Server Error' } })
   })
 })

@@ -22,7 +22,7 @@ before(async () => {
 
 void describe('/b2b/v2/orders', () => {
   if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-    void it('POST endless loop exploit in "orderLinesData" will raise explicit error', async () => {
+    void it('POST endless loop exploit in "orderLinesData" will raise generic error', async () => {
       const res = await request(app)
         .post('/b2b/v2/orders')
         .set(authHeader)
@@ -31,7 +31,8 @@ void describe('/b2b/v2/orders', () => {
         })
 
       assert.equal(res.status, 500)
-      assert.ok(res.text.includes('Infinite loop detected - reached max iterations'))
+      assert.ok(res.text.includes('Internal Server Error'))
+      assert.ok(!res.text.includes('Infinite loop detected - reached max iterations'))
     })
 
     void it('POST busy spinning regex attack does not raise an error', async () => {
