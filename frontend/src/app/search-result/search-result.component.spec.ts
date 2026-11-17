@@ -215,9 +215,13 @@ describe('SearchResultComponent', () => {
         expect(component.dataSource.filter).toEqual('product search')
     })
 
-    it('should pass the search query as trusted HTML', () => {
-        activatedRoute.setQueryParameter('<script>scripttag</script>')
+    it('should render the search query as plain text', () => {
+        activatedRoute.setQueryParameter('<iframe src="javascript:alert(`xss`)">')
         component.filterTable()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<script>scripttag</script>')
+        fixture.detectChanges()
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        const searchValue = fixture.nativeElement.querySelector('#searchValue')
+        expect(searchValue.textContent).toBe('<iframe src="javascript:alert(`xss`)">')
+        expect(searchValue.querySelector('iframe')).toBeNull()
     })
 })
