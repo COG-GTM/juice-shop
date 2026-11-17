@@ -1,5 +1,7 @@
 server:
   port: 3000
+  metricsPort: 3001
+  metricsHost: '127.0.0.1' # bind to an internal interface only; never expose publicly
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
 application:
