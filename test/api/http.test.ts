@@ -31,6 +31,14 @@ void describe('HTTP', () => {
     assert.equal(res.headers['access-control-allow-origin'], origin)
   })
 
+  void it('response must allow CORS from configured origins', async () => {
+    for (const origin of config.get<string[]>('server.corsAllowedOrigins')) {
+      const res = await request(app).get('/').set('Origin', origin)
+      assert.equal(res.status, 200)
+      assert.equal(res.headers['access-control-allow-origin'], origin)
+    }
+  })
+
   void it('preflight must not allow CORS from foreign origins', async () => {
     const res = await request(app).options('/rest/user/login').set('Origin', 'https://evil.example').set('Access-Control-Request-Method', 'POST')
     assert.equal(res.headers['access-control-allow-origin'], undefined)
