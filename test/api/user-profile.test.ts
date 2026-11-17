@@ -51,4 +51,35 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  void it('GET user profile renders template syntax in username as literal escaped text', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', 'a#{7*7}<b>x</b>')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('a#{7*7}&lt;b&gt;x&lt;/b&gt;'))
+    assert.ok(!res.text.includes('a49'))
+  })
+
+  void it('GET user profile does not evaluate username as JavaScript', async () => {
+    await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .field('username', '#{7*7}')
+      .redirects(0)
+
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.ok(res.text.includes('#{7*7}'))
+  })
 })
