@@ -5,13 +5,24 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import { type Review } from '../data/types'
 import * as db from '../data/mongodb'
 
-const sleep = async (ms: number) => await new Promise(resolve => setTimeout(resolve, ms))
+// MarsDB updates are not atomic across concurrent calls, so likes on the same review are serialized
+const reviewLocks = new Map<string, Promise<unknown>>()
+
+async function withReviewLock<T> (id: string, task: () => Promise<T>): Promise<T> {
+  const previous = reviewLocks.get(id) ?? Promise.resolve()
+  const current = previous.catch(() => {}).then(task)
+  reviewLocks.set(id, current)
+  try {
+    return await current
+  } finally {
+    if (reviewLocks.get(id) === current) {
+      reviewLocks.delete(id)
+    }
+  }
+}
 
 export function likeProductReviews () {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -20,41 +31,34 @@ export function likeProductReviews () {
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
+    if (typeof id !== 'string') {
+      return res.status(400).json({ error: 'Wrong Params' })
+    }
+    const email = user.data.email
 
     try {
-      const review = await db.reviewsCollection.findOne({ _id: id })
-      if (!review) {
+      const result = await withReviewLock(id, async () => {
+        const review = await db.reviewsCollection.findOne({ _id: id })
+        if (!review) {
+          return { status: 404 }
+        }
+        const update = await db.reviewsCollection.update(
+          { _id: id, likedBy: { $ne: email } },
+          { $inc: { likesCount: 1 }, $addToSet: { likedBy: email } }
+        )
+        if (update.modified === 0) {
+          return { status: 403 }
+        }
+        return { status: 200, update }
+      })
+
+      if (result.status === 404) {
         return res.status(404).json({ error: 'Not found' })
       }
-
-      const likedBy = review.likedBy
-      if (likedBy.includes(user.data.email)) {
+      if (result.status === 403) {
         return res.status(403).json({ error: 'Not allowed' })
       }
-
-      await db.reviewsCollection.update(
-        { _id: id },
-        { $inc: { likesCount: 1 } }
-      )
-
-      // Artificial wait for timing attack challenge
-      await sleep(150)
-      try {
-        const updatedReview: Review = await db.reviewsCollection.findOne({ _id: id })
-        const updatedLikedBy = updatedReview.likedBy
-        updatedLikedBy.push(user.data.email)
-
-        const count = updatedLikedBy.filter(email => email === user.data.email).length
-        challengeUtils.solveIf(challenges.timingAttackChallenge, () => count > 2)
-
-        const result = await db.reviewsCollection.update(
-          { _id: id },
-          { $set: { likedBy: updatedLikedBy } }
-        )
-        res.json(result)
-      } catch (err) {
-        res.status(500).json(err)
-      }
+      res.json(result.update)
     } catch (err) {
       res.status(400).json({ error: 'Wrong Params' })
     }
