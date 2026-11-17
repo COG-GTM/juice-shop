@@ -2,6 +2,8 @@ server:
   port: 3000
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
+  corsAllowedOrigins: # origin of baseUrl is always allowed
+    - 'http://localhost:4200'
 application:
   domain: juice-sh.op # for pre-loaded email users
   name: 'OWASP Juice Shop'
