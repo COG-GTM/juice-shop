@@ -15,14 +15,14 @@ export function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
     const file = params.file
 
-    if (containsNullByte(file)) {
-      res.status(403)
-      next(new Error('File names cannot contain null bytes!'))
-    } else if (!file.includes('/')) {
-      verify(file, res, next)
-    } else {
+    if (file.includes('/')) {
       res.status(403)
       next(new Error('File names cannot contain forward slashes!'))
+    } else if (containsNullByte(file)) {
+      res.status(403)
+      next(new Error('File names cannot contain null bytes!'))
+    } else {
+      verify(file, res, next)
     }
   }
 

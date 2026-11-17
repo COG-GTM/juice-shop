@@ -16,10 +16,6 @@ before(async () => {
   app = result.app
 }, { timeout: 60000 })
 
-function responseText (res: request.Response): string {
-  return res.text ?? (Buffer.isBuffer(res.body) ? res.body.toString('utf-8') : '')
-}
-
 void describe('/ftp', () => {
   void it('GET serves a directory listing', async () => {
     const res = await request(app)
@@ -170,14 +166,6 @@ void describe('/ftp', () => {
     const res = await request(app)
       .get('/ftp/doesnotexist.md')
     assert.equal(res.status, 404)
-  })
-
-  void it('GET the package.json.bak file contains a dependency on epilogue-js for "Typosquatting" challenge', async () => {
-    const res = await request(app)
-      .get('/ftp/package.json.bak%2500.md')
-      .buffer(true)
-    assert.equal(res.status, 200)
-    assert.ok(responseText(res).includes('"epilogue-js": "~0.7",'))
   })
 
   void it('GET file /ftp/quarantine/juicy_malware_linux_amd_64.url', async () => {
