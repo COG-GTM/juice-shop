@@ -7,10 +7,8 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
-import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
-import { type Product } from '../../data/types'
 import * as security from '../../lib/insecurity'
 
 let app: Express
@@ -70,19 +68,43 @@ void describe('/rest/products/reviews', () => {
     reviewId = response.data[0]._id
   })
 
-  void it('PATCH single product review can be edited', async () => {
+  void it('PATCH single product review can be edited by its author', async () => {
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
     const res = await request(app)
       .patch('/rest/products/reviews')
-      .set(authHeader)
+      .set({ Authorization: `Bearer ${token}` })
       .send({
         id: reviewId,
         message: 'Lorem Ipsum'
       })
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
+    assert.equal(res.body.modified, 1)
     assert.ok(Array.isArray(res.body.original))
     assert.ok(Array.isArray(res.body.updated))
+  })
+
+  void it('PATCH product review of another user is not modified', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: reviewId,
+        message: 'forged'
+      })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.modified, 0)
+
+    const reviews = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.notEqual(reviews.body.data[0].message, 'forged')
   })
 
   void it('PATCH single product review editing need an authenticated user', async () => {
@@ -123,9 +145,43 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+  void it('POST product review cannot be liked twice by parallel requests', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const before = await request(app)
+      .get('/rest/products/1/reviews')
+    const likesBefore = before.body.data[0].likesCount
 
+    const responses = await Promise.all(Array.from({ length: 5 }, async () =>
+      await request(app)
+        .post('/rest/products/reviews')
+        .set({ Authorization: `Bearer ${token}` })
+        .send({ id: reviewId })
+    ))
+    assert.equal(responses.filter(({ status }) => status === 200).length, 1)
+    assert.equal(responses.filter(({ status }) => status === 403).length, 4)
+
+    const after = await request(app)
+      .get('/rest/products/1/reviews')
+    assert.equal(after.body.data[0].likesCount, likesBefore + 1)
+    assert.equal(after.body.data[0].likedBy.filter((email: string) => email === 'jim@juice-sh.op').length, 1)
+  })
+
+  void it('POST product review like rejects non-string id', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({ id: { $ne: -1 } })
+    assert.equal(res.status, 400)
+  })
+
+  void it('PATCH multiple product review via injection is rejected', async () => {
     const res = await request(app)
       .patch('/rest/products/reviews')
       .set(authHeader)
@@ -133,11 +189,19 @@ void describe('/rest/products/reviews', () => {
         id: { $ne: -1 },
         message: 'trololololololololololololololololololololololololololol'
       })
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(typeof res.body.modified, 'number')
-    assert.ok(Array.isArray(res.body.original))
-    assert.ok(Array.isArray(res.body.updated))
-    assert.equal(res.body.modified, totalReviews)
+    assert.equal(res.status, 401)
+
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const authenticatedRes = await request(app)
+      .patch('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: { $ne: -1 },
+        message: 'trololololololololololololololololololololololololololol'
+      })
+    assert.equal(authenticatedRes.status, 400)
   })
 })
