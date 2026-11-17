@@ -6,7 +6,10 @@
 import chai from 'chai'
 import http from 'node:http'
 import { type AddressInfo } from 'node:net'
-import { isBlockedAddress, parseAllowedUrl, fetchExternalImage } from '../../routes/profileImageUrlUpload'
+import zlib from 'node:zlib'
+import { Readable, type Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { isBlockedAddress, parseAllowedUrl, fetchExternalImage, createDecoder } from '../../routes/profileImageUrlUpload'
 const expect = chai.expect
 
 describe('profileImageUrlUpload', () => {
@@ -78,6 +81,26 @@ describe('profileImageUrlUpload', () => {
 
     it('should refuse to connect to a loopback IP literal', async () => {
       await expectRejection(fetchExternalImage(`http://127.0.0.1:${port}/`), /disallowed host/)
+    })
+  })
+
+  describe('createDecoder', () => {
+    it('should decode gzip, deflate and brotli encoded bodies', async () => {
+      const body = Buffer.from('image-bytes')
+      const encoded: Record<string, Buffer> = { gzip: zlib.gzipSync(body), deflate: zlib.deflateSync(body), br: zlib.brotliCompressSync(body) }
+      for (const [encoding, data] of Object.entries(encoded)) {
+        const decoder = createDecoder(encoding)
+        expect(decoder, encoding).to.not.equal(null)
+        const chunks: Buffer[] = []
+        decoder?.on('data', (chunk: Buffer) => chunks.push(chunk))
+        await pipeline(Readable.from([data]), decoder as Transform)
+        expect(Buffer.concat(chunks).toString(), encoding).to.equal('image-bytes')
+      }
+    })
+
+    it('should not decode identity or missing encodings', () => {
+      expect(createDecoder(undefined)).to.equal(null)
+      expect(createDecoder('identity')).to.equal(null)
     })
   })
 })

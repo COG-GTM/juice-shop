@@ -8,7 +8,9 @@ import dns from 'node:dns'
 import http from 'node:http'
 import https from 'node:https'
 import net from 'node:net'
+import { type Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import zlib from 'node:zlib'
 import { type Request, type Response, type NextFunction } from 'express'
 
 import * as security from '../lib/insecurity'
@@ -74,11 +76,25 @@ export function parseAllowedUrl (rawUrl: string): URL {
   return url
 }
 
+export function createDecoder (contentEncoding?: string): Transform | null {
+  switch (contentEncoding?.trim().toLowerCase()) {
+    case 'gzip':
+    case 'x-gzip':
+      return zlib.createGunzip()
+    case 'deflate':
+      return zlib.createInflate()
+    case 'br':
+      return zlib.createBrotliDecompress()
+    default:
+      return null
+  }
+}
+
 export async function fetchExternalImage (rawUrl: string, redirectsLeft = MAX_REDIRECTS): Promise<http.IncomingMessage> {
   const url = parseAllowedUrl(rawUrl)
   const client = url.protocol === 'https:' ? https : http
   const response = await new Promise<http.IncomingMessage>((resolve, reject) => {
-    const request = client.get(url, { lookup: safeLookup, timeout: REQUEST_TIMEOUT_MS }, resolve)
+    const request = client.get(url, { lookup: safeLookup, timeout: REQUEST_TIMEOUT_MS, headers: { 'Accept-Encoding': 'gzip, deflate, br' } }, resolve)
     request.on('timeout', () => request.destroy(new Error('Request timed out')))
     request.on('error', reject)
   })
@@ -106,7 +122,8 @@ export function profileImageUrlUpload () {
           const response = await fetchExternalImage(url)
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
           const fileStream = fs.createWriteStream(`frontend/dist/frontend/assets/public/images/uploads/${loggedInUser.data.id}.${ext}`, { flags: 'w' })
-          await pipeline(response, fileStream)
+          const decoder = createDecoder(response.headers['content-encoding'])
+          await (decoder ? pipeline(response, decoder, fileStream) : pipeline(response, fileStream))
           const user = await UserModel.findByPk(loggedInUser.data.id)
           await user?.update({ profileImage: `/assets/public/images/uploads/${loggedInUser.data.id}.${ext}` })
         } catch (error) {
