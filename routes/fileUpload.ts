@@ -64,11 +64,13 @@ function checkUploadSize ({ file }: Request, res: Response, next: NextFunction) 
   next()
 }
 
+const allowedFileTypes = ['pdf', 'xml', 'zip', 'yml', 'yaml']
+
 function checkFileType ({ file }: Request, res: Response, next: NextFunction) {
   const fileType = file?.originalname.substr(file.originalname.lastIndexOf('.') + 1).toLowerCase()
-  challengeUtils.solveIf(challenges.uploadTypeChallenge, () => {
-    return !(fileType === 'pdf' || fileType === 'xml' || fileType === 'zip' || fileType === 'yml' || fileType === 'yaml')
-  })
+  if (fileType === undefined || !allowedFileTypes.includes(fileType)) {
+    return res.status(415).json({ error: 'File type is not allowed' })
+  }
   next()
 }
 

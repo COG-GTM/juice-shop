@@ -32,19 +32,19 @@ describe('/#/complain', () => {
   })
 
   describe('challenge "uploadType"', () => {
-    it('should be possible to upload files with other extension than .pdf directly through backend', () => {
+    it('should not be possible to upload files with other extension than .pdf directly through backend', () => {
       cy.window().then(async () => {
         const data = new FormData()
         const blob = new Blob(['test'], { type: 'application/x-msdownload' })
         data.append('file', blob, 'invalidTypeForClient.exe')
 
-        await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
+        const response = await fetch(`${Cypress.config('baseUrl')}/file-upload`, {
           method: 'POST',
           cache: 'no-cache',
           body: data
         })
+        expect(response.status).to.equal(415)
       })
-      cy.expectChallengeSolved({ challenge: 'Upload Type' })
     })
   })
 

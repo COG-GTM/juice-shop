@@ -36,12 +36,12 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
-  void it('POST file with illegal type for client validation but valid for API', async () => {
+  void it('POST file with illegal type for client validation is rejected by API', async () => {
     const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
-    assert.equal(res.status, 204)
+    assert.equal(res.status, 415)
   })
 
   void it('POST file type XML deprecated for API', async () => {
