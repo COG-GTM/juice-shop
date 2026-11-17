@@ -17,6 +17,9 @@ let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
+// eslint-disable-next-line no-eval
+const solveCaptcha = (expression: string): string => eval(expression).toString()
+
 before(async () => {
   const result = await createTestApp()
   app = result.app
@@ -42,7 +45,7 @@ void describe('/api/Feedbacks', () => {
         comment: 'I am a harm<script>steal-cookie</script><img src="csrf-attack"/><iframe src="evil-content"></iframe>less comment.',
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 201)
     assert.equal(res.body.data.comment, 'I am a harmless comment.')
@@ -62,7 +65,7 @@ void describe('/api/Feedbacks', () => {
           comment: 'The sanitize-html module up to at least version 1.4.2 has this issue: <<script>Foo</script>iframe src="javascript:alert(`xss`)">',
           rating: 1,
           captchaId: captchaRes.body.captchaId,
-          captcha: captchaRes.body.answer
+          captcha: solveCaptcha(captchaRes.body.captcha)
         })
       assert.equal(res.status, 201)
       assert.equal(res.body.data.comment, 'The sanitize-html module up to at least version 1.4.2 has this issue: <iframe src="javascript:alert(`xss`)">')
@@ -83,7 +86,7 @@ void describe('/api/Feedbacks', () => {
         rating: 1,
         UserId: 3,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -104,7 +107,7 @@ void describe('/api/Feedbacks', () => {
         rating: 0,
         UserId: 4711,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 500)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -130,7 +133,7 @@ void describe('/api/Feedbacks', () => {
         rating: 5,
         UserId: 4,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -156,7 +159,7 @@ void describe('/api/Feedbacks', () => {
         rating: 5,
         UserId: 3,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -175,7 +178,7 @@ void describe('/api/Feedbacks', () => {
       .send({
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -194,7 +197,7 @@ void describe('/api/Feedbacks', () => {
       .set(jsonHeader)
       .send({
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
@@ -214,8 +217,66 @@ void describe('/api/Feedbacks', () => {
       .send({
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: (captchaRes.body.answer + 1)
+        captcha: solveCaptcha(captchaRes.body.captcha) + '1'
       })
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET captcha does not disclose the answer', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    assert.equal(typeof captchaRes.body.captchaId, 'number')
+    assert.equal(typeof captchaRes.body.captcha, 'string')
+    assert.equal(captchaRes.body.answer, undefined)
+  })
+
+  void it('POST feedback cannot reuse an already solved CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+    const feedback = {
+      rating: 1,
+      captchaId: captchaRes.body.captchaId,
+      captcha: solveCaptcha(captchaRes.body.captcha)
+    }
+
+    const firstRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(firstRes.status, 201)
+
+    const replayRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(replayRes.status, 401)
+  })
+
+  void it('POST feedback cannot retry a CAPTCHA after a wrong answer', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const wrongRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ rating: 1, captchaId: captchaRes.body.captchaId, captcha: solveCaptcha(captchaRes.body.captcha) + '1' })
+    assert.equal(wrongRes.status, 401)
+
+    const retryRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ rating: 1, captchaId: captchaRes.body.captchaId, captcha: solveCaptcha(captchaRes.body.captcha) })
+    assert.equal(retryRes.status, 401)
+  })
+
+  void it('POST feedback cannot be created without CAPTCHA id', async () => {
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({ rating: 1, captcha: '42' })
     assert.equal(res.status, 401)
   })
 
@@ -291,7 +352,7 @@ void describe('/api/Feedbacks/:id', () => {
         comment: 'I will be gone soon!',
         rating: 1,
         captchaId: captchaRes.body.captchaId,
-        captcha: captchaRes.body.answer
+        captcha: solveCaptcha(captchaRes.body.captcha)
       })
     assert.equal(createRes.status, 201)
     assert.equal(typeof createRes.body.data.id, 'number')

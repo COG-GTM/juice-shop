@@ -206,6 +206,13 @@ describe('ContactComponent', () => {
         expect(component.resetForm).toHaveBeenCalled()
     })
 
+    it('should request a new captcha if saving feedback fails', () => {
+        feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
+        captchaService.getCaptcha.mockClear()
+        component.save()
+        expect(captchaService.getCaptcha).toHaveBeenCalled()
+    })
+
     it('should clear the form display error if saving feedback fails', () => {
         feedbackService.save.mockReturnValue(throwError({ error: 'Error' }))
         vi.spyOn(component, 'resetCaptcha')
