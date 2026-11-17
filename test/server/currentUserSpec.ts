@@ -40,4 +40,15 @@ describe('currentUser', () => {
 
     expect(res.json).to.have.been.calledWith({ user: { id: 1, email: 'admin@juice-sh.op', lastLoginIp: '0.0.0.0', profileImage: '/assets/public/images/uploads/default.svg' } })
   })
+
+  it('should respond with plain JSON even if a callback parameter is present', () => {
+    req.cookies.token = ''
+    req.query.callback = 'func'
+    res.jsonp = sinon.spy()
+
+    retrieveLoggedInUser()(req, res)
+
+    expect(res.jsonp).to.have.callCount(0)
+    expect(res.json).to.have.been.calledWith({ user: { id: undefined, email: undefined, lastLoginIp: undefined, profileImage: undefined } })
+  })
 })
