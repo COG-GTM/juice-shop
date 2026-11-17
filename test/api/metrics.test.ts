@@ -11,6 +11,7 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
 import { metricsApp } from '../../server'
+import * as Prometheus from 'prom-client'
 
 let app: Express
 
@@ -29,11 +30,14 @@ void describe('/metrics', () => {
   })
 
   void it('GET metrics via internal metrics listener', async () => {
+    new Prometheus.Counter({ name: 'metrics_listener_test_count', help: 'Test counter.' }).inc()
+
     const res = await request(metricsApp)
       .get('/metrics')
       .expect(200)
 
     assert.ok(res.headers['content-type']?.includes('text/plain'))
+    assert.match(res.text, /^metrics_listener_test_count(\{.*\})? 1$/m)
   })
 
   void it('GET metrics via internal metrics listener that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
