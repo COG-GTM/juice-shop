@@ -137,6 +137,7 @@ void describe('/rest/basket/:id/checkout', () => {
     const own = await request(app).get(`/rest/order/${orderId}/confirmation`).set(authHeader)
     assert.equal(own.status, 200)
     assert.ok(own.headers['content-type']?.includes('application/pdf'))
+    assert.equal(own.headers['cache-control'], 'no-store')
 
     const anonymous = await request(app).get(`/rest/order/${orderId}/confirmation`)
     assert.equal(anonymous.status, 401)

@@ -36,6 +36,7 @@ export function serveOrderConfirmation () {
       return
     }
 
+    res.set('Cache-Control', 'no-store')
     res.sendFile(file)
   }
 }
