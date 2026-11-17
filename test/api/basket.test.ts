@@ -130,10 +130,10 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
-  void it('POST placing an order for a basket of another user is forbidden', async () => {
+  void it('POST placing an order for a basket of another user fails like a non-existing basket', async () => {
     const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
-    assert.equal(res.status, 403)
-    assert.equal(res.body.orderConfirmation, undefined)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {

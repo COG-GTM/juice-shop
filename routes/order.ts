@@ -34,12 +34,8 @@ export function placeOrder () {
     const id = req.params.id
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
-        if (basket != null) {
-          const customer = security.authenticatedUsers.from(req)
-          if (customer?.data?.id === undefined || basket.UserId !== customer.data.id) {
-            res.status(403).json({ status: 'error', error: 'You are not allowed to check out this basket.' })
-            return
-          }
+        const customer = security.authenticatedUsers.from(req)
+        if (basket != null && customer?.data?.id !== undefined && basket.UserId === customer.data.id) {
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
           const pdfFile = `order_${orderId}.pdf`
