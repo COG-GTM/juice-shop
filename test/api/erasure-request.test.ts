@@ -113,7 +113,7 @@ void describe('/dataerasure', () => {
   })
 
   void it('POST erasure request with restricted document or order PDF as layout parameter is refused', async () => {
-    for (const layout of ['data/static/restricted/acquisitions.md', 'orders/order_0000-0000000000000000.pdf']) {
+    for (const layout of ['data/static/restricted/acquisitions.md', '../data/static/restricted/acquisitions.md', '../orders/order_0000-0000000000000000.pdf']) {
       const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
       const res = await request(app)
