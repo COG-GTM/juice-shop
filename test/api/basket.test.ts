@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
+import { QuantityModel } from '../../models/quantity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -143,6 +145,25 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 400)
     assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
+
+  void it('POST placing an order for a basket containing a stored non-positive quantity is rejected without touching stock', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+    await BasketItemModel.update({ quantity: -100 }, { where: { id: itemRes.body.data.id }, validate: false })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+    const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    assert.deepEqual(stockAfter.map(q => q.quantity), stockBefore.map(q => q.quantity))
+
+    await BasketItemModel.destroy({ where: { id: itemRes.body.data.id } })
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {

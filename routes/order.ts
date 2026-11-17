@@ -35,6 +35,11 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          const hasInvalidQuantity = (basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && (!Number.isInteger(BasketItem.quantity) || BasketItem.quantity < 1))
+          if (hasInvalidQuantity) {
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -69,10 +74,6 @@ export function placeOrder () {
           let totalPoints = 0
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
-              if (!Number.isInteger(BasketItem.quantity) || BasketItem.quantity < 1) {
-                next(new Error(`Invalid quantity for product ${BasketItem.ProductId} in basket.`))
-                return
-              }
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
               try {
                 const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
