@@ -68,15 +68,24 @@ describe('LastLoginIpComponent', () => {
         expect(console.log).toHaveBeenCalled()
     })
 
-    it('should set Last-Login IP from JWT as trusted HTML', () => {
+    it('should set Last-Login IP from JWT', () => {
         localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7Imxhc3RMb2dpbklwIjoiMS4yLjMuNCJ9fQ.RAkmdqwNypuOxv3SDjPO4xMKvd1CddKvDFYDBfUt3bg')
         component.ngOnInit()
-        expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<small>1.2.3.4</small>')
+        expect(component.lastLoginIp).toBe('1.2.3.4')
+        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+    })
+
+    it('should render Last-Login IP from JWT as text', () => {
+        component.lastLoginIp = '<iframe src="javascript:alert(`xss`)">'
+        fixture.detectChanges()
+        const dd: HTMLElement = fixture.nativeElement.querySelector('dd')
+        expect(dd.querySelector('iframe')).toBeNull()
+        expect(dd.textContent).toContain('<iframe src="javascript:alert(`xss`)">')
     })
 
     it('should not set Last-Login IP if none is present in JWT', () => {
         localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7fX0.bVBhvll6IaeR3aUdoOeyR8YZe2S2DfhGAxTGfd9enLw')
         component.ngOnInit()
-        expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
+        expect(component.lastLoginIp).toBe('?')
     })
 })
