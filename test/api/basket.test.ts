@@ -186,11 +186,12 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('PUT apply valid coupon to basket of another user is forbidden', async () => {
+  void it('PUT apply valid coupon to basket of another user is treated like a non-existing basket', async () => {
     const res = await request(app)
       .put('/rest/basket/1/coupon/' + encodeURIComponent(validCoupon))
       .set(authHeader)
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Basket with id=1 does not exist.'))
   })
 
   void it('PUT apply coupon without authentication is not allowed', async () => {

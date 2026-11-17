@@ -16,15 +16,11 @@ export function applyCoupon () {
       const discount = security.discountFromCoupon(coupon)
       coupon = discount ? coupon : null
 
+      const user = security.authenticatedUsers.from(req)
       const basket = await BasketModel.findByPk(id)
-      if (!basket) {
+      if (!basket || !user || user.data?.id !== basket.UserId) {
         next(new Error(`Basket with id=${id} does not exist.`))
         return
-      }
-
-      const user = security.authenticatedUsers.from(req)
-      if (!user || user.data?.id !== basket.UserId) {
-        return res.status(403).send('You are not allowed to apply a coupon to this basket.')
       }
 
       await basket.update({ coupon: coupon?.toString() })
