@@ -3,38 +3,20 @@
  * SPDX-License-Identifier: MIT
  */
 
-import vm from 'node:vm'
-import { type Request, type Response, type NextFunction } from 'express'
-// @ts-expect-error FIXME due to non-existing type definitions for notevil
-import { eval as safeEval } from 'notevil'
+import { type Request, type Response } from 'express'
 
-import * as challengeUtils from '../lib/challengeUtils'
-import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
-import * as utils from '../lib/utils'
 
 export function b2bOrder () {
-  return ({ body }: Request, res: Response, next: NextFunction) => {
-    if (utils.isChallengeEnabled(challenges.rceChallenge) || utils.isChallengeEnabled(challenges.rceOccupyChallenge)) {
-      const orderLinesData = body.orderLinesData || ''
-      try {
-        const sandbox = { safeEval, orderLinesData }
-        vm.createContext(sandbox)
-        vm.runInContext('safeEval(orderLinesData)', sandbox, { timeout: 2000 })
-        res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
-      } catch (err) {
-        if (utils.getErrorMessage(err).match(/Script execution timed out.*/) != null) {
-          challengeUtils.solveIf(challenges.rceOccupyChallenge, () => { return true })
-          res.status(503)
-          next(new Error('Sorry, we are temporarily not available! Please try again later.'))
-        } else {
-          challengeUtils.solveIf(challenges.rceChallenge, () => { return utils.getErrorMessage(err) === 'Infinite loop detected - reached max iterations' })
-          next(err)
-        }
+  return ({ body }: Request, res: Response) => {
+    const orderLinesData = body.orderLinesData
+    if (orderLinesData !== undefined && orderLinesData !== null && orderLinesData !== '') {
+      if (typeof orderLinesData !== 'string' || !isValidOrderLinesData(orderLinesData)) {
+        res.status(400).json({ error: 'Invalid orderLinesData' })
+        return
       }
-    } else {
-      res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
     }
+    res.json({ cid: body.cid, orderNo: uniqueOrderNumber(), paymentDue: dateTwoWeeksFromNow() })
   }
 
   function uniqueOrderNumber () {
@@ -44,4 +26,25 @@ export function b2bOrder () {
   function dateTwoWeeksFromNow () {
     return new Date(new Date().getTime() + (14 * 24 * 60 * 60 * 1000)).toISOString()
   }
+}
+
+function isValidOrderLinesData (orderLinesData: string) {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(orderLinesData)
+  } catch {
+    return false
+  }
+  const orderLines = Array.isArray(parsed) ? parsed : [parsed]
+  return orderLines.length > 0 && orderLines.every(isValidOrderLine)
+}
+
+function isValidOrderLine (orderLine: unknown) {
+  if (typeof orderLine !== 'object' || orderLine === null || Array.isArray(orderLine)) return false
+  const { productId, quantity, customerReference, couponCode } = orderLine as Record<string, unknown>
+  return Number.isInteger(productId) &&
+    Number.isInteger(quantity) && (quantity as number) >= 1 &&
+    (customerReference === undefined || typeof customerReference === 'string' ||
+      (Array.isArray(customerReference) && customerReference.every(ref => typeof ref === 'string'))) &&
+    (couponCode === undefined || typeof couponCode === 'string')
 }
