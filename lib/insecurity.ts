@@ -104,14 +104,24 @@ function loadCouponSecret (): Buffer {
   if (process.env.COUPON_SECRET) {
     return Buffer.from(process.env.COUPON_SECRET)
   }
-  try {
-    fs.writeFileSync(couponSecretFile, crypto.randomBytes(32).toString('hex'), { flag: 'wx', mode: 0o600 })
-  } catch (err: any) {
-    if (err?.code !== 'EEXIST') {
-      throw err
+  if (!fs.existsSync(couponSecretFile)) {
+    const tmpFile = `${couponSecretFile}.${process.pid}.${crypto.randomBytes(4).toString('hex')}`
+    fs.writeFileSync(tmpFile, crypto.randomBytes(32).toString('hex'), { mode: 0o600 })
+    try {
+      fs.linkSync(tmpFile, couponSecretFile)
+    } catch (err: any) {
+      if (err?.code !== 'EEXIST') {
+        throw err
+      }
+    } finally {
+      fs.unlinkSync(tmpFile)
     }
   }
-  return Buffer.from(fs.readFileSync(couponSecretFile, 'utf8').trim())
+  const secret = fs.readFileSync(couponSecretFile, 'utf8').trim()
+  if (!secret) {
+    throw new Error(`Coupon secret file ${couponSecretFile} is empty`)
+  }
+  return Buffer.from(secret)
 }
 
 let couponSecret: Buffer | undefined
