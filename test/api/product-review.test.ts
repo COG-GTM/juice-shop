@@ -34,11 +34,14 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(typeof review.author, 'string')
   })
 
-  void it('GET product reviews attack by injecting a mongoDB sleep command', async () => {
+  void it('GET product reviews does not execute an injected mongoDB sleep command', async () => {
+    const t0 = Date.now()
     const res = await request(app)
-      .get('/rest/products/sleep(1)/reviews')
+      .get('/rest/products/sleep(2000)/reviews')
+    assert.ok(Date.now() - t0 < 2000)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.data, [])
   })
 
   // FIXME Turn on when #1960 is resolved
@@ -139,5 +142,17 @@ void describe('/rest/products/reviews', () => {
     assert.ok(Array.isArray(res.body.original))
     assert.ok(Array.isArray(res.body.updated))
     assert.equal(res.body.modified, totalReviews)
+  })
+
+  void it('PATCH rejects $where selector injection without evaluating it', async () => {
+    const res = await request(app)
+      .patch('/rest/products/reviews')
+      .set(authHeader)
+      .send({
+        id: { $where: 'global.reviewsWhereEvaluated = true' },
+        message: 'pwned'
+      })
+    assert.equal(res.status, 500)
+    assert.equal((global as any).reviewsWhereEvaluated, undefined)
   })
 })
