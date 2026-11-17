@@ -4,6 +4,7 @@ import config from 'config'
 import type { Memory as MemoryConfig, Product as ProductConfig } from './lib/config.types'
 import * as utils from './lib/utils'
 import { generateSync } from 'otplib'
+import { waitForPasswordResetToken } from './test/api/helpers/mailOutbox'
 
 export default defineConfig({
   projectId: '3hrkhu',
@@ -41,6 +42,9 @@ export default defineConfig({
               return memory[property]
             }
           }
+        },
+        async GetPasswordResetToken ({ email, since }: { email: string, since: number }) {
+          return await waitForPasswordResetToken(email, since)
         },
         GetFromConfig (variable: string) {
           return config.get(variable)

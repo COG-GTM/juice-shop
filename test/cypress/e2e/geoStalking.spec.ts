@@ -1,7 +1,11 @@
 describe('/#/photo-wall', () => {
+  let resetRequestedAfter: number
+
   beforeEach(() => {
+    resetRequestedAfter = Date.now()
     cy.visit('/#/forgot-password')
     cy.intercept('GET', '/rest/user/security-question?email=*').as('securityQuestion')
+    cy.intercept('POST', '/rest/user/reset-password/request').as('resetTokenRequest')
   })
 
   describe('challenge "geoStalkingMeta"', () => {
@@ -11,6 +15,13 @@ describe('/#/photo-wall', () => {
           cy.task<string>('GetFromConfig', 'application.domain').then((appDomain: string) => {
             cy.get('#email').type(`john@${appDomain}`)
             cy.wait('@securityQuestion')
+            cy.get('#requestResetTokenButton').should('not.be.disabled').click()
+            cy.wait('@resetTokenRequest')
+            cy.get('#email').invoke('val').then((email) => {
+              cy.task<string>('GetPasswordResetToken', { email, since: resetRequestedAfter }).then((token: string) => {
+                cy.get('#resetToken').should('not.be.disabled').focus().type(token)
+              })
+            })
             cy.get('#securityAnswer').should('not.be.disabled').focus().type(answer)
             cy.get('#newPassword').focus().type('123456')
             cy.get('#newPasswordRepeat').focus().type('123456')
@@ -30,6 +41,13 @@ describe('/#/photo-wall', () => {
           cy.task<string>('GetFromConfig', 'application.domain').then((appDomain: string) => {
             cy.get('#email').type(`emma@${appDomain}`)
             cy.wait('@securityQuestion')
+            cy.get('#requestResetTokenButton').should('not.be.disabled').click()
+            cy.wait('@resetTokenRequest')
+            cy.get('#email').invoke('val').then((email) => {
+              cy.task<string>('GetPasswordResetToken', { email, since: resetRequestedAfter }).then((token: string) => {
+                cy.get('#resetToken').should('not.be.disabled').focus().type(token)
+              })
+            })
             cy.get('#securityAnswer').should('not.be.disabled').focus().type(answer)
             cy.get('#newPassword').focus().type('123456')
             cy.get('#newPasswordRepeat').focus().type('123456')
