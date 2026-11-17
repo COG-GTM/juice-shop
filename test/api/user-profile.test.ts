@@ -42,13 +42,53 @@ void describe('/profile', () => {
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
   })
 
-  void it('POST update username of authenticated user', async () => {
+  void it('GET user profile embeds a CSRF token in the username form', async () => {
+    const res = await request(app)
+      .get('/profile')
+      .set(authHeader)
+
+    assert.equal(res.status, 200)
+    assert.match(res.text, /<input type="hidden" name="csrfToken" value="[0-9a-f]{64}"/)
+  })
+
+  void it('POST update username of authenticated user with valid CSRF token', async () => {
+    const profile = await request(app)
+      .get('/profile')
+      .set(authHeader)
+    const csrfToken = /name="csrfToken" value="([0-9a-f]{64})"/.exec(profile.text)?.[1]
+    assert.ok(csrfToken)
+
     const res = await request(app)
       .post('/profile')
       .set('Cookie', authHeader.Cookie)
-      .field('username', 'Localhorst')
+      .type('form')
+      .send({ username: 'Localhorst', csrfToken })
       .redirects(0)
 
     assert.equal(res.status, 302)
+    assert.ok(res.headers['set-cookie']?.[0]?.includes('SameSite=Lax'))
+  })
+
+  void it('POST update username without CSRF token is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('Origin', 'http://htmledit.squarefree.com')
+      .type('form')
+      .send({ username: 'CSRF' })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST update username with invalid CSRF token is rejected', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .type('form')
+      .send({ username: 'CSRF', csrfToken: '0'.repeat(64) })
+      .redirects(0)
+
+    assert.equal(res.status, 403)
   })
 })

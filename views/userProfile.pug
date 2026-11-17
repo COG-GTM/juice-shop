@@ -62,6 +62,7 @@ html(lang='en')
 
                div.s12.m12.l6
                  form(action='./profile', method='post', style='width: 90%; margin-right: auto; margin-left: auto;')
+                   input(type='hidden', name='csrfToken', value='_csrfToken_')
                    .profile-field
                      label(for='email') Email:
                      input#email(type='email', name='email', value=email, disabled=true, style='opacity: 0.7;', aria-label='Disabled - Text field for the email')
