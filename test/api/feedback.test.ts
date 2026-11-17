@@ -235,6 +235,29 @@ void describe('/api/Feedbacks', () => {
       })
     assert.equal(res.status, 401)
   })
+
+  void it('POST feedback cannot reuse an already solved CAPTCHA', async () => {
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    assert.equal(captchaRes.status, 200)
+
+    const feedback = {
+      rating: 1,
+      captchaId: captchaRes.body.captchaId,
+      captcha: captchaRes.body.answer
+    }
+    const firstRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(firstRes.status, 201)
+
+    const replayRes = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send(feedback)
+    assert.equal(replayRes.status, 401)
+  })
 })
 
 void describe('/api/Feedbacks/:id', () => {
