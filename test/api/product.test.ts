@@ -96,16 +96,35 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.body.message, 'Not Found')
   })
 
-  void it('PUT update existing product is possible due to Missing Function-Level Access Control vulnerability', async () => {
+  void it('PUT update existing product is forbidden via public API', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set(jsonHeader)
       .send({
-        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+        description: '<iframe src="javascript:alert(`xss`)">'
+      })
+    assert.equal(res.status, 401)
+  })
+
+  void it('PUT update existing product is forbidden for non-accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set(authHeader)
+      .send({
+        description: '<iframe src="javascript:alert(`xss`)">'
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('PUT update existing product price is allowed for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.accounting } }), 'content-type': 'application/json' })
+      .send({
+        price: 42
       })
     assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+    assert.equal(res.body.data.price, 42)
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
