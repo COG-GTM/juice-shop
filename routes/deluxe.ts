@@ -48,7 +48,7 @@ export function upgradeToDeluxe () {
         const updatedToken = security.authorize(userWithStatus)
         security.authenticatedUsers.put(updatedToken, userWithStatus)
         security.setAuthCookie(res, updatedToken)
-        res.status(200).json({ status: 'success', data: { confirmation: 'Congratulations! You are now a deluxe member!' } })
+        res.status(200).json({ status: 'success', data: { confirmation: 'Congratulations! You are now a deluxe member!', token: updatedToken } })
       } catch (error) {
         res.status(400).json({ status: 'error', error: 'Something went wrong. Please try again!' })
       }
