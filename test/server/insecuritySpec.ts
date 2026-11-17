@@ -208,6 +208,20 @@ describe('insecurity', () => {
     })
   })
 
+  describe('passwordSalt', () => {
+    it('returns the salt of a scrypt hash so the same hash can be recomputed', () => {
+      const stored = security.hashPassword('admin123')
+      const salt = security.passwordSalt(stored)
+      expect(security.hashPassword('admin123', salt)).to.equal(stored)
+      expect(security.hashPassword('wrong', salt)).to.not.equal(stored)
+    })
+
+    it('returns undefined for unsalted MD5 hashes and missing values', () => {
+      expect(security.passwordSalt('0192023a7bbd73250516f069df18b500')).to.equal(undefined)
+      expect(security.passwordSalt(undefined)).to.equal(undefined)
+    })
+  })
+
   describe('verifyPassword', () => {
     it('accepts the correct password', () => {
       expect(security.verifyPassword('admin123', security.hashPassword('admin123'))).to.equal(true)
