@@ -49,7 +49,9 @@ export function isPublicAddress (address: string) {
   return false
 }
 
-export function parseProfileImageUrl (rawUrl: unknown, allowedProtocols = ['https:']) {
+const DEFAULT_ALLOWED_PROTOCOLS = ['http:', 'https:']
+
+export function parseProfileImageUrl (rawUrl: unknown, allowedProtocols = DEFAULT_ALLOWED_PROTOCOLS) {
   if (typeof rawUrl !== 'string') throw new ProfileImageFetchError('profile image URL must be a string')
   let url: URL
   try {
@@ -72,7 +74,7 @@ function detectImageType (contentType: string, data: Buffer) {
   return type.extension
 }
 
-export async function fetchProfileImage (rawUrl: unknown, { isAllowedAddress = isPublicAddress, allowedProtocols = ['https:'], timeoutMs = PROFILE_IMAGE_TIMEOUT_MS }: ProfileImageFetchOptions = {}): Promise<ProfileImage> {
+export async function fetchProfileImage (rawUrl: unknown, { isAllowedAddress = isPublicAddress, allowedProtocols = DEFAULT_ALLOWED_PROTOCOLS, timeoutMs = PROFILE_IMAGE_TIMEOUT_MS }: ProfileImageFetchOptions = {}): Promise<ProfileImage> {
   const url = parseProfileImageUrl(rawUrl, allowedProtocols)
   const host = url.hostname.replace(/^\[(.*)\]$/, '$1')
   if (net.isIP(host) !== 0 && !isAllowedAddress(host)) throw new ProfileImageFetchError('profile image host is not allowed')
