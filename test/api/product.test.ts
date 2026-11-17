@@ -106,7 +106,7 @@ void describe('/api/Products/:id', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('PUT update existing product is forbidden for non-admin users', async () => {
+  void it('PUT update existing product is forbidden for customers', async () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.customer } }), 'content-type': 'application/json' })
@@ -120,6 +120,18 @@ void describe('/api/Products/:id', () => {
     const res = await request(app)
       .put('/api/Products/' + tamperingProductId)
       .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.admin } }), 'content-type': 'application/json' })
+      .send({
+        description: '<a href="http://kimminich.de" target="_blank">More...</a>'
+      })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.equal(res.body.data.description, '<a href="http://kimminich.de" target="_blank">More...</a>')
+  })
+
+  void it('PUT update existing product is possible for accounting users', async () => {
+    const res = await request(app)
+      .put('/api/Products/' + tamperingProductId)
+      .set({ Authorization: 'Bearer ' + security.authorize({ data: { role: security.roles.accounting } }), 'content-type': 'application/json' })
       .send({
         description: '<a href="http://kimminich.de" target="_blank">More...</a>'
       })

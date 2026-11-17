@@ -164,10 +164,10 @@ export const isAccounting = () => {
   }
 }
 
-export const isAdmin = () => {
+export const hasRole = (...allowedRoles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-    if (decodedToken?.data?.role === roles.admin) {
+    if (allowedRoles.includes(decodedToken?.data?.role)) {
       next()
     } else {
       res.status(403).json({ error: 'Malicious activity detected' })
