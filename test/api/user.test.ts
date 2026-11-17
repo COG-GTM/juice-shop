@@ -283,6 +283,15 @@ void describe('/rest/user/whoami', () => {
     assert.deepEqual(res.body.user, {})
   })
 
+  void it('GET who-am-i request returns nothing on token signed with the formerly hardcoded private key', async () => {
+    const res = await request(app)
+      .get('/rest/user/whoami')
+      .set({ Cookie: 'token=eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdGF0dXMiOiJzdWNjZXNzIiwiZGF0YSI6eyJpZCI6MSwiZW1haWwiOiJhZG1pbkBqdWljZS1zaC5vcCIsInJvbGUiOiJhZG1pbiIsImxhc3RMb2dpbklwIjoiMC4wLjAuMCIsInByb2ZpbGVJbWFnZSI6Ii9hc3NldHMvcHVibGljL2ltYWdlcy91cGxvYWRzL2RlZmF1bHRBZG1pbi5wbmcifSwiaWF0IjoxNzAwMDAwMDAwLCJleHAiOjk5OTk5OTk5OTl9.pQ_23emL4uh3QgvtfvdwEXnLudPuToyBIeNJGSYejYy4LCUbuDd2OL_DPwp66hnVOrUwdwiY57Tn0dI-qDPz7Z4jIStROa9BboQE9pRARamuZ5J0wIqriKVO4aQh29QBvRyZ9SOIJ47CMCnHl5F2Ofci5fhxT3fan2CaTOs9ARg' })
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/json'))
+    assert.deepEqual(res.body.user, {})
+  })
+
   void it('GET who-am-i with fields parameter returns only requested fields', async () => {
     const { token } = await login(app, {
       email: 'bjoern.kimminich@gmail.com',
