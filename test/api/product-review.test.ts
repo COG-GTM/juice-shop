@@ -58,6 +58,32 @@ void describe('/rest/products/:id/reviews', () => {
     assert.equal(res.status, 201)
     assert.ok(res.headers['content-type']?.includes('application/json'))
   })
+
+  void it('PUT product review uses the authenticated user as author instead of the supplied one', async () => {
+    const { token } = await login(app, { email: `jim@${config.get<string>('application.domain')}`, password: 'ncc-1701' })
+    const message = `Forged review attempt ${Date.now()}`
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .set({ Authorization: `Bearer ${token}`, 'content-type': 'application/json' })
+      .send({ message, author: `bender@${config.get<string>('application.domain')}` })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === message)
+    assert.equal(review.author, `jim@${config.get<string>('application.domain')}`)
+  })
+
+  void it('PUT anonymous product review ignores the supplied author', async () => {
+    const message = `Anonymous forged review attempt ${Date.now()}`
+    const res = await request(app)
+      .put('/rest/products/1/reviews')
+      .send({ message, author: `admin@${config.get<string>('application.domain')}` })
+    assert.equal(res.status, 201)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { message: string }) => r.message === message)
+    assert.equal(review.author, 'Anonymous')
+  })
 })
 
 void describe('/rest/products/reviews', () => {
@@ -124,7 +150,7 @@ void describe('/rest/products/reviews', () => {
   })
 
   void it('PATCH multiple product review via injection', async () => {
-    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
+    const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 3)
 
     const res = await request(app)
       .patch('/rest/products/reviews')
