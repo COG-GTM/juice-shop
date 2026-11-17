@@ -1,6 +1,5 @@
 -
   email: admin
-  password: 'admin123'
   key: admin
   role: 'admin'
   securityQuestion:
@@ -148,7 +147,6 @@
   email: wurstbrot
   username: wurstbrot
   password: 'EinBelegtesBrotMitSchinkenSCHINKEN!'
-  totpSecret: IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH
   key: timo
   role: 'admin'
   securityQuestion:
@@ -262,7 +260,7 @@
   key: evm
   role: 'deluxe'
   feedback:
-    comment: 'Please send me the juicy chatbot NFT in my wallet at /juicy-nft : "purpose betray marriage blame crunch monitor spin slide donate sport lift clutch"'
+    comment: 'Please send me the juicy chatbot NFT in my wallet at /juicy-nft : "{{nftMnemonic}}"'
     rating: 1
   securityQuestion:
     id: 10

@@ -28,6 +28,7 @@ import { getCodeChallenges } from '../lib/codingChallenges'
 import type { Memory as MemoryConfig, Product as ProductConfig } from '../lib/config.types'
 import config from 'config'
 import * as utils from '../lib/utils'
+import { adminPasswordGenerated, nftMnemonic, seededCredentials } from '../lib/seedSecrets'
 import type { StaticUser, StaticUserAddress, StaticUserCard } from './staticData'
 import { loadStaticChallengeData, loadStaticDeliveryData, loadStaticUserData, loadStaticSecurityQuestionsData } from './staticData'
 import type { CreationAttributes } from 'sequelize'
@@ -184,24 +185,26 @@ async function createChallenges () {
 
 async function createUsers () {
   const users = await loadStaticUserData()
+  if (adminPasswordGenerated) logger.warn('Admin password was randomly generated; set JUICE_SHOP_ADMIN_PASSWORD to choose one')
 
   await Promise.all(
     users.map(async ({ username, email, password, customDomain, key, role, deletedFlag, profileImage, securityQuestion, feedback, address, card, totpSecret, lastLoginIp = '' }) => {
       try {
         const completeEmail = customDomain ? email : `${email}@${config.get<string>('application.domain')}`
+        const seeded = seededCredentials[key]
         const user = await UserModel.create({
           username,
           email: completeEmail,
-          password,
+          password: seeded?.password ?? password,
           role,
           deluxeToken: role === security.roles.deluxe ? security.deluxeToken(completeEmail) : '',
           profileImage: `assets/public/images/uploads/${profileImage ?? (role === security.roles.admin ? 'defaultAdmin.png' : 'default.svg')}`,
-          totpSecret,
+          totpSecret: seeded?.totpSecret ?? totpSecret,
           lastLoginIp
         })
         datacache.users[key] = user
         if (securityQuestion != null) await createSecurityAnswer(user.id, securityQuestion.id, securityQuestion.answer)
-        if (feedback != null) await createFeedback(user.id, feedback.comment, feedback.rating, user.email)
+        if (feedback != null) await createFeedback(user.id, feedback.comment.replace('{{nftMnemonic}}', await nftMnemonic()), feedback.rating, user.email)
         if (deletedFlag) await deleteUser(user.id)
         if (address != null) await createAddresses(user.id, address)
         if (card != null) await createCards(user.id, card)
