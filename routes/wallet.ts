@@ -18,14 +18,22 @@ export function getWalletBalance () {
   }
 }
 
+const MIN_TOP_UP = 10
+const MAX_TOP_UP = 1000
+
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    const amount = req.body.balance
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount < MIN_TOP_UP || amount > MAX_TOP_UP) {
+      res.status(400).json({ status: 'error', message: `Amount must be between ${MIN_TOP_UP} and ${MAX_TOP_UP}.` })
+      return
+    }
     const cardId = req.body.paymentId
     const card = cardId ? await CardModel.findOne({ where: { id: cardId, UserId: req.body.UserId } }) : null
-    if (card != null) {
+    if (card != null && !isExpired(card)) {
       try {
-        await WalletModel.increment({ balance: req.body.balance }, { where: { UserId: req.body.UserId } })
-        res.status(200).json({ status: 'success', data: req.body.balance })
+        await WalletModel.increment({ balance: amount }, { where: { UserId: req.body.UserId } })
+        res.status(200).json({ status: 'success', data: amount })
       } catch {
         res.status(404).json({ status: 'error' })
       }
@@ -33,4 +41,9 @@ export function addWalletBalance () {
       res.status(402).json({ status: 'error', message: 'Payment not accepted.' })
     }
   }
+}
+
+function isExpired (card: CardModel) {
+  const now = new Date()
+  return card.expYear < now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth - 1 < now.getMonth())
 }

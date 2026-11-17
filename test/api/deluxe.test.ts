@@ -159,6 +159,24 @@ void describe('/rest/deluxe-membership', () => {
     assert.equal(res.body.error, 'Invalid Card')
   })
 
+  for (const paymentMode of [undefined, null, 'free', '']) {
+    void it(`POST deluxe membership with unknown payment mode ${JSON.stringify(paymentMode)} is rejected`, async () => {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+      const authHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+      const res = await request(app)
+        .post('/rest/deluxe-membership')
+        .set(authHeader)
+        .send({ paymentMode })
+
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Invalid payment mode')
+    })
+  }
+
   void it('POST deluxe membership status for deluxe members throws error', async () => {
     const { token } = await login(app, {
       email: 'ciso@' + config.get<string>('application.domain'),

@@ -36,6 +36,8 @@ export function addBasketItem () {
     const user = security.authenticatedUsers.from(req)
     if (user && basketIds[0] && basketIds[0] !== 'undefined' && Number(user.bid) != Number(basketIds[0])) { // eslint-disable-line eqeqeq
       res.status(401).send('{\'error\' : \'Invalid BasketId\'}')
+    } else if (!isValidQuantity(quantities[quantities.length - 1])) {
+      res.status(400).json({ error: 'Quantity must be a positive integer.' })
     } else {
       const basketItem = {
         ProductId: productIds[productIds.length - 1],
@@ -68,7 +70,7 @@ export function quantityCheckBeforeBasketItemUpdate () {
       const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
       const user = security.authenticatedUsers.from(req)
       challengeUtils.solveIf(challenges.basketManipulateChallenge, () => { return user && req.body.BasketId && user.bid != req.body.BasketId }) // eslint-disable-line eqeqeq
-      if (req.body.quantity) {
+      if (req.body.quantity !== undefined) {
         if (item == null) {
           throw new Error('No such item found!')
         }
@@ -82,7 +84,15 @@ export function quantityCheckBeforeBasketItemUpdate () {
   }
 }
 
+export function isValidQuantity (quantity: unknown) {
+  return typeof quantity === 'number' && Number.isInteger(quantity) && quantity > 0
+}
+
 async function quantityCheck (req: Request, res: Response, next: NextFunction, id: number, quantity: number) {
+  if (!isValidQuantity(quantity)) {
+    res.status(400).json({ error: 'Quantity must be a positive integer.' })
+    return
+  }
   const product = await QuantityModel.findOne({ where: { ProductId: id } })
   if (product == null) {
     throw new Error('No such product found!')

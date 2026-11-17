@@ -121,6 +121,20 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.data.quantity, 20)
   })
 
+  void it('PUT update newly created basket item with negative quantity is forbidden', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 5, quantity: 2 })
+    assert.equal(createRes.status, 200)
+
+    const res = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(authHeader)
+      .send({ quantity: -100 })
+    assert.equal(res.status, 400)
+  })
+
   void it('PUT update basket ID of basket item is forbidden', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')

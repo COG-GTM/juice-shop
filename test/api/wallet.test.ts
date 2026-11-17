@@ -58,6 +58,16 @@ void describe('/api/Wallets', () => {
     assert.equal(balanceRes.body.data, 210)
   })
 
+  for (const balance of [-1000, 0, 9, 1001, '100', null]) {
+    void it(`PUT charge wallet with invalid amount ${JSON.stringify(balance)} is rejected`, async () => {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance, paymentId: 2 })
+      assert.equal(res.status, 400)
+    })
+  }
+
   void it('PUT charge wallet from foreign credit card is forbidden', async () => {
     const res = await request(app)
       .put('/rest/wallet/balance')
