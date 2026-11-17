@@ -2,6 +2,7 @@ server:
   port: 3000
   basePath: ''
   baseUrl: 'http://localhost:3000' # used for CSAF, e.g. https://example.com
+  trustedProxies: '' # comma-separated addresses/subnets of reverse proxies allowed to set X-Forwarded-For, e.g. 'loopback, 10.0.0.0/8'
 application:
   domain: juice-sh.op # for pre-loaded email users
   name: 'OWASP Juice Shop'
