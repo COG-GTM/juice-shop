@@ -259,6 +259,28 @@ void describe('/rest/saveLoginIp', () => {
     assert.equal(res.body.lastLoginIp, '1.2.3.4')
   })
 
+  void it('GET last login IP keeps IPv4-mapped IPv6 addresses in hex notation valid', async () => {
+    const loginRes = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'bjoern.kimminich@gmail.com',
+        password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+      })
+
+    assert.equal(loginRes.status, 200)
+
+    const res = await request(app)
+      .get('/rest/saveLoginIp')
+      .set({
+        Authorization: 'Bearer ' + loginRes.body.authentication.token,
+        'x-forwarded-for': '::ffff:c000:280'
+      })
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.lastLoginIp, '::ffff:c000:280')
+  })
+
   void it('GET last login IP ignores spoofed True-Client-IP header and non-IP forwarded values', async () => {
     const loginRes = await request(app)
       .post('/rest/user/login')

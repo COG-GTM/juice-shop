@@ -10,15 +10,19 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+const toValidIp = (address?: string) => {
+  if (address === undefined || isIP(address) === 0) {
+    return undefined
+  }
+  const simpleAddress = utils.toSimpleIpAddress(address)
+  return isIP(simpleAddress) !== 0 ? simpleAddress : address
+}
+
 export function saveLoginIp () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.from(req)
     if (loggedInUser !== undefined) {
-      let lastLoginIp = utils.toSimpleIpAddress(req.ip ?? '')
-      if (isIP(lastLoginIp) === 0) {
-        lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')
-      }
-      lastLoginIp = isIP(lastLoginIp) !== 0 ? security.sanitizeSecure(lastLoginIp) : ''
+      const lastLoginIp = security.sanitizeSecure(toValidIp(req.ip) ?? toValidIp(req.socket.remoteAddress) ?? '')
       try {
         const user = await UserModel.findByPk(loggedInUser.data.id)
         const updatedUser = await user?.update({ lastLoginIp })
