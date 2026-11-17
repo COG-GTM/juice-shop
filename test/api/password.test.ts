@@ -190,6 +190,26 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(second.text.includes('Invalid or expired password reset link.'))
   })
 
+  void it('POST password reset with a token issued before a password change is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'revoke@be.rt', password: 'revokeme' })
+      .expect(201)
+    const resetToken = await createResetToken('revoke@be.rt')
+    const { token } = await login(app, { email: 'revoke@be.rt', password: 'revokeme' })
+    await request(app)
+      .get('/rest/user/change-password?current=revokeme&new=changed&repeat=changed')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({ token: resetToken, new: 'abcdef', repeat: 'abcdef' })
+    assert.equal(res.status, 401)
+  })
+
   void it('POST password reset with an expired token is rejected', async () => {
     const token = await createResetToken('morty@' + config.get<string>('application.domain'), new Date(Date.now() - 1000))
     const res = await request(app)
