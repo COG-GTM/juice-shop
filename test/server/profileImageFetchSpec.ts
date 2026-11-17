@@ -44,21 +44,22 @@ describe('profileImageFetch', () => {
   })
 
   describe('parseProfileImageUrl', () => {
-    it('rejects plain http, other schemes, credentials, relative URLs and non-strings', () => {
-      for (const url of ['http://127.0.0.1:3000/', 'http://example.com/a.png', 'file:///etc/passwd', 'gopher://127.0.0.1:6379/_INFO', 'ftp://example.com/a.png', 'data:image/png;base64,AAAA', 'https://user:pass@example.com/a.png', 'cataas.com/cat', 42]) {
+    it('rejects non-http(s) schemes, credentials, relative URLs and non-strings', () => {
+      for (const url of ['file:///etc/passwd', 'gopher://127.0.0.1:6379/_INFO', 'ftp://example.com/a.png', 'data:image/png;base64,AAAA', 'https://user:pass@example.com/a.png', 'cataas.com/cat', 42]) {
         expect(() => parseProfileImageUrl(url), String(url)).to.throw(ProfileImageFetchError)
       }
     })
 
-    it('accepts absolute https URLs', () => {
+    it('accepts absolute http and https URLs', () => {
       expect(parseProfileImageUrl('https://example.com/a.png').hostname).to.equal('example.com')
+      expect(parseProfileImageUrl('http://example.com/a.png').hostname).to.equal('example.com')
     })
   })
 
   describe('fetchProfileImage', () => {
-    it('refuses plain http URLs by default without connecting', async () => {
-      await expectRejected(fetchProfileImage('http://127.0.0.1:3000/'), /must use https/)
-      await expectRejected(fetchProfileImage('http://169.254.169.254/latest/meta-data/iam/security-credentials/'), /must use https/)
+    it('refuses http URLs pointing at internal addresses without connecting', async () => {
+      await expectRejected(fetchProfileImage('http://127.0.0.1:3000/'), /not allowed/)
+      await expectRejected(fetchProfileImage('http://169.254.169.254/latest/meta-data/iam/security-credentials/'), /not allowed/)
     })
 
     it('refuses https URLs pointing at internal addresses', async () => {
