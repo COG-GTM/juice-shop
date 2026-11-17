@@ -123,6 +123,39 @@ void describe('/rest/products/reviews', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST same product review cannot be liked twice by the same user', async () => {
+    const { token } = await login(app, {
+      email: 'bjoern.kimminich@gmail.com',
+      password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI='
+    })
+    const res = await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: reviewId
+      })
+    assert.equal(res.status, 403)
+  })
+
+  void it('POST parallel likes of the same user only count once', async () => {
+    const { token } = await login(app, {
+      email: 'jim@juice-sh.op',
+      password: 'ncc-1701'
+    })
+    const responses = await Promise.all(Array.from({ length: 5 }, async () => await request(app)
+      .post('/rest/products/reviews')
+      .set({ Authorization: `Bearer ${token}` })
+      .send({
+        id: reviewId
+      })))
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    assert.equal(responses.filter(res => res.status === 403).length, 4)
+
+    const reviews = await request(app).get('/rest/products/1/reviews')
+    const review = reviews.body.data.find((r: { _id: string }) => r._id === reviewId)
+    assert.equal(review.likedBy.filter((email: string) => email === 'jim@juice-sh.op').length, 1)
+  })
+
   void it('PATCH multiple product review via injection', async () => {
     const totalReviews = config.get<Product[]>('products').reduce((sum: number, { reviews = [] }: any) => sum + reviews.length, 1)
 
