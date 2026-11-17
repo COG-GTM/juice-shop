@@ -111,6 +111,35 @@ describe('insecurity', () => {
     })
   })
 
+  describe('appendUserIdIfAuthenticated', () => {
+    it('overwrites client-supplied UserId with the ID of the authenticated user', () => {
+      security.authenticatedUsers.put('22222', { data: { id: 2 } as unknown as UserModel })
+      const req = { headers: { authorization: 'Bearer 22222' }, body: { UserId: 1 } }
+      let nextCalled = false
+
+      security.appendUserIdIfAuthenticated()(req as unknown as Request, {} as any, () => { nextCalled = true })
+
+      expect(req.body.UserId).to.equal(2)
+      expect(nextCalled).to.equal(true)
+    })
+
+    it('sets UserId to null for anonymous requests', () => {
+      const req = { headers: {}, body: { UserId: 1 } }
+
+      security.appendUserIdIfAuthenticated()(req as unknown as Request, {} as any, () => {})
+
+      expect(req.body.UserId).to.equal(null)
+    })
+
+    it('sets UserId to null for unknown tokens', () => {
+      const req = { headers: { authorization: 'Bearer unknown' }, body: { UserId: 1 } }
+
+      security.appendUserIdIfAuthenticated()(req as unknown as Request, {} as any, () => {})
+
+      expect(req.body.UserId).to.equal(null)
+    })
+  })
+
   describe('sanitizeHtml', () => {
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeHtml('')).to.equal('')

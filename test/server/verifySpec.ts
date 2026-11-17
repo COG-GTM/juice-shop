@@ -11,7 +11,6 @@ import { challenges, products, setRetrieveBlueprintChallengeFile } from '../../d
 import type { Product, Challenge } from 'data/types'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as security from '../../lib/insecurity'
-import { type UserModel } from 'models/user'
 import * as verify from '../../routes/verify'
 import { isWindows } from '../../lib/utils'
 const expect = chai.expect
@@ -31,54 +30,6 @@ describe('verify', () => {
     next = sinon.spy()
     save = () => ({
       then () { }
-    })
-  })
-
-  describe('"forgedFeedbackChallenge"', () => {
-    beforeEach(() => {
-      security.authenticatedUsers.put('token12345', {
-        data: {
-          id: 42,
-          email: 'test@juice-sh.op'
-        } as unknown as UserModel
-      })
-      challenges.forgedFeedbackChallenge = { solved: false, save } as unknown as Challenge
-    })
-
-    it('is not solved when an authenticated user passes his own ID when writing feedback', () => {
-      req.body.UserId = 42
-      req.headers = { authorization: 'Bearer token12345' }
-
-      verify.forgedFeedbackChallenge()(req, res, next)
-
-      expect(challenges.forgedFeedbackChallenge.solved).to.equal(false)
-    })
-
-    it('is not solved when an authenticated user passes no ID when writing feedback', () => {
-      req.body.UserId = undefined
-      req.headers = { authorization: 'Bearer token12345' }
-
-      verify.forgedFeedbackChallenge()(req, res, next)
-
-      expect(challenges.forgedFeedbackChallenge.solved).to.equal(false)
-    })
-
-    it('is solved when an authenticated user passes someone elses ID when writing feedback', () => {
-      req.body.UserId = 1
-      req.headers = { authorization: 'Bearer token12345' }
-
-      verify.forgedFeedbackChallenge()(req, res, next)
-
-      expect(challenges.forgedFeedbackChallenge.solved).to.equal(true)
-    })
-
-    it('is solved when an unauthenticated user passes someones ID when writing feedback', () => {
-      req.body.UserId = 1
-      req.headers = {}
-
-      verify.forgedFeedbackChallenge()(req, res, next)
-
-      expect(challenges.forgedFeedbackChallenge.solved).to.equal(true)
     })
   })
 
