@@ -132,12 +132,11 @@ void describe('/public/images/padding', () => {
 })
 
 void describe('/encryptionkeys', () => {
-  void it('GET serves a directory listing', async () => {
+  void it('GET does not serve a directory listing', async () => {
     const res = await request(app)
       .get('/encryptionkeys')
-    assert.equal(res.status, 200)
-    assert.ok(res.headers['content-type']?.includes('text/html'))
-    assert.ok(res.text.includes('<title>listing directory /encryptionkeys</title>'))
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('listing directory'))
   })
 
   void it('GET a non-existing file in will return a 404 error', async () => {
@@ -146,17 +145,30 @@ void describe('/encryptionkeys', () => {
     assert.equal(res.status, 404)
   })
 
-  void it('GET the Premium Content AES key', async () => {
+  void it('GET the JWT public key', async () => {
     const res = await request(app)
-      .get('/encryptionkeys/premium.key')
+      .get('/encryptionkeys/jwt.pub')
     assert.equal(res.status, 200)
+    assert.ok(res.text.includes('PUBLIC KEY'))
   })
 
-  void it('GET a key file whose name contains a "/" fails with a 403 error', async () => {
+  void it('GET the Premium Content AES key is not allowed', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/premium.key')
+    assert.equal(res.status, 404)
+    assert.ok(!res.text.includes('1337133713371337'))
+  })
+
+  void it('GET the Premium Content AES key with different casing is not allowed', async () => {
+    const res = await request(app)
+      .get('/encryptionkeys/PREMIUM.KEY')
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET a key file whose name contains a "/" is not served', async () => {
     const res = await request(app)
       .get('/encryptionkeys/%2fetc%2fos-release%2500.md')
-    assert.equal(res.status, 403)
-    assert.ok(res.text.includes('Error: File names cannot contain forward slashes!'))
+    assert.equal(res.status, 404)
   })
 })
 
