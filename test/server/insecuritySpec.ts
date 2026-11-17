@@ -203,4 +203,19 @@ describe('insecurity', () => {
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
     })
   })
+
+  describe('JWT signing key', () => {
+    const previouslyCommittedPublicKey = 'MIGJAoGBAM3CosR73CBNcJsLv5E90NsFt6qN1uziQ484gbOoule8leXHFbyIzPQRozgEpSpiwhr6d2/c0CfZHEJ3m5tV0klxfjfM7oqjRMURnH/rmBjcETQ7qzIISZQ/iptJ3p7Gi78X5ZMhLNtDkUFU9WaGdiEb+SnC39wjErmJSfmGb7i1AgMBAAE='
+
+    it('is not the key pair that used to be committed to the repository', () => {
+      expect(security.publicKey.replace(/\s/g, '')).to.not.include(previouslyCommittedPublicKey)
+    })
+
+    it('signs tokens that verify against the exported public key', () => {
+      const token = security.authorize({ data: { email: 'test@juice-sh.op' } })
+
+      expect(security.verify(token)).to.equal(true)
+      expect(security.decode(token).data.email).to.equal('test@juice-sh.op')
+    })
+  })
 })
