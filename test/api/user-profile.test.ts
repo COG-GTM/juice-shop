@@ -40,6 +40,7 @@ void describe('/profile', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('id="email" type="email" name="email" value="jim@juice-sh.op"'))
+    assert.equal(res.headers['cache-control'], 'no-store')
   })
 
   void it('POST update username of authenticated user with valid CSRF token', async () => {

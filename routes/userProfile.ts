@@ -93,7 +93,8 @@ export function getUserProfile () {
       })
 
       res.set({
-        'Content-Security-Policy': CSP
+        'Content-Security-Policy': CSP,
+        'Cache-Control': 'no-store'
       })
 
       res.send(fn(user))
