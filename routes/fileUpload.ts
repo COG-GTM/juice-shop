@@ -41,10 +41,14 @@ function handleZipFileUpload ({ file }: Request, res: Response, next: NextFuncti
         .pipe(unzipper.Parse())
         .on('entry', function (entry: any) {
           const targetPath = entry.type === 'File' ? resolveComplaintEntryPath(entry.path) : null
-          if (targetPath != null) {
+          if (targetPath == null) {
+            entry.autodrain()
+            return
+          }
+          try {
             fs.mkdirSync(path.dirname(targetPath), { recursive: true })
-            entry.pipe(fs.createWriteStream(targetPath).on('error', function (err) { next(err) }))
-          } else {
+            entry.pipe(fs.createWriteStream(targetPath).on('error', function () { entry.autodrain() }))
+          } catch {
             entry.autodrain()
           }
         }).on('error', function (err: unknown) { next(err) })

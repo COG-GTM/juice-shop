@@ -98,6 +98,17 @@ void describe('/file-upload', () => {
     assert.equal(fs.readFileSync(legalFile, 'utf8'), legalContent)
   })
 
+  void it('POST zip file with entry nested below a file entry does not crash the server', async () => {
+    const file = path.resolve(__dirname, '../files/fileAsParentDirectory.zip')
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    const health = await request(app).get('/rest/admin/application-version')
+    assert.equal(health.status, 200)
+  })
+
   void it('POST zip file with password protection', async () => {
     const file = path.resolve(__dirname, '../files/passwordProtected.zip')
     const res = await request(app)
