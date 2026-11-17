@@ -133,3 +133,46 @@ void describe('/rest/order-history/:id/delivery-status', () => {
     assert.equal(res.status, 200)
   })
 })
+
+void describe('/rest/order-history/:orderId/confirmation', () => {
+  let orderId: string
+  let ownerHeader: { Authorization: string, 'content-type': string }
+  let otherHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const owner = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+    const other = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    ownerHeader = { Authorization: 'Bearer ' + owner.token, 'content-type': 'application/json' }
+    otherHeader = { Authorization: 'Bearer ' + other.token, 'content-type': 'application/json' }
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(ownerHeader)
+    assert.equal(res.status, 200)
+    orderId = res.body.orderConfirmation
+  })
+
+  void it('GET order confirmation PDF is not served from public /ftp folder', async () => {
+    const res = await request(app).get(`/ftp/order_${orderId}.pdf`)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF is not allowed without authentication', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`)
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET own order confirmation PDF', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(ownerHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.headers['content-type']?.includes('application/pdf'))
+  })
+
+  void it('GET order confirmation PDF of another user is not possible', async () => {
+    const res = await request(app).get(`/rest/order-history/${orderId}/confirmation`).set(otherHeader)
+    assert.equal(res.status, 404)
+  })
+
+  void it('GET order confirmation PDF with malformed order id is forbidden', async () => {
+    const res = await request(app).get(`/rest/order-history/${encodeURIComponent('../package.json')}/confirmation`).set(ownerHeader)
+    assert.equal(res.status, 403)
+  })
+})
