@@ -96,28 +96,38 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
+const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
+const couponMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+const couponPayloadLength = 3
+const couponMacLength = 5
+
+const couponMac = (payload: Buffer) => crypto.createHmac('sha256', couponSigningKey).update(payload).digest().subarray(0, couponMacLength)
+
 export const generateCoupon = (discount: number, date = new Date()) => {
-  const coupon = utils.toMMMYY(date) + '-' + discount
-  return z85.encode(coupon)
+  if (!Number.isInteger(discount) || discount < 1 || discount > 99) {
+    throw new Error('Coupon discount must be an integer between 1 and 99')
+  }
+  const payload = Buffer.from([date.getMonth(), date.getFullYear() % 100, discount])
+  return z85.encode(Buffer.concat([payload, couponMac(payload)]))
 }
 
 export const discountFromCoupon = (coupon?: string) => {
   if (!coupon) {
     return undefined
   }
-  const decoded = z85.decode(coupon)
-  if (decoded && (hasValidFormat(decoded.toString()) != null)) {
-    const parts = decoded.toString().split('-')
-    const validity = parts[0]
-    if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
-    }
+  const decoded: Buffer | null = z85.decode(coupon)
+  if (decoded?.length !== couponPayloadLength + couponMacLength) {
+    return undefined
   }
-}
-
-function hasValidFormat (coupon: string) {
-  return coupon.match(/(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[0-9]{2}-[0-9]{2}/)
+  const payload = decoded.subarray(0, couponPayloadLength)
+  if (!crypto.timingSafeEqual(decoded.subarray(couponPayloadLength), couponMac(payload))) {
+    return undefined
+  }
+  const [month, year, discount] = payload
+  const validity = couponMonths[month] + String(year).padStart(2, '0')
+  if (utils.toMMMYY(new Date()) === validity && discount >= 1 && discount <= 99) {
+    return discount
+  }
 }
 
 // vuln-code-snippet start redirectCryptoCurrencyChallenge redirectChallenge
