@@ -270,6 +270,15 @@ describe('NavbarComponent', () => {
         expect(userService.logout).toHaveBeenCalled()
     })
 
+    it('should keep session when the server fails to clear the authentication cookie', () => {
+        userService.logout.mockReturnValue(throwError(() => new Error('Error')))
+        console.log = vi.fn()
+        localStorage.setItem('session', '{"data":{}}')
+        component.logout()
+        expect(localStorage.getItem('session')).not.toBeNull()
+        localStorage.removeItem('session')
+    })
+
     it('should remove basket id from session storage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()

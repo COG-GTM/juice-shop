@@ -91,13 +91,17 @@ export class SidenavComponent implements OnInit {
 
   logout () {
     this.userService.saveLastLoginIp().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    this.userService.logout().subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
-    clearSession()
-    sessionStorage.removeItem('bid')
-    sessionStorage.removeItem('itemTotal')
-    sessionStorage.removeItem('guestBasket')
-    this.userService.isLoggedIn.next(false)
-    this.ngZone.run(async () => await this.router.navigate(['/']))
+    this.userService.logout().subscribe({
+      next: () => {
+        clearSession()
+        sessionStorage.removeItem('bid')
+        sessionStorage.removeItem('itemTotal')
+        sessionStorage.removeItem('guestBasket')
+        this.userService.isLoggedIn.next(false)
+        this.ngZone.run(async () => await this.router.navigate(['/']))
+      },
+      error: (err) => { console.log(err) }
+    })
   }
 
   goToProfilePage () {
