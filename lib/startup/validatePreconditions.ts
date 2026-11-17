@@ -26,6 +26,11 @@ export const variableDependencies: Record<string, Dependency> = {
     dependency: 'Alchemy API Key',
     documentation: 'https://howto-web3.owasp-juice.shop',
     dependentChallenges: ['"Mint the Honey Pot" challenge', '"Wallet Depletion" challenge']
+  },
+  NFT_WALLET_MNEMONIC: {
+    dependency: 'NFT Wallet Mnemonic',
+    documentation: 'https://howto-web3.owasp-juice.shop',
+    dependentChallenges: ['"NFT Takeover" challenge']
   }
 }
 
@@ -74,6 +79,7 @@ const validatePreconditions = async ({ exitOnFailure = true } = {}) => {
   if (!alchemyDomainReachable || !alchemyEnvVarExists) {
     logger.info(`Check ${colors.bold('https://howto-web3.owasp-juice.shop')} for instructions on how to set up and configure the Alchemy API`)
   }
+  preconditionResults.NFT_WALLET_MNEMONIC = checkIfEnvironmentVariableExists('NFT_WALLET_MNEMONIC')
   const llmApiUrl = config.get<string>('application.chatBot.llmApiUrl')
   const llmApiReachable = await checkIfDomainReachable(llmApiUrl)
   let llmApiKeyEnvVarExists = true
