@@ -8,7 +8,7 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -201,6 +201,48 @@ describe('insecurity', () => {
       expect(security.hmac('admin123')).to.equal('6be13e2feeada221f29134db71c0ab0be0e27eccfc0fb436ba4096ba73aafb20')
       expect(security.hmac('password')).to.equal('da28fc4354f4a458508a461fbae364720c4249c27f10fccf68317fc4bf6531ed')
       expect(security.hmac('')).to.equal('f052179ec5894a2e79befa8060cfcb517f1e14f7f6222af854377b6481ae953e')
+    })
+  })
+
+  describe('setAuthCookie', () => {
+    it('sets the token as an HttpOnly cookie', () => {
+      const cookies: any[] = []
+      const res = { cookie: (...args: any[]) => cookies.push(args), req: { secure: false } } as unknown as Response
+      security.setAuthCookie(res, 'TOKEN')
+      expect(cookies[0][0]).to.equal('token')
+      expect(cookies[0][1]).to.equal('TOKEN')
+      expect(cookies[0][2]).to.include({ httpOnly: true, sameSite: 'strict', secure: false })
+    })
+
+    it('marks the cookie as Secure for HTTPS requests', () => {
+      const cookies: any[] = []
+      const res = { cookie: (...args: any[]) => cookies.push(args), req: { secure: true } } as unknown as Response
+      security.setAuthCookie(res, 'TOKEN')
+      expect(cookies[0][2]).to.include({ secure: true })
+    })
+  })
+
+  describe('clearAuthCookie', () => {
+    it('clears the HttpOnly token cookie', () => {
+      const cleared: any[] = []
+      const res = { clearCookie: (...args: any[]) => cleared.push(args) } as unknown as Response
+      security.clearAuthCookie(res)
+      expect(cleared[0][0]).to.equal('token')
+      expect(cleared[0][1]).to.include({ httpOnly: true })
+    })
+  })
+
+  describe('tokenFromCookie', () => {
+    it('uses the token cookie as bearer token when no Authorization header is present', () => {
+      const req = { headers: {}, cookies: { token: 'TOKEN' } } as unknown as Request
+      security.tokenFromCookie()(req, {} as Response, () => {})
+      expect(req.headers.authorization).to.equal('Bearer TOKEN')
+    })
+
+    it('keeps an explicitly provided Authorization header', () => {
+      const req = { headers: { authorization: 'Bearer OTHER' }, cookies: { token: 'TOKEN' } } as unknown as Request
+      security.tokenFromCookie()(req, {} as Response, () => {})
+      expect(req.headers.authorization).to.equal('Bearer OTHER')
     })
   })
 })

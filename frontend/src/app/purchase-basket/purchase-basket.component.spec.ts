@@ -103,7 +103,7 @@ describe('PurchaseBasketComponent', () => {
     })
 
     beforeEach(() => {
-        localStorage.setItem('token', 'token')
+        localStorage.setItem('session', JSON.stringify({ id: 1 }))
         fixture = TestBed.createComponent(PurchaseBasketComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
@@ -128,7 +128,7 @@ describe('PurchaseBasketComponent', () => {
 
     it('should skip userService call and use anonymous label for guests', () => {
         userService.whoAmI.mockClear()
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
 
         component.ngOnInit()
 
@@ -179,7 +179,7 @@ describe('PurchaseBasketComponent', () => {
     })
 
     it('should keep valid guest basket products when one guest product fetch fails', () => {
-        localStorage.removeItem('token')
+        localStorage.removeItem('session')
         basketService.getGuestBasketItems.mockReturnValue([
             { ProductId: 1, quantity: 2 },
             { ProductId: 2, quantity: 3 }

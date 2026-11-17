@@ -8,6 +8,8 @@ import { ChallengeService } from '../Services/challenge.service'
 import { ChangeDetectorRef, Component, NgZone, type OnInit, inject } from '@angular/core'
 import { CookieService } from 'ngy-cookie'
 import { SocketIoService } from '../Services/socket-io.service'
+import { UserService } from '../Services/user.service'
+import { clearSession } from '../Services/auth-session'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule, MatCardContent } from '@angular/material/card'
@@ -28,6 +30,7 @@ export class ServerStartedNotificationComponent implements OnInit {
   private readonly challengeService = inject(ChallengeService)
   private readonly translate = inject(TranslateService)
   private readonly cookieService = inject(CookieService)
+  private readonly userService = inject(UserService)
   private readonly ref = inject(ChangeDetectorRef)
   private readonly io = inject(SocketIoService)
 
@@ -95,10 +98,10 @@ export class ServerStartedNotificationComponent implements OnInit {
     this.cookieService.remove('continueCode')
     this.cookieService.remove('continueCodeFixIt')
     this.cookieService.remove('continueCodeFindIt')
-    this.cookieService.remove('token')
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
-    localStorage.removeItem('token')
+    clearSession()
+    this.userService.logout().subscribe({ error: (err) => { console.log(err) } })
     localStorage.removeItem('displayedDifficulties')
     localStorage.removeItem('showSolvedChallenges')
     localStorage.removeItem('showDisabledChallenges')

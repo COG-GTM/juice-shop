@@ -55,8 +55,10 @@ describe('SidenavComponent', () => {
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI"),
             getLoggedInState: vi.fn().mockName("UserService.getLoggedInState"),
-            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp")
+            saveLastLoginIp: vi.fn().mockName("UserService.saveLastLoginIp"),
+            logout: vi.fn().mockName("UserService.logout")
         }
+        userService.logout.mockReturnValue(of({}))
         userService.whoAmI.mockReturnValue(of({}))
         userService.getLoggedInState.mockReturnValue(of(true))
         userService.saveLastLoginIp.mockReturnValue(of({}))
@@ -79,9 +81,9 @@ describe('SidenavComponent', () => {
         }
         socketIoService.socket.mockReturnValue(mockSocket)
         loginGuard = {
-            tokenDecode: vi.fn().mockName("LoginGuard.tokenDecode")
+            sessionPayload: vi.fn().mockName("LoginGuard.sessionPayload")
         }
-        loginGuard.tokenDecode.mockReturnValue({})
+        loginGuard.sessionPayload.mockReturnValue({})
 
         TestBed.configureTestingModule({
             imports: [TranslateModule.forRoot(),
@@ -124,13 +126,13 @@ describe('SidenavComponent', () => {
     })
 
     it('should show accounting functionality when user has according role', () => {
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: roles.accounting } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: roles.accounting } })
 
         expect(component.isAccounting()).toBe(true)
     })
 
     it('should set version number as retrieved with "v" prefix', () => {
-        loginGuard.tokenDecode.mockReturnValue({ data: { role: roles.accounting } })
+        loginGuard.sessionPayload.mockReturnValue({ data: { role: roles.accounting } })
 
         expect(component.isAccounting()).toBe(true)
     })
@@ -156,15 +158,15 @@ describe('SidenavComponent', () => {
         expect(component.scoreBoardVisible).toBe(true)
     })
 
-    it('should remove authentication token from localStorage', () => {
+    it('should remove session from localStorage', () => {
         const removeItemSpy = vi.spyOn(Storage.prototype, 'removeItem')
         component.logout()
-        expect(removeItemSpy).toHaveBeenCalledWith('token')
+        expect(removeItemSpy).toHaveBeenCalledWith('session')
     })
 
-    it('should remove authentication token from cookies', () => {
+    it('should clear authentication cookie via server-side logout', () => {
         component.logout()
-        expect(cookieService.remove).toHaveBeenCalledWith('token')
+        expect(userService.logout).toHaveBeenCalled()
     })
 
     it('should remove basket id from session storage', () => {
