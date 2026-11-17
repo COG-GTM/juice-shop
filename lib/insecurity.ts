@@ -96,7 +96,7 @@ export const userEmailFrom = ({ headers }: any) => {
   return headers ? headers['x-user-email'] : undefined
 }
 
-const couponSigningKey = process.env.COUPON_SIGNING_KEY ?? crypto.randomBytes(32).toString('hex')
+const couponSigningKey = process.env.COUPON_SIGNING_KEY || crypto.randomBytes(32).toString('hex')
 const couponMonths = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 const couponPayloadLength = 3
 const couponMacLength = 5
