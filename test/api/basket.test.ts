@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { BasketItemModel } from '../../models/basketitem'
+import { QuantityModel } from '../../models/quantity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -136,16 +138,32 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.ok(res.text.includes('Error: Basket with id=42 does not exist.'))
   })
 
-  void it('POST placing an order for a basket with a negative total cost is possible', async () => {
+  void it('POST adding a basket item with a negative quantity to create a negative total cost is rejected', async () => {
     const itemRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
-    assert.equal(itemRes.status, 200)
+    assert.equal(itemRes.status, 400)
+    assert.equal(itemRes.body.error, 'Quantity must be a positive whole number.')
+  })
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
-    assert.equal(res.status, 200)
-    assert.ok(res.body.orderConfirmation !== undefined)
+  void it('POST placing an order for a basket containing a stored non-positive quantity is rejected without touching stock', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+    await BasketItemModel.update({ quantity: -100 }, { where: { id: itemRes.body.data.id }, validate: false })
+    const stockBefore = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
+    assert.equal(res.status, 400)
+    assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+    const stockAfter = await QuantityModel.findAll({ order: [['ProductId', 'ASC']] })
+    assert.deepEqual(stockAfter.map(q => q.quantity), stockBefore.map(q => q.quantity))
+
+    await BasketItemModel.destroy({ where: { id: itemRes.body.data.id } })
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {

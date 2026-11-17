@@ -198,6 +198,45 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.body.error, 'You can order only up to 5 items of this product.')
   })
 
+  for (const quantity of [0, -1, -100, 1.5, '3']) {
+    void it(`POST new basket item with invalid quantity ${JSON.stringify(quantity)} is rejected`, async () => {
+      const res = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 11, quantity })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+    })
+
+    void it(`PUT update basket item to invalid quantity ${JSON.stringify(quantity)} is rejected`, async () => {
+      const createRes = await request(app)
+        .post('/api/BasketItems')
+        .set(authHeader)
+        .send({ BasketId: 2, ProductId: 11, quantity: 1 })
+      assert.equal(createRes.status, 200)
+
+      const res = await request(app)
+        .put('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+        .send({ quantity })
+      assert.equal(res.status, 400)
+      assert.equal(res.body.error, 'Quantity must be a positive whole number.')
+
+      const deleteRes = await request(app)
+        .delete('/api/BasketItems/' + createRes.body.data.id)
+        .set(authHeader)
+      assert.equal(deleteRes.status, 200)
+    })
+  }
+
+  void it('POST new basket item with a nested negative quantity is rejected', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"BasketId": 2, "ProductId": 11, "quantity": 1, "x": {"quantity": -100}}')
+    assert.notEqual(res.status, 200)
+  })
+
   void it('DELETE newly created basket item', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
