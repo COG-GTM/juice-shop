@@ -36,10 +36,13 @@ export const verifyCaptcha = () => async (req: Request, res: Response, next: Nex
   try {
     const captcha = await CaptchaModel.findOne({ where: { captchaId: req.body.captchaId } })
     if ((captcha != null) && req.body.captcha === captcha.answer) {
-      next()
-    } else {
-      res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
+      const consumed = await CaptchaModel.destroy({ where: { captchaId: captcha.captchaId, answer: captcha.answer } })
+      if (consumed > 0) {
+        next()
+        return
+      }
     }
+    res.status(401).send(res.__('Wrong answer to CAPTCHA. Please try again.'))
   } catch (error) {
     next(error)
   }
