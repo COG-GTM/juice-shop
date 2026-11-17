@@ -20,6 +20,11 @@ export function updateUserProfile () {
       return
     }
 
+    if (!security.isValidCsrfToken(req.cookies.token, req.body.csrfToken)) {
+      res.status(403).send('Invalid or missing CSRF token')
+      return
+    }
+
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
@@ -37,7 +42,7 @@ export function updateUserProfile () {
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      res.cookie('token', updatedToken, { sameSite: 'lax' })
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {
