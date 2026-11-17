@@ -416,6 +416,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     }
     next()
   })
+  app.post('/api/Users', (req: Request, res: Response, next: NextFunction) => {
+    const email = req.body?.email
+    if (email !== undefined && (typeof email !== 'string' || (email.trim().length !== 0 && !utils.isValidEmail(email.trim())))) {
+      res.status(400).json({ errors: [{ field: 'email', message: 'Invalid email address' }] })
+      return
+    }
+    next()
+  })
   app.post('/api/Users', verify.registerAdminChallenge())
   app.post('/api/Users', verify.passwordRepeatChallenge()) // vuln-code-snippet hide-end
   app.post('/api/Users', verify.emptyUserRegistration())
