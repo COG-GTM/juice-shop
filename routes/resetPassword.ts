@@ -34,7 +34,7 @@ export function requestPasswordReset () {
           tokenHash: hashToken(token),
           expiresAt: new Date(Date.now() + TOKEN_TTL_MS)
         })
-        const resetLink = `${config.get<string>('server.baseUrl')}/#/forgot-password?token=${token}`
+        const resetLink = `${config.get<string>('server.baseUrl')}${process.env.BASE_PATH ?? ''}/#/forgot-password?token=${token}`
         mailer.sendMail({
           to: user.email,
           subject: `${config.get<string>('application.name')} password reset`,
