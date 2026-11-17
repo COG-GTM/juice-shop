@@ -6,12 +6,59 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import fs from 'node:fs'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
+  describe('JWT algorithm pinning (CVE-2015-9235)', () => {
+    const publicKey = fs.readFileSync('encryptionkeys/jwt.pub', 'utf8')
+    const payload = { data: { email: 'rsa_lord@juice-sh.op' } }
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const hmacForgedToken = () => {
+      const unsigned = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}`
+      return `${unsigned}.${crypto.createHmac('sha256', publicKey).update(unsigned).digest('base64url')}`
+    }
+    const unsignedToken = () => `${b64url({ alg: 'none', typ: 'JWT' })}.${b64url(payload)}.`
+
+    const runIsAuthorized = async (token: string) => await new Promise<any>((resolve) => {
+      const req: any = { headers: { authorization: `Bearer ${token}` }, method: 'GET', url: '/' }
+      void security.isAuthorized()(req, {} as any, (err?: any) => { resolve(err) })
+    })
+
+    it('verify accepts a token signed by authorize', () => {
+      expect(security.verify(security.authorize(payload))).to.equal(true)
+    })
+
+    it('verify rejects a token HMAC-signed with the public RSA key', () => {
+      expect(security.verify(hmacForgedToken())).to.equal(false)
+    })
+
+    it('verify rejects an unsigned token with alg "none"', () => {
+      expect(security.verify(unsignedToken())).to.equal(false)
+    })
+
+    it('isAuthorized accepts a token signed by authorize', async () => {
+      expect(await runIsAuthorized(security.authorize(payload))).to.equal(undefined)
+    })
+
+    it('isAuthorized rejects a token HMAC-signed with the public RSA key', async () => {
+      expect((await runIsAuthorized(hmacForgedToken()))?.status).to.equal(401)
+    })
+
+    it('isAuthorized rejects an unsigned token with alg "none"', async () => {
+      expect((await runIsAuthorized(unsignedToken()))?.status).to.equal(401)
+    })
+
+    it('authorize signs with RS256', () => {
+      expect(jwt.decode(security.authorize(payload), { complete: true })?.header.alg).to.equal('RS256')
+    })
+  })
+
   describe('cutOffPoisonNullByte', () => {
     it('returns string unchanged if it contains no null byte', () => {
       expect(security.cutOffPoisonNullByte('file.exe.pdf')).to.equal('file.exe.pdf')
