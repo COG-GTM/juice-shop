@@ -115,7 +115,7 @@ describe('ForgotPasswordComponent', () => {
     it('should show error when requesting a reset code fails', () => {
         userService.requestPasswordReset.mockReturnValue(throwError({ error: 'Error' }))
         component.requestResetToken()
-        expect(component.error).toBe('Error')
+        expect(component.resetTokenError).toBe('Error')
         expect(component.resetTokenConfirmation).toBeUndefined()
     })
 

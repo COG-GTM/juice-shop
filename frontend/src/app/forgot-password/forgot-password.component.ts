@@ -45,6 +45,7 @@ export class ForgotPasswordComponent {
   public error?: string
   public confirmation?: string
   public resetTokenConfirmation?: string
+  public resetTokenError?: string
   public timeoutDuration = 1000
   private timeout
 
@@ -83,7 +84,7 @@ export class ForgotPasswordComponent {
   requestResetToken () {
     this.userService.requestPasswordReset(this.emailControl.value).subscribe({
       next: () => {
-        this.error = undefined
+        this.resetTokenError = undefined
         this.translate.get('PASSWORD_RESET_TOKEN_SENT').subscribe({
           next: (resetTokenSent) => {
             this.resetTokenConfirmation = resetTokenSent
@@ -94,7 +95,7 @@ export class ForgotPasswordComponent {
         })
       },
       error: (error) => {
-        this.error = error.error
+        this.resetTokenError = error.error
         this.resetTokenConfirmation = undefined
       }
     })
@@ -130,6 +131,7 @@ export class ForgotPasswordComponent {
 
   resetForm () {
     this.resetTokenConfirmation = undefined
+    this.resetTokenError = undefined
     this.emailControl.setValue('')
     this.emailControl.markAsPristine()
     this.emailControl.markAsUntouched()
