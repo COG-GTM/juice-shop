@@ -204,6 +204,15 @@ void describe('/rest/user/reset-password', () => {
     assert.ok(res.text.includes('Invalid or expired password reset token.'))
   })
 
+  void it('POST password reset token cannot be used by concurrent requests more than once', async () => {
+    const email = 'jim@' + config.get<string>('application.domain')
+    const token = await requestResetToken(email)
+    const body = { email, answer: 'Samuel', token, new: 'ncc-1701', repeat: 'ncc-1701' }
+    const responses = await Promise.all([1, 2, 3].map(async () => await request(app).post('/rest/user/reset-password').set({ 'content-type': 'application/json' }).send(body)))
+
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, 401, 401])
+  })
+
   void it('POST password reset for Jim with correct answer to his security question', async () => {
     const token = await requestResetToken('jim@' + config.get<string>('application.domain'))
     const res = await request(app)
