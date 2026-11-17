@@ -27,6 +27,18 @@ describe('fileServer', () => {
     })
   })
 
+  for (const file of ['order_5267-f9cd5882f54c75a3.pdf', 'ORDER_5267-f9cd5882f54c75a3.PDF', 'order_5267-f9cd5882f54c75a3.pdf%00.md']) {
+    it(`should not serve order confirmation ${file} from folder /ftp`, () => {
+      req.params.file = file
+
+      servePublicFiles()(req, res, next)
+
+      expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
+      expect(res.status).to.have.been.calledWith(sinon.match((status: number) => status === 403 || status === 404))
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error))
+    })
+  }
+
   it('should serve PDF files from folder /ftp', () => {
     req.params.file = 'test.pdf'
 
