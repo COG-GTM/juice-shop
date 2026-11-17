@@ -5,6 +5,7 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import { isIP } from 'node:net'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
@@ -236,7 +237,7 @@ void describe('/rest/user/login', () => {
 })
 
 void describe('/rest/saveLoginIp', () => {
-  void it('GET last login IP will be saved as True-Client-IP header value', async () => {
+  void it('GET last login IP ignores spoofed True-Client-IP header value', async () => {
     const loginRes = await request(app)
       .post('/rest/user/login')
       .set({ 'content-type': 'application/json' })
@@ -251,11 +252,12 @@ void describe('/rest/saveLoginIp', () => {
       .get('/rest/saveLoginIp')
       .set({
         Authorization: 'Bearer ' + loginRes.body.authentication.token,
-        'true-client-ip': '1.2.3.4'
+        'true-client-ip': '<iframe src="javascript:alert(`xss`)">'
       })
 
     assert.equal(res.status, 200)
-    assert.equal(res.body.lastLoginIp, '1.2.3.4')
+    assert.notEqual(res.body.lastLoginIp, '<iframe src="javascript:alert(`xss`)">')
+    assert.ok(isIP(res.body.lastLoginIp) !== 0)
   })
 
   void it('GET last login IP will be saved as remote IP when True-Client-IP is not present', { skip: 'FIXME Started to fail regularly on CI under Linux' }, async () => {
