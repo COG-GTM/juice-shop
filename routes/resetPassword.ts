@@ -12,6 +12,31 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges, users } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
+import { sendPasswordResetEmail } from '../lib/mailer'
+import { issueResetToken, isValidResetToken, revokeResetToken } from '../lib/passwordResetTokens'
+import logger from '../lib/logger'
+
+export function requestPasswordReset () {
+  return async ({ body }: Request, res: Response, next: NextFunction) => {
+    const email = body?.email
+    if (typeof email !== 'string' || !email) {
+      res.status(400).send(res.__('Email address is required.'))
+      return
+    }
+    try {
+      const user = await UserModel.findOne({ where: { email } })
+      if (user) {
+        const token = issueResetToken(user.id)
+        sendPasswordResetEmail(user.email, token).catch((error: Error) => {
+          logger.warn('Failed to send password reset email: ' + error.message)
+        })
+      }
+      res.json({ status: 'success' })
+    } catch (error) {
+      next(error)
+    }
+  }
+}
 
 export function resetPassword () {
   return async ({ body, connection }: Request, res: Response, next: NextFunction) => {
@@ -19,6 +44,7 @@ export function resetPassword () {
     const answer = body.answer
     const newPassword = body.new
     const repeatPassword = body.repeat
+    const token = body.token
     if (!email || !answer) {
       next(new Error('Blocked illegal activity by ' + connection.remoteAddress))
       return
@@ -38,9 +64,14 @@ export function resetPassword () {
           where: { email }
         }]
       })
-      if ((data != null) && security.hmac(answer) === data.answer) {
+      if ((data == null) || !isValidResetToken(data.UserId, token)) {
+        res.status(401).send(res.__('Invalid or expired password reset token.'))
+        return
+      }
+      if (security.hmac(answer) === data.answer) {
         const user = await UserModel.findByPk(data.UserId)
         if (user) {
+          revokeResetToken(user.id)
           const updatedUser = await user.update({ password: newPassword })
           verifySecurityAnswerChallenges(updatedUser, answer)
           res.json({ user: updatedUser })
