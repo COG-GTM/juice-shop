@@ -89,6 +89,28 @@ describe('fileUpload', () => {
       expect(challenges.yamlBombChallenge.solved).to.equal(true)
     })
 
+    it('should count mapping key lengths towards the expansion limit', () => {
+      const longKey = 'k'.repeat(1000)
+      req.file.originalname = 'longKeys.yml'
+      req.file.buffer = Buffer.from(`a: &a {${longKey}: 1}\nb: &b [${Array(9).fill('*a').join(',')}]\nc: &c [${Array(9).fill('*b').join(',')}]\nd: &d [${Array(9).fill('*c').join(',')}]\ne: &e [${Array(9).fill('*d').join(',')}]\n`)
+
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(res.statusCode).to.equal(503)
+      expect(challenges.yamlBombChallenge.solved).to.equal(true)
+    })
+
+    it('should reject self-referencing aliases without exhausting memory', () => {
+      req.file.originalname = 'cyclic.yml'
+      req.file.buffer = Buffer.from(`a: &a [${Array(1000).fill('*a').join(',')}]\n`)
+
+      const start = Date.now()
+      handleYamlUpload(req, res, (err?: Error) => { nextError ??= err })
+
+      expect(Date.now() - start).to.be.below(1000)
+      expect(res.statusCode).to.equal(503)
+    })
+
     it('should echo regular YAML content in the deprecation error', () => {
       req.file.originalname = 'complaint.yaml'
       req.file.buffer = Buffer.from('a: &a [1, 2]\nb: [*a, *a]\n')

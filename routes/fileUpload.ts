@@ -110,19 +110,23 @@ const MAX_YAML_EXPANSION = 1000000
 
 class YamlExpansionLimitError extends Error {}
 
-// Walks the parsed document as JSON.stringify would (following alias references) and stops once the budget is spent
+// Charges the expanded size JSON.stringify would produce (following alias references) and stops once the budget is spent
 function exceedsExpansionBudget (root: unknown, budget: number): boolean {
-  let remaining = budget
+  const cost = (node: unknown) => typeof node === 'string' ? node.length + 1 : 1
+  let remaining = budget - cost(root)
   const stack: unknown[] = [root]
-  while (stack.length > 0) {
+  while (stack.length > 0 && remaining >= 0) {
     const node = stack.pop()
-    remaining -= typeof node === 'string' ? node.length + 1 : 1
-    if (remaining < 0) return true
     if (node !== null && typeof node === 'object') {
-      stack.push(...(Array.isArray(node) ? node : Object.values(node)))
+      const isArray = Array.isArray(node)
+      for (const [key, child] of Object.entries(node)) {
+        remaining -= (isArray ? 0 : key.length + 1) + cost(child)
+        if (remaining < 0) return true
+        stack.push(child)
+      }
     }
   }
-  return false
+  return remaining < 0
 }
 
 function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction) {
