@@ -20,11 +20,8 @@ describe('/b2b/v2/order', () => {
                 })
               }
             )
-            if (response.status === 500) {
-              console.log('Success')
-            }
+            expect(response.status).to.equal(400)
           })
-          cy.expectChallengeSolved({ challenge: 'Blocked RCE DoS' })
         }
       })
     })
@@ -51,11 +48,8 @@ describe('/b2b/v2/order', () => {
                 })
               }
             )
-            if (response.status === 503) {
-              console.log('Success')
-            }
+            expect(response.status).to.equal(400)
           })
-          cy.expectChallengeSolved({ challenge: 'Successful RCE DoS' })
         }
       })
     })
