@@ -46,21 +46,59 @@ describe('fileUpload', () => {
     expect(challenges.uploadSizeChallenge.solved).to.equal(true)
   })
 
-  it('should solve "uploadTypeChallenge" when file type is not PDF', () => {
-    challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
-    req.file.originalname = 'hack.exe'
+  describe('checkFileType', () => {
+    let status: number | undefined
+    let nextCalled: boolean
 
-    checkFileType(req, res, () => {})
+    beforeEach(() => {
+      status = undefined
+      nextCalled = false
+      res = {
+        status (code: number) { status = code; return this },
+        json () { return this }
+      }
+    })
 
-    expect(challenges.uploadTypeChallenge.solved).to.equal(true)
-  })
+    const next = () => { nextCalled = true }
 
-  it('should not solve "uploadTypeChallenge" when file type is PDF', () => {
-    challenges.uploadTypeChallenge = { solved: false, save } as unknown as Challenge
-    req.file.originalname = 'hack.pdf'
+    it('should accept a PDF file with matching content', async () => {
+      req.file = { originalname: 'complaint.pdf', buffer: Buffer.from('%PDF-1.4\n%âãÏÓ\n1 0 obj\n') }
 
-    checkFileType(req, res, () => {})
+      await checkFileType(req, res, next)
 
-    expect(challenges.uploadTypeChallenge.solved).to.equal(false)
+      expect(nextCalled).to.equal(true)
+      expect(status).to.equal(undefined)
+    })
+
+    it('should reject a file with a non-allowlisted extension', async () => {
+      req.file = { originalname: 'hack.exe', buffer: Buffer.from('MZ') }
+
+      await checkFileType(req, res, next)
+
+      expect(nextCalled).to.equal(false)
+      expect(status).to.equal(415)
+    })
+
+    it('should reject a file whose content does not match its PDF extension', async () => {
+      req.file = { originalname: 'hack.pdf', buffer: Buffer.from('<html><script>alert(1)</script></html>') }
+
+      await checkFileType(req, res, next)
+
+      expect(nextCalled).to.equal(false)
+      expect(status).to.equal(415)
+    })
+
+    for (const name of ['xxe.xml', 'bomb.yml', 'bomb.yaml']) {
+      it(`should reject deprecated ${name} uploads without parsing them`, async () => {
+        challenges.deprecatedInterfaceChallenge = { solved: false, save } as unknown as Challenge
+        req.file = { originalname: name, buffer: Buffer.from('<!DOCTYPE x [<!ENTITY e SYSTEM "file:///etc/passwd">]><x>&e;</x>') }
+
+        await checkFileType(req, res, next)
+
+        expect(nextCalled).to.equal(false)
+        expect(status).to.equal(410)
+        expect(challenges.deprecatedInterfaceChallenge.solved).to.equal(true)
+      })
+    }
   })
 })

@@ -7,9 +7,8 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
-import { challenges } from '../../data/datacache'
-import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
 
 let app: Express
@@ -36,12 +35,19 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 204)
   })
 
-  void it('POST file with illegal type for client validation but valid for API', async () => {
+  void it('POST file with illegal type is rejected by API', async () => {
     const file = path.resolve(__dirname, '../files/invalidTypeForClient.exe')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
-    assert.equal(res.status, 204)
+    assert.equal(res.status, 415)
+  })
+
+  void it('POST file with PDF extension but non-PDF content is rejected by API', async () => {
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', Buffer.from('MZ not really a PDF'), 'disguised.pdf')
+    assert.equal(res.status, 415)
   })
 
   void it('POST file type XML deprecated for API', async () => {
@@ -52,66 +58,25 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 410)
   })
 
-  void it('POST large XML file near upload size limit', async () => {
-    const file = path.resolve(__dirname, '../files/maxSizeForServer.xml')
+  for (const xmlFile of ['maxSizeForServer.xml', 'xxeForWindows.xml', 'xxeForLinux.xml', 'xxeBillionLaughs.xml', 'xxeQuadraticBlowup.xml', 'xxeDevRandom.xml']) {
+    void it(`POST ${xmlFile} is rejected without being parsed`, async () => {
+      const file = path.resolve(__dirname, '../files/' + xmlFile)
+      const res = await request(app)
+        .post('/file-upload')
+        .attach('file', file)
+      assert.equal(res.status, 410)
+      assert.ok(!res.text.includes('root:x:0:0'))
+      assert.ok(!res.text.includes('[fonts]'))
+    })
+  }
+
+  void it('POST file type YAML with Billion Laughs-style attack is rejected without being parsed', async () => {
+    const file = path.resolve(__dirname, '../files/yamlBomb.yml')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 410)
   })
-
-  if (utils.isChallengeEnabled(challenges.xxeFileDisclosureChallenge) || utils.isChallengeEnabled(challenges.xxeDosChallenge)) {
-    void it('POST file type XML with XXE attack against Windows', async () => {
-      const file = path.resolve(__dirname, '../files/xxeForWindows.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-    })
-
-    void it('POST file type XML with XXE attack against Linux', async () => {
-      const file = path.resolve(__dirname, '../files/xxeForLinux.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-    })
-
-    void it('POST file type XML with Billion Laughs attack is caught by parser', async () => {
-      const file = path.resolve(__dirname, '../files/xxeBillionLaughs.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.equal(res.status, 410)
-      assert.ok(res.text.includes('Detected an entity reference loop'))
-    })
-
-    void it('POST file type XML with Quadratic Blowup attack', async () => {
-      const file = path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.ok(res.status >= 410)
-    })
-
-    void it('POST file type XML with dev/random attack', async () => {
-      const file = path.resolve(__dirname, '../files/xxeDevRandom.xml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.ok(res.status >= 410)
-    })
-  }
-
-  if (utils.isChallengeEnabled(challenges.yamlBombChallenge)) {
-    void it('POST file type YAML with Billion Laughs-style attack', async () => {
-      const file = path.resolve(__dirname, '../files/yamlBomb.yml')
-      const res = await request(app)
-        .post('/file-upload')
-        .attach('file', file)
-      assert.ok(res.status >= 410)
-    })
-  }
 
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
@@ -121,12 +86,16 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 500)
   })
 
-  void it('POST zip file with directory traversal payload', async () => {
+  void it('POST zip file with directory traversal payload does not write outside upload directory', async () => {
+    const legalFile = path.resolve('ftp/legal.md')
+    const legalContent = fs.readFileSync(legalFile, 'utf8')
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
       .post('/file-upload')
       .attach('file', file)
     assert.equal(res.status, 204)
+    await new Promise(resolve => setTimeout(resolve, 500))
+    assert.equal(fs.readFileSync(legalFile, 'utf8'), legalContent)
   })
 
   void it('POST zip file with password protection', async () => {
