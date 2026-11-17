@@ -1,16 +1,28 @@
+function expectChallengeNotSolved (challenge: string) {
+  cy.request('/api/Challenges/?name=' + challenge).then((response) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    expect(response.body.data[0].solved).to.be.false
+  })
+}
+
+function expectLoginRejected () {
+  cy.get('.error').should('contain', 'Invalid email or password.')
+}
+
 describe('/#/login', () => {
   beforeEach(() => {
     cy.visit('/#/login')
   })
 
   describe('challenge "loginAdmin"', () => {
-    it('should log in Admin with SQLI attack on email field using "\' or 1=1--"', () => {
+    it('should not log in Admin with SQLI attack on email field using "\' or 1=1--"', () => {
       cy.get('#email').type("' or 1=1--")
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
+      expectLoginRejected()
     })
 
-    it('should log in Admin with SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
+    it('should not log in Admin with SQLI attack on email field using "admin@<juice-sh.op>\'--"', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
           cy.get('#email').type(`admin@${appDomain}'--`)
@@ -18,12 +30,13 @@ describe('/#/login', () => {
           cy.get('#loginButton').click()
         }
       )
-      cy.expectChallengeSolved({ challenge: 'Login Admin' })
+      expectLoginRejected()
+      expectChallengeNotSolved('Login Admin')
     })
   })
 
   describe('challenge "loginJim"', () => {
-    it('should log in Jim with SQLI attack on email field using "jim@<juice-sh.op>\'--"', () => {
+    it('should not log in Jim with SQLI attack on email field using "jim@<juice-sh.op>\'--"', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
           cy.get('#email').type(`jim@${appDomain}'--`)
@@ -31,12 +44,13 @@ describe('/#/login', () => {
           cy.get('#loginButton').click()
         }
       )
-      cy.expectChallengeSolved({ challenge: 'Login Jim' })
+      expectLoginRejected()
+      expectChallengeNotSolved('Login Jim')
     })
   })
 
   describe('challenge "loginBender"', () => {
-    it('should log in Bender with SQLI attack on email field using "bender@<juice-sh.op>\'--"', () => {
+    it('should not log in Bender with SQLI attack on email field using "bender@<juice-sh.op>\'--"', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
           cy.get('#email').type(`bender@${appDomain}'--`)
@@ -44,7 +58,8 @@ describe('/#/login', () => {
           cy.get('#loginButton').click()
         }
       )
-      cy.expectChallengeSolved({ challenge: 'Login Bender' })
+      expectLoginRejected()
+      expectChallengeNotSolved('Login Bender')
     })
   })
 
@@ -114,7 +129,7 @@ describe('/#/login', () => {
   })
 
   describe('challenge "twoFactorAuthUnsafeSecretStorage"', () => {
-    it('should be able to log into a existing 2fa protected account given the right token', () => {
+    it('should not reach the 2fa token prompt of a protected account via SQLI attack on email field', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
           cy.get('#email').type(`wurstbrot@${appDomain}'--`)
@@ -122,14 +137,9 @@ describe('/#/login', () => {
           cy.get('#loginButton').click()
         }
       )
-
-      cy.task<string>('GenerateAuthenticator', 'IFTXE3SPOEYVURT2MRYGI52TKJ4HC3KH').then(
-        (totpToken: string) => {
-          void cy.get('#totpToken').type(totpToken)
-          void cy.get('#totpSubmitButton').click()
-        }
-      )
-      cy.expectChallengeSolved({ challenge: 'Two Factor Authentication' })
+      expectLoginRejected()
+      cy.get('#totpToken').should('not.exist')
+      expectChallengeNotSolved('Two Factor Authentication')
     })
   })
 
@@ -144,13 +154,14 @@ describe('/#/login', () => {
   })
 
   describe('challenge "ghostLogin"', () => {
-    it('should be able to log in as chris.pike@juice-sh.op by using "\' or deletedAt IS NOT NULL --"', () => {
+    it('should not be able to log in as chris.pike@juice-sh.op by using "\' or deletedAt IS NOT NULL --"', () => {
       cy.get('#email').type("' or deletedAt IS NOT NULL--")
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
+      expectLoginRejected()
     })
 
-    it('should be able to log in as chris.pike@juice-sh.op by using "chris.pike@juice-sh.op\' --"', () => {
+    it('should not be able to log in as chris.pike@juice-sh.op by using "chris.pike@juice-sh.op\' --"', () => {
       cy.task<string>('GetFromConfig', 'application.domain').then(
         (appDomain: string) => {
           cy.get('#email').type(`chris.pike@${appDomain}'--`)
@@ -158,18 +169,20 @@ describe('/#/login', () => {
           cy.get('#loginButton').click()
         }
       )
-      cy.expectChallengeSolved({ challenge: 'GDPR Data Erasure' })
+      expectLoginRejected()
+      expectChallengeNotSolved('GDPR Data Erasure')
     })
   })
 
   describe('challenge "ephemeralAccountant"', () => {
-    it('should log in non-existing accountant user with SQLI attack on email field using UNION SELECT payload', () => {
+    it('should not log in non-existing accountant user with SQLI attack on email field using UNION SELECT payload', () => {
       cy.get('#email').type(
         "' UNION SELECT * FROM (SELECT 15 as 'id', '' as 'username', 'acc0unt4nt@juice-sh.op' as 'email', '12345' as 'password', 'accounting' as 'role', '123' as 'deluxeToken', '1.2.3.4' as 'lastLoginIp' , '/assets/public/images/uploads/default.svg' as 'profileImage', '' as 'totpSecret', 1 as 'isActive', '1999-08-16 14:14:41.644 +00:00' as 'createdAt', '1999-08-16 14:33:41.930 +00:00' as 'updatedAt', null as 'deletedAt')--"
       )
       cy.get('#password').type('a')
       cy.get('#loginButton').click()
-      cy.expectChallengeSolved({ challenge: 'Ephemeral Accountant' })
+      expectLoginRejected()
+      expectChallengeNotSolved('Ephemeral Accountant')
     })
   })
 
