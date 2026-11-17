@@ -31,6 +31,7 @@ void describe('/rest/order-history', () => {
 
     assert.equal(res.status, 200)
     assert.equal(res.body.data[0].totalPrice, 8.96)
+    assert.equal(res.body.data[0].UserId, undefined)
     assert.equal(res.body.data[0].delivered, false)
     assert.equal(res.body.data[0].products[0].quantity, 3)
     assert.equal(res.body.data[0].products[0].name, 'Apple Juice (1000ml)')
