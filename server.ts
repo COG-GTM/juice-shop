@@ -129,6 +129,8 @@ import { ensureFileIsPassed, handleZipFileUpload, checkUploadSize, checkFileType
 
 const app = express()
 const server = new http.Server(app)
+export const metricsApp = express()
+const metricsServer = new http.Server(metricsApp)
 
 // errorhandler requires us from overwriting a string property on it's module which is a big no-no with esmodules :/
 
@@ -722,7 +724,7 @@ logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.to
 /* Serve metrics */
 let metricsUpdateLoop: any
 const Metrics = metrics.observeMetrics() // vuln-code-snippet neutral-line exposedMetricsChallenge
-app.get('/metrics', utils.asyncHandler(metrics.serveMetrics())) // vuln-code-snippet vuln-line exposedMetricsChallenge
+metricsApp.get('/metrics', utils.asyncHandler(metrics.serveMetrics())) // vuln-code-snippet vuln-line exposedMetricsChallenge
 errorhandler.title = `${config.get<string>('application.name')} (Express ${utils.version('express')})`
 
 export async function start (readyCallback?: () => void) {
@@ -736,6 +738,16 @@ export async function start (readyCallback?: () => void) {
 
   metricsUpdateLoop = Metrics.updateLoop() // vuln-code-snippet neutral-line exposedMetricsChallenge
 
+  const metricsPort = Number(process.env.METRICS_PORT ?? config.get<number>('server.metricsPort')) // vuln-code-snippet hide-line
+  const metricsHost = process.env.METRICS_HOST ?? config.get<string>('server.metricsHost') // vuln-code-snippet hide-line
+  metricsServer.on('error', (err: Error) => { logger.warn(colors.yellow(`Metrics server could not be started: ${err.message}`)) }) // vuln-code-snippet hide-line
+  try { // vuln-code-snippet hide-line
+    metricsServer.listen(metricsPort, metricsHost, () => { // vuln-code-snippet hide-line
+      logger.info(colors.cyan(`Metrics served on ${colors.bold(`http://${metricsHost}:${metricsPort}/metrics`)}`)) // vuln-code-snippet hide-line
+    }) // vuln-code-snippet hide-line
+  } catch (err: any) { // vuln-code-snippet hide-line
+    logger.warn(colors.yellow(`Metrics server could not be started: ${err.message}`)) // vuln-code-snippet hide-line
+  } // vuln-code-snippet hide-line
   server.listen(port, () => {
     logger.info(colors.cyan(`Server listening on port ${colors.bold(`${port}`)}`))
     startupGauge.set({ task: 'ready' }, (Date.now() - startTime) / 1000)
@@ -760,6 +772,7 @@ export function close (exitCode: number | undefined) {
   if (server) {
     clearInterval(metricsUpdateLoop)
     server.close()
+    metricsServer.close() // vuln-code-snippet hide-line
   }
   if (exitCode !== undefined) {
     process.exit(exitCode)

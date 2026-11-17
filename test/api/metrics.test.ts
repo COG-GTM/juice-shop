@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import path from 'node:path'
 import fs from 'node:fs'
 import { createTestApp } from './helpers/setup'
+import { metricsApp } from '../../server'
+import * as Prometheus from 'prom-client'
 
 let app: Express
 
@@ -19,8 +21,27 @@ before(async () => {
 }, { timeout: 60000 })
 
 void describe('/metrics', () => {
-  void it('GET metrics via public API that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET metrics is not served by the public application', async () => {
     const res = await request(app)
+      .get('/metrics')
+
+    assert.ok(!res.headers['content-type']?.includes('text/plain; version=0.0.4'))
+    assert.doesNotMatch(res.text, /_wallet_balance_total/)
+  })
+
+  void it('GET metrics via internal metrics listener', async () => {
+    new Prometheus.Counter({ name: 'metrics_listener_test_count', help: 'Test counter.' }).inc()
+
+    const res = await request(metricsApp)
+      .get('/metrics')
+      .expect(200)
+
+    assert.ok(res.headers['content-type']?.includes('text/plain'))
+    assert.match(res.text, /^metrics_listener_test_count(\{.*\})? 1$/m)
+  })
+
+  void it('GET metrics via internal metrics listener that are available instantaneously', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+    const res = await request(metricsApp)
       .get('/metrics')
       .expect(200)
 
@@ -40,7 +61,7 @@ void describe('/metrics', () => {
     assert.match(res.text, /^http_requests_count{status_code="[0-9]XX",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload metrics via internal metrics listener', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const file = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
 
     await request(app)
@@ -48,7 +69,7 @@ void describe('/metrics', () => {
       .attach('file', fs.readFileSync(file), 'validSizeAndTypeForClient.pdf')
       .expect(204)
 
-    const res = await request(app)
+    const res = await request(metricsApp)
       .get('/metrics')
       .expect(200)
 
@@ -56,7 +77,7 @@ void describe('/metrics', () => {
     assert.match(res.text, /^file_uploads_count{file_type=".*",app=".*"} [0-9]*$/gm)
   })
 
-  void it('GET file upload error metrics via public API', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
+  void it('GET file upload error metrics via internal metrics listener', { skip: 'FIXME Flaky on CI/CD on at least Windows' }, async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
 
     await request(app)
@@ -64,7 +85,7 @@ void describe('/metrics', () => {
       .attach('file', fs.readFileSync(file), 'invalidSizeForServer.pdf')
       .expect(500)
 
-    const res = await request(app)
+    const res = await request(metricsApp)
       .get('/metrics')
       .expect(200)
 

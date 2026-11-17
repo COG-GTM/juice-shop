@@ -11,7 +11,6 @@ import { WalletModel } from '../models/wallet'
 import { FeedbackModel } from '../models/feedback'
 import { ComplaintModel } from '../models/complaint'
 import { Op } from 'sequelize'
-import * as challengeUtils from '../lib/challengeUtils'
 import logger from '../lib/logger'
 import config from 'config'
 import * as utils from '../lib/utils'
@@ -65,11 +64,6 @@ export function observeFileUploadMetricsMiddleware () {
 
 export function serveMetrics () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    challengeUtils.solveIf(challenges.exposedMetricsChallenge, () => {
-      const userAgent = req.headers['user-agent'] ?? ''
-      const ignoredUserAgents = config.get<string[]>('challenges.metricsIgnoredUserAgents')
-      return !ignoredUserAgents.some((ignoredUserAgent) => userAgent.includes(ignoredUserAgent))
-    })
     res.set('Content-Type', register.contentType)
     res.end(await register.metrics())
   }

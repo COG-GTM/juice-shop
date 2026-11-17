@@ -1,6 +1,10 @@
 server:
   port:
     type: number
+  metricsPort:
+    type: number
+  metricsHost:
+    type: string
   basePath:
     type: string
   baseUrl:
