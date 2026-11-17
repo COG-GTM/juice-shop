@@ -74,6 +74,14 @@ void describe('/api/Recycles', () => {
     }
   })
 
+  void it('GET recycle with a JSON array or object as id is rejected', async () => {
+    for (const id of ['[1,2,3]', '%7B%22%24gt%22%3A0%7D']) {
+      const res = await request(app)
+        .get(`/api/Recycles/${id}`)
+      assert.equal(res.status, 400)
+    }
+  })
+
   void it('PUT update existing recycle is forbidden', async () => {
     const res = await request(app)
       .put('/api/Recycles/1')
