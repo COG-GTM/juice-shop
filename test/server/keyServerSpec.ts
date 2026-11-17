@@ -7,6 +7,7 @@ import sinon from 'sinon'
 import chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { serveKeyFiles } from '../../routes/keyServer'
+import * as security from '../../lib/insecurity'
 const expect = chai.expect
 chai.use(sinonChai)
 
@@ -27,6 +28,18 @@ describe('keyServer', () => {
     serveKeyFiles()(req, res, next)
 
     expect(res.sendFile).to.have.been.calledWith(sinon.match(/encryptionkeys[/\\]test.file/))
+  })
+
+  it('should serve the current JWT public key as jwt.pub', () => {
+    req.params.file = 'jwt.pub'
+    res.type = sinon.stub().returns(res)
+    res.end = sinon.spy()
+
+    serveKeyFiles()(req, res, next)
+
+    expect(res.type).to.have.been.calledWith('text/plain')
+    expect(res.end).to.have.been.calledWith(security.publicKey)
+    expect(res.sendFile).to.have.not.been.calledWith(sinon.match.any)
   })
 
   it('should raise error for slashes in filename', () => {
