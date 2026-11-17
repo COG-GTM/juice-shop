@@ -5,6 +5,8 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
+import config from 'config'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
@@ -15,11 +17,13 @@ import * as utils from '../../lib/utils'
 
 let app: Express
 let authHeader: Record<string, string>
+let adminHeader: Record<string, string>
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
   authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+  adminHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: security.roles.admin } })}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
@@ -30,13 +34,45 @@ void describe('/api/Users', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all users', async () => {
+  void it('GET all users is forbidden for non-admin users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users is forbidden for logged-in customers', async () => {
+    const token = await login(app, { email: `jim@${config.get<string>('application.domain')}`, password: 'ncc-1701' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${token.token}` })
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET all users is forbidden with an unsigned admin token', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })).toString('base64url')
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${header}.${payload}.` })
+    assert.notEqual(res.status, 200)
+  })
+
+  void it('GET all users is forbidden with an HS256 admin token signed with the public key', async () => {
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+    const payload = Buffer.from(JSON.stringify({ data: { email: 'admin@juice-sh.op', role: security.roles.admin } })).toString('base64url')
+    const signature = crypto.createHmac('sha256', security.publicKey).update(`${header}.${payload}`).digest('base64url')
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${header}.${payload}.${signature}` })
+    assert.notEqual(res.status, 200)
+  })
+
+  void it('GET all users as logged-in admin', async () => {
+    const token = await login(app, { email: `admin@${config.get<string>('application.domain')}`, password: 'admin123' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${token.token}` })
+    assert.equal(res.status, 200)
+  })
+
+  void it('GET all users as admin', async () => {
+    const res = await request(app).get('/api/Users').set(adminHeader)
     assert.equal(res.status, 200)
   })
 
   void it('GET all users doesnt include passwords', async () => {
-    const res = await request(app).get('/api/Users').set(authHeader)
+    const res = await request(app).get('/api/Users').set(adminHeader)
     assert.equal(res.status, 200)
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
