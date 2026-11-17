@@ -141,6 +141,15 @@ describe('LoginComponent', () => {
         expect(sessionStorage.getItem('bid')).toBe('4711')
     })
 
+    it('removes session and basket id when session refresh fails after login', () => {
+        userService.login.mockReturnValue(of({ bid: 1 }))
+        userService.refreshSession.mockReturnValue(throwError(() => new Error('No authenticated session')))
+        localStorage.setItem('session', JSON.stringify({ id: 1 }))
+        component.login()
+        expect(localStorage.getItem('session')).toBeNull()
+        expect(sessionStorage.getItem('bid')).toBeNull()
+    })
+
     it('removes session and basket id on failed login attempt', () => {
         localStorage.setItem('session', JSON.stringify({ id: 1 }))
         userService.login.mockReturnValue(throwError({ error: 'Error' }))

@@ -105,14 +105,23 @@ export class LoginComponent implements OnInit {
 
         this.userService.refreshSession()
           .pipe(
-            switchMap(() => this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid)),
-            catchError((err) => {
-              console.log(err)
-              return of(void 0)
-            })
+            switchMap(() => this.basketService.mergeGuestBasketIntoUserBasket(authentication.bid).pipe(
+              catchError((err) => {
+                console.log(err)
+                return of(void 0)
+              })
+            ))
           )
-          .subscribe(() => {
-            this.completeLogin(redirectUrl)
+          .subscribe({
+            next: () => {
+              this.completeLogin(redirectUrl)
+            },
+            error: (err) => {
+              console.log(err)
+              clearSession()
+              sessionStorage.removeItem('bid')
+              this.userService.isLoggedIn.next(false)
+            }
           })
       },
       error: ({ error }) => {

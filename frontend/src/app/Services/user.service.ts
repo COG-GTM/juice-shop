@@ -57,6 +57,7 @@ export class UserService {
         storeSession(user)
       } else {
         clearSession()
+        throw new Error('No authenticated session')
       }
     }))
   }
