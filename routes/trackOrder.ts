@@ -8,6 +8,7 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { type Request, type Response } from 'express'
 import * as db from '../data/mongodb'
 import { challenges } from '../data/datacache'
+import { withoutUserId } from './orderHistory'
 
 export function trackOrder () {
   return (req: Request, res: Response) => {
@@ -16,7 +17,7 @@ export function trackOrder () {
 
     challengeUtils.solveIf(challenges.reflectedXssChallenge, () => { return utils.contains(id, '<iframe src="javascript:alert(`xss`)">') })
     db.ordersCollection.find({ $where: `this.orderId === '${id}'` }).then((order: any) => {
-      const result = utils.queryResultToJson(order)
+      const result = utils.queryResultToJson(order.map(withoutUserId))
       challengeUtils.solveIf(challenges.noSqlOrdersChallenge, () => { return result.data.length > 1 })
       if (result.data[0] === undefined) {
         result.data[0] = { orderId: id }
