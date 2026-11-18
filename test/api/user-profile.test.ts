@@ -51,4 +51,23 @@ void describe('/profile', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const payload of ['a#{7*7}', '#{7*7}']) {
+    void it(`GET user profile renders username ${payload} as literal text instead of evaluating it`, async () => {
+      await request(app)
+        .post('/profile')
+        .set('Cookie', authHeader.Cookie)
+        .type('form')
+        .send({ username: payload })
+        .redirects(0)
+
+      const res = await request(app)
+        .get('/profile')
+        .set(authHeader)
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes(`>${payload}</p>`))
+      assert.ok(!res.text.includes('49</p>'))
+    })
+  }
 })
