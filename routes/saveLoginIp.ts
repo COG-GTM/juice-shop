@@ -22,7 +22,15 @@ export function saveLoginIp () {
       if (utils.isChallengeEnabled(challenges.httpHeaderXssChallenge)) {
         challengeUtils.solveIf(challenges.httpHeaderXssChallenge, () => { return lastLoginIp === '<iframe src="javascript:alert(`xss`)">' })
       } else {
-        lastLoginIp = security.sanitizeSecure(lastLoginIp ?? '')
+        try {
+          lastLoginIp = security.sanitizeSecure(lastLoginIp ?? '')
+        } catch (error) {
+          if (error instanceof security.SanitizationLimitError) {
+            res.status(400).json({ error: error.message })
+            return
+          }
+          throw error
+        }
       }
       if (lastLoginIp === undefined) {
         lastLoginIp = utils.toSimpleIpAddress(req.socket.remoteAddress ?? '')

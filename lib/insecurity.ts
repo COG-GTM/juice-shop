@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
+import { ValidationError } from 'sequelize'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -60,13 +61,29 @@ export const decode = (token: string) => { return jws.decode(token)?.payload }
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
 export const sanitizeFilename = (filename: string) => sanitizeFilenameLib(filename)
-export const sanitizeSecure = (html: string): string => {
-  const sanitized = sanitizeHtml(html)
-  if (sanitized === html) {
-    return html
-  } else {
-    return sanitizeSecure(sanitized)
+export const SANITIZE_SECURE_MAX_LENGTH = 2000
+export const SANITIZE_SECURE_MAX_PASSES = 10
+
+export class SanitizationLimitError extends ValidationError {
+  constructor (message: string) {
+    super(message, [])
+    this.name = 'SanitizationLimitError'
   }
+}
+
+export const sanitizeSecure = (html: string): string => {
+  if (typeof html === 'string' && html.length > SANITIZE_SECURE_MAX_LENGTH) {
+    throw new SanitizationLimitError(`Input exceeds maximum length of ${SANITIZE_SECURE_MAX_LENGTH} characters`)
+  }
+  let current = html
+  for (let pass = 0; pass < SANITIZE_SECURE_MAX_PASSES; pass++) {
+    const sanitized = sanitizeHtml(current)
+    if (sanitized === current) {
+      return current
+    }
+    current = sanitized
+  }
+  throw new SanitizationLimitError(`Input did not settle within ${SANITIZE_SECURE_MAX_PASSES} sanitization passes`)
 }
 
 export const authenticatedUsers: IAuthenticatedUsers = {
