@@ -63,7 +63,7 @@ export function getUserProfile () {
         username = '\\' + username
       }
     } else {
-      username = '\\' + username
+      username = '\\' + (username ?? '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     }
 
     const themeKey = config.get<string>('application.theme') as keyof typeof themes

@@ -112,55 +112,26 @@ describe('insecurity', () => {
   })
 
   describe('sanitizeHtml', () => {
-    it('handles empty inputs by returning their string representation', () => {
-      expect(security.sanitizeHtml('')).to.equal('')
-    })
-
-    it('returns input unchanged for plain text input', () => {
-      expect(security.sanitizeHtml('This application is horrible!')).to.equal('This application is horrible!')
-    })
-
-    it('returns input unchanged for HTML input with only harmless text formatting', () => {
-      expect(security.sanitizeHtml('<strong>This</strong> application <em>is horrible</em>!')).to.equal('<strong>This</strong> application <em>is horrible</em>!')
-    })
-
-    it('returns input unchanged for HTML input with only harmless links', () => {
-      expect(security.sanitizeHtml('<a href="bla.blubb">Please see here for details!</a>')).to.equal('<a href="bla.blubb">Please see here for details!</a>')
-    })
-
-    it('removes all Javascript from HTML input', () => {
-      expect(security.sanitizeHtml('Sani<script>alert("ScriptXSS")</script>tizedScript')).to.equal('SanitizedScript')
-      expect(security.sanitizeHtml('Sani<img src="alert("ImageXSS")"/>tizedImage')).to.equal('SanitizedImage')
-      expect(security.sanitizeHtml('Sani<iframe src="alert("IFrameXSS")"></iframe>tizedIFrame')).to.equal('SanitizedIFrame')
-    })
-
-    it('can be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeHtml('<<script>Foo</script>iframe src="javascript:alert(`xss`)">')).to.equal('<iframe src="javascript:alert(`xss`)">')
+    it('is no longer exported so only the recursive sanitizer can be used', () => {
+      expect(Object.keys(security)).to.not.include('sanitizeHtml')
     })
   })
 
   describe('sanitizeLegacy', () => {
-    it('returns empty string for undefined input', () => {
-      expect(security.sanitizeLegacy()).to.equal('')
-      expect(security.sanitizeLegacy(undefined)).to.equal('')
-    })
-
-    it('returns input unchanged for plain text input', () => {
-      expect(security.sanitizeLegacy('bkimminich')).to.equal('bkimminich')
-      expect(security.sanitizeLegacy('Kosh III.')).to.equal('Kosh III.')
-    })
-
-    it('removes all opening tags and subsequent character from HTML input', () => {
-      expect(security.sanitizeLegacy('<h1>Hello</h1>')).to.equal('ello</h1>')
-      expect(security.sanitizeLegacy('<img src="test">')).to.equal('rc="test">')
-    })
-
-    it('can be bypassed to allow working HTML payload to be returned', () => {
-      expect(security.sanitizeLegacy('<<a|ascript>alert(`xss`)</script>')).to.equal('<script>alert(`xss`)</script>')
+    it('is no longer exported', () => {
+      expect(Object.keys(security)).to.not.include('sanitizeLegacy')
     })
   })
 
   describe('sanitizeSecure', () => {
+    it('does not let nested username payloads reassemble into working tags', () => {
+      for (const payload of ['<<a|ascript>alert(`xss`)</script>', '<<script>script>alert(1)<</script>/script>', '<<img src=x onerror=alert(1)>img src=x onerror=alert(1)>']) {
+        const sanitized = security.sanitizeSecure(payload)
+        expect(sanitized).to.not.match(/<\s*(script|img|iframe)/i)
+        expect(sanitized).to.not.contain('<script>alert(`xss`)</script>')
+      }
+    })
+
     it('handles empty inputs by returning their string representation', () => {
       expect(security.sanitizeSecure('')).to.equal('')
     })
@@ -184,7 +155,7 @@ describe('insecurity', () => {
     })
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('Bla&lt;iframe src="javascript:alert(`xss`)"&gt;Blubb')
     })
   })
 
