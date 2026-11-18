@@ -87,6 +87,34 @@ void describe('/rest/memories', () => {
     assert.deepEqual(uploadedFiles('oversized'), filesBefore)
   })
 
+  void it('POST new memory with too many form fields is rejected and not kept on disk', async () => {
+    const token = await jimsToken()
+    const filesBefore = uploadedFiles('fieldflood')
+    let req = request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', path.resolve(__dirname, '../files/validProfileImage.jpg'), { filename: 'fieldflood.jpg', contentType: 'image/jpeg' })
+    for (let i = 0; i < 10; i++) {
+      req = req.field('field' + i, 'x')
+    }
+    const res = await req
+    assert.equal(res.status, 413)
+    assert.equal(res.body.error, 'Too many or too large form parts')
+    assert.deepEqual(uploadedFiles('fieldflood'), filesBefore)
+  })
+
+  void it('POST new memory with an oversized caption field is rejected and not kept on disk', async () => {
+    const token = await jimsToken()
+    const filesBefore = uploadedFiles('bigcaption')
+    const res = await request(app)
+      .post('/rest/memories')
+      .set('Authorization', 'Bearer ' + token)
+      .attach('image', path.resolve(__dirname, '../files/validProfileImage.jpg'), { filename: 'bigcaption.jpg', contentType: 'image/jpeg' })
+      .field('caption', 'a'.repeat(100001))
+    assert.equal(res.status, 413)
+    assert.deepEqual(uploadedFiles('bigcaption'), filesBefore)
+  })
+
   void it('POST new memory with non-image content declared as image/png is rejected and not kept on disk', async () => {
     const token = await jimsToken()
     const filesBefore = uploadedFiles('disguised')

@@ -121,6 +121,18 @@ void describe('/file-upload', () => {
     assert.equal(res.status, 500)
   })
 
+  void it('POST file upload with too many form fields is rejected', async () => {
+    let req = request(app)
+      .post('/file-upload')
+      .attach('file', path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf'))
+    for (let i = 0; i < 20; i++) {
+      req = req.field('field' + i, 'x')
+    }
+    const res = await req
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Too many parts'))
+  })
+
   void it('POST zip file with directory traversal payload', async () => {
     const file = path.resolve(__dirname, '../files/arbitraryFileWrite.zip')
     const res = await request(app)
