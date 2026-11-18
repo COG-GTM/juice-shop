@@ -105,6 +105,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.from({ headers: { authorization: 'Bearer 11111' } } as unknown as Request)).to.deep.equal({ data: { id: 1 } })
     })
 
+    it('returns undefined for tokens matching Object.prototype members', () => {
+      for (const token of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      }
+    })
+
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
