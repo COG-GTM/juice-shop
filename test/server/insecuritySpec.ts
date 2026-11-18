@@ -99,6 +99,12 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
     })
 
+    it('keeps server-side only claims like deluxeToken and lastLoginIp in the session', () => {
+      security.authenticatedUsers.put('33333', { data: { id: 3, role: 'deluxe', deluxeToken: 'dt', lastLoginIp: '1.2.3.4', password: 'hash' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('33333')).to.deep.equal({ data: { id: 3, role: 'deluxe', deluxeToken: 'dt', lastLoginIp: '1.2.3.4' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -127,7 +133,7 @@ describe('insecurity', () => {
       })
 
       expect(payloadOf(token).status).to.equal('success')
-      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png' })
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', profileImage: 'x.png' })
     })
 
     it('leaves payloads without user data unchanged', () => {
@@ -135,6 +141,28 @@ describe('insecurity', () => {
 
       expect(payloadOf(token).userId).to.equal(10)
       expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('isDeluxe', () => {
+    const deluxeUser = { id: 4, email: 'deluxe@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('deluxe@b.c') }
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+    const requestWith = (token: string) => ({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)
+
+    it('accepts a deluxe token whose session holds the matching deluxeToken', () => {
+      const token = security.authorize({ data: deluxeUser })
+      security.authenticatedUsers.put(token, { data: deluxeUser } as any)
+
+      expect(payloadOf(token).data.deluxeToken).to.equal(undefined)
+      expect(security.isDeluxe(requestWith(token))).to.equal(true)
+    })
+
+    it('rejects a deluxe role without a valid deluxeToken in the session', () => {
+      const user = { ...deluxeUser, id: 5, email: 'fake@b.c', deluxeToken: '' }
+      const token = security.authorize({ data: user })
+      security.authenticatedUsers.put(token, { data: user } as any)
+
+      expect(security.isDeluxe(requestWith(token))).to.equal(false)
     })
   })
 

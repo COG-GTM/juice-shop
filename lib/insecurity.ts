@@ -53,14 +53,15 @@ export const cutOffPoisonNullByte = (str: string) => {
 
 export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
-const tokenUserClaims = ['id', 'email', 'username', 'role', 'deluxeToken', 'lastLoginIp', 'profileImage']
+const tokenUserClaims = ['id', 'email', 'username', 'role', 'profileImage']
+const sessionUserClaims = [...tokenUserClaims, 'deluxeToken', 'lastLoginIp']
 
-export const tokenPayload = (payload: any = {}) => {
+export const tokenPayload = (payload: any = {}, claims: string[] = tokenUserClaims) => {
   if (payload?.data === null || typeof payload?.data !== 'object') {
     return payload
   }
   const data: Record<string, unknown> = {}
-  for (const claim of tokenUserClaims) {
+  for (const claim of claims) {
     if (payload.data[claim] !== undefined) {
       data[claim] = payload.data[claim]
     }
@@ -90,7 +91,7 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: new Map(),
   idMap: new Map(),
   put: function (token: string, user: ResponseWithUser) {
-    this.tokenMap.set(token, tokenPayload(user))
+    this.tokenMap.set(token, tokenPayload(user, sessionUserClaims))
     this.idMap.set(String(user.data.id), token)
   },
   get: function (token?: string) {
@@ -182,8 +183,10 @@ export const isAccounting = () => {
 }
 
 export const isDeluxe = (req: Request) => {
-  const decodedToken = verify(utils.jwtFrom(req)) && decode(utils.jwtFrom(req))
-  return decodedToken?.data?.role === roles.deluxe && decodedToken?.data?.deluxeToken && decodedToken?.data?.deluxeToken === deluxeToken(decodedToken?.data?.email)
+  const token = utils.jwtFrom(req)
+  const decodedToken = verify(token) && decode(token)
+  const userDeluxeToken = authenticatedUsers.get(token)?.data?.deluxeToken ?? decodedToken?.data?.deluxeToken
+  return decodedToken?.data?.role === roles.deluxe && !!userDeluxeToken && userDeluxeToken === deluxeToken(decodedToken?.data?.email)
 }
 
 export const isCustomer = (req: Request) => {
