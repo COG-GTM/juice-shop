@@ -5,6 +5,7 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { BasketItemModel } from '../models/basketitem'
+import { BasketModel } from '../models/basket'
 import { QuantityModel } from '../models/quantity'
 import * as challengeUtils from '../lib/challengeUtils'
 
@@ -14,6 +15,31 @@ import * as security from '../lib/insecurity'
 
 interface RequestWithRawBody extends Request {
   rawBody: string
+}
+
+async function basketIdsOf (userId: number) {
+  const baskets = await BasketModel.findAll({ where: { UserId: userId }, attributes: ['id'] })
+  return baskets.map((basket) => basket.id)
+}
+
+export function getBasketItems () {
+  return async (req: Request, res: Response) => {
+    const basketItems = await BasketItemModel.findAll({ where: { BasketId: await basketIdsOf(req.body.UserId) } })
+    res.status(200).json({ status: 'success', data: basketItems })
+  }
+}
+
+export function getBasketItemById () {
+  return async (req: Request, res: Response) => {
+    const basketItem = /^\d+$/.test(req.params.id)
+      ? await BasketItemModel.findOne({ where: { id: Number(req.params.id), BasketId: await basketIdsOf(req.body.UserId) } })
+      : null
+    if (basketItem != null) {
+      res.status(200).json({ status: 'success', data: basketItem })
+    } else {
+      res.status(404).json({ status: 'error', data: 'Basket item not found.' })
+    }
+  }
 }
 
 export function addBasketItem () {

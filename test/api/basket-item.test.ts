@@ -43,9 +43,13 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all basket items', async () => {
+  void it('GET all basket items returns only items of own basket', async () => {
     const res = await request(app).get('/api/BasketItems').set(authHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const item of res.body.data) {
+      assert.equal(item.BasketId, 2)
+    }
   })
 
   void it('POST new basket item', async () => {
@@ -78,6 +82,11 @@ void describe('/api/BasketItems/:id', () => {
   void it('GET basket item by id is forbidden via public API', async () => {
     const res = await request(app).get('/api/BasketItems/1')
     assert.equal(res.status, 401)
+  })
+
+  void it('GET basket item of another user is not found', async () => {
+    const res = await request(app).get('/api/BasketItems/1').set(authHeader)
+    assert.equal(res.status, 404)
   })
 
   void it('PUT update basket item is forbidden via public API', async () => {

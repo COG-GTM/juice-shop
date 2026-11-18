@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
@@ -39,11 +40,26 @@ void describe('/api/Complaints', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('GET all complaints', async () => {
+  void it('GET complaints returns only the complaints of the logged-in user', async () => {
+    const jim = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const bender = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const jimHeader = { Authorization: `Bearer ${jim.token}`, 'content-type': 'application/json' }
+    const benderHeader = { Authorization: `Bearer ${bender.token}`, 'content-type': 'application/json' }
+    const jimId = (await request(app).get('/rest/user/whoami').set('Cookie', `token=${jim.token}`)).body.user.id
+
+    await request(app).post('/api/Complaints').set(jimHeader).send({ UserId: jimId, message: 'Jim complaint' })
+    const benderId = (await request(app).get('/rest/user/whoami').set('Cookie', `token=${bender.token}`)).body.user.id
+    await request(app).post('/api/Complaints').set(benderHeader).send({ UserId: benderId, message: 'Bender complaint' })
+
     const res = await request(app)
       .get('/api/Complaints')
-      .set(authHeader)
+      .set(jimHeader)
     assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    for (const complaint of res.body.data) {
+      assert.equal(complaint.UserId, jimId)
+    }
+    assert.ok(!res.body.data.some((complaint: any) => complaint.message === 'Bender complaint'))
   })
 })
 

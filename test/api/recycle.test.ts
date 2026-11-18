@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
+import { login } from './helpers/auth'
 
 let app: Express
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
@@ -44,12 +45,21 @@ void describe('/api/Recycles', () => {
     assert.equal(res.body.data.err, 'Sorry, this endpoint is not supported.')
   })
 
-  void it('Will GET existing recycle from this endpoint', async () => {
-    // First create a recycle so we can GET it
-    await request(app)
+  void it('GET recycle by id is forbidden via public API', async () => {
+    const res = await request(app)
+      .get('/api/Recycles/1')
+    assert.equal(res.status, 401)
+  })
+
+  void it('Will GET own existing recycle from this endpoint', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const jimHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+    const jimId = (await request(app).get('/rest/user/whoami').set('Cookie', `token=${token}`)).body.user.id
+    const createRes = await request(app)
       .post('/api/Recycles')
-      .set(authHeader)
+      .set(jimHeader)
       .send({
+        UserId: jimId,
         quantity: 100,
         AddressId: '1',
         isPickup: false,
@@ -57,7 +67,8 @@ void describe('/api/Recycles', () => {
       })
 
     const res = await request(app)
-      .get('/api/Recycles/1')
+      .get('/api/Recycles/' + createRes.body.data.id)
+      .set(jimHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     const items = res.body.data
@@ -72,6 +83,28 @@ void describe('/api/Recycles', () => {
       assert.equal(typeof item.createdAt, 'string')
       assert.equal(typeof item.updatedAt, 'string')
     }
+    assert.equal(items.length, 1)
+  })
+
+  void it('Will not GET recycles of other users', async () => {
+    const { token } = await login(app, { email: 'bender@juice-sh.op', password: 'OhG0dPlease1nsertLiquor!' })
+    const benderHeader = { Authorization: `Bearer ${token}`, 'content-type': 'application/json' }
+    const benderId = (await request(app).get('/rest/user/whoami').set('Cookie', `token=${token}`)).body.user.id
+    const res = await request(app)
+      .get('/api/Recycles/1')
+      .set(benderHeader)
+    assert.equal(res.status, 200)
+    for (const item of res.body.data) {
+      assert.equal(item.UserId, benderId)
+    }
+  })
+
+  void it('Will reject non-integer recycle ids', async () => {
+    const { token } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const res = await request(app)
+      .get('/api/Recycles/' + encodeURIComponent('[1,2,3]'))
+      .set({ Authorization: `Bearer ${token}` })
+    assert.equal(res.status, 400)
   })
 
   void it('PUT update existing recycle is forbidden', async () => {
