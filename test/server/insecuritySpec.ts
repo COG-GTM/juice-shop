@@ -5,6 +5,7 @@
 
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
+import crypto from 'node:crypto'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
@@ -108,6 +109,51 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('JWT verification', () => {
+    const encode = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = { data: { id: 1, email: 'admin@juice-sh.op', role: 'accounting' }, iat: 1508639612, exp: 9999999999 }
+    const unsignedToken = `${encode({ alg: 'none', typ: 'JWT' })}.${encode(payload)}.`
+    const hs256SigningInput = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(payload)}`
+    const hs256Token = `${hs256SigningInput}.${crypto.createHmac('sha256', security.publicKey).update(hs256SigningInput).digest('base64url')}`
+
+    it('accepts tokens issued by authorize()', () => {
+      expect(security.verify(security.authorize({ data: payload.data }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects tokens HMAC-signed with the public key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('does not register unsigned or HS256-forged tokens as authenticated users', () => {
+      for (const token of [unsignedToken, hs256Token]) {
+        const req = { cookies: {}, headers: { authorization: `Bearer ${token}` } } as unknown as Request
+        const res = { cookie: () => {} } as any
+        let calledNext = false
+        security.updateAuthenticatedUsers()(req, res, () => { calledNext = true })
+        expect(calledNext).to.equal(true)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+      }
+    })
+
+    it('rejects forged tokens in isAuthorized() with 401', async () => {
+      for (const token of [unsignedToken, hs256Token]) {
+        const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+        const error: any = await new Promise((resolve) => { void security.isAuthorized()(req, {} as any, resolve) })
+        expect(error?.status).to.equal(401)
+      }
+    })
+
+    it('denyAll() rejects even validly signed tokens with 401', () => {
+      let error: any
+      security.denyAll()({ headers: { authorization: `Bearer ${security.authorize({ data: payload.data })}` } } as unknown as Request, {} as any, (err?: any) => { error = err })
+      expect(error?.status).to.equal(401)
     })
   })
 
