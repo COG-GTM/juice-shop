@@ -213,9 +213,24 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
           res.cookie('token', token, tokenCookieOptions(req))
+          restoreSessionClaims(token, decoded).finally(next)
+          return
         }
       }
+      next()
     })
+  } else {
+    next()
   }
-  next()
+}
+
+const restoreSessionClaims = async (token: string, decoded: any) => {
+  if (decoded?.data?.id === undefined) return
+  try {
+    const { UserModel } = await import('../models/user')
+    const user = await UserModel.findByPk(decoded.data.id)
+    if (user != null) {
+      authenticatedUsers.put(token, { ...decoded, data: { ...decoded.data, deluxeToken: user.deluxeToken, lastLoginIp: user.lastLoginIp } })
+    }
+  } catch {}
 }
