@@ -7,13 +7,13 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing'
 
 import { ComplaintService } from './complaint.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ComplaintService', () => {
     beforeEach(() => {
         TestBed.configureTestingModule({
             imports: [],
-            providers: [ComplaintService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [ComplaintService, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
     })
 

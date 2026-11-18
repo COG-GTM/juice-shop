@@ -26,7 +26,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox'
 import { EventEmitter } from '@angular/core'
 import { of } from 'rxjs'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('AddressSelectComponent', () => {
     let component: AddressSelectComponent
@@ -67,7 +67,7 @@ describe('AddressSelectComponent', () => {
                 MatCheckboxModule,
                 AddressSelectComponent, AddressComponent, DeliveryMethodComponent],
             providers: [{ provide: TranslateService, useValue: translateService },
-                { provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+                { provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })

@@ -1,9 +1,10 @@
-import { Component, Input } from '@angular/core'
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core'
 
 @Component({
   selector: 'difficulty-stars',
   templateUrl: './difficulty-stars.component.html',
   styleUrls: ['./difficulty-stars.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: []
 })
 export class DifficultyStarsComponent {

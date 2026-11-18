@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing'
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
 import { CodeFixesService } from './code-fixes.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('CodeFixesService', () => {
     let service: CodeFixesService
@@ -9,7 +9,7 @@ describe('CodeFixesService', () => {
     beforeEach(() => {
         TestBed.configureTestingModule({
             imports: [],
-            providers: [CodeFixesService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [CodeFixesService, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
         service = TestBed.inject(CodeFixesService)
     })

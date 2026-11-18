@@ -1,4 +1,4 @@
-import { Component, Input, type OnChanges, type OnInit } from '@angular/core'
+import { Component, Input, type OnChanges, type OnInit, ChangeDetectionStrategy } from '@angular/core'
 
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { TranslateModule } from '@ngx-translate/core'
@@ -28,6 +28,7 @@ const INITIAL_SUMMARIES: Readonly<DifficultySummaries> = Object.freeze({
   selector: 'difficulty-overview-score-card',
   templateUrl: './difficulty-overview-score-card.component.html',
   styleUrls: ['./difficulty-overview-score-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [ScoreCardComponent, TranslateModule]
 })
 export class DifficultyOverviewScoreCardComponent implements OnInit, OnChanges {

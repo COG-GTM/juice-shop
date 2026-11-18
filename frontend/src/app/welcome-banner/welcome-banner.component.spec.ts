@@ -15,7 +15,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('WelcomeBannerComponent', () => {
     let component: WelcomeBannerComponent
@@ -42,7 +42,7 @@ describe('WelcomeBannerComponent', () => {
                 { provide: MatDialogRef, useValue: matDialogRef },
                 { provide: ConfigurationService, useValue: configurationService },
                 CookieService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

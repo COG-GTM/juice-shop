@@ -19,7 +19,7 @@ import { ChallengeSolvedNotificationComponent } from './challenge-solved-notific
 import { of, throwError } from 'rxjs'
 import { EventEmitter } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -92,7 +92,7 @@ describe('ChallengeSolvedNotificationComponent', () => {
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CountryMappingService, useValue: countryMappingService },
                 { provide: SnackBarHelperService, useValue: snackBarHelperService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

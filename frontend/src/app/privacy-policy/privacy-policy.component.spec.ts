@@ -11,7 +11,7 @@ import { ConfigurationService } from '../Services/configuration.service'
 import { MatCardModule } from '@angular/material/card'
 import { MatDividerModule } from '@angular/material/divider'
 import { throwError, of } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 import { PrivacyPolicyComponent } from './privacy-policy.component'
 
@@ -43,7 +43,7 @@ describe('PrivacyPolicyComponent', () => {
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         }).compileComponents()

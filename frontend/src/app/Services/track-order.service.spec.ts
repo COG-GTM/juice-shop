@@ -7,13 +7,13 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing'
 
 import { TrackOrderService } from './track-order.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('TrackOrderService', () => {
     beforeEach(() => {
         TestBed.configureTestingModule({
             imports: [],
-            providers: [TrackOrderService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [TrackOrderService, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
     })
 

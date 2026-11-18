@@ -18,7 +18,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 import { FeedbackService } from '../Services/feedback.service'
 import { MatSliderModule } from '@angular/material/slider'
 import { of, throwError } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ContactComponent', () => {
     let component: ContactComponent
@@ -69,7 +69,7 @@ describe('ContactComponent', () => {
                 { provide: FeedbackService, useValue: feedbackService },
                 { provide: CaptchaService, useValue: captchaService },
                 { provide: TranslateService, useValue: translateService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

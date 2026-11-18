@@ -6,7 +6,7 @@
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing'
 import { TestBed } from '@angular/core/testing'
 import { ChatService, type ChatChunk } from './chat.service'
-import { provideHttpClient, withInterceptorsFromDi, HttpEventType } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, HttpEventType, withXhr } from '@angular/common/http'
 
 describe('ChatService', () => {
   let service: ChatService
@@ -16,7 +16,7 @@ describe('ChatService', () => {
     TestBed.configureTestingModule({
       providers: [
         ChatService,
-        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClient(withXhr(), withInterceptorsFromDi()),
         provideHttpClientTesting()
       ]
     })

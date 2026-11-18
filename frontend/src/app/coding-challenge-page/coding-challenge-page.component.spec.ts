@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, input, output } from '@angular/core'
+import { Component, input, output, ChangeDetectionStrategy } from '@angular/core'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { TranslateModule } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { ActivatedRoute, provideRouter } from '@angular/router'
 import { of, Subject, throwError } from 'rxjs'
 
@@ -18,7 +18,8 @@ import { ChallengeService } from '../Services/challenge.service'
 import { CodingChallengeFindItComponent } from './components/coding-challenge-find-it/coding-challenge-find-it.component'
 import { CodingChallengeFixItComponent } from './components/coding-challenge-fix-it/coding-challenge-fix-it.component'
 
-@Component({ selector: 'coding-challenge-find-it', template: '', standalone: true })
+@Component({ selector: 'coding-challenge-find-it', template: '', changeDetection: ChangeDetectionStrategy.Eager,
+ standalone: true })
 class MockFindItComponent {
     readonly challengeKey = input.required<string>()
     readonly snippet = input.required<any>()
@@ -26,7 +27,8 @@ class MockFindItComponent {
     readonly solved = output<void>()
 }
 
-@Component({ selector: 'coding-challenge-fix-it', template: '', standalone: true })
+@Component({ selector: 'coding-challenge-fix-it', template: '', changeDetection: ChangeDetectionStrategy.Eager,
+ standalone: true })
 class MockFixItComponent {
     readonly challengeKey = input.required<string>()
     readonly snippet = input.required<any>()
@@ -86,7 +88,7 @@ describe('CodingChallengePageComponent', () => {
                     provide: ActivatedRoute,
                     useValue: { params: of({ challengeKey: 'testChallenge' }) }
                 },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

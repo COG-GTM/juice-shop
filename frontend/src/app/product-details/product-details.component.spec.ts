@@ -26,7 +26,7 @@ import { of, throwError } from 'rxjs'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { type Product } from '../Models/product.model'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ProductDetailsComponent', () => {
     let component: ProductDetailsComponent
@@ -74,7 +74,7 @@ describe('ProductDetailsComponent', () => {
                 { provide: ProductReviewService, useValue: productReviewService },
                 { provide: MatDialog, useValue: dialog },
                 { provide: MAT_DIALOG_DATA, useValue: { productData: {} } },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting(),
                 provideZoneChangeDetection()
             ]

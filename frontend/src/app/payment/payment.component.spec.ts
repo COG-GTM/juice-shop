@@ -37,7 +37,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('PaymentComponent', () => {
     let component: PaymentComponent
@@ -138,7 +138,7 @@ describe('PaymentComponent', () => {
                 { provide: DeliveryService, useValue: deliveryService },
                 { provide: UserService, useValue: userService },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting(),
                 provideZoneChangeDetection()
             ]

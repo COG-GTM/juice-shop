@@ -1,4 +1,4 @@
-import { Component, NgZone, type OnDestroy, type OnInit, inject } from '@angular/core'
+import { Component, NgZone, type OnDestroy, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
 import { DomSanitizer } from '@angular/platform-browser'
 import { type Subscription, combineLatest, firstValueFrom } from 'rxjs'
@@ -40,6 +40,7 @@ interface CodeChallengeSolvedWebsocket {
   selector: 'app-score-board',
   templateUrl: './score-board.component.html',
   styleUrls: ['./score-board.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [HackingChallengeProgressScoreCardComponent, CodingChallengeProgressScoreCardComponent, DifficultyOverviewScoreCardComponent, FilterSettingsComponent, MatProgressSpinner, ChallengesUnavailableWarningComponent, TutorialModeWarningComponent, ChallengeCardComponent, NgClass, TranslateModule]
 })
 export class ScoreBoardComponent implements OnInit, OnDestroy {

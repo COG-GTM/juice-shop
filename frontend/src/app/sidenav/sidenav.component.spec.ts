@@ -10,7 +10,7 @@ import { ConfigurationService } from '../Services/configuration.service'
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { RouterTestingModule } from '@angular/router/testing'
 import { of, throwError } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { LoginGuard } from '../app.guard'
 import { SidenavComponent } from './sidenav.component'
@@ -102,7 +102,7 @@ describe('SidenavComponent', () => {
                 { provide: SocketIoService, useValue: socketIoService },
                 { provide: LoginGuard, useValue: loginGuard },
                 TranslateService,
-                provideHttpClient(withInterceptorsFromDi())
+                provideHttpClient(withXhr(), withInterceptorsFromDi())
             ]
         })
             .compileComponents()

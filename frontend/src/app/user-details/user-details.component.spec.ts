@@ -12,7 +12,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { UserDetailsComponent } from './user-details.component'
 import { of, throwError } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('UserDetailsComponent', () => {
     let component: UserDetailsComponent
@@ -34,7 +34,7 @@ describe('UserDetailsComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: MatDialogRef, useValue: {} },
                 { provide: MAT_DIALOG_DATA, useValue: { dialogData: {} } },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

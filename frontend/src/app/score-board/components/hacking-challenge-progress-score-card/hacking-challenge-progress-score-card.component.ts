@@ -1,4 +1,4 @@
-import { Component, Input, type OnChanges, type OnInit } from '@angular/core'
+import { Component, Input, type OnChanges, type OnInit, ChangeDetectionStrategy } from '@angular/core'
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { TranslateModule } from '@ngx-translate/core'
 import { ScoreCardComponent } from '../score-card/score-card.component'
@@ -7,6 +7,7 @@ import { ScoreCardComponent } from '../score-card/score-card.component'
   selector: 'hacking-challenge-progress-score-card',
   templateUrl: './hacking-challenge-progress-score-card.component.html',
   styleUrls: ['./hacking-challenge-progress-score-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [ScoreCardComponent, TranslateModule]
 })
 export class HackingChallengeProgressScoreCardComponent implements OnInit, OnChanges {

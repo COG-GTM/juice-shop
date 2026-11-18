@@ -22,7 +22,7 @@ import { BasketService } from '../Services/basket.service'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { AddressService } from '../Services/address.service'
 import { ConfigurationService } from '../Services/configuration.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { provideZoneChangeDetection } from '@angular/core'
 
 export class MockActivatedRoute {
@@ -73,7 +73,7 @@ describe('OrderCompletionComponent', () => {
                 { provide: BasketService, useValue: basketService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: AddressService, useValue: addressService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting(),
                 provideZoneChangeDetection()
             ]

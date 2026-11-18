@@ -26,7 +26,7 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { DeliveryService } from '../Services/delivery.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('OrderSummaryComponent', () => {
     let component: OrderSummaryComponent
@@ -91,7 +91,7 @@ describe('OrderSummaryComponent', () => {
                 { provide: DeliveryService, useValue: deliveryService },
                 { provide: DeluxeGuard, useValue: deluxeGuard },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

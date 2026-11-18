@@ -26,7 +26,7 @@ import { MatSnackBar } from '@angular/material/snack-bar'
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { EventEmitter } from '@angular/core'
 import { DeliveryMethodComponent } from '../delivery-method/delivery-method.component'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('AddressComponent', () => {
     let component: AddressComponent
@@ -76,7 +76,7 @@ describe('AddressComponent', () => {
                 { provide: AddressService, useValue: addressService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

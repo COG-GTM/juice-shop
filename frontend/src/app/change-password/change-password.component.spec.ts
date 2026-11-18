@@ -15,7 +15,7 @@ import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatCardModule } from '@angular/material/card'
 import { of, throwError } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ChangePasswordComponent', () => {
     let component: ChangePasswordComponent
@@ -36,7 +36,7 @@ describe('ChangePasswordComponent', () => {
                 MatInputModule,
                 MatButtonModule,
                 ChangePasswordComponent],
-            providers: [{ provide: UserService, useValue: userService }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [{ provide: UserService, useValue: userService }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })

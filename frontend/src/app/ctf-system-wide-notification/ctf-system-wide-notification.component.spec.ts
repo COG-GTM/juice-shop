@@ -10,7 +10,7 @@ import { CtfSystemWideNotificationService } from '../Services/ctf-system-wide-no
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { of, throwError } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 import { CtfSystemWideNotificationComponent } from './ctf-system-wide-notification.component'
 
@@ -52,7 +52,7 @@ describe('CtfSystemWideNotificationComponent', () => {
             providers: [
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CtfSystemWideNotificationService, useValue: notificationService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         }).compileComponents()

@@ -1,4 +1,4 @@
-import { Component, Input, type OnChanges } from '@angular/core'
+import { Component, Input, type OnChanges, ChangeDetectionStrategy } from '@angular/core'
 
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { type Config } from 'src/app/Services/configuration.service'
@@ -9,6 +9,7 @@ import { WarningCardComponent } from '../warning-card/warning-card.component'
 @Component({
   selector: 'tutorial-mode-warning',
   templateUrl: './tutorial-mode-warning.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [WarningCardComponent, MatIconModule, TranslateModule]
 })
 export class TutorialModeWarningComponent implements OnChanges {

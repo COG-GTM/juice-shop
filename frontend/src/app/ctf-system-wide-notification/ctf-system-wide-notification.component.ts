@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { ChangeDetectorRef, Component, type OnDestroy, type OnInit, inject } from '@angular/core'
+import { ChangeDetectorRef, Component, type OnDestroy, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { interval, of, type Subscription } from 'rxjs'
 import { catchError, startWith, switchMap } from 'rxjs/operators'
 import { ConfigurationService } from '../Services/configuration.service'
@@ -15,6 +15,7 @@ import { MatCardModule } from '@angular/material/card'
   selector: 'app-ctf-system-wide-notification',
   templateUrl: './ctf-system-wide-notification.component.html',
   styleUrls: ['./ctf-system-wide-notification.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [MatCardModule, MatButtonModule]
 })
 export class CtfSystemWideNotificationComponent implements OnInit, OnDestroy {

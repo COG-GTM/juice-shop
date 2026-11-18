@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, DestroyRef, type OnInit, type AfterViewInit, type OnDestroy, ElementRef, inject, input, output, viewChild } from '@angular/core'
+import { Component, DestroyRef, type OnInit, type AfterViewInit, type OnDestroy, ElementRef, inject, input, output, viewChild, ChangeDetectionStrategy } from '@angular/core'
 import { MatCardModule } from '@angular/material/card'
 import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatButtonToggleModule } from '@angular/material/button-toggle'
@@ -28,6 +28,7 @@ import { CodingChallengeSectionComponent } from '../coding-challenge-section/cod
   selector: 'coding-challenge-fix-it',
   templateUrl: './coding-challenge-fix-it.component.html',
   styleUrls: ['./coding-challenge-fix-it.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [MatButtonToggleModule, MatCardModule, MatCheckboxModule, FormsModule, TranslateModule, CodingChallengeSectionComponent]
 })
 export class CodingChallengeFixItComponent implements OnInit, AfterViewInit, OnDestroy {

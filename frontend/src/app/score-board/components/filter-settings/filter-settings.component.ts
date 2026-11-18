@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, type OnChanges, Output, inject } from '@angular/core'
+import { Component, EventEmitter, Input, type OnChanges, Output, inject, ChangeDetectionStrategy } from '@angular/core'
 import { FilterSetting } from '../../filter-settings/FilterSetting'
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { MatDialog } from '@angular/material/dialog'
@@ -20,6 +20,7 @@ import { MatFormFieldModule, MatPrefix, MatLabel } from '@angular/material/form-
   selector: 'filter-settings',
   templateUrl: './filter-settings.component.html',
   styleUrls: ['./filter-settings.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [MatFormFieldModule, MatIconModule, MatPrefix, MatLabel, TranslateModule, MatInputModule, MatSelect, MatSelectTrigger, MatOption, DifficultyStarsComponent, MatIconButton, MatTooltip, CategoryFilterComponent, DifficultySelectionSummaryPipe]
 })
 export class FilterSettingsComponent implements OnChanges {

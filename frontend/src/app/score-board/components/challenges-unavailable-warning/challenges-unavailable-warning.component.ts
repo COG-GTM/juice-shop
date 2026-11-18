@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, type OnChanges, Output } from '@angular/core'
+import { Component, EventEmitter, Input, type OnChanges, Output, ChangeDetectionStrategy } from '@angular/core'
 
 import { FilterSetting } from '../../filter-settings/FilterSetting'
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
@@ -11,6 +11,7 @@ import { NgClass } from '@angular/common'
   selector: 'challenges-unavailable-warning',
   templateUrl: './challenges-unavailable-warning.component.html',
   styleUrls: ['./challenges-unavailable-warning.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [WarningCardComponent, NgClass, MatButtonModule, TranslateModule]
 })
 export class ChallengesUnavailableWarningComponent implements OnChanges {

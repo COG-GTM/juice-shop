@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, type OnInit, inject } from '@angular/core'
+import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { MAT_DIALOG_DATA, MatDialogContent, MatDialogActions, MatDialogClose } from '@angular/material/dialog'
 import { TranslateModule } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
@@ -15,6 +15,7 @@ import { MatIconModule } from '@angular/material/icon'
   selector: 'app-feedback-details',
   templateUrl: './feedback-details.component.html',
   styleUrls: ['./feedback-details.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [MatDialogContent, MatDivider, MatDialogActions, MatButtonModule, MatDialogClose, TranslateModule, MatIconModule]
 })
 export class FeedbackDetailsComponent implements OnInit {

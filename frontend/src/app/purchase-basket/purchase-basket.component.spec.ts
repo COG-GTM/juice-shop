@@ -21,7 +21,7 @@ import { ProductService } from '../Services/product.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
 import { EventEmitter } from '@angular/core'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('PurchaseBasketComponent', () => {
     let component: PurchaseBasketComponent
@@ -95,7 +95,7 @@ describe('PurchaseBasketComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: ProductService, useValue: productService },
                 { provide: DeluxeGuard, useValue: deluxeGuard },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

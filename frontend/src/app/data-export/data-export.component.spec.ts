@@ -18,7 +18,7 @@ import { MatInputModule } from '@angular/material/input'
 import { MatCardModule } from '@angular/material/card'
 import { MatRadioModule } from '@angular/material/radio'
 import { MatButtonModule } from '@angular/material/button'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('DataExportComponent', () => {
     let component: DataExportComponent
@@ -49,7 +49,7 @@ describe('DataExportComponent', () => {
                 { provide: ImageCaptchaService, useValue: imageCaptchaService },
                 { provide: DataSubjectService, useValue: dataSubjectService },
                 TranslateService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         }).compileComponents()

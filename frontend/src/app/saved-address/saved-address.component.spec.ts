@@ -23,7 +23,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { MatCheckboxModule } from '@angular/material/checkbox'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('SavedAddressComponent', () => {
     let component: SavedAddressComponent
@@ -47,7 +47,7 @@ describe('SavedAddressComponent', () => {
                 MatTooltipModule,
                 MatCheckboxModule,
                 SavedAddressComponent, AddressComponent],
-            providers: [{ provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [{ provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })

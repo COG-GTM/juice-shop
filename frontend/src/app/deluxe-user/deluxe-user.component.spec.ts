@@ -28,7 +28,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { ConfigurationService } from '../Services/configuration.service'
 import { throwError } from 'rxjs/internal/observable/throwError'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('DeluxeUserComponent', () => {
     let component: DeluxeUserComponent
@@ -80,7 +80,7 @@ describe('DeluxeUserComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CookieService, useValue: cookieService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

@@ -72,7 +72,7 @@ import { AdministrationService } from './app/Services/administration.service'
 import { ConfigurationService } from './app/Services/configuration.service'
 import { ProductService } from './app/Services/product.service'
 import { RequestInterceptor } from './app/Services/request.interceptor'
-import { HTTP_INTERCEPTORS, withInterceptorsFromDi, provideHttpClient } from '@angular/common/http'
+import { HTTP_INTERCEPTORS, withInterceptorsFromDi, provideHttpClient, withXhr } from '@angular/common/http'
 
 if (environment.production) {
     enableProdMode()
@@ -117,7 +117,7 @@ bootstrapApplication(AppComponent, {
         OrderHistoryService,
         DeliveryService,
         PhotoWallService,
-        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClient(withXhr(), withInterceptorsFromDi()),
         provideTranslateService({
           loader: provideTranslateHttpLoader({
             prefix: '/assets/i18n/',

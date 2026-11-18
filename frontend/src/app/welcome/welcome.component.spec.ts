@@ -13,7 +13,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { WelcomeComponent } from './welcome.component'
 import { of, throwError } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('WelcomeComponent', () => {
     let component: WelcomeComponent
@@ -41,7 +41,7 @@ describe('WelcomeComponent', () => {
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: MatDialog, useValue: dialog },
                 CookieService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

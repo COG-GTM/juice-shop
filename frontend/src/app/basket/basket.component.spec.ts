@@ -21,7 +21,7 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('BasketComponent', () => {
     let component: BasketComponent
@@ -47,7 +47,7 @@ describe('BasketComponent', () => {
             providers: [
                 { provide: DeluxeGuard, useValue: deluxeGuard },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

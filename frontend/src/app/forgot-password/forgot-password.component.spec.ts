@@ -19,7 +19,7 @@ import { of, throwError } from 'rxjs'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatIconModule } from '@angular/material/icon'
 import { MatSlideToggleModule } from '@angular/material/slide-toggle'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ForgotPasswordComponent', () => {
     let component: ForgotPasswordComponent
@@ -51,7 +51,7 @@ describe('ForgotPasswordComponent', () => {
             providers: [
                 { provide: SecurityQuestionService, useValue: securityQuestionService },
                 { provide: UserService, useValue: userService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

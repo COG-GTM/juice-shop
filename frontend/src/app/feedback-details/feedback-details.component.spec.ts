@@ -11,7 +11,7 @@ import { MatDividerModule } from '@angular/material/divider'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { FeedbackDetailsComponent } from './feedback-details.component'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('FeedbackDetailsComponent', () => {
     let component: FeedbackDetailsComponent
@@ -27,7 +27,7 @@ describe('FeedbackDetailsComponent', () => {
                 UserService,
                 { provide: MatDialogRef, useValue: {} },
                 { provide: MAT_DIALOG_DATA, useValue: { productData: {} } },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

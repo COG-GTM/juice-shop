@@ -7,12 +7,12 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing'
 
 import { TwoFactorAuthService } from './two-factor-auth-service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('TwoFactorAuthServiceService', () => {
     beforeEach(() => TestBed.configureTestingModule({
         imports: [],
-        providers: [TwoFactorAuthService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+        providers: [TwoFactorAuthService, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
     }))
 
     it('should be created', () => {

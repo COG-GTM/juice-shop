@@ -6,7 +6,7 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { TranslateModule } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { of } from 'rxjs'
 
@@ -55,7 +55,7 @@ describe('CodingChallengeFindItComponent', () => {
                 { provide: VulnLinesService, useValue: vulnLinesService },
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: CookieService, useValue: cookieService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         }).compileComponents()

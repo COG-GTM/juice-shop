@@ -24,7 +24,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { MatExpansionModule } from '@angular/material/expansion'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('AccountingComponent', () => {
     let component: OrderHistoryComponent
@@ -65,7 +65,7 @@ describe('AccountingComponent', () => {
                 { provide: ProductService, useValue: productService },
                 { provide: OrderHistoryService, useValue: orderHistoryService },
                 { provide: MatDialog, useValue: dialog },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

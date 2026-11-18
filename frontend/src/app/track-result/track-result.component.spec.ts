@@ -13,7 +13,7 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { TrackOrderService } from '../Services/track-order.service'
 import { DomSanitizer } from '@angular/platform-browser'
 import { of } from 'rxjs'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('TrackResultComponent', () => {
     let component: TrackResultComponent
@@ -42,7 +42,7 @@ describe('TrackResultComponent', () => {
             providers: [
                 { provide: TrackOrderService, useValue: trackOrderService },
                 { provide: DomSanitizer, useValue: sanitizer },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

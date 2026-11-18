@@ -7,12 +7,12 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing'
 
 import { LanguagesService } from './languages.service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('LanguagesService', () => {
     beforeEach(() => TestBed.configureTestingModule({
         imports: [],
-        providers: [LanguagesService, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+        providers: [LanguagesService, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
     }))
 
     it('should be created', () => {

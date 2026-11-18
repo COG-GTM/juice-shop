@@ -19,7 +19,7 @@ import { of, throwError } from 'rxjs'
 
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { EventEmitter } from '@angular/core'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ComplaintComponent', () => {
     let component: ComplaintComponent
@@ -59,7 +59,7 @@ describe('ComplaintComponent', () => {
                 { provide: UserService, useValue: userService },
                 { provide: ComplaintService, useValue: complaintService },
                 { provide: TranslateService, useValue: translateService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

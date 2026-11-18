@@ -1,4 +1,4 @@
-import { Component, Input, type OnInit, inject, type OnChanges, type SimpleChanges, ViewChild, HostBinding } from '@angular/core'
+import { Component, Input, type OnInit, inject, type OnChanges, type SimpleChanges, ViewChild, HostBinding, ChangeDetectionStrategy } from '@angular/core'
 import { EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { Config } from 'src/app/Services/configuration.service'
 import { TranslateModule } from '@ngx-translate/core'
@@ -12,6 +12,7 @@ import { SnackBarHelperService } from 'src/app/Services/snack-bar-helper.service
   selector: 'challenge-card',
   templateUrl: './challenge-card.component.html',
   styleUrls: ['./challenge-card.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [DifficultyStarsComponent, MatTooltip, MatIconModule, NgClass, TranslateModule]
 })
 export class ChallengeCardComponent implements OnInit, OnChanges {

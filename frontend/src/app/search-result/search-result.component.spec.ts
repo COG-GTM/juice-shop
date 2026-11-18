@@ -24,7 +24,7 @@ import { EventEmitter } from '@angular/core'
 import { SocketIoService } from '../Services/socket-io.service'
 import { QuantityService } from '../Services/quantity.service'
 import { DeluxeGuard } from '../app.guard'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
     globalThis.ResizeObserver = class ResizeObserver {
@@ -144,7 +144,7 @@ describe('SearchResultComponent', () => {
                 { provide: SocketIoService, useValue: socketIoService },
                 { provide: QuantityService, useValue: quantityService },
                 { provide: DeluxeGuard, useValue: deluxeGuard },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

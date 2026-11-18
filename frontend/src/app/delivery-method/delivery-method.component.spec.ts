@@ -25,7 +25,7 @@ import { PaymentMethodComponent } from '../payment-method/payment-method.compone
 import { MatRadioModule } from '@angular/material/radio'
 import { MatExpansionModule } from '@angular/material/expansion'
 import { MatDividerModule } from '@angular/material/divider'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('DeliveryMethodComponent', () => {
     let component: DeliveryMethodComponent
@@ -63,7 +63,7 @@ describe('DeliveryMethodComponent', () => {
             providers: [
                 { provide: AddressService, useValue: addressService },
                 { provide: DeliveryService, useValue: deliveryService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

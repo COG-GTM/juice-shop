@@ -17,7 +17,7 @@ import { ScoreBoardComponent } from './score-board.component'
 import { ConfigurationService } from '../Services/configuration.service'
 import { ChallengeService } from '../Services/challenge.service'
 import { type Challenge } from '../Models/challenge.model'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { HintService } from '../Services/hint.service'
 
 // allows to easily create a challenge with some overwrites
@@ -76,7 +76,7 @@ describe('ScoreBoardComponent', () => {
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: HintService, useValue: hintService },
                 { provide: ConfigurationService, useValue: configService },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         }).compileComponents()

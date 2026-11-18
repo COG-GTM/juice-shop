@@ -16,7 +16,7 @@ import { EventEmitter } from '@angular/core'
 import { type Challenge } from '../Models/challenge.model'
 import { MatButtonModule } from '@angular/material/button'
 import { MatTooltipModule } from '@angular/material/tooltip'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ChallengeStatusBadgeComponent', () => {
     let challengeService: any
@@ -49,7 +49,7 @@ describe('ChallengeStatusBadgeComponent', () => {
                 { provide: TranslateService, useValue: translateService },
                 { provide: ChallengeService, useValue: challengeService },
                 WindowRefService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

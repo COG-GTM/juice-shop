@@ -36,7 +36,7 @@ import { LoginGuard } from '../app.guard'
 import { MatRadioModule } from '@angular/material/radio'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 import { MatSearchBarComponent } from '../mat-search-bar/mat-search-bar.component'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -130,7 +130,7 @@ describe('NavbarComponent', () => {
                 { provide: SocketIoService, useValue: socketIoService },
                 { provide: LoginGuard, useValue: loginGuard },
                 TranslateService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

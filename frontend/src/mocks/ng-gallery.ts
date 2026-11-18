@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, Directive, Injectable, Input } from '@angular/core'
+import { Component, Directive, Injectable, Input, ChangeDetectionStrategy } from '@angular/core'
 
 export class GalleryRef {
     addImage (_data: any) {}
@@ -17,7 +17,8 @@ export class Gallery {
     }
 }
 
-@Component({ selector: 'gallery', template: '<ng-content></ng-content>', standalone: true })
+@Component({ selector: 'gallery', template: '<ng-content></ng-content>', changeDetection: ChangeDetectionStrategy.Eager,
+ standalone: true })
 export class GalleryComponent {
     @Input() autoplay: boolean
     @Input() thumbs: boolean

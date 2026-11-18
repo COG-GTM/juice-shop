@@ -8,7 +8,7 @@ import { AccountingGuard, AdminGuard, DeluxeGuard, LoginGuard } from './app.guar
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import { ErrorPageComponent } from './error-page/error-page.component'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('LoginGuard', () => {
     beforeEach(() => {
@@ -16,7 +16,7 @@ describe('LoginGuard', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: '403', component: ErrorPageComponent }
                 ])],
-            providers: [LoginGuard, provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [LoginGuard, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
     })
 
@@ -82,7 +82,7 @@ describe('AdminGuard', () => {
             providers: [
                 AdminGuard,
                 { provide: LoginGuard, useValue: loginGuard },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })
@@ -142,7 +142,7 @@ describe('AccountingGuard', () => {
             providers: [
                 AccountingGuard,
                 { provide: LoginGuard, useValue: loginGuard },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })
@@ -201,7 +201,7 @@ describe('DeluxeGuard', () => {
             providers: [
                 DeluxeGuard,
                 { provide: LoginGuard, useValue: loginGuard },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

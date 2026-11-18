@@ -7,7 +7,8 @@ import {
   input,
   type OnInit,
   output,
-  viewChild
+  viewChild,
+  ChangeDetectionStrategy
 } from '@angular/core'
 import { NG_VALUE_ACCESSOR, FormsModule } from '@angular/forms'
 import { AbstractControlValueAccessor } from './abstract-value-accessor'
@@ -25,6 +26,7 @@ import { MatButtonModule } from '@angular/material/button'
       multi: true
     }
   ],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [FormsModule, MatIconModule, MatButtonModule]
 })
 export class MatSearchBarComponent extends AbstractControlValueAccessor

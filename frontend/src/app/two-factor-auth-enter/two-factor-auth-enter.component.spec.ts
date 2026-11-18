@@ -33,7 +33,7 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 
 import { of, throwError } from 'rxjs'
 import { TwoFactorAuthService } from '../Services/two-factor-auth-service'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('TwoFactorAuthEnterComponent', () => {
     let component: TwoFactorAuthEnterComponent
@@ -83,7 +83,7 @@ describe('TwoFactorAuthEnterComponent', () => {
                 CookieService,
                 WindowRefService,
                 CookieService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

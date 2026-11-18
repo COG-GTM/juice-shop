@@ -16,7 +16,7 @@ import { SocketIoService } from '../Services/socket-io.service'
 import { of, throwError } from 'rxjs'
 import { EventEmitter } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 class MockSocket {
     on(str: string, callback: any) {
@@ -68,7 +68,7 @@ describe('ServerStartedNotificationComponent', () => {
                 { provide: TranslateService, useValue: translateService },
                 { provide: SocketIoService, useValue: socketIoService },
                 CookieService,
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

@@ -22,7 +22,7 @@ import { OrderHistoryService } from '../Services/order-history.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('AccountingComponent', () => {
     let component: AccountingComponent
@@ -76,7 +76,7 @@ describe('AccountingComponent', () => {
                 { provide: QuantityService, useValue: quantityService },
                 { provide: OrderHistoryService, useValue: orderHistoryService },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

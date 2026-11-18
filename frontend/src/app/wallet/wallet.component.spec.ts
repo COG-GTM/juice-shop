@@ -18,7 +18,7 @@ import { WalletComponent } from './wallet.component'
 import { WalletService } from '../Services/wallet.service'
 import { EventEmitter, provideZoneChangeDetection } from '@angular/core'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('WalletComponent', () => {
     let component: WalletComponent
@@ -59,7 +59,7 @@ describe('WalletComponent', () => {
                 { provide: WalletService, useValue: walletService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting(),
                 provideZoneChangeDetection()
             ]

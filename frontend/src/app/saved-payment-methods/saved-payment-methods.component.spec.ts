@@ -21,7 +21,7 @@ import { PaymentMethodComponent } from '../payment-method/payment-method.compone
 import { EventEmitter } from '@angular/core'
 import { of } from 'rxjs'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('SavedPaymentMethodsComponent', () => {
     let component: SavedPaymentMethodsComponent
@@ -57,7 +57,7 @@ describe('SavedPaymentMethodsComponent', () => {
             providers: [
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },
-                provideHttpClient(withInterceptorsFromDi()),
+                provideHttpClient(withXhr(), withInterceptorsFromDi()),
                 provideHttpClientTesting()
             ]
         })

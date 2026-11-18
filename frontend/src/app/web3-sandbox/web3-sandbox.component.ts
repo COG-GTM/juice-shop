@@ -1,4 +1,4 @@
-import { Component, ChangeDetectorRef, inject, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef } from '@angular/core'
+import { Component, ChangeDetectorRef, inject, OnInit, OnDestroy, AfterViewInit, ViewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core'
 import { KeysService } from '../Services/keys.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { getDefaultProvider, ethers } from 'ethers'
@@ -44,6 +44,7 @@ const compilerReleases = {
   selector: 'app-web3-sandbox',
   templateUrl: './web3-sandbox.component.html',
   styleUrls: ['./web3-sandbox.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [FormsModule, MatButtonModule, MatIconModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule]
 })
 export class Web3SandboxComponent implements OnInit, AfterViewInit, OnDestroy {

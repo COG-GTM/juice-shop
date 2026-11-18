@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { Component, type OnInit, DestroyRef, type ElementRef, inject, viewChild } from '@angular/core'
+import { Component, type OnInit, DestroyRef, type ElementRef, inject, viewChild, ChangeDetectionStrategy } from '@angular/core'
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop'
 import { ActivatedRoute, RouterLink } from '@angular/router'
 import { MatButtonModule } from '@angular/material/button'
@@ -23,6 +23,7 @@ import { CodingChallengeFixItComponent } from './components/coding-challenge-fix
   selector: 'coding-challenge-page',
   templateUrl: './coding-challenge-page.component.html',
   styleUrls: ['./coding-challenge-page.component.scss'],
+  changeDetection: ChangeDetectionStrategy.Eager,
   imports: [MatButtonModule, MatIconModule, MatProgressSpinner, RouterLink, TranslateModule, CodingChallengeFindItComponent, CodingChallengeFixItComponent]
 })
 export class CodingChallengePageComponent implements OnInit {
