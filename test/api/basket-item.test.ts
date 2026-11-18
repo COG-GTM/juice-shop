@@ -133,6 +133,16 @@ void describe('/api/BasketItems', () => {
     assert.equal(res.body.data.BasketId, 2)
   })
 
+  void it('POST new basket item stores the top-level quantity checked against the purchase limit, not a nested one', async () => {
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send('{"ProductId":24,"quantity":1,"x":{"quantity":500}}')
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.BasketId, 2)
+    assert.equal(res.body.data.quantity, 1)
+  })
+
   void it('POST new basket item into basket of another user is forbidden', async () => {
     const res = await request(app)
       .post('/api/BasketItems')
