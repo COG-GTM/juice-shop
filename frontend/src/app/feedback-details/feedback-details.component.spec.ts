@@ -43,4 +43,12 @@ describe('FeedbackDetailsComponent', () => {
     it('should create', () => {
         expect(component).toBeTruthy()
     })
+
+    it('should keep safe feedback formatting but drop active markup', () => {
+        component.feedback = '<strong>Great</strong><iframe src="javascript:alert(`xss`)"></iframe>'
+        fixture.detectChanges()
+
+        expect(fixture.nativeElement.querySelector('cite iframe')).toBeNull()
+        expect(fixture.nativeElement.querySelector('cite strong')?.textContent).toBe('Great')
+    })
 })
