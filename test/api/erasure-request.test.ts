@@ -49,6 +49,30 @@ void describe('/dataerasure', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
+  for (const token of ['constructor', '__proto__', 'toString']) {
+    void it(`GET erasure form with token cookie "${token}" is blocked and server keeps serving`, async () => {
+      const res = await request(app)
+        .get('/dataerasure/')
+        .set({ Cookie: 'token=' + token })
+
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+
+      const followUp = await request(app).get('/rest/admin/application-version')
+      assert.equal(followUp.status, 200)
+    })
+
+    void it(`POST erasure request with token cookie "${token}" is blocked`, async () => {
+      const res = await request(app)
+        .post('/dataerasure/')
+        .set({ Cookie: 'token=' + token })
+        .send({ email: 'bjoern@owasp.org', securityAnswer: 'x' })
+
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    })
+  }
+
   void it('POST erasure request does not actually delete the user', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
