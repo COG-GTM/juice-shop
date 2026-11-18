@@ -118,6 +118,12 @@ export class ChangePasswordComponent implements OnInit {
         error: (error) => {
           console.log(error)
           this.error = error
+          if (!error) {
+            this.translate.get('UNAUTHORIZED_ACCESS_ERROR').subscribe({
+              next: (unauthorizedAccessError) => { this.error = unauthorizedAccessError },
+              error: (translationId) => { this.error = translationId }
+            })
+          }
           this.confirmation = undefined
           this.resetPasswords()
         }
