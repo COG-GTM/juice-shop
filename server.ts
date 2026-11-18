@@ -347,6 +347,9 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   }))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
+  /* Restore server-side session claims (e.g. Deluxe membership) for valid tokens after a restart */
+  app.use(['/api/Deliverys', '/api/BasketItems', '/rest/basket/:id/checkout', '/rest/deluxe-membership'], security.updateAuthenticatedUsers())
+
   // vuln-code-snippet start changeProductChallenge
   /** Authorization **/
   /* Checks on JWT in Authorization header */ // vuln-code-snippet hide-line
