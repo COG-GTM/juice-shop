@@ -117,7 +117,7 @@ import { getWalletBalance, addWalletBalance } from './routes/wallet'
 import { retrieveAppConfiguration } from './routes/appConfiguration'
 import { updateProductReviews } from './routes/updateProductReviews'
 import { servePrivacyPolicyProof } from './routes/privacyPolicyProof'
-import { profileImageUrlUpload } from './routes/profileImageUrlUpload'
+import { profileImageUrlUpload, sandboxUploadedFiles } from './routes/profileImageUrlUpload'
 import { profileImageFileUpload } from './routes/profileImageFileUpload'
 import { serveCodeFixes, checkCorrectFix } from './routes/vulnCodeFixes'
 import { imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
@@ -232,6 +232,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use('/assets/public/images/padding', verify.accessControlChallenges())
   app.use('/assets/public/images/products', verify.accessControlChallenges())
   app.use('/assets/public/images/uploads', verify.accessControlChallenges())
+  app.use(sandboxUploadedFiles())
   app.use('/assets/i18n', verify.accessControlChallenges())
 
   /* Checks for challenges solved by abusing SSTi and SSRF bugs */
