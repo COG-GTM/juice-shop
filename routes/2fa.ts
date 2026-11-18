@@ -17,11 +17,7 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
-
-    if (type !== 'password_valid_needs_second_factor_token') {
-      throw new Error('Invalid token type')
-    }
+    const { userId } = security.verifySecondFactorToken(tmpToken)
 
     const user = await UserModel.findByPk(userId)
     if (user == null) {
