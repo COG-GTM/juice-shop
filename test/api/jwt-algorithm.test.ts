@@ -118,3 +118,28 @@ void describe('updateAuthenticatedUsers middleware', () => {
     assert.equal(security.authenticatedUsers.get(token), undefined)
   })
 })
+
+void describe('RS256 tokens signed with a key other than the server key', () => {
+  const { privateKey: foreignKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const foreignRs256 = (data: Record<string, unknown>) => forge('RS256', data, (input) => crypto.createSign('RSA-SHA256').update(input).sign(foreignKey, 'base64url'))
+  const jim = { id: 2, email: 'jim@juice-sh.op', role: 'customer' }
+
+  void it('rejects a foreign-key admin token on GET /api/Users', async () => {
+    const res = await request(app).get('/api/Users').set(bearer(foreignRs256({ id: 1, email: 'admin@juice-sh.op', role: 'admin' })))
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects a foreign-key accounting token', async () => {
+    const res = await request(app).get('/rest/order-history/orders').set(bearer(foreignRs256(accountant)))
+    assert.equal(res.status, 403)
+  })
+
+  void it('does not let a foreign-key or alg:none token registered via /rest/user/whoami change the victim password', async () => {
+    for (const token of [foreignRs256(jim), unsigned(jim)]) {
+      await request(app).get('/rest/user/whoami').set(bearer(token))
+      assert.equal(security.authenticatedUsers.get(token), undefined)
+      const res = await request(app).get('/rest/user/change-password?new=hacked123&repeat=hacked123').set(bearer(token))
+      assert.notEqual(res.status, 200)
+    }
+  })
+})
