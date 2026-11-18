@@ -40,6 +40,12 @@ describe('codingChallengeFixes', () => {
     }
   })
 
+  it('should still serve all fix options of a known coding challenge', () => {
+    const fixes = readFixes('loginBenderChallenge')
+    expect(fixes.fixes).to.have.lengthOf(4)
+    expect(fixes.correct).to.equal(1)
+  })
+
   it('should return no fixes for unknown, inherited or non-string keys', () => {
     for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', 'toString', '', 'resetPasswordBenderChallenge.info.yml', 'x'.repeat(100000), ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }, 42, undefined]) {
       const fixes = readFixes(key)
