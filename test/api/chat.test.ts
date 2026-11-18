@@ -5,13 +5,14 @@
 
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { randomUUID } from 'node:crypto'
+import { createHmac, randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
+import { publicKey } from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -101,6 +102,13 @@ async function getOrderByIdToolResult (token: string, orderId: string): Promise<
 
   assert.equal(res.status, 200)
   return toolResult
+}
+
+function forgeToken (alg: string, payload: object): string {
+  const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${b64({ alg, typ: 'JWT' })}.${b64(payload)}`
+  const signature = alg === 'none' ? '' : createHmac('sha256', publicKey).update(unsigned).digest('base64url')
+  return `${unsigned}.${signature}`
 }
 
 async function firstAdminOrderId (adminToken: string): Promise<string> {
@@ -273,6 +281,28 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     const toolResult = await getOrderByIdToolResult(token, orderId)
 
     assert.ok(toolResult.includes('Order does not belong to the current customer'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById ignores an unsigned token that claims the owner\'s user id', { timeout: 15000 }, async () => {
+    const { token: adminToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+    const forged = forgeToken('none', { data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
+
+    const toolResult = await getOrderByIdToolResult(forged, orderId)
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById ignores an HS256 token signed with the public key that claims the owner\'s user id', { timeout: 15000 }, async () => {
+    const { token: adminToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+    const forged = forgeToken('HS256', { data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
+
+    const toolResult = await getOrderByIdToolResult(forged, orderId)
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
     assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
   })
 
