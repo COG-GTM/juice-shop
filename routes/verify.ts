@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
 import config from 'config'
-import jws from 'jws'
 
 import { products, challenges, retrieveBlueprintChallengeFile } from '../data/datacache'
 import type { Product as ProductConfig } from '../lib/config.types'
@@ -110,25 +110,34 @@ export const serverSideChallenges = () => (req: Request, res: Response, next: Ne
 function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, email: string | RegExp) {
   const token = utils.jwtFrom(req)
   if (token) {
-    const decoded = jws.decode(token) ? jwt.decode(token) : null
-
-    if (decoded === null || typeof decoded === 'string') {
+    const decoded = jwt.decode(token, { complete: true })
+    if (decoded === null || typeof decoded.payload === 'string') {
       return
     }
-
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
+    const payload = decoded.payload as jwt.JwtPayload & { data: { email: string } }
+    if (payload.exp !== undefined && payload.exp * 1000 < Date.now()) {
+      return
+    }
+    challengeUtils.solveIf(challenge, () => {
+      return isForgedWith(token, algorithm) && hasEmail(payload, email)
     })
   }
 }
 
-function hasAlgorithm (token: string, algorithm: string) {
-  const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString())
-  return token && header && header.alg === algorithm
+function isForgedWith (token: string, algorithm: string) {
+  const [encodedHeader, encodedPayload, signature] = token.split('.')
+  const header = JSON.parse(Buffer.from(encodedHeader, 'base64').toString())
+  if (header?.alg !== algorithm) {
+    return false
+  }
+  if (algorithm === 'none') {
+    return !signature
+  }
+  if (algorithm === 'HS256') {
+    const expected = crypto.createHmac('sha256', security.publicKey).update(`${encodedHeader}.${encodedPayload}`).digest('base64url')
+    return signature === expected
+  }
+  return false
 }
 
 function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
