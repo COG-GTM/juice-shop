@@ -5,10 +5,14 @@
 
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
+import { createHmac, randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
+import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login, register } from './helpers/auth'
+import { publicKey } from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -72,13 +76,61 @@ function sendSSE (res: http.ServerResponse, chunks: object[]): void {
   res.end()
 }
 
+async function getOrderByIdToolResult (token: string, orderId: string): Promise<string> {
+  let toolResult = ''
+  onLlmRequest = (_req, body, res) => {
+    let messages: Array<{ role: string, content?: string }> = []
+    try {
+      messages = JSON.parse(body).messages ?? []
+    } catch {}
+    const toolMsg = messages.find((m) => m.role === 'tool')
+    if (toolMsg) {
+      toolResult = toolMsg.content ?? ''
+      sendSSE(res, [contentChunk('Here is what I found.'), finishChunk()])
+    } else {
+      sendSSE(res, [
+        toolCallChunk('call_order', 'getOrderById', JSON.stringify({ orderId })),
+        finishChunk('tool_calls')
+      ])
+    }
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    .send({ messages: [{ role: 'user', content: `Show me order ${orderId}` }] })
+
+  assert.equal(res.status, 200)
+  return toolResult
+}
+
+function forgeToken (alg: string, payload: object): string {
+  const b64 = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+  const unsigned = `${b64({ alg, typ: 'JWT' })}.${b64(payload)}`
+  const signature = alg === 'none' ? '' : createHmac('sha256', publicKey).update(unsigned).digest('base64url')
+  return `${unsigned}.${signature}`
+}
+
+async function firstAdminOrderId (adminToken: string): Promise<string> {
+  const res = await request(app)
+    .get('/rest/order-history')
+    .set({ Authorization: 'Bearer ' + adminToken, 'content-type': 'application/json' })
+  assert.equal(res.status, 200)
+  return res.body.data[0].orderId
+}
+
 before(async () => {
   await new Promise<void>((resolve) => {
     mockServer = http.createServer((req, res) => {
       let body = ''
       req.on('data', (chunk: Buffer) => { body += chunk.toString() })
       req.on('end', () => {
-        onLlmRequest(req, body, res)
+        try {
+          onLlmRequest(req, body, res)
+        } catch {
+          if (!res.headersSent) res.writeHead(500)
+          res.end()
+        }
       })
     })
     mockServer.keepAliveTimeout = 0
@@ -205,6 +257,53 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 200)
     assert.ok(res.text.includes('Apple Juice'))
     assert.ok(res.text.includes('data: [DONE]'))
+  })
+
+  void it('POST getOrderById returns an order to its owner', { timeout: 15000 }, async () => {
+    const { token } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(token)
+
+    const toolResult = await getOrderByIdToolResult(token, orderId)
+
+    assert.ok(toolResult.includes(orderId))
+    assert.ok(toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById denies an account whose email only differs in vowels from the owner', { timeout: 15000 }, async () => {
+    const domain = config.get<string>('application.domain')
+    const { token: adminToken } = await login(app, { email: 'admin@' + domain, password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+
+    const lookalike = { email: 'edmin@' + domain, password: randomUUID() }
+    await register(app, lookalike)
+    const { token } = await login(app, lookalike)
+
+    const toolResult = await getOrderByIdToolResult(token, orderId)
+
+    assert.ok(toolResult.includes('Order does not belong to the current customer'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById ignores an unsigned token that claims the owner\'s user id', { timeout: 15000 }, async () => {
+    const { token: adminToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+    const forged = forgeToken('none', { data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
+
+    const toolResult = await getOrderByIdToolResult(forged, orderId)
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST getOrderById ignores an HS256 token signed with the public key that claims the owner\'s user id', { timeout: 15000 }, async () => {
+    const { token: adminToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+    const forged = forgeToken('HS256', { data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
+
+    const toolResult = await getOrderByIdToolResult(forged, orderId)
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
   })
 
   void it('POST handles LLM API error gracefully', { timeout: 15000 }, async () => {
