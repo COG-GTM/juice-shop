@@ -7,8 +7,9 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
-import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import sinon from 'sinon'
+import { UserModel } from '../../models/user'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -163,6 +164,25 @@ describe('insecurity', () => {
       security.authenticatedUsers.put(token, { data: user } as any)
 
       expect(security.isDeluxe(requestWith(token))).to.equal(false)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    it('restores server-side deluxeToken and lastLoginIp from the database for an unknown valid token', async () => {
+      const user = { id: 6, email: 'restored@b.c', role: 'deluxe' }
+      const token = security.authorize({ data: user })
+      const findByPk = sinon.stub(UserModel, 'findByPk').resolves({ deluxeToken: security.deluxeToken(user.email), lastLoginIp: '10.0.0.1' } as any)
+      try {
+        const req = { cookies: {}, headers: { authorization: 'Bearer ' + token } } as unknown as Request
+        const res = { cookie: sinon.spy() } as unknown as Response
+        await new Promise<void>(resolve => { security.updateAuthenticatedUsers()(req, res, () => { resolve() }) })
+
+        expect(findByPk.calledWith(6)).to.equal(true)
+        expect(security.authenticatedUsers.get(token)?.data).to.include({ lastLoginIp: '10.0.0.1' })
+        expect(security.isDeluxe(req)).to.equal(true)
+      } finally {
+        findByPk.restore()
+      }
     })
   })
 
