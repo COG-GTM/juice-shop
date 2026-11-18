@@ -68,7 +68,7 @@ export class DataExportComponent implements OnInit {
         this.error = null
         this.confirmation = data.confirmation
         this.userData = data.userData
-        window.open('', '_blank', 'width=500')?.document.write(this.userData)
+        this.openUserDataWindow(this.userData)
         this.lastSuccessfulTry = new Date()
         localStorage.setItem('lstdtxprt', JSON.stringify(this.lastSuccessfulTry))
         this.ngOnInit()
@@ -80,6 +80,26 @@ export class DataExportComponent implements OnInit {
         this.resetFormError()
       }
     })
+  }
+
+  private openUserDataWindow (userData: string) {
+    const exportWindow = window.open('', '_blank', 'width=500')
+    if (!exportWindow) {
+      return
+    }
+    const container = exportWindow.document.createElement('pre')
+    container.style.whiteSpace = 'pre-wrap'
+    container.style.wordBreak = 'break-all'
+    container.textContent = this.formatUserData(userData)
+    exportWindow.document.body.appendChild(container)
+  }
+
+  private formatUserData (userData: string) {
+    try {
+      return JSON.stringify(JSON.parse(userData), null, 2)
+    } catch {
+      return userData
+    }
   }
 
   resetForm () {

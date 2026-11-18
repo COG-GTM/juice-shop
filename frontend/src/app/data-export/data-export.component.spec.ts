@@ -99,7 +99,7 @@ describe('DataExportComponent', () => {
 
     it('should show the confirmation and fetch user data and reset data export form on requesting data export', () => {
         dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData: '{ user data }' }))
-        vi.spyOn(window, 'open').mockReturnValue({ document: { write: vi.fn() } } as any)
+        vi.spyOn(window, 'open').mockReturnValue({ document: window.document.implementation.createHTMLDocument() } as any)
         vi.spyOn(component, 'resetForm')
         vi.spyOn(component, 'ngOnInit')
         component.save()
@@ -108,6 +108,26 @@ describe('DataExportComponent', () => {
         expect(component.error).toBeNull()
         expect(component.ngOnInit).toHaveBeenCalled()
         expect(component.resetForm).toHaveBeenCalled()
+    })
+
+    it('should render the exported user data as text instead of markup', () => {
+        const exportDocument = window.document.implementation.createHTMLDocument()
+        const userData = '{\n  "message": "<img src=x onerror=alert(1)>"\n}'
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: exportDocument } as any)
+        component.save()
+        expect(exportDocument.querySelectorAll('img').length).toBe(0)
+        expect(exportDocument.querySelector('pre')?.textContent).toBe(userData)
+    })
+
+    it('should show HTML-escaped JSON from the server with its original characters as text', () => {
+        const exportDocument = window.document.implementation.createHTMLDocument()
+        const userData = '{\n  "username": "\\u003cb\\u003eTom \\u0026 Jerry\\u003c/b\\u003e"\n}'
+        dataSubjectService.dataExport.mockReturnValue(of({ confirmation: 'Data being exported', userData }))
+        vi.spyOn(window, 'open').mockReturnValue({ document: exportDocument } as any)
+        component.save()
+        expect(exportDocument.querySelectorAll('b').length).toBe(0)
+        expect(exportDocument.querySelector('pre')?.textContent).toBe('{\n  "username": "<b>Tom & Jerry</b>"\n}')
     })
 
     it('should clear the form and display error if exporting data fails', () => {
