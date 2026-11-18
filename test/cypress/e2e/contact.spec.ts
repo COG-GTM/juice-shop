@@ -145,7 +145,7 @@ describe('/#/contact', () => {
           }
         )
         if (response.status === 200) {
-          const responseJson = await response.json()
+          const responseJson = await response.json() as { captchaId: number, answer: string }
           console.log(responseJson)
 
           await sendPostRequest(responseJson)
@@ -194,7 +194,7 @@ describe('/#/contact', () => {
             }
           )
           if (response.status === 200) {
-            const responseJson = await response.json()
+            const responseJson = await response.json() as { captchaId: number, answer: string }
 
             await sendPostRequest(responseJson)
           }

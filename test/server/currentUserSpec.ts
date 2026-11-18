@@ -4,7 +4,7 @@
  */
 
 import sinon from 'sinon'
-import chai from 'chai'
+import * as chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { retrieveLoggedInUser } from '../../routes/currentUser'
 import { authenticatedUsers } from '../../lib/insecurity'

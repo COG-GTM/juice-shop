@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import chai from 'chai'
+import * as chai from 'chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { checkUploadSize, checkFileType } from '../../routes/fileUpload'

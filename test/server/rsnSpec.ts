@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import chai from 'chai'
+import * as chai from 'chai'
 import sinon from 'sinon'
 import fs from 'node:fs'
 import { filterString, findChangedFiles, getFixExplanation, loadChallengeInfo, type CacheData, type ChallengeInfo } from '../../rsn/rsnUtil'

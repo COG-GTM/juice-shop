@@ -6,7 +6,7 @@
 import * as webhook from '../../lib/webhook'
 import { type AddressInfo } from 'node:net'
 import http from 'node:http'
-import chai from 'chai'
+import * as chai from 'chai'
 const expect = chai.expect
 
 describe('webhook', () => {

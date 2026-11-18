@@ -5,7 +5,7 @@
 
 import { retrieveChallengesWithCodeSnippet } from '../../routes/vulnCodeSnippet'
 import { readFixes } from '../../routes/vulnCodeFixes'
-import chai from 'chai'
+import * as chai from 'chai'
 import fs from 'graceful-fs'
 import sinonChai from 'sinon-chai'
 const expect = chai.expect

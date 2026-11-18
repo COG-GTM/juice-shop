@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import chai from 'chai'
+import * as chai from 'chai'
 import * as challengeUtils from '../../lib/challengeUtils'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'

@@ -5,7 +5,7 @@
 
 import sinon from 'sinon'
 import config from 'config'
-import chai from 'chai'
+import * as chai from 'chai'
 import sinonChai from 'sinon-chai'
 
 import { version } from '../../package.json'

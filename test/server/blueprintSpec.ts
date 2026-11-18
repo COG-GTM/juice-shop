@@ -1,4 +1,4 @@
-import chai from 'chai'
+import * as chai from 'chai'
 import config from 'config'
 import type { Product as ProductConfig } from 'lib/config.types'
 

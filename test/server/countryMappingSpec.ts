@@ -4,8 +4,8 @@
  */
 
 import sinon from 'sinon'
-import config, { type IConfig } from 'config'
-import chai from 'chai'
+import config, { type Config } from 'config'
+import * as chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { countryMapping } from '../../routes/countryMapping'
 const expect = chai.expect
@@ -21,13 +21,13 @@ describe('countryMapping', () => {
   })
 
   it('should return configured country mappings', () => {
-    countryMapping({ get: sinon.stub().withArgs('ctf.countryMapping').returns('TEST') } as unknown as IConfig)(req, res)
+    countryMapping({ get: sinon.stub().withArgs('ctf.countryMapping').returns('TEST') } as unknown as Config)(req, res)
 
     expect(res.send).to.have.been.calledWith('TEST')
   })
 
   it('should return server error when configuration has no country mappings', () => {
-    countryMapping({ get: sinon.stub().withArgs('ctf.countryMapping').returns(null) } as unknown as IConfig)(req, res)
+    countryMapping({ get: sinon.stub().withArgs('ctf.countryMapping').returns(null) } as unknown as Config)(req, res)
 
     expect(res.status).to.have.been.calledWith(500)
   })

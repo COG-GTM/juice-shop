@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import chai from 'chai'
+import * as chai from 'chai'
 import net from 'node:net'
 import sinon from 'sinon'
 import semver from 'semver'

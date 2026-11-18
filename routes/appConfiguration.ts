@@ -8,7 +8,7 @@ import { type Request, type Response } from 'express'
 
 export function retrieveAppConfiguration () {
   return (_req: Request, res: Response) => {
-    const safeConfig = structuredClone(config.util.toObject(config))
+    const safeConfig = structuredClone(config.util.toObject(config) as any)
     if (safeConfig.application?.chatBot) {
       delete safeConfig.application.chatBot.llmApiUrl
     }

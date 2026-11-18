@@ -1,5 +1,5 @@
 /* /ftp file download */
-  app.use('/ftp(?!/quarantine)/:file', servePublicFiles())
+  app.use(/^\/ftp(?!\/quarantine)\/(?<file>[^/]+)/, servePublicFiles())
   app.use('/ftp/quarantine/:file', serveQuarantineFiles())
 
   app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))

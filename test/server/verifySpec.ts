@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import chai from 'chai'
+import * as chai from 'chai'
 import sinon from 'sinon'
 import config from 'config'
 import sinonChai from 'sinon-chai'

@@ -136,7 +136,7 @@ const errorhandler = require('errorhandler')
 
 const startTime = Date.now()
 
-const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8'))
+const swaggerDocument = yaml.load(fs.readFileSync('./swagger.yml', 'utf8')) as Record<string, any>
 
 const appName = config.get<string>('application.customMetricsPrefix')
 const startupGauge = new Prometheus.Gauge({
@@ -179,7 +179,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(compression())
 
   /* Bludgeon solution for possible CORS problems: Allow everything! */
-  app.options('*', cors())
+  app.options('/{*splat}', cors())
   app.use(cors())
 
   /* Security middleware */
@@ -201,7 +201,20 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
   /* Remove duplicate slashes from URL which allowed bypassing subsequent filters */
   app.use((req: Request, res: Response, next: NextFunction) => {
-    req.url = req.url.replace(/[/]+/g, '/')
+    const [pathname, ...search] = req.url.split('?')
+    req.url = [pathname.replace(/[/]+/g, '/'), ...search].join('?')
+    next()
+  })
+
+  /* Express 5 creates route params without prototype, but finale-rest calls req.params.hasOwnProperty() */
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    let params = req.params ?? {}
+    Object.defineProperty(req, 'params', {
+      configurable: true,
+      enumerable: true,
+      get: () => params,
+      set: (value) => { params = { ...value } }
+    })
     next()
   })
 
@@ -267,7 +280,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
   app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
-  app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
+  app.use(/^\/ftp(?!\/quarantine)\/(?<file>[^/]+)/, servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
   app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
@@ -305,6 +318,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.use(i18n.init)
 
   app.use(bodyParser.urlencoded({ extended: true }))
+  /* Express 5 leaves req.body undefined for requests without body */
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    req.body ??= {}
+    next()
+  })
   /* File Upload */
   app.post('/file-upload', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), checkUploadSize, checkFileType, handleZipFileUpload, handleXmlUpload, handleYamlUpload)
   app.post('/profile/image/file', uploadToMemory.single('file'), ensureFileIsPassed, metrics.observeFileUploadMetricsMiddleware(), utils.asyncHandler(profileImageFileUpload()))

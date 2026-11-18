@@ -89,7 +89,7 @@ describe('/rest/products/reviews', () => {
           }
         )
         if (response.status === 200) {
-          const responseJson = await response.json()
+          const responseJson = await response.json() as any
           const reviewId = responseJson.data[0]._id
           await editReview(reviewId)
         }
@@ -150,7 +150,7 @@ describe('/rest/products/reviews', () => {
           }
         )
         if (response.status === 200) {
-          const responseJson = await response.json()
+          const responseJson = await response.json() as any
           const reviewId = responseJson.data[0]._id
 
           void sendPostRequest(reviewId)

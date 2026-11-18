@@ -1,4 +1,4 @@
-import chai from 'chai'
+import * as chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { getVerdict } from '../../routes/vulnCodeSnippet'
 const expect = chai.expect

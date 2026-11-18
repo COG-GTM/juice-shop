@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 describe('/#/basket', () => {
   describe('as admin', () => {
     beforeEach(() => {

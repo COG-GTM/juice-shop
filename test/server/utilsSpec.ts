@@ -7,7 +7,7 @@ import type { ChallengeModel } from 'models/challenge'
 
 import * as utils from '../../lib/utils'
 
-import chai from 'chai'
+import * as chai from 'chai'
 const expect = chai.expect
 
 describe('utils', () => {

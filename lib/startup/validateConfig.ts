@@ -53,7 +53,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   return success
 }
 
-export const checkYamlSchema = (configuration = config.util.toObject()): configuration is AppConfig => {
+export const checkYamlSchema = (configuration: any = config.util.toObject()): configuration is AppConfig => {
   let success = true
   const schemaErrors = validateSchema(configuration, { schemaPath: path.resolve('config.schema.yml'), logLevel: 'none' })
   if (schemaErrors.length !== 0) {
@@ -166,7 +166,7 @@ export const checkUniqueSpecialOnMemories = (memories: MemoryConfig[]) => {
   return success
 }
 
-export const checkForIllogicalCombos = (configuration = config.util.toObject()) => {
+export const checkForIllogicalCombos = (configuration: any = config.util.toObject()) => {
   let success = true
   if (configuration.challenges.restrictToTutorialsFirst && !configuration.hackingInstructor.isEnabled) {
     logger.warn(`Restricted tutorial mode is enabled while Hacking Instructor is disabled (${colors.red('ERROR')})`)

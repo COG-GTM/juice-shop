@@ -4,7 +4,7 @@
  */
 
 import sinon from 'sinon'
-import chai from 'chai'
+import * as chai from 'chai'
 import sinonChai from 'sinon-chai'
 import { type Challenge } from 'data/types'
 import { challenges } from '../../data/datacache'

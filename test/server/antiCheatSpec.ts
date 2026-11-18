@@ -1,4 +1,4 @@
-import chai from 'chai'
+import * as chai from 'chai'
 import { type Challenge } from '../../data/types'
 const expect = chai.expect
 

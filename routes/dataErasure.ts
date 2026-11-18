@@ -7,7 +7,7 @@ import path from 'node:path'
 import config from 'config'
 import { themes } from '../views/themes/themes'
 import * as utils from '../lib/utils'
-import { AllHtmlEntities as Entities } from 'html-entities'
+import { encode } from 'html-entities'
 
 import { SecurityQuestionModel } from '../models/securityQuestion'
 import { PrivacyRequestModel } from '../models/privacyRequests'
@@ -16,8 +16,6 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
-
-const entities = new Entities()
 
 const router = express.Router()
 
@@ -50,7 +48,7 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
       res.render('dataErasureForm', {
         userEmail: email,
         securityQuestion: question.question,
-        _title_: entities.encode(config.get<string>('application.name')),
+        _title_: encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
         _bgColor_: theme.bgColor,
         _textColor_: theme.textColor,
@@ -90,7 +88,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       const themeKey = config.get<string>('application.theme') as keyof typeof themes
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']
       const themeVars = {
-        _title_: entities.encode(config.get<string>('application.name')),
+        _title_: encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
         _bgColor_: theme.bgColor,
         _textColor_: theme.textColor,
