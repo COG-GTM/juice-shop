@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
+import fs from 'node:fs'
 import path from 'node:path'
 import config from 'config'
 import { themes } from '../views/themes/themes'
@@ -102,7 +103,7 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 
       if (req.body.layout) {
         const filePath: string = path.resolve(req.body.layout).toLowerCase()
-        const isForbiddenFile: boolean = (filePath.includes('ftp') || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
+        const isForbiddenFile: boolean = (filePath.includes('ftp') || isOrderConfirmationPath(req.body.layout) || filePath.includes('ctf.key') || filePath.includes('encryptionkeys'))
         if (!isForbiddenFile) {
           res.render('dataErasureResult', {
             ...req.body,
@@ -132,3 +133,36 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
 })
 
 export default router
+
+function isOrderConfirmationPath (layout: string) {
+  const appRoot = path.resolve('.')
+  // hbs resolves layouts relative to the views directory
+  const resolvedPaths = [path.resolve(layout), path.join(path.resolve('views'), layout)]
+  const candidates = [...resolvedPaths]
+  for (const resolvedPath of resolvedPaths) {
+    if (resolvedPath.startsWith(appRoot + path.sep)) {
+      const realPath = realpathOfNearestExistingAncestor(resolvedPath)
+      if (realPath) candidates.push(realPath)
+    }
+  }
+  const ordersRoots = ['orders']
+  try {
+    ordersRoots.push(fs.realpathSync(path.resolve('orders')).toLowerCase())
+  } catch {}
+  return candidates.some(candidate => ordersRoots.some(root => candidate.toLowerCase().includes(root)))
+}
+
+function realpathOfNearestExistingAncestor (filePath: string) {
+  let existing = filePath
+  const missingSegments: string[] = []
+  while (true) {
+    try {
+      return path.join(fs.realpathSync(existing), ...missingSegments)
+    } catch {
+      const parent = path.dirname(existing)
+      if (parent === existing) return undefined
+      missingSegments.unshift(path.basename(existing))
+      existing = parent
+    }
+  }
+}
