@@ -186,6 +186,17 @@ describe('insecurity', () => {
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
       expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
     })
+
+    it('rejects input longer than the maximum length', () => {
+      expect(security.sanitizeSecure('a'.repeat(security.SANITIZE_SECURE_MAX_LENGTH))).to.equal('a'.repeat(security.SANITIZE_SECURE_MAX_LENGTH))
+      expect(() => security.sanitizeSecure('a'.repeat(security.SANITIZE_SECURE_MAX_LENGTH + 1))).to.throw(security.SanitizationLimitError)
+    })
+
+    it('rejects nested input that does not settle within the maximum number of passes', () => {
+      const depth = security.SANITIZE_SECURE_MAX_PASSES + 5
+      const nested = '<'.repeat(depth) + 'x>' + 'x>'.repeat(depth)
+      expect(() => security.sanitizeSecure(nested)).to.throw(security.SanitizationLimitError)
+    })
   })
 
   describe('hash', () => {
