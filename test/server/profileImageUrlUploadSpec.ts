@@ -26,6 +26,20 @@ describe('profileImageUrlUpload', () => {
     expect(error).to.be.an('error')
     expect(req.app.locals.abused_ssrf_bug).to.equal(false)
   })
+  it('should not fetch anything for a prototype-key session token', async () => {
+    const fetchImage = sinon.stub().rejects(new Error('must not be called'))
+    const req: any = {
+      body: { imageUrl: 'http://10.0.0.5:8080/status' },
+      cookies: { token: '__proto__' },
+      socket: { remoteAddress: '127.0.0.1' },
+      app: { locals: { abused_ssrf_bug: false } }
+    }
+    let error: unknown
+    await profileImageUrlUpload(fetchImage)(req, {} as any, (err?: unknown) => { error = err })
+
+    expect(error).to.be.an('error')
+    expect(fetchImage.called).to.equal(false)
+  })
   it('should not flag the SSRF challenge when an authenticated user submits a rejected internal URL', async () => {
     security.authenticatedUsers.put('ssrf-spec-token', { data: { id: 4711 } } as any)
     const req: any = {
