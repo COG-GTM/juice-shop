@@ -110,8 +110,8 @@ export const discountFromCoupon = (coupon?: string) => {
     const parts = decoded.toString().split('-')
     const validity = parts[0]
     if (utils.toMMMYY(new Date()) === validity) {
-      const discount = parts[1]
-      return parseInt(discount)
+      const discount = parseInt(parts[1])
+      return Math.min(Math.max(discount, 0), 100)
     }
   }
 }
