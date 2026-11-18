@@ -359,6 +359,12 @@ void describe('/rest/chat generateCoupon tool', { timeout: 120000 }, () => {
     assert.ok(!result.includes('couponCode'))
   })
 
+  void it('rejects an anonymous 99% coupon request without an order ID', { timeout: 15000 }, async () => {
+    const result = await couponToolResult({ discount: 99 })
+    assert.ok(result.length > 0)
+    assert.ok(!result.includes('couponCode'))
+  })
+
   void it('detects greedy coupon requests without minting a coupon', { timeout: 15000 }, async () => {
     const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
     const orderId = await deliveredOrderOf(token)
