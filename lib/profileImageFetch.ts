@@ -74,21 +74,34 @@ function detectImageType (contentType: string, data: Buffer) {
   return type.extension
 }
 
+async function resolveAll (hostname: string) {
+  return await new Promise<dns.LookupAddress[]>((resolve, reject) => {
+    dns.lookup(hostname, { all: true, verbatim: true }, (err, addresses) => {
+      if (err) reject(err)
+      else resolve(addresses)
+    })
+  })
+}
+
 export async function fetchProfileImage (rawUrl: unknown, { isAllowedAddress = isPublicAddress, allowedProtocols = DEFAULT_ALLOWED_PROTOCOLS, timeoutMs = PROFILE_IMAGE_TIMEOUT_MS }: ProfileImageFetchOptions = {}): Promise<ProfileImage> {
   const url = parseProfileImageUrl(rawUrl, allowedProtocols)
   const host = url.hostname.replace(/^\[(.*)\]$/, '$1')
   if (net.isIP(host) !== 0 && !isAllowedAddress(host)) throw new ProfileImageFetchError('profile image host is not allowed')
 
-  // Vet every resolved address and connect only to those, so DNS rebinding cannot swap in an internal IP
-  const lookup = (hostname: string, options: dns.LookupOptions, callback: (...args: any[]) => void) => {
-    dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
-      if (err) return callback(err)
-      if (addresses.length === 0 || addresses.some(({ address }) => !isAllowedAddress(address))) {
-        return callback(new ProfileImageFetchError('profile image host is not allowed'))
-      }
-      if (options.all) return callback(null, addresses)
-      callback(null, addresses[0].address, addresses[0].family)
-    })
+  // Vet every resolved address, then connect to the vetted IP itself so DNS rebinding cannot swap in an internal one
+  const addresses = net.isIP(host) !== 0 ? [{ address: host }] : await resolveAll(host)
+  if (addresses.length === 0 || addresses.some(({ address }) => !isAllowedAddress(address))) {
+    throw new ProfileImageFetchError('profile image host is not allowed')
+  }
+  const target: https.RequestOptions = {
+    protocol: url.protocol,
+    hostname: addresses[0].address,
+    port: url.port,
+    path: url.pathname + url.search,
+    servername: net.isIP(host) === 0 ? host : undefined,
+    agent: false,
+    timeout: timeoutMs,
+    headers: { host: url.host, accept: 'image/jpeg, image/png, image/gif', 'accept-encoding': 'identity' }
   }
 
   const client = url.protocol === 'https:' ? https : http
@@ -100,7 +113,7 @@ export async function fetchProfileImage (rawUrl: unknown, { isAllowedAddress = i
       else reject(error)
     }
     // http(s).get never follows redirects, so a 3xx towards an internal host is rejected like any other non-200
-    const req = client.get(url, { agent: false, lookup, timeout: timeoutMs, headers: { accept: 'image/jpeg, image/png, image/gif', 'accept-encoding': 'identity' } }, (res) => {
+    const req = client.get(target, (res) => {
       const fail = (message: string) => {
         res.destroy()
         settle(new ProfileImageFetchError(message))
