@@ -27,7 +27,7 @@ export function changePassword () {
 
     const token = headers.authorization ? headers.authorization.substr('Bearer='.length) : null
     const loggedInUser = token !== null && security.verify(token) ? security.authenticatedUsers.get(token) : undefined
-    if (!loggedInUser) {
+    if (token === null || !loggedInUser) {
       res.status(401).send()
       return
     }
