@@ -9,6 +9,7 @@ import sinonChai from 'sinon-chai'
 import { challenges } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 import { continueCode } from '../../routes/continueCode'
+import { verify } from '../../lib/continueCodeSigner'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -30,12 +31,14 @@ describe('continueCode', () => {
     expect(res.json).to.have.been.calledWith({ continueCode: undefined })
   })
 
-  it('should be hashid value of IDs of solved challenges', () => {
+  it('should be signed hashid value of IDs of solved challenges', () => {
     challenges.scoreBoardChallenge = { id: 1, solved: true } as unknown as Challenge
     challenges.adminSectionChallenge = { id: 2, solved: true } as unknown as Challenge
     challenges.continueCodeChallenge = { id: 3, solved: false } as unknown as Challenge
 
     continueCode()(req, res)
-    expect(res.json).to.have.been.calledWith({ continueCode: 'yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY' })
+    const code: string = res.json.firstCall.args[0].continueCode
+    expect(code).to.match(/^yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY[a-f0-9]{64}$/)
+    expect(verify(code, 'hacking')).to.equal('yXjv6Z5jWJnzD6a3YvmwPRXK7roAyzHDde2Og19yEN84plqxkMBbLVQrDeoY')
   })
 })

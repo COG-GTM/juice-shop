@@ -4,8 +4,11 @@
  */
 
 import chai from 'chai'
+import sinon from 'sinon'
+import config from 'config'
 import * as challengeUtils from '../../lib/challengeUtils'
-import { challenges } from '../../data/datacache'
+import * as utils from '../../lib/utils'
+import { challenges, notifications } from '../../data/datacache'
 import { type Challenge } from 'data/types'
 
 const expect = chai.expect
@@ -32,6 +35,70 @@ describe('challengeUtils', () => {
 
     it('returns existing challenge', () => {
       expect(challengeUtils.findChallengeById(42)).to.deep.equal({ id: 42, name: 'scoreBoardChallenge' })
+    })
+  })
+
+  describe('sendNotification', () => {
+    const globalWithSocketIO = global as unknown as { io?: { emit: sinon.SinonSpy } }
+    let previousIo: { emit: sinon.SinonSpy } | undefined
+    const solvedChallenge = { key: 'scoreBoardChallenge', name: 'Score Board', description: 'Find the score board.', solved: true }
+
+    beforeEach(() => {
+      previousIo = globalWithSocketIO.io
+      globalWithSocketIO.io = { emit: sinon.spy() }
+      notifications.splice(0, notifications.length)
+    })
+
+    afterEach(() => {
+      globalWithSocketIO.io = previousIo
+      notifications.splice(0, notifications.length)
+    })
+
+    it('does not include the CTF flag when ctf.showFlagsInNotifications is disabled', () => {
+      expect(challengeUtils.showFlagsInNotifications()).to.equal(false)
+      challengeUtils.sendNotification(solvedChallenge, false)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification).to.not.have.property('flag')
+      expect(notification.isRestore).to.equal(false)
+      expect(notifications[0]).to.not.have.property('flag')
+    })
+
+    it('includes the CTF flag for a live solve when flags are enabled', () => {
+      challengeUtils.sendNotification(solvedChallenge, false, true)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification.flag).to.equal(utils.ctfFlag('Score Board'))
+      expect(notification.isRestore).to.equal(false)
+    })
+
+    it('does not broadcast or queue the CTF flag for restored challenges', () => {
+      challengeUtils.sendNotification(solvedChallenge, true)
+      expect(globalWithSocketIO.io?.emit).to.have.callCount(1)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification).to.not.have.property('flag')
+      expect(notification.isRestore).to.equal(true)
+      expect(notifications[0]).to.not.have.property('flag')
+    })
+
+    it('does not include the CTF flag for restored challenges when flags are enabled', () => {
+      const get = sinon.stub(config, 'get').callThrough()
+      get.withArgs('ctf.showFlagsInNotifications').returns(true)
+      try {
+        challengeUtils.sendNotification(solvedChallenge, false)
+        challengeUtils.sendNotification(solvedChallenge, true)
+      } finally {
+        get.restore()
+      }
+      expect(globalWithSocketIO.io?.emit.firstCall.args[1].flag).to.equal(utils.ctfFlag('Score Board'))
+      const restored = globalWithSocketIO.io?.emit.secondCall.args[1]
+      expect(restored).to.not.have.property('flag')
+      expect(restored.isRestore).to.equal(true)
+    })
+
+    it('includes the CTF flag when explicitly requested for a repeated notification', () => {
+      challengeUtils.sendNotification(solvedChallenge, true, true)
+      const notification = globalWithSocketIO.io?.emit.firstCall.args[1]
+      expect(notification.flag).to.equal(utils.ctfFlag('Score Board'))
+      expect(notification.isRestore).to.equal(true)
     })
   })
 })

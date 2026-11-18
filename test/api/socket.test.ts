@@ -10,6 +10,7 @@ import * as http from 'http'
 import ioClient from 'socket.io-client'
 import { createTestApp } from './helpers/setup'
 import registerWebsocketEvents from '../../lib/startup/registerWebsocketEvents'
+import { notifications } from '../../data/datacache'
 
 let app: Express
 let server: http.Server
@@ -81,5 +82,24 @@ void describe('WebSocket', () => {
   void it('server handles empty confirmation message', () => {
     socket.emit('notification received', undefined)
     assert.ok(true)
+  })
+  void it('server removes a queued notification once its key is acknowledged', async () => {
+    const key = 'notificationAckTestChallenge'
+    notifications.push({ key, name: 'Ack Test', challenge: 'Ack Test (desc)', hidden: false, isRestore: false, codingChallenge: false })
+
+    const queuedKeysOnConnect = async () => await new Promise<string[]>((resolve) => {
+      const keys: string[] = []
+      const client = ioClient(`http://localhost:${serverPort}`, { reconnectionDelay: 0, forceNew: true })
+      client.on('challenge solved', (data: any) => { keys.push(data.key) })
+      client.on('connect', () => { setTimeout(() => { client.disconnect(); resolve(keys) }, 200) })
+    })
+
+    assert.ok((await queuedKeysOnConnect()).includes(key))
+    await new Promise<void>((resolve) => {
+      socket.emit('notification received', key)
+      setTimeout(resolve, 200)
+    })
+    assert.ok(!(await queuedKeysOnConnect()).includes(key))
+    assert.ok(!notifications.some((n: any) => n.key === key))
   })
 })
