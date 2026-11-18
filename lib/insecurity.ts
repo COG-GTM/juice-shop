@@ -185,6 +185,18 @@ export const appendUserId = () => {
   }
 }
 
+export const rehydrateAuthenticatedUserFromHeader = () => (req: Request, res: Response, next: NextFunction) => {
+  const token = utils.jwtFrom(req)
+  if (token && authenticatedUsers.get(token) === undefined) {
+    jwt.verify(token, publicKey, (err: Error | null, decoded: any) => {
+      if (err === null && decoded?.data?.id != null) {
+        authenticatedUsers.put(token, decoded)
+      }
+    })
+  }
+  next()
+}
+
 export const updateAuthenticatedUsers = () => (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.token || utils.jwtFrom(req)
   if (token) {
