@@ -69,6 +69,48 @@ void describe('/api/Feedbacks', () => {
     })
   }
 
+  void it('POST rejects comment exceeding the sanitizer length limit', async (t) => {
+    if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
+      t.skip('sanitizeSecure is only used when persistedXssFeedbackChallenge is disabled')
+      return
+    }
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    const depth = 15000
+    const start = Date.now()
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: '<'.repeat(depth) + 'x>' + 'x>'.repeat(depth),
+        rating: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 400)
+    assert.ok(Date.now() - start < 1000)
+  })
+
+  void it('POST rejects nested comment that does not settle within the sanitizer pass limit', async (t) => {
+    if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
+      t.skip('sanitizeSecure is only used when persistedXssFeedbackChallenge is disabled')
+      return
+    }
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+    const depth = security.SANITIZE_SECURE_MAX_PASSES + 5
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: '<'.repeat(depth) + 'x>' + 'x>'.repeat(depth),
+        rating: 1,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 400)
+  })
+
   void it('POST feedback in another users name as anonymous user', async () => {
     const captchaRes = await request(app)
       .get('/rest/captcha')
