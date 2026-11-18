@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { sessionLifetimeInSeconds } from '../../lib/insecurity'
 
 let app: Express
 
@@ -36,6 +37,65 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 200)
+  })
+
+  void it('GET password change ends all other sessions of the user', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'sessions@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token: otherToken } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'sessions@be.rt', password: 'kunigunde' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + otherToken })
+      .expect(401)
+
+    await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+  })
+
+  void it('GET password change ends other sessions on appendUserId-only routes', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'appenduserid@be.rt',
+        password: 'kunigunde'
+      })
+      .expect(201)
+
+    const { token: otherToken } = await login(app, { email: 'appenduserid@be.rt', password: 'kunigunde' })
+    const { token } = await login(app, { email: 'appenduserid@be.rt', password: 'kunigunde' })
+    const routes = ['/api/Cards', '/api/Addresss', '/rest/wallet/balance']
+
+    for (const route of routes) {
+      await request(app).get(route).set({ Authorization: 'Bearer ' + otherToken }).expect(200)
+    }
+
+    await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=foobar&repeat=foobar')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    for (const route of routes) {
+      await request(app).get(route).set({ Authorization: 'Bearer ' + otherToken }).expect(401)
+      await request(app).get(route).set({ Authorization: 'Bearer ' + token }).expect(200)
+    }
+    await request(app).post('/rest/deluxe-membership').set({ Authorization: 'Bearer ' + otherToken }).send({}).expect(401)
   })
 
   void it('GET password change with passing wrong current password', async () => {
@@ -87,6 +147,53 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('<h1>' + config.get<string>('application.name') + ' (Express'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
+  })
+
+  void it('GET password change updates the password of the kept cookie session', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'cookie@sess.ion', password: 'cookieSession1' })
+      .expect(201)
+    const { token: bearer } = await login(app, { email: 'cookie@sess.ion', password: 'cookieSession1' })
+    const { token: cookie } = await login(app, { email: 'cookie@sess.ion', password: 'cookieSession1' })
+
+    await request(app)
+      .get('/rest/user/change-password?current=cookieSession1&new=cookieSession2&repeat=cookieSession2')
+      .set({ Authorization: 'Bearer ' + bearer, Cookie: 'token=' + cookie })
+      .expect(200)
+
+    const res = await request(app)
+      .get('/rest/user/change-password?current=cookieSession2&new=cookieSession3&repeat=cookieSession3')
+      .set({ Authorization: 'Bearer ' + cookie })
+    assert.equal(res.status, 200)
+  })
+
+  void it('GET password change is rejected for a token past its lifetime', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'stale@to.ken', password: 'staleToken1' })
+      .expect(201)
+    const { token } = await login(app, { email: 'stale@to.ken', password: 'staleToken1' })
+
+    const now = Date.now()
+    const clock = mock.method(Date, 'now', () => now + (sessionLifetimeInSeconds + 1) * 1000)
+    try {
+      const res = await request(app)
+        .get('/rest/user/change-password?new=hijacked1&repeat=hijacked1')
+        .set({ Authorization: 'Bearer ' + token })
+      assert.equal(res.status, 500)
+      assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    } finally {
+      clock.mock.restore()
+    }
+
+    const res = await request(app)
+      .get('/rest/user/change-password?new=hijacked1&repeat=hijacked1')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(res.status, 500)
+    await login(app, { email: 'stale@to.ken', password: 'staleToken1' })
   })
 
   void it('GET password change for Bender without current password using GET request', async () => {

@@ -18,6 +18,7 @@ import { forkJoin, of } from 'rxjs'
 import { catchError, map } from 'rxjs/operators'
 
 import { MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow } from '@angular/material/table'
+import { isLoggedIn } from '../Services/auth-session'
 
 library.add(faTrashAlt, faMinusSquare, faPlusSquare)
 
@@ -51,7 +52,7 @@ export class PurchaseBasketComponent implements OnInit {
     }
     this.load()
 
-    if (localStorage.getItem('token') == null) {
+    if (!isLoggedIn()) {
       this.userEmail = '(anonymous)'
       return
     }
@@ -69,7 +70,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   load () {
-    if (localStorage.getItem('token') == null) {
+    if (!isLoggedIn()) {
       this.loadGuestBasket()
       return
     }
@@ -134,7 +135,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   delete (id) {
-    if (localStorage.getItem('token') == null) {
+    if (!isLoggedIn()) {
       this.basketService.removeGuestBasketItem(id)
       this.load()
       return
@@ -158,7 +159,7 @@ export class PurchaseBasketComponent implements OnInit {
   }
 
   addToQuantity (id, value) {
-    if (localStorage.getItem('token') == null) {
+    if (!isLoggedIn()) {
       const existingGuestItem = this.basketService.getGuestBasketItems().find(item => item.ProductId === id)
       if (existingGuestItem == null) {
         return

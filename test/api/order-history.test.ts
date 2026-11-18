@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
+import type { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -46,6 +48,62 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+
+  void it('GET order history without a token is rejected', async () => {
+    const res = await request(app)
+      .get('/rest/order-history')
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order history with a cached but expired token is rejected', async () => {
+    const user = { status: 'success', data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } as unknown as UserModel }
+    const realNow = Date.now
+    const issueExpiredToken = () => {
+      Date.now = () => realNow() - (security.sessionLifetimeInSeconds + 60) * 1000
+      try {
+        const expiredToken = security.authorize(user)
+        security.authenticatedUsers.put(expiredToken, user)
+        return expiredToken
+      } finally {
+        Date.now = realNow
+      }
+    }
+    const token = issueExpiredToken()
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET order history with a logged out token is rejected', async () => {
+    const { token } = await login(app, {
+      email: 'jim@' + config.get<string>('application.domain'),
+      password: 'ncc-1701'
+    })
+
+    await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(200)
+
+    await request(app)
+      .post('/rest/user/logout')
+      .set({ Authorization: 'Bearer ' + token })
+      .expect(204)
+
+    await request(app)
+      .get('/rest/user/whoami')
+      .set({ Authorization: 'Bearer ' + token, Cookie: 'token=' + token })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token })
+
+    assert.equal(res.status, 401)
   })
 })
 

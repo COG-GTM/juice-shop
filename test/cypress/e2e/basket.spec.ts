@@ -13,8 +13,7 @@ describe('/#/basket', () => {
               method: 'PUT',
               cache: 'no-cache',
               headers: {
-                'Content-type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                'Content-type': 'application/json'
               },
               body: JSON.stringify({ quantity: -100000 })
             }
@@ -60,8 +59,7 @@ describe('/#/basket', () => {
             method: 'POST',
             cache: 'no-cache',
             headers: {
-              'Content-type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('token')}`
+              'Content-type': 'application/json'
             },
             body: '{ "ProductId": 14,"BasketId":"1","quantity":1,"BasketId":"2" }'
           })
@@ -115,8 +113,7 @@ describe('/#/basket', () => {
               method: 'POST',
               cache: 'no-cache',
               headers: {
-                'Content-type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('token')}`
+                'Content-type': 'application/json'
               },
               body: JSON.stringify({
                 BasketId: `${sessionStorage.getItem('bid')}`,

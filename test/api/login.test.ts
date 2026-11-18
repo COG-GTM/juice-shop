@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { assertSessionCookieFlags, sessionCookie } from './helpers/auth'
 
 let app: Express
 
@@ -41,6 +42,29 @@ void describe('/rest/user/login', () => {
     assert.equal(typeof res.body.authentication.token, 'string')
     assert.equal(typeof res.body.authentication.umail, 'string')
     assert.equal(typeof res.body.authentication.bid, 'number')
+  })
+
+  void it('POST login sets the session token cookie as HttpOnly and SameSite=Strict', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+
+    assert.equal(res.status, 200)
+    const cookie = sessionCookie(res)
+    assert.equal(cookie?.split(';')[0], `token=${res.body.authentication.token}`)
+    assertSessionCookieFlags(cookie, { secure: false })
+    assert.ok(cookie?.includes('Max-Age=21600'))
+  })
+
+  void it('POST login over HTTPS sets the session token cookie as Secure', async () => {
+    const res = await request(app)
+      .post('/rest/user/login')
+      .set({ 'content-type': 'application/json', 'X-Forwarded-Proto': 'https' })
+      .send({ email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
+
+    assert.equal(res.status, 200)
+    assertSessionCookieFlags(sessionCookie(res), { secure: true })
   })
 
   void it('POST login non-existing user', async () => {
