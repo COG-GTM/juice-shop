@@ -22,7 +22,7 @@ export function profileImageUrlUpload (fetchImage = fetchProfileImage) {
         try {
           image = await fetchImage(url)
         } catch (error) {
-          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error).replace(/[\r\n]+/g, ' ')}; keeping current profile image`)
+          logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error).replace(/\n|\r/g, ' ')}; keeping current profile image`)
         }
         if (image) {
           try {
