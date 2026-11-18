@@ -186,3 +186,70 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data, 'Malicious activity detected.')
   })
 })
+
+void describe('PUT /api/Addresss/:id ownership', () => {
+  let victimAddressId: number
+  let attackerAuthHeader: { Authorization: string, 'content-type': string }
+
+  before(async () => {
+    const res = await request(app).post('/api/Addresss').set(authHeader).send({
+      fullName: 'Jim',
+      mobileNum: '9800000000',
+      zipCode: 'NX 101',
+      streetAddress: 'Bakers Street',
+      city: 'NYC',
+      state: 'NY',
+      country: 'USA'
+    })
+    assert.equal(res.status, 201)
+    victimAddressId = res.body.data.id
+
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    attackerAuthHeader = {
+      Authorization: 'Bearer ' + token,
+      'content-type': 'application/json'
+    }
+  })
+
+  void it('PUT another user\'s address with empty body returns 404 and leaks nothing', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + victimAddressId)
+      .set(attackerAuthHeader)
+      .send({})
+    assert.equal(res.status, 404)
+    assert.equal(res.body.status, 'error')
+    assert.equal(JSON.stringify(res.body).includes('Bakers Street'), false)
+  })
+
+  void it('PUT another user\'s address with new fields returns 404 and leaves it unchanged', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + victimAddressId)
+      .set(attackerAuthHeader)
+      .send({ fullName: 'Mallory' })
+    assert.equal(res.status, 404)
+
+    const owner = await request(app)
+      .get('/api/Addresss/' + victimAddressId)
+      .set(authHeader)
+    assert.equal(owner.status, 200)
+    assert.equal(owner.body.data.fullName, 'Jim')
+  })
+
+  void it('PUT own address cannot reassign it to another user via UserId', async () => {
+    const res = await request(app)
+      .put('/api/Addresss/' + victimAddressId)
+      .set(authHeader)
+      .send({ fullName: 'Jimbo', UserId: 1, id: 999999 })
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.fullName, 'Jimbo')
+    assert.equal(res.body.data.id, victimAddressId)
+
+    const attacker = await request(app)
+      .get('/api/Addresss/' + victimAddressId)
+      .set(attackerAuthHeader)
+    assert.equal(attacker.status, 400)
+  })
+})
