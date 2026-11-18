@@ -42,6 +42,7 @@ void describe('/rest/track-order/:id', () => {
       }
       assert.equal(typeof item.eta, 'string')
       assert.equal(typeof item._id, 'string')
+      assert.equal(item.UserId, undefined)
     }
   })
 })
