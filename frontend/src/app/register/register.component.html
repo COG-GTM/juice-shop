@@ -105,7 +105,7 @@
                   <input id="securityAnswerControl" [formControl]="securityAnswerControl" (focus)="this.error=null" type="text"
                     matInput [placeholder]="'SECURITY_ANSWER_PLACEHOLDER' | translate"
                     aria-label="Field for the answer to the security question">
-                    @if (securityAnswerControl.invalid && securityAnswerControl.errors.required) {
+                    @if (securityAnswerControl.invalid && (securityAnswerControl.errors.required || securityAnswerControl.errors.pattern)) {
                       <mat-error translate>
                         MANDATORY_SECURITY_ANSWER
                       </mat-error>

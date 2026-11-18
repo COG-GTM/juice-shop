@@ -3,7 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { SecurityAnswerService } from '../Services/security-answer.service'
 import { UserService } from '../Services/user.service'
 import { type AbstractControl, UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from '@angular/forms'
 import { Component, NgZone, type OnInit, inject } from '@angular/core'
@@ -41,7 +40,6 @@ library.add(faUserPlus, faExclamationCircle)
 export class RegisterComponent implements OnInit {
   private readonly securityQuestionService = inject(SecurityQuestionService)
   private readonly userService = inject(UserService)
-  private readonly securityAnswerService = inject(SecurityAnswerService)
   private readonly router = inject(Router)
   private readonly formSubmitService = inject(FormSubmitService)
   private readonly translateService = inject(TranslateService)
@@ -53,7 +51,7 @@ export class RegisterComponent implements OnInit {
   public passwordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.minLength(5), Validators.maxLength(40)])
   public repeatPasswordControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, matchValidator(this.passwordControl)])
   public securityQuestionControl: UntypedFormControl = new UntypedFormControl('', [Validators.required])
-  public securityAnswerControl: UntypedFormControl = new UntypedFormControl('', [Validators.required])
+  public securityAnswerControl: UntypedFormControl = new UntypedFormControl('', [Validators.required, Validators.pattern(/\S/)])
   public securityQuestions!: SecurityQuestion[]
   public selected?: number
   public error: string | null = null
@@ -79,15 +77,9 @@ export class RegisterComponent implements OnInit {
     }
 
     this.userService.save(user).subscribe({
-      next: (response: any) => {
-        this.securityAnswerService.save({
-          UserId: response.id,
-          answer: this.securityAnswerControl.value,
-          SecurityQuestionId: this.securityQuestionControl.value
-        }).subscribe(() => {
-          this.ngZone.run(async () => await this.router.navigate(['/login']))
-          this.snackBarHelperService.open('CONFIRM_REGISTER')
-        })
+      next: () => {
+        this.ngZone.run(async () => await this.router.navigate(['/login']))
+        this.snackBarHelperService.open('CONFIRM_REGISTER')
       },
       error: (err) => {
         console.log(err)
@@ -99,6 +91,8 @@ export class RegisterComponent implements OnInit {
           } else {
             this.error = error
           }
+        } else if (typeof err.error?.message === 'string') {
+          this.error = err.error.message
         }
       }
     })
