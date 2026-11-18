@@ -118,4 +118,15 @@ describe('ChangePasswordComponent', () => {
         expect(console.log).toHaveBeenCalledWith('Error')
         expect(component.resetPasswords).toHaveBeenCalled()
     })
+
+    it('should ask to log in again when the session is no longer valid', () => {
+        userService.changePassword.mockReturnValue(throwError(() => ''))
+        console.log = vi.fn()
+        component.passwordControl.setValue('old')
+        component.newPasswordControl.setValue('foobar')
+        component.repeatNewPasswordControl.setValue('foobar')
+        component.changePassword()
+        expect(component.confirmation).toBeUndefined()
+        expect(component.error).toBe('UNAUTHORIZED_ACCESS_ERROR')
+    })
 })
