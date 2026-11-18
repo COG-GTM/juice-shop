@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -16,7 +16,7 @@ import { RouterTestingModule } from '@angular/router/testing'
 import { MatGridListModule } from '@angular/material/grid-list'
 import { WalletComponent } from './wallet.component'
 import { WalletService } from '../Services/wallet.service'
-import { EventEmitter, provideZoneChangeDetection } from '@angular/core'
+import { EventEmitter, signal, provideZoneChangeDetection } from '@angular/core'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
@@ -42,20 +42,22 @@ describe('WalletComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
                 MatInputModule,
                 MatGridListModule,
                 WalletComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: WalletService, useValue: walletService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },

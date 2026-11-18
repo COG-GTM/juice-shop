@@ -5,7 +5,7 @@
 
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, type OnInit, type AfterViewInit, type OnDestroy, ElementRef, inject, input, output, viewChild } from '@angular/core'
 import { MatCardModule } from '@angular/material/card'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { CookieService } from 'ngy-cookie'
 
 import { EditorView } from 'codemirror'
@@ -114,7 +114,7 @@ const markedLinesField = StateField.define<Set<number>>({
   templateUrl: './coding-challenge-find-it.component.html',
   styleUrls: ['./coding-challenge-find-it.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatCardModule, TranslateModule, CodingChallengeSectionComponent]
+  imports: [MatCardModule, TranslatePipe, CodingChallengeSectionComponent]
 })
 export class CodingChallengeFindItComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly editorHost = viewChild.required<ElementRef<HTMLDivElement>>('editorHost')

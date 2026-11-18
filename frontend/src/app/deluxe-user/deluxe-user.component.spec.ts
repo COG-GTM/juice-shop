@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -62,7 +62,6 @@ describe('DeluxeUserComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'login', component: LoginComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -76,7 +75,7 @@ describe('DeluxeUserComponent', () => {
                 MatCheckboxModule,
                 MatTooltipModule,
                 DeluxeUserComponent, LoginComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: CookieService, useValue: cookieService },

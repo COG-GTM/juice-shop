@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatInputModule } from '@angular/material/input'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { MatCardModule } from '@angular/material/card'
@@ -47,7 +47,6 @@ describe('DeliveryMethodComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'payment/shop', component: PaymentComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatInputModule,
                 MatCardModule,
@@ -60,7 +59,7 @@ describe('DeliveryMethodComponent', () => {
                 MatExpansionModule,
                 MatDividerModule,
                 DeliveryMethodComponent, PaymentComponent, PaymentMethodComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: AddressService, useValue: addressService },
                 { provide: DeliveryService, useValue: deliveryService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

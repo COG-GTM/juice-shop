@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -18,7 +18,7 @@ import { MatRadioModule } from '@angular/material/radio'
 import { MatDialogModule } from '@angular/material/dialog'
 import { SavedPaymentMethodsComponent } from './saved-payment-methods.component'
 import { PaymentMethodComponent } from '../payment-method/payment-method.component'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { of } from 'rxjs'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
@@ -38,12 +38,15 @@ describe('SavedPaymentMethodsComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -54,7 +57,7 @@ describe('SavedPaymentMethodsComponent', () => {
                 MatRadioModule,
                 MatDialogModule,
                 SavedPaymentMethodsComponent, PaymentMethodComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

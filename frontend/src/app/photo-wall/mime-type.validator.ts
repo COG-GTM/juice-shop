@@ -19,7 +19,7 @@ export const mimeType = (
       fileReader.addEventListener('loadend', () => {
         const arr = new Uint8Array(fileReader.result as ArrayBuffer).subarray(0, 4)
         let header = ''
-        let isValid = false
+        let isValid: boolean
         for (const item of arr) {
           header += item.toString(16)
         }

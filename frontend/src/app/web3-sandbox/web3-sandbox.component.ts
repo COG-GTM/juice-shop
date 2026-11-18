@@ -14,7 +14,7 @@ import {
 } from 'solidity-browser-compiler'
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel } from '@angular/material/form-field'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { FormsModule } from '@angular/forms'
 import { MatIconModule } from '@angular/material/icon'
@@ -45,7 +45,7 @@ const compilerReleases = {
   templateUrl: './web3-sandbox.component.html',
   styleUrls: ['./web3-sandbox.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [FormsModule, MatButtonModule, MatIconModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule]
+  imports: [FormsModule, MatButtonModule, MatIconModule, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, MatInputModule]
 })
 export class Web3SandboxComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('editorHost', { static: true }) editorHost!: ElementRef<HTMLDivElement>

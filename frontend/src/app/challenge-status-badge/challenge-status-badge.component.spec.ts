@@ -8,11 +8,11 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { ChallengeStatusBadgeComponent } from './challenge-status-badge.component'
 import { of, throwError } from 'rxjs'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { WindowRefService } from '../Services/window-ref.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatIconModule } from '@angular/material/icon'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { type Challenge } from '../Models/challenge.model'
 import { MatButtonModule } from '@angular/material/button'
 import { MatTooltipModule } from '@angular/material/tooltip'
@@ -38,14 +38,17 @@ describe('ChallengeStatusBadgeComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 MatButtonModule,
                 MatTooltipModule,
                 MatIconModule,
                 ChallengeStatusBadgeComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: TranslateService, useValue: translateService },
                 { provide: ChallengeService, useValue: challengeService },
                 WindowRefService,

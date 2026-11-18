@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatDividerModule } from '@angular/material/divider'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -25,7 +25,7 @@ import { MatDialogModule } from '@angular/material/dialog'
 import { MatExpansionModule } from '@angular/material/expansion'
 import { MatInputModule } from '@angular/material/input'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('PhotoWallComponent', () => {
@@ -55,13 +55,15 @@ describe('PhotoWallComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 MatTableModule,
                 MatPaginatorModule,
                 MatFormFieldModule,
@@ -76,7 +78,7 @@ describe('PhotoWallComponent', () => {
                 ReactiveFormsModule,
                 MatInputModule,
                 PhotoWallComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: PhotoWallService, useValue: photoWallService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },

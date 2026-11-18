@@ -1,7 +1,7 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { TutorialModeWarningComponent } from './tutorial-mode-warning.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 
 describe('TutorialModeWarningComponent', () => {
     let component: TutorialModeWarningComponent
@@ -9,7 +9,8 @@ describe('TutorialModeWarningComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), TutorialModeWarningComponent]
+            providers: [provideTranslateService()],
+            imports: [ TutorialModeWarningComponent]
         }).compileComponents()
 
         fixture = TestBed.createComponent(TutorialModeWarningComponent)

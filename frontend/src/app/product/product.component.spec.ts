@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatDialog } from '@angular/material/dialog'
 import { of, throwError } from 'rxjs'
 import { provideZoneChangeDetection } from '@angular/core'
@@ -62,8 +62,8 @@ describe('ProductComponent', () => {
         }
 
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), ProductComponent],
-            providers: [
+            imports: [ ProductComponent],
+            providers: [provideTranslateService(),
                 { provide: MatDialog, useValue: dialog },
                 { provide: ProductService, useValue: productService },
                 { provide: BasketService, useValue: basketService },

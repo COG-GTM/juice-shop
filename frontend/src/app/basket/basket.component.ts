@@ -7,7 +7,7 @@ import { Component, NgZone, inject, ChangeDetectionStrategy } from '@angular/cor
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faCartArrowDown } from '@fortawesome/free-solid-svg-icons'
 import { Router } from '@angular/router'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
 import { MatCardModule } from '@angular/material/card'
@@ -19,7 +19,7 @@ library.add(faCartArrowDown)
   templateUrl: './basket.component.html',
   styleUrls: ['./basket.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, PurchaseBasketComponent, MatButtonModule, TranslateModule]
+  imports: [MatCardModule, PurchaseBasketComponent, MatButtonModule, TranslatePipe, TranslateDirective]
 })
 export class BasketComponent {
   private readonly router = inject(Router)

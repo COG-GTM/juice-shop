@@ -10,7 +10,7 @@ import { faBitcoin } from '@fortawesome/free-brands-svg-icons'
 import { faCommentAlt, faComments, faGraduationCap, faUniversity } from '@fortawesome/free-solid-svg-icons'
 import { faCommentAlt as farCommentAlt, faComments as farComments } from '@fortawesome/free-regular-svg-icons'
 import { MatButtonModule } from '@angular/material/button'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 
 import { MatCardModule, MatCardHeader, MatCardTitle, MatCardSubtitle } from '@angular/material/card'
 
@@ -21,7 +21,7 @@ library.add(faBitcoin, faUniversity, faGraduationCap, faCommentAlt, faComments, 
   templateUrl: './token-sale.component.html',
   styleUrls: ['./token-sale.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatCardHeader, MatCardTitle, MatCardSubtitle, TranslateModule, MatButtonModule]
+  imports: [MatCardModule, MatCardHeader, MatCardTitle, MatCardSubtitle, TranslatePipe, MatButtonModule]
 })
 export class TokenSaleComponent implements OnInit {
   private readonly configurationService = inject(ConfigurationService)

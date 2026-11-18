@@ -2,7 +2,7 @@ import { Component, Input, type OnChanges, ChangeDetectionStrategy } from '@angu
 
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
 import { type Config } from 'src/app/Services/configuration.service'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatIconModule } from '@angular/material/icon'
 import { WarningCardComponent } from '../warning-card/warning-card.component'
 
@@ -10,7 +10,7 @@ import { WarningCardComponent } from '../warning-card/warning-card.component'
   selector: 'tutorial-mode-warning',
   templateUrl: './tutorial-mode-warning.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [WarningCardComponent, MatIconModule, TranslateModule]
+  imports: [WarningCardComponent, MatIconModule, TranslatePipe]
 })
 export class TutorialModeWarningComponent implements OnChanges {
   @Input()

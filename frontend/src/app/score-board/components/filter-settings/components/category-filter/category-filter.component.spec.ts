@@ -2,7 +2,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { CategoryFilterComponent } from './category-filter.component'
 import { type EnrichedChallenge } from 'src/app/score-board/types/EnrichedChallenge'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatTooltipModule } from '@angular/material/tooltip'
 
 describe('CategoryFilterComponent', () => {
@@ -11,8 +11,8 @@ describe('CategoryFilterComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
+            providers: [provideTranslateService()],
             imports: [
-                TranslateModule.forRoot(),
                 MatTooltipModule,
                 CategoryFilterComponent
             ]

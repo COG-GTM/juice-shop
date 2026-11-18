@@ -9,7 +9,7 @@ import { BasketService } from '../Services/basket.service'
 import { ProductService } from '../Services/product.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { Product, ProductTableEntry } from '../Models/product.model'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective, TranslateService } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatButton } from '@angular/material/button'
@@ -19,7 +19,7 @@ import { MatDialog } from '@angular/material/dialog'
 
 @Component({
   selector: 'app-product',
-  imports: [TranslateModule, MatCardModule, MatTooltip, MatButton, MatIcon],
+  imports: [TranslatePipe, TranslateDirective, MatCardModule, MatTooltip, MatButton, MatIcon],
   templateUrl: './product.component.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './product.component.scss'

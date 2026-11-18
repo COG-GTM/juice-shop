@@ -11,7 +11,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
 import { faEdit } from '@fortawesome/free-regular-svg-icons'
 import { type SecurityQuestion } from '../Models/securityQuestion.model'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { PasswordStrengthComponent } from '../password-strength/password-strength.component'
 import { PasswordStrengthInfoComponent } from '../password-strength-info/password-strength-info.component'
@@ -30,7 +30,7 @@ library.add(faSave, faEdit)
   templateUrl: './forgot-password.component.html',
   styleUrls: ['./forgot-password.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatIconModule, MatSuffix, MatTooltip, MatError, MatHint, MatSlideToggle, PasswordStrengthComponent, PasswordStrengthInfoComponent, MatButtonModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatIconModule, MatSuffix, MatTooltip, MatError, MatHint, MatSlideToggle, PasswordStrengthComponent, PasswordStrengthInfoComponent, MatButtonModule]
 })
 export class ForgotPasswordComponent {
   private readonly securityQuestionService = inject(SecurityQuestionService)

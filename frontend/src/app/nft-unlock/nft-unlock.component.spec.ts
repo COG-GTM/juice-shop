@@ -10,7 +10,7 @@ import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatDividerModule } from '@angular/material/divider'
 import { FormsModule } from '@angular/forms'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { of, throwError } from 'rxjs'
 
 import { NFTUnlockComponent } from './nft-unlock.component'
@@ -30,7 +30,6 @@ describe('NFTUnlockComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 MatCardModule,
                 MatButtonModule,
                 MatInputModule,
@@ -39,7 +38,7 @@ describe('NFTUnlockComponent', () => {
                 FormsModule,
                 NFTUnlockComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: KeysService, useValue: keysServiceSpy }
             ]
         }).compileComponents()

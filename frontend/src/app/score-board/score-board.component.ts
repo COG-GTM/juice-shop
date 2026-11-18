@@ -12,7 +12,7 @@ import { filterChallenges } from './helpers/challenge-filtering'
 import { SocketIoService } from '../Services/socket-io.service'
 import { type EnrichedChallenge } from './types/EnrichedChallenge'
 import { sortChallenges } from './helpers/challenge-sorting'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { ChallengeCardComponent } from './components/challenge-card/challenge-card.component'
 import { TutorialModeWarningComponent } from './components/tutorial-mode-warning/tutorial-mode-warning.component'
 import { ChallengesUnavailableWarningComponent } from './components/challenges-unavailable-warning/challenges-unavailable-warning.component'
@@ -41,7 +41,7 @@ interface CodeChallengeSolvedWebsocket {
   templateUrl: './score-board.component.html',
   styleUrls: ['./score-board.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [HackingChallengeProgressScoreCardComponent, CodingChallengeProgressScoreCardComponent, DifficultyOverviewScoreCardComponent, FilterSettingsComponent, MatProgressSpinner, ChallengesUnavailableWarningComponent, TutorialModeWarningComponent, ChallengeCardComponent, NgClass, TranslateModule]
+  imports: [HackingChallengeProgressScoreCardComponent, CodingChallengeProgressScoreCardComponent, DifficultyOverviewScoreCardComponent, FilterSettingsComponent, MatProgressSpinner, ChallengesUnavailableWarningComponent, TutorialModeWarningComponent, ChallengeCardComponent, NgClass, TranslatePipe]
 })
 export class ScoreBoardComponent implements OnInit, OnDestroy {
   private readonly challengeService = inject(ChallengeService)

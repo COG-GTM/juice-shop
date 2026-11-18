@@ -40,7 +40,7 @@ import { MatToolbarModule } from '@angular/material/toolbar'
 import { FileUploadModule } from 'ng2-file-upload'
 import { ReactiveFormsModule, FormsModule } from '@angular/forms'
 
-import { TranslateModule, provideTranslateService } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideTranslateHttpLoader } from '@ngx-translate/http-loader'
 import { Routing } from './app/app.routing'
 import { BrowserModule, bootstrapApplication } from '@angular/platform-browser'
@@ -81,7 +81,7 @@ if (environment.production) {
 bootstrapApplication(AppComponent, {
     providers: [
         provideZoneChangeDetection(),
-        importProvidersFrom(BrowserModule, Routing, TranslateModule.forRoot(), CookieModule.forRoot(), ReactiveFormsModule, FileUploadModule, MatToolbarModule, MatIconModule, FormsModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatSidenavModule, MatRippleModule, MatTableModule, MatPaginatorModule, MatCardModule, MatInputModule, MatCheckboxModule, MatDialogModule, MatDividerModule, MatNativeDateModule, MatExpansionModule, MatProgressBarModule, MatTooltipModule, MatMenuModule, MatListModule, MatButtonToggleModule, LayoutModule, MatGridListModule, MatBadgeModule, MatRadioModule, MatSnackBarModule, MatSliderModule, MatTabsModule, MatSlideToggleModule, MatChipsModule, MatAutocompleteModule),
+        importProvidersFrom(BrowserModule, Routing, CookieModule.forRoot(), ReactiveFormsModule, FileUploadModule, MatToolbarModule, MatIconModule, FormsModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatSidenavModule, MatRippleModule, MatTableModule, MatPaginatorModule, MatCardModule, MatInputModule, MatCheckboxModule, MatDialogModule, MatDividerModule, MatNativeDateModule, MatExpansionModule, MatProgressBarModule, MatTooltipModule, MatMenuModule, MatListModule, MatButtonToggleModule, LayoutModule, MatGridListModule, MatBadgeModule, MatRadioModule, MatSnackBarModule, MatSliderModule, MatTabsModule, MatSlideToggleModule, MatChipsModule, MatAutocompleteModule),
         {
             provide: HTTP_INTERCEPTORS,
             useClass: RequestInterceptor,

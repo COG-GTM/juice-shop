@@ -13,7 +13,7 @@ import { MatInputModule } from '@angular/material/input'
 import { MatLabel, MatFormFieldModule, MatHint, MatError } from '@angular/material/form-field'
 import { MatRadioGroup, MatRadioButton } from '@angular/material/radio'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 import { MatIconModule } from '@angular/material/icon'
@@ -23,7 +23,7 @@ import { MatIconModule } from '@angular/material/icon'
   templateUrl: './data-export.component.html',
   styleUrls: ['./data-export.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatRadioGroup, FormsModule, ReactiveFormsModule, MatLabel, MatRadioButton, MatFormFieldModule, MatInputModule, MatHint, MatError, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatRadioGroup, FormsModule, ReactiveFormsModule, MatLabel, MatRadioButton, MatFormFieldModule, MatInputModule, MatHint, MatError, MatButtonModule, MatIconModule]
 })
 export class DataExportComponent implements OnInit {
   sanitizer = inject(DomSanitizer)

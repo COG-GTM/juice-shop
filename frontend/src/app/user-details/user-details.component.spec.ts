@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog'
 import { UserService } from '../Services/user.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
@@ -26,11 +26,11 @@ describe('UserDetailsComponent', () => {
         userService.get.mockReturnValue(of({}))
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 MatDividerModule,
                 MatDialogModule,
                 UserDetailsComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 { provide: MatDialogRef, useValue: {} },
                 { provide: MAT_DIALOG_DATA, useValue: { dialogData: {} } },

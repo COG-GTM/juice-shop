@@ -11,7 +11,7 @@ import { MatPaginator } from '@angular/material/paginator'
 import { BehaviorSubject, forkJoin, type Subscription } from 'rxjs'
 import { MatTableDataSource } from '@angular/material/table'
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { SocketIoService } from '../Services/socket-io.service'
 
 import { library } from '@fortawesome/fontawesome-svg-core'
@@ -31,7 +31,7 @@ library.add(faEye, faCartPlus)
   templateUrl: './search-result.component.html',
   styleUrls: ['./search-result.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatButtonModule, MatCardTitle, MatCardContent, MatPaginator, AsyncPipe, ProductComponent]
+  imports: [MatCardModule, TranslatePipe, MatButtonModule, MatCardTitle, MatCardContent, MatPaginator, AsyncPipe, ProductComponent]
 })
 export class SearchResultComponent implements OnDestroy, AfterViewInit {
   private readonly deluxeGuard = inject(DeluxeGuard)

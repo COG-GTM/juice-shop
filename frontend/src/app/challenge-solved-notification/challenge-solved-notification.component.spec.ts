@@ -7,7 +7,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule } from '@angular/material/card'
 import { CountryMappingService } from '../Services/country-mapping.service'
 import { CookieModule, CookieService } from 'ngy-cookie'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { ChallengeService } from '../Services/challenge.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
@@ -17,7 +17,7 @@ import { SocketIoService } from '../Services/socket-io.service'
 
 import { ChallengeSolvedNotificationComponent } from './challenge-solved-notification.component'
 import { of, throwError } from 'rxjs'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
@@ -57,6 +57,9 @@ describe('ChallengeSolvedNotificationComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         cookieService = {
             put: vi.fn().mockName("CookieService.put")
         }
@@ -78,13 +81,13 @@ describe('ChallengeSolvedNotificationComponent', () => {
         }
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 CookieModule.forRoot(),
                 MatCardModule,
                 MatButtonModule,
                 MatIconModule,
                 ChallengeSolvedNotificationComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: SocketIoService, useValue: socketIoService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: CookieService, useValue: cookieService },

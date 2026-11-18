@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { UserService } from '../Services/user.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -29,14 +29,14 @@ describe('ChangePasswordComponent', () => {
         userService.changePassword.mockReturnValue(of({}))
 
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
                 MatInputModule,
                 MatButtonModule,
                 ChangePasswordComponent],
-            providers: [{ provide: UserService, useValue: userService }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [provideTranslateService(), { provide: UserService, useValue: userService }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })

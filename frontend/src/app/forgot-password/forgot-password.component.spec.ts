@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { ReactiveFormsModule } from '@angular/forms'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -38,7 +38,7 @@ describe('ForgotPasswordComponent', () => {
         userService.resetPassword.mockReturnValue(of({}))
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
@@ -48,7 +48,7 @@ describe('ForgotPasswordComponent', () => {
                 MatIconModule,
                 MatSlideToggleModule,
                 ForgotPasswordComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: SecurityQuestionService, useValue: securityQuestionService },
                 { provide: UserService, useValue: userService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

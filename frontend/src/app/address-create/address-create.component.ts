@@ -9,7 +9,7 @@ import { FormSubmitService } from '../Services/form-submit.service'
 import { AddressService } from '../Services/address.service'
 import { ActivatedRoute, type ParamMap, Router } from '@angular/router'
 import { Location } from '@angular/common'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe } from '@ngx-translate/core'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
@@ -22,7 +22,7 @@ import { MatCardModule } from '@angular/material/card'
   templateUrl: './address-create.component.html',
   styleUrls: ['./address-create.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatButtonModule, MatIconModule]
 })
 export class AddressCreateComponent implements OnInit {
   private readonly location = inject(Location)

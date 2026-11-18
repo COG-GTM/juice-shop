@@ -19,7 +19,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatRadioButton } from '@angular/material/radio'
 
 import { MatDivider } from '@angular/material/divider'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 library.add(faRocket, faShippingFast, faTruck)
@@ -29,7 +29,7 @@ library.add(faRocket, faShippingFast, faTruck)
   templateUrl: './delivery-method.component.html',
   styleUrls: ['./delivery-method.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatDivider, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, NgClass, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatDivider, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, NgClass, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatButtonModule, MatIconModule]
 })
 export class DeliveryMethodComponent implements OnInit {
   private readonly location = inject(Location)

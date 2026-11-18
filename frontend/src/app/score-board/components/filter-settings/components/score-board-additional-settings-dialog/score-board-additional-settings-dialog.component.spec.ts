@@ -1,7 +1,7 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { ScoreBoardAdditionalSettingsDialogComponent } from './score-board-additional-settings-dialog.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatDialogModule } from '@angular/material/dialog'
 import { LocalBackupService } from 'src/app/Services/local-backup.service'
 
@@ -11,8 +11,8 @@ describe('ScoreBoardAdditionalSettingsDialogComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), MatDialogModule, ScoreBoardAdditionalSettingsDialogComponent],
-            providers: [
+            imports: [ MatDialogModule, ScoreBoardAdditionalSettingsDialogComponent],
+            providers: [provideTranslateService(),
                 {
                     provide: LocalBackupService,
                     useValue: {

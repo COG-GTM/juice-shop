@@ -15,7 +15,7 @@ import { MatSnackBar } from '@angular/material/snack-bar'
 import { faExclamationCircle, faUserPlus } from '@fortawesome/free-solid-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { type SecurityQuestion } from '../Models/securityQuestion.model'
 import { MatButtonModule } from '@angular/material/button'
 import { MatOption } from '@angular/material/core'
@@ -37,7 +37,7 @@ library.add(faUserPlus, faExclamationCircle)
   templateUrl: './register.component.html',
   styleUrls: ['./register.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatSlideToggle, PasswordStrengthComponent, PasswordStrengthInfoComponent, MatSelect, MatOption, MatButtonModule, RouterLink, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatSlideToggle, PasswordStrengthComponent, PasswordStrengthInfoComponent, MatSelect, MatOption, MatButtonModule, RouterLink, MatIconModule]
 })
 export class RegisterComponent implements OnInit {
   private readonly securityQuestionService = inject(SecurityQuestionService)

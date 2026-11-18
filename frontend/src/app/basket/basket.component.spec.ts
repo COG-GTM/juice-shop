@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatInputModule } from '@angular/material/input'
 import { MatExpansionModule } from '@angular/material/expansion'
 import { MatDialogModule } from '@angular/material/dialog'
@@ -26,13 +26,12 @@ import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/com
 describe('BasketComponent', () => {
     let component: BasketComponent
     let fixture: ComponentFixture<BasketComponent>
-    let deluxeGuard
-    let snackBar: any
+    const deluxeGuard = {}
+    const snackBar = {}
 
     beforeEach(async () => {
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatFormFieldModule,
                 MatInputModule,
@@ -44,7 +43,7 @@ describe('BasketComponent', () => {
                 MatButtonToggleModule,
                 MatSnackBarModule,
                 BasketComponent, PurchaseBasketComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: DeluxeGuard, useValue: deluxeGuard },
                 { provide: MatSnackBar, useValue: snackBar },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

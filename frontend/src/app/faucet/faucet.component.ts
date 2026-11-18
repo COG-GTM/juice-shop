@@ -1,7 +1,7 @@
 import { Component, ChangeDetectorRef, inject, OnInit, ChangeDetectionStrategy } from '@angular/core'
 import { KeysService } from '../Services/keys.service'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe } from '@ngx-translate/core'
 import {
   BeeFaucetABI,
   BeeTokenABI,
@@ -39,7 +39,7 @@ const BeeFaucetAddress = '0x860e3616aD0E0dEDc23352891f3E10C4131EA5BC'
   templateUrl: './faucet.component.html',
   styleUrls: ['./faucet.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatButtonModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, MatButtonModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, MatIconModule]
 })
 export class FaucetComponent implements OnInit {
   private readonly keysService = inject(KeysService)

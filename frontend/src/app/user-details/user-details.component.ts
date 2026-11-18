@@ -9,7 +9,7 @@ import { MAT_DIALOG_DATA, MatDialogContent, MatDialogActions, MatDialogClose } f
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faArrowCircleLeft } from '@fortawesome/free-solid-svg-icons'
 import { MatButtonModule } from '@angular/material/button'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 import { MatDivider } from '@angular/material/divider'
 import { MatIconModule } from '@angular/material/icon'
@@ -21,7 +21,7 @@ library.add(faArrowCircleLeft)
   templateUrl: './user-details.component.html',
   styleUrls: ['./user-details.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDialogContent, MatDivider, TranslateModule, MatDialogActions, MatButtonModule, MatDialogClose, MatIconModule]
+  imports: [MatDialogContent, MatDivider, TranslatePipe, TranslateDirective, MatDialogActions, MatButtonModule, MatDialogClose, MatIconModule]
 })
 export class UserDetailsComponent implements OnInit {
   dialogData = inject(MAT_DIALOG_DATA)

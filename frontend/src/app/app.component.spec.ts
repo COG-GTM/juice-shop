@@ -4,7 +4,7 @@
  */
 
 import { ServerStartedNotificationComponent } from './server-started-notification/server-started-notification.component'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import { provideZoneChangeDetection } from '@angular/core'
@@ -43,7 +43,6 @@ describe('AppComponent', () => {
       imports: [RouterTestingModule,
         MatToolbarModule,
         CookieModule.forRoot(),
-        TranslateModule.forRoot(),
         MatIconModule,
         MatCardModule,
         MatFormFieldModule,
@@ -65,7 +64,7 @@ describe('AppComponent', () => {
         ServerStartedNotificationComponent,
         MatSearchBarComponent,
         AppComponent],
-      providers: [TranslateService, LoginGuard, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting(), provideZoneChangeDetection()]
+      providers: [provideTranslateService(), TranslateService, LoginGuard, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting(), provideZoneChangeDetection()]
     }).compileComponents()
   })
 

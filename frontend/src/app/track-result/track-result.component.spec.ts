@@ -5,7 +5,7 @@
 
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { Status, TrackResultComponent } from './track-result.component'
 import { MatTableModule } from '@angular/material/table'
 import { MatCardModule } from '@angular/material/card'
@@ -34,12 +34,12 @@ describe('TrackResultComponent', () => {
         sanitizer.sanitize.mockReturnValue({})
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 RouterTestingModule,
                 MatCardModule,
                 MatTableModule,
                 TrackResultComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: TrackOrderService, useValue: trackOrderService },
                 { provide: DomSanitizer, useValue: sanitizer },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

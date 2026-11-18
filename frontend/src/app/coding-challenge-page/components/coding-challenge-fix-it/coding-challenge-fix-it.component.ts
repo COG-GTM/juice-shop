@@ -8,7 +8,7 @@ import { MatCardModule } from '@angular/material/card'
 import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatButtonToggleModule } from '@angular/material/button-toggle'
 import { FormsModule } from '@angular/forms'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { CookieService } from 'ngy-cookie'
 
 import { EditorView, basicSetup } from 'codemirror'
@@ -29,7 +29,7 @@ import { CodingChallengeSectionComponent } from '../coding-challenge-section/cod
   templateUrl: './coding-challenge-fix-it.component.html',
   styleUrls: ['./coding-challenge-fix-it.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatButtonToggleModule, MatCardModule, MatCheckboxModule, FormsModule, TranslateModule, CodingChallengeSectionComponent]
+  imports: [MatButtonToggleModule, MatCardModule, MatCheckboxModule, FormsModule, TranslatePipe, CodingChallengeSectionComponent]
 })
 export class CodingChallengeFixItComponent implements OnInit, AfterViewInit, OnDestroy {
   readonly diffHost = viewChild.required<ElementRef<HTMLDivElement>>('diffHost')

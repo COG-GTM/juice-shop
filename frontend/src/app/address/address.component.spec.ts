@@ -23,8 +23,8 @@ import { MatDialogModule } from '@angular/material/dialog'
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatSnackBar } from '@angular/material/snack-bar'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter } from '@angular/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
+import { EventEmitter, signal } from '@angular/core'
 import { DeliveryMethodComponent } from '../delivery-method/delivery-method.component'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
@@ -50,6 +50,9 @@ describe('AddressComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
@@ -59,7 +62,6 @@ describe('AddressComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'delivery-method', component: DeliveryMethodComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -72,7 +74,7 @@ describe('AddressComponent', () => {
                 MatIconModule,
                 MatTooltipModule,
                 AddressComponent, AddressCreateComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: AddressService, useValue: addressService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar },

@@ -15,7 +15,7 @@ import { Router } from '@angular/router'
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatIconButton } from '@angular/material/button'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 import { MatCardModule, MatCardTitle, MatCardContent } from '@angular/material/card'
 
@@ -40,7 +40,7 @@ export interface Order {
   templateUrl: './order-history.component.html',
   styleUrls: ['./order-history.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatCardTitle, TranslateModule, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardContent]
+  imports: [MatCardModule, MatCardTitle, TranslatePipe, TranslateDirective, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatCardContent]
 })
 export class OrderHistoryComponent implements OnInit {
   private readonly router = inject(Router)

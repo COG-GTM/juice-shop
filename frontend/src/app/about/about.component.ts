@@ -16,7 +16,7 @@ import { catchError } from 'rxjs/operators'
 import { EMPTY } from 'rxjs'
 import { MatButtonModule } from '@angular/material/button'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 library.add(faFacebook, faTwitter, faSlack, faReddit, faNewspaper, faStar, fasStar, faPalette, faMastodon, faBold)
@@ -26,7 +26,7 @@ library.add(faFacebook, faTwitter, faSlack, faReddit, faNewspaper, faStar, fasSt
   templateUrl: './about.component.html',
   styleUrls: ['./about.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, GalleryComponent, GalleryImageDef, MatButtonModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, GalleryComponent, GalleryImageDef, MatButtonModule]
 })
 export class AboutComponent implements OnInit {
   private readonly configurationService = inject(ConfigurationService)

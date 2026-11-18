@@ -4,7 +4,7 @@
  */
 
 import { provideZoneChangeDetection } from '@angular/core'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ProductReviewEditComponent } from '../product-review-edit/product-review-edit.component'
 import { By } from '@angular/platform-browser'
 import { MatDividerModule } from '@angular/material/divider'
@@ -56,7 +56,7 @@ describe('ProductDetailsComponent', () => {
         dialog.open.mockReturnValue(dialogRefMock)
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatDialogModule,
                 MatFormFieldModule,
@@ -69,7 +69,7 @@ describe('ProductDetailsComponent', () => {
                 MatExpansionModule,
                 MatSnackBarModule,
                 ProductDetailsComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 { provide: ProductReviewService, useValue: productReviewService },
                 { provide: MatDialog, useValue: dialog },

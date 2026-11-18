@@ -8,7 +8,7 @@ import { MatCardModule } from '@angular/material/card'
 
 import { ErrorPageComponent } from './error-page.component'
 import { ActivatedRoute } from '@angular/router'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 
 describe('ErrorPageComponent', () => {
     let component: ErrorPageComponent
@@ -17,11 +17,10 @@ describe('ErrorPageComponent', () => {
     beforeEach(async () => {
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 MatCardModule,
                 ErrorPageComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 {
                     provide: ActivatedRoute,
                     useValue: { snapshot: { queryParams: { error: 'UNAUTHORIZED_PAGE_ACCESS_ERROR' } } }

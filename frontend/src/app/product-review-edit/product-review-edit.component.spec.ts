@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ProductReviewEditComponent } from './product-review-edit.component'
 import { ReactiveFormsModule } from '@angular/forms'
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog'
@@ -33,7 +33,6 @@ describe('ProductReviewEditComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatDialogModule,
                 MatFormFieldModule,
@@ -42,7 +41,7 @@ describe('ProductReviewEditComponent', () => {
                 MatSnackBarModule,
                 ProductReviewEditComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ProductReviewService, useValue: productReviewService },
                 { provide: MAT_DIALOG_DATA, useValue: { productData: {} } },
                 { provide: MatDialogRef, useValue: dialogRef }

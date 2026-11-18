@@ -12,7 +12,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
 import { AddressComponent } from '../address/address.component'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCheckbox } from '@angular/material/checkbox'
@@ -30,7 +30,7 @@ library.add(faPaperPlane)
   templateUrl: './recycle.component.html',
   styleUrls: ['./recycle.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, AddressComponent, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatCheckbox, MatButtonModule, MatCardImage, MatCardContent]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatError, AddressComponent, MatDatepickerInput, MatDatepickerToggle, MatSuffix, MatDatepicker, MatCheckbox, MatButtonModule, MatCardImage, MatCardContent]
 })
 export class RecycleComponent implements OnInit {
   private readonly recycleService = inject(RecycleService)

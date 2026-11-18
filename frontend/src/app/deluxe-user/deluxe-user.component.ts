@@ -10,7 +10,7 @@ import { ConfigurationService } from '../Services/configuration.service'
 import { SocketIoService } from '../Services/socket-io.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 @Component({
@@ -18,7 +18,7 @@ import { MatCardModule } from '@angular/material/card'
   templateUrl: './deluxe-user.component.html',
   styleUrls: ['./deluxe-user.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatButtonModule, MatIconModule]
 })
 
 export class DeluxeUserComponent implements OnInit {

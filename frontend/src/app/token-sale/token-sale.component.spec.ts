@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { TokenSaleComponent } from './token-sale.component'
 import { of, throwError } from 'rxjs'
 import { ConfigurationService } from '../Services/configuration.service'
@@ -23,12 +23,11 @@ describe('TokenSaleComponent', () => {
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: {} }))
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 MatCardModule,
                 MatButtonModule,
                 TokenSaleComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService }
             ]
         })

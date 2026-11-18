@@ -12,7 +12,7 @@ import { FileUploader, FileUploadModule } from 'ng2-file-upload'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faBomb } from '@fortawesome/free-solid-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatHint, MatError } from '@angular/material/form-field'
@@ -28,7 +28,7 @@ library.add(faBomb)
   templateUrl: './complaint.component.html',
   styleUrls: ['./complaint.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatHint, MatError, FileUploadModule, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatHint, MatError, FileUploadModule, MatButtonModule, MatIconModule]
 })
 export class ComplaintComponent implements OnInit {
   private readonly userService = inject(UserService)

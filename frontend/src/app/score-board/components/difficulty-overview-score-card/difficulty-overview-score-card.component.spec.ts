@@ -2,7 +2,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { DifficultyOverviewScoreCardComponent } from './difficulty-overview-score-card.component'
 import { ScoreCardComponent } from '../score-card/score-card.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 
 describe('DifficultyOverviewScoreCardComponent', () => {
     let component: DifficultyOverviewScoreCardComponent
@@ -10,7 +10,8 @@ describe('DifficultyOverviewScoreCardComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), ScoreCardComponent,
+            providers: [provideTranslateService()],
+            imports: [ ScoreCardComponent,
                 DifficultyOverviewScoreCardComponent]
         })
             .compileComponents()

@@ -5,7 +5,7 @@
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { DataExportComponent } from './data-export.component'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { ImageCaptchaService } from '../Services/image-captcha.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { ReactiveFormsModule } from '@angular/forms'
@@ -37,7 +37,7 @@ describe('DataExportComponent', () => {
         }
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 MatFormFieldModule,
                 ReactiveFormsModule,
                 MatInputModule,
@@ -45,7 +45,7 @@ describe('DataExportComponent', () => {
                 MatRadioModule,
                 MatButtonModule,
                 DataExportComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ImageCaptchaService, useValue: imageCaptchaService },
                 { provide: DataSubjectService, useValue: dataSubjectService },
                 TranslateService,

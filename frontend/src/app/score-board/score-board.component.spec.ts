@@ -3,7 +3,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import { MatIconModule } from '@angular/material/icon'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { of, throwError } from 'rxjs'
 
 import { HackingChallengeProgressScoreCardComponent } from './components/hacking-challenge-progress-score-card/hacking-challenge-progress-score-card.component'
@@ -60,7 +60,7 @@ describe('ScoreBoardComponent', () => {
             getApplicationConfiguration: vi.fn().mockName("ConfigurationService.getApplicationConfiguration")
         }
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 RouterTestingModule,
                 MatProgressSpinnerModule,
                 MatIconModule,
@@ -72,7 +72,7 @@ describe('ScoreBoardComponent', () => {
                 ChallengesUnavailableWarningComponent,
                 TutorialModeWarningComponent,
                 ScoreCardComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: HintService, useValue: hintService },
                 { provide: ConfigurationService, useValue: configService },

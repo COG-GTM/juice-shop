@@ -12,7 +12,7 @@ import { MatOption } from '@angular/material/core'
 
 import { MatSelect, MatSelectTrigger } from '@angular/material/select'
 import { MatInputModule } from '@angular/material/input'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatIconModule } from '@angular/material/icon'
 import { MatFormFieldModule, MatPrefix, MatLabel } from '@angular/material/form-field'
 
@@ -21,7 +21,7 @@ import { MatFormFieldModule, MatPrefix, MatLabel } from '@angular/material/form-
   templateUrl: './filter-settings.component.html',
   styleUrls: ['./filter-settings.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatFormFieldModule, MatIconModule, MatPrefix, MatLabel, TranslateModule, MatInputModule, MatSelect, MatSelectTrigger, MatOption, DifficultyStarsComponent, MatIconButton, MatTooltip, CategoryFilterComponent, DifficultySelectionSummaryPipe]
+  imports: [MatFormFieldModule, MatIconModule, MatPrefix, MatLabel, TranslatePipe, TranslateDirective, MatInputModule, MatSelect, MatSelectTrigger, MatOption, DifficultyStarsComponent, MatIconButton, MatTooltip, CategoryFilterComponent, DifficultySelectionSummaryPipe]
 })
 export class FilterSettingsComponent implements OnChanges {
   private readonly dialog = inject(MatDialog)

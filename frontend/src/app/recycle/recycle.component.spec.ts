@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatDatepickerModule } from '@angular/material/datepicker'
 import { ConfigurationService } from '../Services/configuration.service'
 import { UserService } from '../Services/user.service'
@@ -22,7 +22,7 @@ import { MatNativeDateModule } from '@angular/material/core'
 import { of, throwError } from 'rxjs'
 import { AddressComponent } from '../address/address.component'
 import { RouterTestingModule } from '@angular/router/testing'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
 import { MatTableModule } from '@angular/material/table'
 import { MatToolbarModule } from '@angular/material/toolbar'
@@ -65,13 +65,15 @@ describe('RecycleComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatFormFieldModule,
                 MatInputModule,
@@ -88,7 +90,7 @@ describe('RecycleComponent', () => {
                 MatDialogModule,
                 MatDividerModule,
                 RecycleComponent, AddressComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: RecycleService, useValue: recycleService },
                 { provide: UserService, useValue: userService },
                 { provide: ConfigurationService, useValue: configurationService },

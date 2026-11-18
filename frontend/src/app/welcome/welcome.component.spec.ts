@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { CookieModule, CookieService } from 'ngy-cookie'
@@ -33,11 +33,11 @@ describe('WelcomeComponent', () => {
         dialog.open.mockReturnValue(null)
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 CookieModule.forRoot(),
                 MatDialogModule,
                 WelcomeComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: MatDialog, useValue: dialog },
                 CookieService,

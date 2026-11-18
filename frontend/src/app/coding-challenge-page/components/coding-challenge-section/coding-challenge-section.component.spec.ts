@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 
 import { CodingChallengeSectionComponent } from './coding-challenge-section.component'
 import { ResultState } from '../../coding-challenge.types'
@@ -15,8 +15,8 @@ describe('CodingChallengeSectionComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
+            providers: [provideTranslateService()],
             imports: [
-                TranslateModule.forRoot(),
                 CodingChallengeSectionComponent
             ]
         }).compileComponents()

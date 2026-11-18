@@ -8,7 +8,7 @@ import { AddressService } from '../Services/address.service'
 import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow } from '@angular/material/table'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faEdit, faTrashAlt } from '@fortawesome/free-regular-svg-icons/'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { Router, RouterLink } from '@angular/router'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { SelectionModel } from '@angular/cdk/collections'
@@ -25,7 +25,7 @@ library.add(faEdit, faTrashAlt)
   templateUrl: './address.component.html',
   styleUrls: ['./address.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, MatIconButton, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, MatIconButton, RouterLink, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatButtonModule, MatIconModule]
 })
 export class AddressComponent implements OnInit {
   private readonly addressService = inject(AddressService)

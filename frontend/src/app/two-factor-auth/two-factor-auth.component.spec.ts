@@ -9,7 +9,7 @@ import { TwoFactorAuthComponent } from './two-factor-auth.component'
 import { ReactiveFormsModule } from '@angular/forms'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -51,7 +51,6 @@ describe('TwoFactorAuthComponent', () => {
         configurationService.getApplicationConfiguration.mockReturnValue(of({ application: {} }))
         TestBed.configureTestingModule({
             imports: [ReactiveFormsModule,
-                TranslateModule.forRoot(),
                 MatCheckboxModule,
                 MatFormFieldModule,
                 MatCardModule,
@@ -66,7 +65,7 @@ describe('TwoFactorAuthComponent', () => {
                 MatSnackBarModule,
                 MatTooltipModule,
                 TwoFactorAuthComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TwoFactorAuthService, useValue: twoFactorAuthService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

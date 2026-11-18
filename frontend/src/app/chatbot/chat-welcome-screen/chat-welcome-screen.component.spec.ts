@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ChatWelcomeScreenComponent } from './chat-welcome-screen.component'
 import { ConversationStorageService } from '../../Services/conversation-storage.service'
 import { ConfigurationService } from '../../Services/configuration.service'
@@ -36,10 +36,9 @@ describe('ChatWelcomeScreenComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 ChatWelcomeScreenComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ConversationStorageService, useValue: conversationStorage },
                 { provide: ConfigurationService, useValue: configurationService }
             ]

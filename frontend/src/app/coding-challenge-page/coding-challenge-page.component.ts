@@ -9,7 +9,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router'
 import { MatButtonModule } from '@angular/material/button'
 import { MatIconModule } from '@angular/material/icon'
 import { MatProgressSpinner } from '@angular/material/progress-spinner'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { forkJoin, of } from 'rxjs'
 import { catchError, switchMap } from 'rxjs/operators'
 
@@ -24,7 +24,7 @@ import { CodingChallengeFixItComponent } from './components/coding-challenge-fix
   templateUrl: './coding-challenge-page.component.html',
   styleUrls: ['./coding-challenge-page.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatButtonModule, MatIconModule, MatProgressSpinner, RouterLink, TranslateModule, CodingChallengeFindItComponent, CodingChallengeFixItComponent]
+  imports: [MatButtonModule, MatIconModule, MatProgressSpinner, RouterLink, TranslatePipe, CodingChallengeFindItComponent, CodingChallengeFixItComponent]
 })
 export class CodingChallengePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)

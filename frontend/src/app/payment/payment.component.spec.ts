@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -18,7 +18,7 @@ import { MatExpansionModule } from '@angular/material/expansion'
 import { MatDividerModule } from '@angular/material/divider'
 import { MatRadioModule } from '@angular/material/radio'
 import { ConfigurationService } from '../Services/configuration.service'
-import { Component, EventEmitter, provideZoneChangeDetection } from '@angular/core'
+import { Component, EventEmitter, signal, provideZoneChangeDetection } from '@angular/core'
 import { BasketService } from '../Services/basket.service'
 import { QrCodeComponent } from '../qr-code/qr-code.component'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
@@ -69,6 +69,9 @@ describe('PaymentComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         basketService = {
             applyCoupon: vi.fn().mockName("BasketService.applyCoupon")
         }
@@ -114,7 +117,6 @@ describe('PaymentComponent', () => {
                     { path: 'wallet', component: WalletComponent },
                     { path: 'deluxe-membership', component: DummyDeluxeMembershipComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -128,7 +130,7 @@ describe('PaymentComponent', () => {
                 MatCheckboxModule,
                 MatTooltipModule,
                 PaymentComponent, PaymentMethodComponent, OrderSummaryComponent, PurchaseBasketComponent, LoginComponent, WalletComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: BasketService, useValue: basketService },
                 { provide: MatDialog, useValue: dialog },
                 { provide: TranslateService, useValue: translateService },

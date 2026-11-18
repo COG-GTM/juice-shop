@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatInputModule } from '@angular/material/input'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { MatCardModule } from '@angular/material/card'
@@ -73,7 +73,6 @@ describe('OrderSummaryComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'order-completion', component: OrderCompletionComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatInputModule,
                 MatCardModule,
@@ -84,7 +83,7 @@ describe('OrderSummaryComponent', () => {
                 MatTooltipModule,
                 MatSnackBarModule,
                 OrderSummaryComponent, PurchaseBasketComponent, OrderCompletionComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: BasketService, useValue: basketService },
                 { provide: AddressService, useValue: addressService },
                 { provide: PaymentService, useValue: paymentService },

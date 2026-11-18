@@ -24,7 +24,7 @@ import { MatTableModule } from '@angular/material/table'
 import { MatPaginatorModule } from '@angular/material/paginator'
 import { MatDialogModule } from '@angular/material/dialog'
 import { MatDividerModule } from '@angular/material/divider'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatGridListModule } from '@angular/material/grid-list'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
@@ -51,7 +51,6 @@ describe('LoginComponent', () => {
                 ]),
                 ReactiveFormsModule,
                 CookieModule.forRoot(),
-                TranslateModule.forRoot(),
                 MatCheckboxModule,
                 MatFormFieldModule,
                 MatCardModule,
@@ -64,7 +63,7 @@ describe('LoginComponent', () => {
                 MatGridListModule,
                 MatTooltipModule,
                 LoginComponent, SearchResultComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 WindowRefService,
                 CookieService,

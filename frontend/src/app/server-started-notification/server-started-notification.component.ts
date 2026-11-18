@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslateDirective } from '@ngx-translate/core'
 import { ChallengeService } from '../Services/challenge.service'
 import { ChangeDetectorRef, Component, NgZone, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { CookieService } from 'ngy-cookie'
@@ -22,7 +22,7 @@ interface HackingProgress {
   templateUrl: './server-started-notification.component.html',
   styleUrls: ['./server-started-notification.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatCardContent, TranslateModule, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, MatCardContent, TranslateDirective, MatButtonModule, MatIconModule]
 })
 export class ServerStartedNotificationComponent implements OnInit {
   private readonly ngZone = inject(NgZone)

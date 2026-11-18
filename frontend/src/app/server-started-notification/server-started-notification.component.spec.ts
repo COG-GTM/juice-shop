@@ -5,7 +5,7 @@
 
 import { CookieModule, CookieService } from 'ngy-cookie'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatCardModule } from '@angular/material/card'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -14,7 +14,7 @@ import { ServerStartedNotificationComponent } from './server-started-notificatio
 import { ChallengeService } from '../Services/challenge.service'
 import { SocketIoService } from '../Services/socket-io.service'
 import { of, throwError } from 'rxjs'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { MatIconModule } from '@angular/material/icon'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
@@ -50,6 +50,9 @@ describe('ServerStartedNotificationComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         mockSocket = new MockSocket()
         socketIoService = {
             socket: vi.fn().mockName("SocketIoService.socket")
@@ -57,13 +60,13 @@ describe('ServerStartedNotificationComponent', () => {
         socketIoService.socket.mockReturnValue(mockSocket)
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 CookieModule.forRoot(),
                 MatCardModule,
                 MatButtonModule,
                 MatIconModule,
                 ServerStartedNotificationComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: TranslateService, useValue: translateService },
                 { provide: SocketIoService, useValue: socketIoService },

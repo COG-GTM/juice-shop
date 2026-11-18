@@ -10,7 +10,7 @@ import { MatButtonModule } from '@angular/material/button'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 
 import { Web3SandboxComponent } from './web3-sandbox.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 const routes: Routes = [
   {
@@ -23,7 +23,7 @@ const routes: Routes = [
   imports: [
     CommonModule,
     RouterModule.forChild(routes),
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     FormsModule,
     ReactiveFormsModule,
     MatButtonModule,

@@ -16,7 +16,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatIconButton } from '@angular/material/button'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 import { MatCardModule } from '@angular/material/card'
 
@@ -27,7 +27,7 @@ library.add(faTwitter)
   templateUrl: './order-completion.component.html',
   styleUrls: ['./order-completion.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, RouterLink, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, RouterLink, MatIconButton, MatTooltip, MatIconModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow]
 })
 export class OrderCompletionComponent implements OnInit {
   private readonly configurationService = inject(ConfigurationService)

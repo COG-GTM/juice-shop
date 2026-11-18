@@ -1,7 +1,7 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { ChallengesUnavailableWarningComponent } from './challenges-unavailable-warning.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { DEFAULT_FILTER_SETTING } from '../../filter-settings/FilterSetting'
 
 describe('ChallengesUnavailableWarningComponent', () => {
@@ -10,7 +10,8 @@ describe('ChallengesUnavailableWarningComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), ChallengesUnavailableWarningComponent]
+            providers: [provideTranslateService()],
+            imports: [ ChallengesUnavailableWarningComponent]
         })
             .compileComponents()
 

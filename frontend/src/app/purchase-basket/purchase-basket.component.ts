@@ -12,7 +12,7 @@ import { faTrashAlt } from '@fortawesome/free-regular-svg-icons/'
 import { faMinusSquare, faPlusSquare } from '@fortawesome/free-solid-svg-icons'
 import { DeluxeGuard } from '../app.guard'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatIconButton } from '@angular/material/button'
 import { forkJoin, of } from 'rxjs'
 import { catchError, map } from 'rxjs/operators'
@@ -26,7 +26,7 @@ library.add(faTrashAlt, faMinusSquare, faPlusSquare)
   templateUrl: './purchase-basket.component.html',
   styleUrls: ['./purchase-basket.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow, TranslateModule]
+  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatFooterCellDef, MatFooterCell, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatFooterRowDef, MatFooterRow, TranslatePipe]
 })
 export class PurchaseBasketComponent implements OnInit {
   private readonly deluxeGuard = inject(DeluxeGuard)

@@ -2,7 +2,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { FilterSettingsComponent } from './filter-settings.component'
 import { CategoryFilterComponent } from './components/category-filter/category-filter.component'
 import { DEFAULT_FILTER_SETTING } from '../../filter-settings/FilterSetting'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { MatInputModule } from '@angular/material/input'
 import { MatSelectModule } from '@angular/material/select'
@@ -19,7 +19,6 @@ describe('FilterSettingsComponent', () => {
     beforeEach(async () => {
         await TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 MatFormFieldModule,
                 MatInputModule,
                 MatSelectModule,
@@ -29,7 +28,7 @@ describe('FilterSettingsComponent', () => {
                 CategoryFilterComponent,
                 DifficultySelectionSummaryPipe
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 {
                     provide: LocalBackupService,
                     useValue: {

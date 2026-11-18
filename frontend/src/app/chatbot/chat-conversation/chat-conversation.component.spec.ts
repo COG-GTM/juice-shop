@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ActivatedRoute } from '@angular/router'
 import { ChatConversationComponent } from './chat-conversation.component'
 import { ChatService } from '../../Services/chat.service'
@@ -54,10 +54,9 @@ describe('ChatConversationComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 ChatConversationComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ChatService, useValue: chatService },
                 { provide: ConversationStorageService, useValue: conversationStorage },
                 { provide: ConfigurationService, useValue: configurationService },

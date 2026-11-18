@@ -5,7 +5,7 @@ import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel } from '@angular/material/form-field'
 import { FormsModule } from '@angular/forms'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 
 import { MatCardModule, MatCardTitle } from '@angular/material/card'
@@ -15,7 +15,7 @@ import { MatCardModule, MatCardTitle } from '@angular/material/card'
   templateUrl: './nft-unlock.component.html',
   styleUrls: ['./nft-unlock.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatButtonModule, TranslateModule, MatCardTitle, FormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatDivider]
+  imports: [MatCardModule, MatButtonModule, TranslatePipe, MatCardTitle, FormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatDivider]
 })
 export class NFTUnlockComponent implements OnInit {
   private readonly keysService = inject(KeysService)

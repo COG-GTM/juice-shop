@@ -5,7 +5,7 @@
 
 import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { MAT_DIALOG_DATA, MatDialogContent, MatDialogActions, MatDialogClose } from '@angular/material/dialog'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 
 import { MatDivider } from '@angular/material/divider'
@@ -16,7 +16,7 @@ import { MatIconModule } from '@angular/material/icon'
   templateUrl: './feedback-details.component.html',
   styleUrls: ['./feedback-details.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDialogContent, MatDivider, MatDialogActions, MatButtonModule, MatDialogClose, TranslateModule, MatIconModule]
+  imports: [MatDialogContent, MatDivider, MatDialogActions, MatButtonModule, MatDialogClose, TranslatePipe, MatIconModule]
 })
 export class FeedbackDetailsComponent implements OnInit {
   dialogData = inject(MAT_DIALOG_DATA)

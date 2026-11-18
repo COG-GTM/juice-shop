@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter } from '@angular/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
+import { EventEmitter, signal } from '@angular/core'
 import { of } from 'rxjs'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { LastLoginIpComponent } from './last-login-ip.component'
@@ -32,16 +32,18 @@ describe('LastLoginIpComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
 
         TestBed.configureTestingModule({
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: DomSanitizer, useValue: sanitizer },
                 { provide: TranslateService, useValue: translateService }
             ],
             imports: [
                 MatCardModule,
-                LastLoginIpComponent,
-                TranslateModule.forRoot()
+                LastLoginIpComponent
             ]
         }).compileComponents()
     })

@@ -16,7 +16,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave } from '@fortawesome/free-solid-svg-icons'
 import { faEdit } from '@fortawesome/free-regular-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 
 import { MatInputModule } from '@angular/material/input'
@@ -37,7 +37,7 @@ library.add(faSave, faEdit)
   changeDetection: ChangeDetectionStrategy.Eager,
   imports: [
     MatCardModule,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     MatFormFieldModule,
     MatLabel,
     MatInputModule,

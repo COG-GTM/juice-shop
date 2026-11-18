@@ -11,7 +11,7 @@ import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angula
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faPaperPlane, faStar } from '@fortawesome/free-solid-svg-icons'
 import { FormSubmitService } from '../Services/form-submit.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatButtonModule } from '@angular/material/button'
 import { MatSliderModule } from '@angular/material/slider'
@@ -29,7 +29,7 @@ library.add(faStar, faPaperPlane)
   templateUrl: './contact.component.html',
   styleUrls: ['./contact.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatHint, MatError, MatSliderModule, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatHint, MatError, MatSliderModule, MatButtonModule, MatIconModule]
 })
 export class ContactComponent implements OnInit {
   private readonly userService = inject(UserService)

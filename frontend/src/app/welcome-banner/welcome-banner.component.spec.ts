@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { CookieModule, CookieService } from 'ngy-cookie'
 
@@ -33,12 +33,12 @@ describe('WelcomeBannerComponent', () => {
             close: vi.fn().mockName("MatDialogRef.close")
         }
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 CookieModule.forRoot(),
                 MatIconModule,
                 MatTooltipModule,
                 WelcomeBannerComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: MatDialogRef, useValue: matDialogRef },
                 { provide: ConfigurationService, useValue: configurationService },
                 CookieService,

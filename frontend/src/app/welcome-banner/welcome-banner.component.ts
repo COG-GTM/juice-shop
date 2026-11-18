@@ -7,7 +7,7 @@ import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angula
 import { ConfigurationService } from '../Services/configuration.service'
 import { MatDialogRef } from '@angular/material/dialog'
 import { CookieService } from 'ngy-cookie'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
@@ -18,7 +18,7 @@ import { MatButtonModule } from '@angular/material/button'
   templateUrl: 'welcome-banner.component.html',
   styleUrls: ['./welcome-banner.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatButtonModule, MatTooltip, MatIconModule, TranslateModule]
+  imports: [MatButtonModule, MatTooltip, MatIconModule, TranslatePipe]
 })
 export class WelcomeBannerComponent implements OnInit {
   dialogRef = inject<MatDialogRef<WelcomeBannerComponent>>(MatDialogRef)

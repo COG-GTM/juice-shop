@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -28,12 +28,11 @@ import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/com
 describe('SavedAddressComponent', () => {
     let component: SavedAddressComponent
     let fixture: ComponentFixture<SavedAddressComponent>
-    let snackBar: any
+    const snackBar = {}
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -47,7 +46,7 @@ describe('SavedAddressComponent', () => {
                 MatTooltipModule,
                 MatCheckboxModule,
                 SavedAddressComponent, AddressComponent],
-            providers: [{ provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
+            providers: [provideTranslateService(), { provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()
     })

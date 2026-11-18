@@ -10,7 +10,7 @@ import { MatTableDataSource, MatTable, MatColumnDef, MatHeaderCellDef, MatHeader
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faPaperPlane } from '@fortawesome/free-solid-svg-icons'
 import { faTrashAlt } from '@fortawesome/free-regular-svg-icons/'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatError, MatHint } from '@angular/material/form-field'
@@ -27,7 +27,7 @@ library.add(faPaperPlane, faTrashAlt)
   templateUrl: './payment-method.component.html',
   styleUrls: ['./payment-method.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatFormFieldModule, MatLabel, TranslateModule, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatButtonModule, MatIconModule]
+  imports: [MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatRadioButton, MatIconButton, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatFormFieldModule, MatLabel, TranslatePipe, TranslateDirective, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatHint, MatButtonModule, MatIconModule]
 })
 
 export class PaymentMethodComponent implements OnInit {

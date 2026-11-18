@@ -16,7 +16,7 @@ import { MatButtonModule } from '@angular/material/button'
 
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatHint, MatError } from '@angular/material/form-field'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 import { MatIconModule } from '@angular/material/icon'
 
@@ -27,7 +27,7 @@ library.add(faPaperPlane, faArrowCircleLeft)
   templateUrl: './product-review-edit.component.html',
   styleUrls: ['./product-review-edit.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDialogContent, TranslateModule, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatHint, MatError, MatDialogActions, MatButtonModule, MatDialogClose, MatIconModule]
+  imports: [MatDialogContent, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, MatInputModule, FormsModule, ReactiveFormsModule, MatHint, MatError, MatDialogActions, MatButtonModule, MatDialogClose, MatIconModule]
 })
 export class ProductReviewEditComponent implements OnInit {
   data = inject<{

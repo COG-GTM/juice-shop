@@ -17,7 +17,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatSuffix, MatHint, MatError } from '@angular/material/form-field'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 library.add(faUnlockAlt)
@@ -31,7 +31,7 @@ interface TokenEnterFormFields {
   templateUrl: './two-factor-auth-enter.component.html',
   styleUrls: ['./two-factor-auth-enter.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatIconModule, MatSuffix, MatTooltip, MatHint, MatError, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatIconModule, MatSuffix, MatTooltip, MatHint, MatError, MatButtonModule, MatIconModule]
 })
 export class TwoFactorAuthEnterComponent {
   private readonly twoFactorAuthService = inject(TwoFactorAuthService)

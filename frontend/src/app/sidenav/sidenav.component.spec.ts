@@ -7,7 +7,7 @@ import { ChallengeService } from '../Services/challenge.service'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { SocketIoService } from '../Services/socket-io.service'
 import { ConfigurationService } from '../Services/configuration.service'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { RouterTestingModule } from '@angular/router/testing'
 import { of, throwError } from 'rxjs'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
@@ -84,7 +84,7 @@ describe('SidenavComponent', () => {
         loginGuard.tokenDecode.mockReturnValue({})
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 MatToolbarModule,
                 MatIconModule,
                 MatButtonModule,
@@ -93,7 +93,7 @@ describe('SidenavComponent', () => {
                 CookieModule.forRoot(),
                 RouterTestingModule,
                 SidenavComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: ChallengeService, useValue: challengeService },
                 { provide: UserService, useValue: userService },

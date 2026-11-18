@@ -18,7 +18,7 @@ import { type Product } from '../Models/product.model'
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatHint } from '@angular/material/form-field'
 import { MatIconModule } from '@angular/material/icon'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle } from '@angular/material/expansion'
 import { MatButtonModule, MatIconButton } from '@angular/material/button'
 import { MatDivider } from '@angular/material/divider'
@@ -32,7 +32,7 @@ library.add(faPaperPlane, faArrowCircleLeft, faUserEdit, faThumbsUp, faCrown)
   templateUrl: './product-details.component.html',
   styleUrls: ['./product-details.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDialogContent, MatTooltip, MatDivider, MatButtonModule, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, TranslateModule, MatIconButton, MatIconModule, MatFormFieldModule, MatLabel, MatHint, MatInputModule, FormsModule, ReactiveFormsModule, MatDialogActions, MatDialogClose, AsyncPipe]
+  imports: [MatDialogContent, MatTooltip, MatDivider, MatButtonModule, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, TranslatePipe, TranslateDirective, MatIconButton, MatIconModule, MatFormFieldModule, MatLabel, MatHint, MatInputModule, FormsModule, ReactiveFormsModule, MatDialogActions, MatDialogClose, AsyncPipe]
 })
 export class ProductDetailsComponent implements OnInit, OnDestroy {
   private readonly dialog = inject(MatDialog)

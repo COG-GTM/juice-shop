@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, type OnChanges, type OnInit, Output, ChangeDetectionStrategy } from '@angular/core'
 import { type EnrichedChallenge } from '../../../../types/EnrichedChallenge'
 import { DEFAULT_FILTER_SETTING } from '../../../../filter-settings/FilterSetting'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatTooltip } from '@angular/material/tooltip'
 import { NgClass } from '@angular/common'
 
@@ -10,7 +10,7 @@ import { NgClass } from '@angular/common'
   templateUrl: './category-filter.component.html',
   styleUrls: ['./category-filter.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [NgClass, MatTooltip, TranslateModule]
+  imports: [NgClass, MatTooltip, TranslatePipe]
 })
 export class CategoryFilterComponent implements OnInit, OnChanges {
   public availableCategories = new Set<string>()

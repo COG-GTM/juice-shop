@@ -1,7 +1,7 @@
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
 import { HackingChallengeProgressScoreCardComponent } from './hacking-challenge-progress-score-card.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ScoreCardComponent } from '../score-card/score-card.component'
 
 describe('HackingChallengeProgressScoreCardComponent', () => {
@@ -10,7 +10,8 @@ describe('HackingChallengeProgressScoreCardComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), ScoreCardComponent, HackingChallengeProgressScoreCardComponent]
+            providers: [provideTranslateService()],
+            imports: [ ScoreCardComponent, HackingChallengeProgressScoreCardComponent]
         })
             .compileComponents()
 

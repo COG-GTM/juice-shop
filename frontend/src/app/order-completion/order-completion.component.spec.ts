@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatDividerModule } from '@angular/material/divider'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -36,7 +36,7 @@ describe('OrderCompletionComponent', () => {
     let fixture: ComponentFixture<OrderCompletionComponent>
     let trackOrderService: any
     let activatedRoute: any
-    let basketService: any
+    const basketService = {}
     let addressService: any
     let configurationService: any
 
@@ -57,7 +57,6 @@ describe('OrderCompletionComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 MatTableModule,
                 MatPaginatorModule,
                 MatDialogModule,
@@ -67,7 +66,7 @@ describe('OrderCompletionComponent', () => {
                 MatIconModule,
                 MatTooltipModule,
                 OrderCompletionComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: TrackOrderService, useValue: trackOrderService },
                 { provide: ActivatedRoute, useValue: activatedRoute },
                 { provide: BasketService, useValue: basketService },

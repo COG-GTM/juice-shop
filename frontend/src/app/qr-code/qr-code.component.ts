@@ -7,7 +7,7 @@ import { MAT_DIALOG_DATA, MatDialogClose } from '@angular/material/dialog'
 import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faArrowCircleLeft } from '@fortawesome/free-solid-svg-icons'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { QrCodeComponent as NgQrCodeComponent } from 'ng-qrcode'
 import { MatDivider } from '@angular/material/divider'
@@ -19,7 +19,7 @@ library.add(faArrowCircleLeft)
   templateUrl: './qr-code.component.html',
   styleUrls: ['./qr-code.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDivider, NgQrCodeComponent, MatButtonModule, MatDialogClose, TranslateModule]
+  imports: [MatDivider, NgQrCodeComponent, MatButtonModule, MatDialogClose, TranslatePipe]
 })
 export class QrCodeComponent implements OnInit {
   dialogData = inject(MAT_DIALOG_DATA)

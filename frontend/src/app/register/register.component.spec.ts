@@ -13,7 +13,7 @@ import { RegisterComponent } from './register.component'
 import { ReactiveFormsModule } from '@angular/forms'
 import { RouterTestingModule } from '@angular/router/testing'
 import { Location } from '@angular/common'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatSelectModule } from '@angular/material/select'
 import { MatInputModule } from '@angular/material/input'
@@ -52,7 +52,6 @@ describe('RegisterComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'login', component: LoginComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatFormFieldModule,
@@ -66,7 +65,7 @@ describe('RegisterComponent', () => {
                 MatIconModule,
                 MatSlideToggleModule,
                 RegisterComponent, LoginComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: SecurityAnswerService, useValue: securityAnswerService },
                 { provide: SecurityQuestionService, useValue: securityQuestionService },
                 { provide: UserService, useValue: userService },

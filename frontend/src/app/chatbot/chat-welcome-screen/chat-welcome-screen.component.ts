@@ -6,7 +6,7 @@
 import { Component, ChangeDetectionStrategy, output, model, viewChild, signal, inject, OnInit } from '@angular/core'
 import { DatePipe } from '@angular/common'
 import { MatIconModule } from '@angular/material/icon'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective, TranslateService } from '@ngx-translate/core'
 import { ChatInputBoxComponent } from '../chat-input-box/chat-input-box.component'
 import { ConversationStorageService } from '../../Services/conversation-storage.service'
 import { ConfigurationService } from '../../Services/configuration.service'
@@ -22,7 +22,7 @@ import { type StoredConversation } from '../chat.model'
     MatIconModule,
     ChatInputBoxComponent,
     DatePipe,
-    TranslateModule
+    TranslatePipe, TranslateDirective
   ]
 })
 export class ChatWelcomeScreenComponent implements OnInit {

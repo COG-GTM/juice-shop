@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -23,7 +23,7 @@ import { DeliveryMethodComponent } from '../delivery-method/delivery-method.comp
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 import { MatCheckboxModule } from '@angular/material/checkbox'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { of } from 'rxjs'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
@@ -43,6 +43,9 @@ describe('AddressSelectComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         snackBar = {
             open: vi.fn().mockName("MatSnackBar.open")
         }
@@ -52,7 +55,6 @@ describe('AddressSelectComponent', () => {
             imports: [RouterTestingModule.withRoutes([
                     { path: 'delivery-method', component: DeliveryMethodComponent }
                 ]),
-                TranslateModule.forRoot(),
                 ReactiveFormsModule,
                 MatCardModule,
                 MatTableModule,
@@ -66,7 +68,7 @@ describe('AddressSelectComponent', () => {
                 MatTooltipModule,
                 MatCheckboxModule,
                 AddressSelectComponent, AddressComponent, DeliveryMethodComponent],
-            providers: [{ provide: TranslateService, useValue: translateService },
+            providers: [provideTranslateService(), { provide: TranslateService, useValue: translateService },
                 { provide: MatSnackBar, useValue: snackBar }, provideHttpClient(withXhr(), withInterceptorsFromDi()), provideHttpClientTesting()]
         })
             .compileComponents()

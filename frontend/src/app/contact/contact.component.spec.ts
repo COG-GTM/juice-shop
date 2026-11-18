@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { CaptchaService } from '../Services/captcha.service'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { UserService } from '../Services/user.service'
@@ -11,7 +11,7 @@ import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { ContactComponent } from './contact.component'
 import { MatInputModule } from '@angular/material/input'
 import { ReactiveFormsModule } from '@angular/forms'
@@ -38,6 +38,9 @@ describe('ContactComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         userService = {
             whoAmI: vi.fn().mockName("UserService.whoAmI")
         }
@@ -55,7 +58,7 @@ describe('ContactComponent', () => {
         captchaService.getCaptcha.mockReturnValue(of({}))
 
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatSliderModule,
                 MatCardModule,
@@ -63,7 +66,7 @@ describe('ContactComponent', () => {
                 MatInputModule,
                 MatSnackBarModule,
                 ContactComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 { provide: MatSnackBar, useValue: snackBar },
                 { provide: FeedbackService, useValue: feedbackService },

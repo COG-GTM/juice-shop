@@ -7,7 +7,7 @@ import { Component, type OnInit, inject, ChangeDetectionStrategy } from '@angula
 import { DOCUMENT } from '@angular/common'
 import { ConfigurationService } from '../Services/configuration.service'
 import { MatDivider } from '@angular/material/divider'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 @Component({
@@ -15,7 +15,7 @@ import { MatCardModule } from '@angular/material/card'
   templateUrl: './privacy-policy.component.html',
   styleUrls: ['./privacy-policy.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatDivider]
+  imports: [MatCardModule, TranslatePipe, MatDivider]
 })
 export class PrivacyPolicyComponent implements OnInit {
   private readonly _document = inject<HTMLDocument>(DOCUMENT)

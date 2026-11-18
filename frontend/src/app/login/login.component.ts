@@ -20,7 +20,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatIconButton, MatButtonModule } from '@angular/material/button'
 import { MatInputModule } from '@angular/material/input'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatFormFieldModule, MatLabel, MatError, MatSuffix } from '@angular/material/form-field'
 import { of } from 'rxjs'
 import { catchError } from 'rxjs/operators'
@@ -36,7 +36,7 @@ const oauthProviderUrl = 'https://accounts.google.com/o/oauth2/v2/auth'
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatFormFieldModule, MatLabel, TranslateModule, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatIconButton, MatSuffix, MatTooltip, RouterLink, MatButtonModule, MatIconModule, MatCheckbox]
+  imports: [MatCardModule, MatFormFieldModule, MatLabel, TranslatePipe, TranslateDirective, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatIconButton, MatSuffix, MatTooltip, RouterLink, MatButtonModule, MatIconModule, MatCheckbox]
 })
 
 export class LoginComponent implements OnInit {

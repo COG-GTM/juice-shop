@@ -11,7 +11,7 @@ import { DomSanitizer } from '@angular/platform-browser'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { faHome, faSync, faTruck, faTruckLoading, faWarehouse } from '@fortawesome/free-solid-svg-icons'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 library.add(faWarehouse, faSync, faTruckLoading, faTruck, faHome)
@@ -28,7 +28,7 @@ export enum Status {
   templateUrl: './track-result.component.html',
   styleUrls: ['./track-result.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow]
 })
 export class TrackResultComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)

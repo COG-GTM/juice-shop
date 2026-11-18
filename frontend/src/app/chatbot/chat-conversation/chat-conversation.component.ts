@@ -6,7 +6,7 @@
 import { Component, ChangeDetectionStrategy, signal, viewChild, ElementRef, afterNextRender, inject, Injector, runInInjectionContext, OnInit } from '@angular/core'
 import { ActivatedRoute, Router, RouterLink } from '@angular/router'
 import { MatIconModule } from '@angular/material/icon'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { ChatService } from '../../Services/chat.service'
 import { ConversationStorageService } from '../../Services/conversation-storage.service'
 import { ConfigurationService } from '../../Services/configuration.service'
@@ -25,7 +25,7 @@ import { type ChatMessage, type StoredConversation } from '../chat.model'
   imports: [
     MatIconModule,
     ChatInputBoxComponent,
-    TranslateModule,
+    TranslatePipe,
     RouterLink
   ]
 })

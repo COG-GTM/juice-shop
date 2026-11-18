@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatDividerModule } from '@angular/material/divider'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -49,7 +49,6 @@ describe('AccountingComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [RouterTestingModule,
-                TranslateModule.forRoot(),
                 MatTableModule,
                 MatPaginatorModule,
                 MatFormFieldModule,
@@ -61,7 +60,7 @@ describe('AccountingComponent', () => {
                 MatDialogModule,
                 MatExpansionModule,
                 OrderHistoryComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ProductService, useValue: productService },
                 { provide: OrderHistoryService, useValue: orderHistoryService },
                 { provide: MatDialog, useValue: dialog },

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatDividerModule } from '@angular/material/divider'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -20,7 +20,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog'
 import { of, throwError } from 'rxjs'
 import { DomSanitizer } from '@angular/platform-browser'
 import { BasketService } from '../Services/basket.service'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { SocketIoService } from '../Services/socket-io.service'
 import { QuantityService } from '../Services/quantity.service'
 import { DeluxeGuard } from '../app.guard'
@@ -105,6 +105,9 @@ describe('SearchResultComponent', () => {
         Object.defineProperty(translateService, 'onTranslationChange', { value: new EventEmitter() })
         Object.defineProperty(translateService, 'onFallbackLangChange', { value: new EventEmitter() })
         Object.defineProperty(translateService, 'onDefaultLangChange', { value: new EventEmitter() })
+        Object.defineProperty(translateService, 'onTranslationRefresh', { value: new EventEmitter() })
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         sanitizer = {
             bypassSecurityTrustHtml: vi.fn().mockName("DomSanitizer.bypassSecurityTrustHtml"),
             sanitize: vi.fn().mockName("DomSanitizer.sanitize")
@@ -123,8 +126,7 @@ describe('SearchResultComponent', () => {
         deluxeGuard.isDeluxe.mockReturnValue(false)
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
-                TranslateModule.forRoot(),
+            imports: [
                 MatTableModule,
                 MatPaginatorModule,
                 MatDialogModule,
@@ -132,7 +134,7 @@ describe('SearchResultComponent', () => {
                 MatGridListModule,
                 MatCardModule,
                 SearchResultComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 provideRouter([]),
                 { provide: TranslateService, useValue: translateService },
                 { provide: MatDialog, useValue: dialog },

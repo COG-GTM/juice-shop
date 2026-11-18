@@ -9,7 +9,7 @@ import { ReactiveFormsModule } from '@angular/forms'
 import { MatCardModule } from '@angular/material/card'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { FileItem, FileUploadModule } from 'ng2-file-upload'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatInputModule } from '@angular/material/input'
 import { MatButtonModule } from '@angular/material/button'
 
@@ -18,7 +18,7 @@ import { ComplaintComponent } from './complaint.component'
 import { of, throwError } from 'rxjs'
 
 import { provideHttpClientTesting } from '@angular/common/http/testing'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('ComplaintComponent', () => {
@@ -45,17 +45,19 @@ describe('ComplaintComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
 
         await TestBed.configureTestingModule({
             imports: [ReactiveFormsModule,
                 FileUploadModule,
-                TranslateModule.forRoot(),
                 MatCardModule,
                 MatFormFieldModule,
                 MatInputModule,
                 MatButtonModule,
                 ComplaintComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: UserService, useValue: userService },
                 { provide: ComplaintService, useValue: complaintService },
                 { provide: TranslateService, useValue: translateService },

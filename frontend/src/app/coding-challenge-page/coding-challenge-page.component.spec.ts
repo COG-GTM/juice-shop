@@ -5,7 +5,7 @@
 
 import { Component, input, output, ChangeDetectionStrategy } from '@angular/core'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 import { ActivatedRoute, provideRouter } from '@angular/router'
@@ -76,10 +76,9 @@ describe('CodingChallengePageComponent', () => {
 
         await TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 CodingChallengePageComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 provideRouter([]),
                 { provide: CodeSnippetService, useValue: codeSnippetService },
                 { provide: CodeFixesService, useValue: codeFixesService },

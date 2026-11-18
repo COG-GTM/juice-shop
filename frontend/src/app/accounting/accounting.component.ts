@@ -19,7 +19,7 @@ import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
 import { MatIconButton } from '@angular/material/button'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 library.add(faCheck)
@@ -36,7 +36,7 @@ interface Order {
   templateUrl: './accounting.component.html',
   styleUrls: ['./accounting.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatTooltip, MatIconModule, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatFormFieldModule, MatInputModule, MatSuffix]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatTable, MatColumnDef, MatHeaderCellDef, MatHeaderCell, MatCellDef, MatCell, MatIconButton, MatTooltip, MatIconModule, MatHeaderRowDef, MatHeaderRow, MatRowDef, MatRow, MatPaginator, MatFormFieldModule, MatInputModule, MatSuffix]
 })
 export class AccountingComponent implements AfterViewInit, OnDestroy {
   private readonly productService = inject(ProductService)

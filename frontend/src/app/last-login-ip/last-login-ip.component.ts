@@ -6,7 +6,7 @@
 import { Component, inject, OnInit, ChangeDetectionStrategy } from '@angular/core'
 import { DomSanitizer } from '@angular/platform-browser'
 import { jwtDecode } from 'jwt-decode'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 
 @Component({
@@ -14,7 +14,7 @@ import { MatCardModule } from '@angular/material/card'
   templateUrl: './last-login-ip.component.html',
   styleUrls: ['./last-login-ip.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule]
+  imports: [MatCardModule, TranslateDirective]
 })
 
 export class LastLoginIpComponent implements OnInit {
@@ -31,7 +31,7 @@ export class LastLoginIpComponent implements OnInit {
   }
 
   parseAuthToken () {
-    let payload = {} as any
+    let payload: any
     const token = localStorage.getItem('token')
     if (token) {
       payload = jwtDecode(token)

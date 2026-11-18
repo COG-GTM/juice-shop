@@ -21,6 +21,7 @@ export default tseslint.config(
     rules: {
       'semi': ['error', 'never'],
       '@typescript-eslint/prefer-nullish-coalescing': 'off', // requires the `strictNullChecks` compiler option
+      '@angular-eslint/prefer-on-push-component-change-detection': 'off', // ng update v22 pinned existing components to ChangeDetectionStrategy.Eager to keep pre-v22 behavior
       // FIXME warnings below this line need to be checked and fixed.
       '@typescript-eslint/strict-boolean-expressions': 'off',
       '@typescript-eslint/consistent-type-assertions': 'off',

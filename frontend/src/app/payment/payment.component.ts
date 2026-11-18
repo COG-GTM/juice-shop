@@ -7,7 +7,7 @@ import { UntypedFormControl, Validators, FormsModule, ReactiveFormsModule } from
 import { Component, NgZone, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
 import { ConfigurationService } from '../Services/configuration.service'
 import { BasketService } from '../Services/basket.service'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import {
   faCartArrowDown,
@@ -48,7 +48,7 @@ library.add(faCartArrowDown, faGift, faHeart, faLeanpub, faThumbsUp, faTshirt, f
   templateUrl: './payment.component.html',
   styleUrls: ['./payment.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, PaymentMethodComponent, MatDivider, TranslateModule, MatButtonModule, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatFormFieldModule, MatLabel, MatHint, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatIconModule]
+  imports: [MatCardModule, PaymentMethodComponent, MatDivider, TranslatePipe, TranslateDirective, MatButtonModule, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription, MatFormFieldModule, MatLabel, MatHint, MatInputModule, FormsModule, ReactiveFormsModule, MatError, MatIconModule]
 })
 export class PaymentComponent implements OnInit {
   private readonly location = inject(Location)

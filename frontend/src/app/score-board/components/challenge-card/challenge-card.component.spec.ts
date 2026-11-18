@@ -3,7 +3,7 @@ import { provideZoneChangeDetection } from '@angular/core'
 
 import { ChallengeCardComponent } from './challenge-card.component'
 import { type Config } from 'src/app/Services/configuration.service'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltipModule } from '@angular/material/tooltip'
 
@@ -28,8 +28,8 @@ describe('ChallengeCard', () => {
 
     async function setup() {
         await TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(), MatIconModule, MatTooltipModule, ChallengeCardComponent],
-            providers: [provideZoneChangeDetection()]
+            imports: [ MatIconModule, MatTooltipModule, ChallengeCardComponent],
+            providers: [provideTranslateService(), provideZoneChangeDetection()]
         })
             .compileComponents()
 

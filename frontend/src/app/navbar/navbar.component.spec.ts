@@ -5,7 +5,7 @@
 
 import { ChallengeService } from '../Services/challenge.service'
 import { SearchResultComponent } from '../search-result/search-result.component'
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { UserService } from '../Services/user.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -103,7 +103,6 @@ describe('NavbarComponent', () => {
                     { path: 'search', component: SearchResultComponent }
                 ]),
                 CookieModule.forRoot(),
-                TranslateModule.forRoot(),
                 MatToolbarModule,
                 MatIconModule,
                 MatFormFieldModule,
@@ -121,7 +120,7 @@ describe('NavbarComponent', () => {
                 MatRadioModule,
                 MatSnackBarModule,
                 NavbarComponent, SearchResultComponent, MatSearchBarComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: AdministrationService, useValue: administrationService },
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: UserService, useValue: userService },

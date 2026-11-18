@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter, NO_ERRORS_SCHEMA } from '@angular/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
+import { EventEmitter, signal, NO_ERRORS_SCHEMA } from '@angular/core'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 
@@ -35,13 +35,15 @@ describe('AboutComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
 
         TestBed.configureTestingModule({
             schemas: [NO_ERRORS_SCHEMA],
             imports: [MatCardModule,
-                AboutComponent,
-                TranslateModule.forRoot()],
-            providers: [
+                AboutComponent],
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

@@ -1,7 +1,7 @@
 import { Component, Input, type OnChanges, type OnInit, ChangeDetectionStrategy } from '@angular/core'
 
 import { type EnrichedChallenge } from '../../types/EnrichedChallenge'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 import { ScoreCardComponent } from '../score-card/score-card.component'
 
 @Component({
@@ -9,7 +9,7 @@ import { ScoreCardComponent } from '../score-card/score-card.component'
   templateUrl: './coding-challenge-progress-score-card.component.html',
   styleUrls: ['./coding-challenge-progress-score-card.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [ScoreCardComponent, TranslateModule]
+  imports: [ScoreCardComponent, TranslatePipe]
 })
 export class CodingChallengeProgressScoreCardComponent implements OnInit, OnChanges {
   @Input()

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
 import { MatInputModule } from '@angular/material/input'
 import { BasketService } from '../Services/basket.service'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
@@ -20,7 +20,7 @@ import { UserService } from '../Services/user.service'
 import { ProductService } from '../Services/product.service'
 import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
-import { EventEmitter } from '@angular/core'
+import { EventEmitter, signal } from '@angular/core'
 import { provideHttpClient, withInterceptorsFromDi, withXhr } from '@angular/common/http'
 
 describe('PurchaseBasketComponent', () => {
@@ -70,6 +70,9 @@ describe('PurchaseBasketComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
         deluxeGuard = {
             isDeluxe: vi.fn()
         }
@@ -79,7 +82,7 @@ describe('PurchaseBasketComponent', () => {
         }
 
         TestBed.configureTestingModule({
-            imports: [TranslateModule.forRoot(),
+            imports: [
                 ReactiveFormsModule,
                 MatInputModule,
                 MatCardModule,
@@ -88,7 +91,7 @@ describe('PurchaseBasketComponent', () => {
                 MatButtonToggleModule,
                 MatSnackBarModule,
                 PurchaseBasketComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: TranslateService, useValue: translateService },
                 { provide: BasketService, useValue: basketService },
                 { provide: MatSnackBar, useValue: snackBar },

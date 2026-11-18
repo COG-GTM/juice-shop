@@ -2,7 +2,7 @@ import { Component, inject, ChangeDetectionStrategy } from '@angular/core'
 import { LocalBackupService } from 'src/app/Services/local-backup.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatDialogContent, MatDialogTitle, MatDialogActions, MatDialogClose } from '@angular/material/dialog'
 
 @Component({
@@ -10,8 +10,9 @@ import { MatDialogContent, MatDialogTitle, MatDialogActions, MatDialogClose } fr
   templateUrl: './score-board-additional-settings-dialog.component.html',
   styleUrls: ['./score-board-additional-settings-dialog.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatDialogContent, MatDialogTitle, TranslateModule, MatButtonModule, MatIconModule, MatDialogActions, MatDialogClose]
+  imports: [MatDialogContent, MatDialogTitle, TranslatePipe, TranslateDirective, MatButtonModule, MatIconModule, MatDialogActions, MatDialogClose]
 })
-export class ScoreBoardAdditionalSettingsDialogComponent {  localBackupService = inject(LocalBackupService)
+export class ScoreBoardAdditionalSettingsDialogComponent {
+  localBackupService = inject(LocalBackupService)
 
 }

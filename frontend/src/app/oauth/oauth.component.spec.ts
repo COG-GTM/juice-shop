@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { MatIconModule } from '@angular/material/icon'
 import { MatCheckboxModule } from '@angular/material/checkbox'
 import { MatFormFieldModule } from '@angular/material/form-field'
@@ -49,7 +49,6 @@ describe('OAuthComponent', () => {
                 ]),
                 ReactiveFormsModule,
                 CookieModule.forRoot(),
-                TranslateModule.forRoot(),
                 MatInputModule,
                 MatIconModule,
                 MatCardModule,
@@ -57,7 +56,7 @@ describe('OAuthComponent', () => {
                 MatCheckboxModule,
                 MatTooltipModule,
                 OAuthComponent, LoginComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: ActivatedRoute, useValue: { snapshot: { data: { params: '?alt=json&access_token=TEST' } } } },
                 { provide: UserService, useValue: userService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

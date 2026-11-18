@@ -4,7 +4,7 @@
  */
 
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { ChatInputBoxComponent } from './chat-input-box.component'
 
 describe('ChatInputBoxComponent', () => {
@@ -13,8 +13,8 @@ describe('ChatInputBoxComponent', () => {
 
     beforeEach(() => {
         TestBed.configureTestingModule({
+            providers: [provideTranslateService()],
             imports: [
-                TranslateModule.forRoot(),
                 ChatInputBoxComponent
             ]
         }).compileComponents()

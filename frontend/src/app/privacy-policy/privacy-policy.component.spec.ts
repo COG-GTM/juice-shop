@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateModule, TranslateService } from '@ngx-translate/core'
-import { EventEmitter } from '@angular/core'
+import { provideTranslateService, TranslateService } from '@ngx-translate/core'
+import { EventEmitter, signal } from '@angular/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { ConfigurationService } from '../Services/configuration.service'
@@ -34,13 +34,15 @@ describe('PrivacyPolicyComponent', () => {
         translateService.onTranslationChange = new EventEmitter()
         translateService.onFallbackLangChange = new EventEmitter()
         translateService.onDefaultLangChange = new EventEmitter()
+        translateService.onTranslationRefresh = new EventEmitter()
+        translateService.translate = vi.fn((key: string) => signal(key))
+        translateService.instant = vi.fn((key: string) => key)
 
         TestBed.configureTestingModule({
             imports: [MatCardModule,
                 MatDividerModule,
-                PrivacyPolicyComponent,
-                TranslateModule.forRoot()],
-            providers: [
+                PrivacyPolicyComponent],
+            providers: [provideTranslateService(),
                 { provide: ConfigurationService, useValue: configurationService },
                 { provide: TranslateService, useValue: translateService },
                 provideHttpClient(withXhr(), withInterceptorsFromDi()),

@@ -13,7 +13,7 @@ import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatIconModule } from '@angular/material/icon'
 import { MatButtonModule } from '@angular/material/button'
 import { PurchaseBasketComponent } from '../purchase-basket/purchase-basket.component'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 
 import { MatCardModule } from '@angular/material/card'
 
@@ -22,7 +22,7 @@ import { MatCardModule } from '@angular/material/card'
   templateUrl: './order-summary.component.html',
   styleUrls: ['./order-summary.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, PurchaseBasketComponent, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, PurchaseBasketComponent, MatButtonModule, MatIconModule]
 })
 export class OrderSummaryComponent implements OnInit {
   private readonly router = inject(Router)

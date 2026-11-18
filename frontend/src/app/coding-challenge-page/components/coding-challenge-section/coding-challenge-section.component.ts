@@ -6,7 +6,7 @@
 import { Component, DestroyRef, inject, input, output, ChangeDetectionStrategy } from '@angular/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatIconModule } from '@angular/material/icon'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 
 import { ResultState } from '../../coding-challenge.types'
 
@@ -15,7 +15,7 @@ import { ResultState } from '../../coding-challenge.types'
   templateUrl: './coding-challenge-section.component.html',
   styleUrls: ['./coding-challenge-section.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatButtonModule, MatIconModule, TranslateModule]
+  imports: [MatButtonModule, MatIconModule, TranslatePipe]
 })
 export class CodingChallengeSectionComponent {
   private destroyed = false

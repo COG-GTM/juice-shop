@@ -11,7 +11,7 @@ import { MatButtonModule } from '@angular/material/button'
 
 import { MatInputModule } from '@angular/material/input'
 import { MatFormFieldModule, MatLabel, MatError } from '@angular/material/form-field'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatCardModule } from '@angular/material/card'
 import { MatIconModule } from '@angular/material/icon'
 
@@ -20,7 +20,7 @@ import { MatIconModule } from '@angular/material/icon'
   templateUrl: './wallet.component.html',
   styleUrls: ['./wallet.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, MatFormFieldModule, MatLabel, FormsModule, MatInputModule, ReactiveFormsModule, MatError, MatButtonModule, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, MatFormFieldModule, MatLabel, FormsModule, MatInputModule, ReactiveFormsModule, MatError, MatButtonModule, MatIconModule]
 })
 export class WalletComponent implements OnInit {
   private readonly router = inject(Router)

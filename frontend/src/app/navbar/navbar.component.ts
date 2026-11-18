@@ -10,7 +10,7 @@ import { UserService } from '../Services/user.service'
 import { AdministrationService } from '../Services/administration.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { CookieService } from 'ngy-cookie'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { Router, RouterLink } from '@angular/router'
 import { SocketIoService } from '../Services/socket-io.service'
 import { LanguagesService } from '../Services/languages.service'
@@ -76,7 +76,7 @@ library.add(faLanguage, faSearch, faSignInAlt, faSignOutAlt, faComment, faBomb, 
     MatMenu,
     MatMenuItem,
     MatRadioButton,
-    TranslateModule,
+    TranslatePipe, TranslateDirective,
     MatDivider,
     MatFormFieldModule,
     MatInputModule,

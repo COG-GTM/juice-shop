@@ -8,7 +8,7 @@ import { FormsModule } from '@angular/forms'
 import { MatButtonModule } from '@angular/material/button'
 import { MatIconModule } from '@angular/material/icon'
 import { TextFieldModule } from '@angular/cdk/text-field'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe } from '@ngx-translate/core'
 
 @Component({
   standalone: true,
@@ -21,7 +21,7 @@ import { TranslateModule } from '@ngx-translate/core'
     MatButtonModule,
     MatIconModule,
     TextFieldModule,
-    TranslateModule
+    TranslatePipe
   ]
 })
 export class ChatInputBoxComponent {

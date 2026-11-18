@@ -4,7 +4,7 @@
  */
 
 import { TestBed } from '@angular/core/testing'
-import { TranslateNoOpLoader, TranslateLoader, TranslateModule, TranslateService } from '@ngx-translate/core'
+import { TranslateNoOpLoader, provideTranslateService, provideTranslateLoader, TranslateService } from '@ngx-translate/core'
 import { MatSnackBarModule } from '@angular/material/snack-bar'
 
 import { SnackBarHelperService } from './snack-bar-helper.service'
@@ -12,15 +12,9 @@ import { SnackBarHelperService } from './snack-bar-helper.service'
 describe('SnackBarHelperService', () => {
     beforeEach(() => TestBed.configureTestingModule({
         imports: [
-            TranslateModule.forRoot({
-                loader: {
-                    provide: TranslateLoader,
-                    useClass: TranslateNoOpLoader
-                }
-            }),
             MatSnackBarModule
         ],
-        providers: [TranslateService]
+        providers: [provideTranslateService({ loader: provideTranslateLoader(TranslateNoOpLoader) }), TranslateService]
     }))
 
     it('should be created', () => {

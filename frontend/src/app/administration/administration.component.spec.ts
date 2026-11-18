@@ -15,7 +15,7 @@ import { AdministrationComponent } from './administration.component'
 import { MatTableModule } from '@angular/material/table'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { MatDialog, MatDialogModule } from '@angular/material/dialog'
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { of } from 'rxjs'
 import { throwError } from 'rxjs/internal/observable/throwError'
 import { MatPaginatorModule } from '@angular/material/paginator'
@@ -55,14 +55,13 @@ describe('AdministrationComponent', () => {
 
         TestBed.configureTestingModule({
             imports: [MatTableModule,
-                TranslateModule.forRoot(),
                 MatDialogModule,
                 MatPaginatorModule,
                 MatDividerModule,
                 MatCardModule,
                 MatIconModule,
                 AdministrationComponent],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: MatDialog, useValue: dialog },
                 { provide: UserService, useValue: userService },
                 { provide: FeedbackService, useValue: feedbackService },

@@ -7,7 +7,7 @@ import { MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog'
 import { MatDividerModule } from '@angular/material/divider'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { provideTranslateService } from '@ngx-translate/core'
 import { QrCodeComponent } from './qr-code.component'
 import { MatButtonModule } from '@angular/material/button'
 import { QrCodeComponent as NgQrCodeComponent } from 'ng-qrcode'
@@ -54,14 +54,13 @@ describe('QrCodeComponent', () => {
     beforeEach(async () => {
         await TestBed.configureTestingModule({
             imports: [
-                TranslateModule.forRoot(),
                 NgQrCodeComponent,
                 MatDividerModule,
                 MatButtonModule,
                 MatDialogModule,
                 QrCodeComponent
             ],
-            providers: [
+            providers: [provideTranslateService(),
                 { provide: MAT_DIALOG_DATA, useValue: { data: 'data', url: 'url', address: 'address', title: 'title' } }
             ]
         })

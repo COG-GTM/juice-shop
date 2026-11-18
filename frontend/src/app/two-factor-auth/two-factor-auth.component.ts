@@ -13,7 +13,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { faSave, faUnlockAlt } from '@fortawesome/free-solid-svg-icons'
 
 import { forkJoin } from 'rxjs'
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatSnackBar } from '@angular/material/snack-bar'
 import { SnackBarHelperService } from '../Services/snack-bar-helper.service'
 import { MatTooltip } from '@angular/material/tooltip'
@@ -32,7 +32,7 @@ library.add(faUnlockAlt, faSave)
   templateUrl: './two-factor-auth.component.html',
   styleUrls: ['./two-factor-auth.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, TranslateModule, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatButtonModule, QrCodeComponent, MatError, MatIconModule, MatSuffix, MatTooltip, MatHint, MatIconModule]
+  imports: [MatCardModule, TranslatePipe, TranslateDirective, FormsModule, ReactiveFormsModule, MatFormFieldModule, MatLabel, MatInputModule, MatButtonModule, QrCodeComponent, MatError, MatIconModule, MatSuffix, MatTooltip, MatHint, MatIconModule]
 })
 export class TwoFactorAuthComponent implements OnInit {
   private readonly twoFactorAuthService = inject(TwoFactorAuthService)

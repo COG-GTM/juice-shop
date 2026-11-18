@@ -10,7 +10,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { faWindows } from '@fortawesome/free-brands-svg-icons'
 
 import { Challenge } from '../Models/challenge.model'
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 
 import { MatIconModule } from '@angular/material/icon'
 import { MatTooltip } from '@angular/material/tooltip'
@@ -23,7 +23,7 @@ library.add(faWindows)
   templateUrl: './challenge-status-badge.component.html',
   styleUrls: ['./challenge-status-badge.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatButtonModule, MatTooltip, MatIconModule, TranslateModule]
+  imports: [MatButtonModule, MatTooltip, MatIconModule, TranslatePipe, TranslateDirective]
 })
 export class ChallengeStatusBadgeComponent {
   private readonly challengeService = inject(ChallengeService)

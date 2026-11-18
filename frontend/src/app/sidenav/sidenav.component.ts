@@ -18,7 +18,7 @@ import { MatDivider } from '@angular/material/divider'
 import { MatIconModule } from '@angular/material/icon'
 import { NgClass } from '@angular/common'
 
-import { TranslateModule } from '@ngx-translate/core'
+import { TranslatePipe, TranslateDirective } from '@ngx-translate/core'
 import { MatButtonModule } from '@angular/material/button'
 import { MatNavList, MatListSubheaderCssMatStyler, MatListItem } from '@angular/material/list'
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
@@ -28,7 +28,7 @@ import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
   templateUrl: './sidenav.component.html',
   styleUrls: ['./sidenav.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatToolbar, MatToolbarRow, MatNavList, MatButtonModule, MatListSubheaderCssMatStyler, TranslateModule, MatListItem, RouterLink, MatIconModule, NgClass, MatDivider]
+  imports: [MatToolbar, MatToolbarRow, MatNavList, MatButtonModule, MatListSubheaderCssMatStyler, TranslatePipe, TranslateDirective, MatListItem, RouterLink, MatIconModule, NgClass, MatDivider]
 })
 export class SidenavComponent implements OnInit {
   private readonly administrationService = inject(AdministrationService)

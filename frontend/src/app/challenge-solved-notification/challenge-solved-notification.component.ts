@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { TranslateService, TranslateModule } from '@ngx-translate/core'
+import { TranslateService, TranslatePipe } from '@ngx-translate/core'
 import { ChallengeService } from '../Services/challenge.service'
 import { ConfigurationService } from '../Services/configuration.service'
 import { ChangeDetectorRef, Component, NgZone, type OnInit, inject, ChangeDetectionStrategy } from '@angular/core'
@@ -41,7 +41,7 @@ interface ChallengeSolvedNotification {
   templateUrl: './challenge-solved-notification.component.html',
   styleUrls: ['./challenge-solved-notification.component.scss'],
   changeDetection: ChangeDetectionStrategy.Eager,
-  imports: [MatCardModule, MatButtonModule, MatIconModule, LowerCasePipe, TranslateModule]
+  imports: [MatCardModule, MatButtonModule, MatIconModule, LowerCasePipe, TranslatePipe]
 })
 export class ChallengeSolvedNotificationComponent implements OnInit {
   private readonly ngZone = inject(NgZone)
