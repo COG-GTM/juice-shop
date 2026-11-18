@@ -9,6 +9,13 @@ import * as security from '../lib/insecurity'
 
 async function retrieveUserList (req: Request, res: Response, next: NextFunction) {
   try {
+    const sessionUserId = security.authenticatedUsers.from(req)?.data?.id
+    const sessionUser = sessionUserId !== undefined ? await UserModel.findByPk(sessionUserId, { attributes: ['role'] }) : null
+    if (sessionUser?.role !== security.roles.admin) {
+      res.status(403).json({ error: 'Malicious activity detected' })
+      return
+    }
+
     const users = await UserModel.findAll({ attributes: ['id', 'email'] })
 
     res.json({

@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 const domain = config.get<string>('application.domain')
@@ -58,6 +59,22 @@ void describe('/rest/user/authentication-details', () => {
     const res = await request(app)
       .get('/rest/user/authentication-details')
       .set(await bearer(`jim@${domain}`, 'ncc-1701'))
+
+    assert.equal(res.status, 403)
+    assert.equal(res.body.data, undefined)
+  })
+
+  void it('GET all users is forbidden once the admin role is revoked in the database', async () => {
+    const email = `demoted.admin@${domain}`
+    const user = await UserModel.create({ email, password: 'Demoted!123', role: 'admin' })
+    const headers = await bearer(email, 'Demoted!123')
+
+    assert.equal((await request(app).get('/rest/user/authentication-details').set(headers)).status, 200)
+
+    await user.update({ role: 'customer' })
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(headers)
 
     assert.equal(res.status, 403)
     assert.equal(res.body.data, undefined)
