@@ -4,6 +4,7 @@
  */
 import express, { type NextFunction, type Request, type Response } from 'express'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import config from 'config'
 import { themes } from '../views/themes/themes'
 import * as utils from '../lib/utils'
@@ -18,6 +19,26 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 
 const entities = new Entities()
+
+const csrfKey = crypto.randomBytes(32)
+const csrfTokenFor = (sessionToken: string) => crypto.createHmac('sha256', csrfKey).update('dataerasure:' + sessionToken).digest('hex')
+
+const safeEqual = (a: unknown, b: string) => {
+  if (typeof a !== 'string') return false
+  const left = Buffer.from(a)
+  const right = Buffer.from(b)
+  return left.length === right.length && crypto.timingSafeEqual(left, right)
+}
+
+const isSameOrigin = (req: Pick<Request, 'get'>) => {
+  const source = req.get('origin') ?? req.get('referer')
+  if (!source) return true
+  try {
+    return new URL(source).host === req.get('host')
+  } catch {
+    return false
+  }
+}
 
 const router = express.Router()
 
@@ -50,6 +71,7 @@ router.get('/', (req: Request, res: Response, next: NextFunction) => {
       res.render('dataErasureForm', {
         userEmail: email,
         securityQuestion: question.question,
+        csrfToken: csrfTokenFor(req.cookies.token),
         _title_: entities.encode(config.get<string>('application.name')),
         _favicon_: utils.extractFilename(config.get('application.favicon')),
         _bgColor_: theme.bgColor,
@@ -69,6 +91,7 @@ interface DataErasureRequestParams {
   layout?: string
   email: string
   securityAnswer: string
+  csrfToken: string
 }
 
 router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
@@ -79,7 +102,20 @@ router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>,
       return
     }
 
+    if (!isSameOrigin(req) || !safeEqual(req.body.csrfToken, csrfTokenFor(req.cookies.token))) {
+      res.status(403).send('Invalid or missing CSRF token.')
+      return
+    }
+
     try {
+      const { email, securityAnswer } = req.body
+      const answer = await SecurityAnswerModel.findOne({ where: { UserId: loggedInUser.data.id } })
+      if (typeof email !== 'string' || email.toLowerCase() !== String(loggedInUser.data.email).toLowerCase() ||
+        typeof securityAnswer !== 'string' || answer == null || !safeEqual(security.hmac(securityAnswer), answer.answer)) {
+        res.status(401).send(res.__('Wrong answer to security question.'))
+        return
+      }
+
       await PrivacyRequestModel.create({
         UserId: loggedInUser.data.id,
         deletionRequested: true
