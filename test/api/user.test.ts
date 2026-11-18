@@ -68,6 +68,33 @@ void describe('/api/Users', () => {
     }
   })
 
+  void it('GET users search only matches username and email', async () => {
+    const res = await request(app).get('/api/Users?q=0192023a7bbd73250516f069df18b500').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.equal(res.body.data.length, 0)
+  })
+
+  void it('GET users search still finds users by email', async () => {
+    const res = await request(app).get('/api/Users?q=jim@juice-sh.op').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data.map((user: { email: string }) => user.email), ['jim@juice-sh.op'])
+  })
+
+  for (const attribute of ['password', 'totpSecret', 'deluxeToken', 'lastLoginIp', 'profileImage']) {
+    void it(`GET users filtered by hidden attribute ${attribute} is rejected`, async () => {
+      const res = await request(app).get(`/api/Users?${attribute}=x`).set(adminHeader)
+      assert.equal(res.status, 400)
+      assert.equal(res.body.data, undefined)
+    })
+  }
+
+  void it('GET users filtered by a visible attribute', async () => {
+    const res = await request(app).get('/api/Users?role=admin').set(adminHeader)
+    assert.equal(res.status, 200)
+    assert.ok(res.body.data.length > 0)
+    assert.ok(res.body.data.every((user: { role: string }) => user.role === 'admin'))
+  })
+
   void it('POST new user', async () => {
     const res = await request(app)
       .post('/api/Users')

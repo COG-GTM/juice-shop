@@ -518,6 +518,14 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     if (name === 'User') {
       const visibleUserAttributes = ['id', 'username', 'email', 'role', 'isActive', 'createdAt', 'updatedAt', 'deletedAt']
+      resource.search = { param: 'q', attributes: ['username', 'email'] }
+      resource.list.fetch.before((req: Request, res: Response, context: { error: any, continue: any }) => {
+        const hiddenFilter = Object.keys(req.query).find((key) => Object.prototype.hasOwnProperty.call(UserModel.rawAttributes, key) && !visibleUserAttributes.includes(key))
+        if (hiddenFilter) {
+          return context.error(400, `Filtering users by ${hiddenFilter} is not allowed`)
+        }
+        return context.continue
+      })
       const toVisibleUser = (user: any) => {
         const plain = typeof user?.get === 'function' ? user.get({ plain: true }) : user
         return Object.fromEntries(visibleUserAttributes.filter((key) => key in plain).map((key) => [key, plain[key]]))
