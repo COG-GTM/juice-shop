@@ -9,7 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { assertSessionCookieFlags, login, sessionCookie } from './helpers/auth'
 
 let app: Express
 let authHeader: { Cookie: string }
@@ -50,5 +50,18 @@ void describe('/profile', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+    assertSessionCookieFlags(sessionCookie(res), { secure: false })
+  })
+
+  void it('POST update username over HTTPS re-issues the session token cookie as Secure', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Cookie', authHeader.Cookie)
+      .set('X-Forwarded-Proto', 'https')
+      .field('username', 'Localhorst')
+      .redirects(0)
+
+    assert.equal(res.status, 302)
+    assertSessionCookieFlags(sessionCookie(res), { secure: true })
   })
 })

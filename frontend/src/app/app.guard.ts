@@ -4,27 +4,9 @@
  */
 
 import { type CanActivate, Router } from '@angular/router'
-import { jwtDecode } from 'jwt-decode'
 import { roles } from './roles'
 import { Injectable, NgZone, inject } from '@angular/core'
-
-const sessionLifetimeInSeconds = 6 * 60 * 60
-
-const expiryOf = (payload: any): number | undefined => {
-  if (typeof payload?.exp === 'number') return payload.exp
-  if (typeof payload?.iat === 'number') return payload.iat + sessionLifetimeInSeconds
-  return undefined
-}
-
-export function endExpiredSession (payload: any): boolean {
-  const exp = expiryOf(payload)
-  if (exp === undefined || exp * 1000 > Date.now()) return false
-  if (document.cookie.split('; ').includes(`token=${localStorage.getItem('token')}`)) {
-    document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
-  }
-  localStorage.removeItem('token')
-  return true
-}
+import { isLoggedIn, sessionClaims } from './Services/auth-session'
 
 @Injectable()
 export class LoginGuard implements CanActivate {
@@ -33,8 +15,7 @@ export class LoginGuard implements CanActivate {
 
 
   canActivate () {
-    endExpiredSession(this.tokenDecode())
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn()) {
       return true
     } else {
       this.forbidRoute('UNAUTHORIZED_ACCESS_ERROR')
@@ -50,16 +31,7 @@ export class LoginGuard implements CanActivate {
   }
 
   tokenDecode () {
-    let payload: any = null
-    const token = localStorage.getItem('token')
-    if (token) {
-      try {
-        payload = jwtDecode(token)
-      } catch (err) {
-        console.log(err)
-      }
-    }
-    return payload
+    return sessionClaims()
   }
 }
 
@@ -70,7 +42,7 @@ export class AdminGuard implements CanActivate {
 
   canActivate () {
     const payload = this.loginGuard.tokenDecode()
-    if (!endExpiredSession(payload) && payload?.data && payload.data.role === roles.admin) {
+    if (payload?.data && payload.data.role === roles.admin) {
       return true
     } else {
       this.loginGuard.forbidRoute()
@@ -86,7 +58,7 @@ export class AccountingGuard implements CanActivate {
 
   canActivate () {
     const payload = this.loginGuard.tokenDecode()
-    if (!endExpiredSession(payload) && payload?.data && payload.data.role === roles.accounting) {
+    if (payload?.data && payload.data.role === roles.accounting) {
       return true
     } else {
       this.loginGuard.forbidRoute()

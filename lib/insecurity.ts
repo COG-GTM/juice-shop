@@ -5,7 +5,7 @@
 
 import fs from 'node:fs'
 import crypto from 'node:crypto'
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Request, type Response, type NextFunction, type CookieOptions } from 'express'
 import { type UserModel } from 'models/user'
 import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
@@ -115,6 +115,20 @@ const hasValidSignature = (token: string) => {
     return false
   }
 }
+
+export const sessionCookieOptions = (req?: Request): CookieOptions => ({ httpOnly: true, secure: !!req?.secure, sameSite: 'strict' })
+export const setSessionCookie = (res: Response, token: string) => res.cookie('token', token, { ...sessionCookieOptions(res.req), maxAge: sessionLifetimeInSeconds * 1000 })
+export const clearSessionCookie = (res: Response) => res.clearCookie('token', sessionCookieOptions(res.req))
+
+export const bearerTokenFromSessionCookie = () => (req: Request, res: Response, next: NextFunction) => {
+  if (!utils.jwtFrom(req) && req.cookies?.token) {
+    req.headers.authorization = `Bearer ${req.cookies.token}`
+  }
+  next()
+}
+
+export const isRevoked = (token?: string) => authenticatedUsers.isRevoked(token)
+export const revokeToken = (token?: string) => { authenticatedUsers.revoke(token) }
 
 export const sanitizeHtml = (html: string) => sanitizeHtmlLib(html)
 export const sanitizeLegacy = (input = '') => input.replace(/<(?:\w+)\W+?[\w]/gi, '')
@@ -297,7 +311,8 @@ export const isCustomer = (req: Request) => {
 export const appendUserId = () => {
   return (req: Request, res: Response, next: NextFunction) => {
     try {
-      const user = authenticatedUsers.get(utils.jwtFrom(req))
+      const token = utils.jwtFrom(req)
+      const user = token && hasValidSignature(token) ? authenticatedUsers.get(token) : undefined
       if (user === undefined) {
         res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
         return
@@ -323,7 +338,7 @@ export const updateAuthenticatedUsers = () => (req: Request, res: Response, next
       if (err === null && issuedSinceStartup(token)) {
         if (authenticatedUsers.get(token) === undefined) {
           authenticatedUsers.put(token, decoded)
-          res.cookie('token', token)
+          setSessionCookie(res, token)
         }
       }
     })

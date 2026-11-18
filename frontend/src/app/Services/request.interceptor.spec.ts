@@ -9,6 +9,7 @@ import { TestBed } from '@angular/core/testing'
 import { Router } from '@angular/router'
 import { RequestInterceptor, sessionEndedMessage } from './request.interceptor'
 import { UserService } from './user.service'
+import { authToken, endSession, startSession } from './auth-session'
 
 describe('RequestInterceptor', () => {
     let http: HttpClient
@@ -30,11 +31,11 @@ describe('RequestInterceptor', () => {
         })
         http = TestBed.inject(HttpClient)
         httpMock = TestBed.inject(HttpTestingController)
-        localStorage.setItem('token', 'old')
+        startSession('old')
     })
 
     afterEach(() => {
-        localStorage.removeItem('token')
+        endSession()
         httpMock.verify()
     })
 
@@ -51,7 +52,8 @@ describe('RequestInterceptor', () => {
         httpMock.expectOne('/rest/wallet/balance').flush({ status: 'error', message: sessionEndedMessage }, { status: 401, statusText: 'Unauthorized' })
 
         expect(error.status).toBe(401)
-        expect(localStorage.getItem('token')).toBeNull()
+        expect(authToken()).toBeNull()
+        expect(localStorage.getItem('session')).toBeNull()
         expect(userService.isLoggedIn.next).toHaveBeenCalledWith(false)
         expect(router.navigate).toHaveBeenCalledWith(['/login'])
     })
@@ -60,16 +62,16 @@ describe('RequestInterceptor', () => {
         http.get('/rest/user/change-password').subscribe({ error: () => {} })
         httpMock.expectOne('/rest/user/change-password').flush('Current password is not correct.', { status: 401, statusText: 'Unauthorized' })
 
-        expect(localStorage.getItem('token')).toBe('old')
+        expect(authToken()).toBe('old')
         expect(router.navigate).not.toHaveBeenCalled()
     })
 
     it('should keep a newer token stored while the old request was in flight', () => {
         http.get('/rest/wallet/balance').subscribe({ error: () => {} })
-        localStorage.setItem('token', 'new')
+        startSession('new')
         httpMock.expectOne('/rest/wallet/balance').flush({ message: sessionEndedMessage }, { status: 401, statusText: 'Unauthorized' })
 
-        expect(localStorage.getItem('token')).toBe('new')
+        expect(authToken()).toBe('new')
         expect(router.navigate).not.toHaveBeenCalled()
     })
 })

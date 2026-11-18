@@ -9,6 +9,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { RouterTestingModule } from '@angular/router/testing'
 import { ErrorPageComponent } from './error-page/error-page.component'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { endSession, startSession } from './Services/auth-session'
 
 describe('LoginGuard', () => {
     beforeEach(() => {
@@ -29,71 +30,49 @@ describe('LoginGuard', () => {
     it('should open for authenticated users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'TOKEN')
+        startSession('TOKEN')
         expect(guard.canActivate()).toBe(true)
-    })
-
-    it('should close and clear the session for users with an expired token', () => {
-        const guard = TestBed.inject(LoginGuard)
-        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
-        const token = `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`
-        localStorage.setItem('token', token)
-        document.cookie = `token=${token}; path=/`
-
-        expect(guard.canActivate()).toBe(false)
-        expect(localStorage.getItem('token')).toBeNull()
-        expect(document.cookie).not.toContain(`token=${token}`)
-    })
-
-    it('should keep a different token cookie when clearing an expired token', () => {
-        const guard = TestBed.inject(LoginGuard)
-        const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 60 })).replace(/=+$/, '')
-        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
-        document.cookie = 'token=REFRESHED; path=/'
-
-        expect(guard.canActivate()).toBe(false)
-        expect(document.cookie).toContain('token=REFRESHED')
-        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'
-    })
-
-    it('should close and clear the session for a legacy token issued more than 6 hours ago', () => {
-        const guard = TestBed.inject(LoginGuard)
-        const payload = btoa(JSON.stringify({ iat: Math.floor(Date.now() / 1000) - 6 * 60 * 60 - 60 })).replace(/=+$/, '')
-        localStorage.setItem('token', `eyJhbGciOiJSUzI1NiJ9.${payload}.signature`)
-
-        expect(guard.canActivate()).toBe(false)
-        expect(localStorage.getItem('token')).toBeNull()
     })
 
     it('should close for anonymous users', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.removeItem('token')
+        endSession()
         expect(guard.canActivate()).toBe(false)
     })
 
-    it('returns payload from decoding a valid JWT', () => {
+    it('should close when only a legacy localStorage token is present', () => {
         const guard = TestBed.inject(LoginGuard)
 
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c')
-        expect(guard.tokenDecode()).toEqual({
-            sub: '1234567890',
-            name: 'John Doe',
-            iat: 1516239022
-        })
-    })
-
-    it('returns nothing when decoding an invalid JWT', () => {
-        const guard = TestBed.inject(LoginGuard)
-
-        localStorage.setItem('token', '12345.abcde')
-        expect(guard.tokenDecode()).toBeNull()
-    })
-
-    it('returns nothing when decoding an non-existing JWT', () => {
-        const guard = TestBed.inject(LoginGuard)
-
+        endSession()
+        localStorage.setItem('token', 'TOKEN')
+        expect(guard.canActivate()).toBe(false)
         localStorage.removeItem('token')
+    })
+
+    it('returns only non-secret session claims from the login token', () => {
+        const guard = TestBed.inject(LoginGuard)
+
+        startSession('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwicm9sZSI6ImFkbWluIiwicGFzc3dvcmQiOiIwMTkyMDIzYTdiYmQ3MzI1MDUxNmYwNjlkZjE4YjUwMCIsInRvdHBTZWNyZXQiOiJTRUNSRVQifSwiaWF0IjoxNTE2MjM5MDIyfQ.c2lnbmF0dXJl')
+        expect(guard.tokenDecode()).toEqual({
+            data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }
+        })
+        expect(localStorage.getItem('session')).not.toContain('SECRET')
+        expect(localStorage.getItem('session')).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoxLCJlbWFpbCI6ImFkbWluQGp1aWNlLXNoLm9wIiwicm9sZSI6ImFkbWluIiwicGFzc3dvcmQiOiIwMTkyMDIzYTdiYmQ3MzI1MDUxNmYwNjlkZjE4YjUwMCIsInRvdHBTZWNyZXQiOiJTRUNSRVQifSwiaWF0IjoxNTE2MjM5MDIyfQ.c2lnbmF0dXJl')
+    })
+
+    it('returns nothing once the session has expired', () => {
+        const guard = TestBed.inject(LoginGuard)
+
+        startSession('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7ImlkIjoxfSwiZXhwIjoxNTE2MjM5MDIyfQ.c2lnbmF0dXJl')
+        expect(guard.tokenDecode()).toBeNull()
+        expect(guard.canActivate()).toBe(false)
+    })
+
+    it('returns nothing without a session', () => {
+        const guard = TestBed.inject(LoginGuard)
+
+        endSession()
         expect(guard.tokenDecode()).toBeNull()
     })
 })
@@ -131,14 +110,6 @@ describe('AdminGuard', () => {
 
         loginGuard.tokenDecode.mockReturnValue({ data: { role: 'admin' } })
         expect(guard.canActivate()).toBe(true)
-    })
-
-    it('should close for an expired admin token', () => {
-        const guard = TestBed.inject(AdminGuard)
-
-        loginGuard.tokenDecode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) - 60, data: { role: 'admin' } })
-        expect(guard.canActivate()).toBe(false)
-        expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
 
     it('should close for regular customers', () => {
@@ -199,14 +170,6 @@ describe('AccountingGuard', () => {
 
         loginGuard.tokenDecode.mockReturnValue({ data: { role: 'accounting' } })
         expect(guard.canActivate()).toBe(true)
-    })
-
-    it('should close for an expired accounting token', () => {
-        const guard = TestBed.inject(AccountingGuard)
-
-        loginGuard.tokenDecode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) - 60, data: { role: 'accounting' } })
-        expect(guard.canActivate()).toBe(false)
-        expect(loginGuard.forbidRoute).toHaveBeenCalled()
     })
 
     it('should close for regular customers', () => {

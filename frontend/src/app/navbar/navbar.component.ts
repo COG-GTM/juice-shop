@@ -56,6 +56,8 @@ import { MatTooltip } from '@angular/material/tooltip'
 import { MatButtonModule } from '@angular/material/button'
 
 import { MatToolbar, MatToolbarRow } from '@angular/material/toolbar'
+import { authToken, endSession, isLoggedIn } from '../Services/auth-session'
+import { finalize } from 'rxjs/operators'
 
 library.add(faLanguage, faSearch, faSignInAlt, faSignOutAlt, faComment, faBomb, faTrophy, faInfoCircle, faShoppingCart, faUserSecret, faRecycle, faMapMarker, faUserCircle, faGithub, faComments, faThermometerEmpty, faThermometerQuarter, faThermometerHalf, faThermometerThreeQuarters, faThermometerFull)
 
@@ -147,7 +149,7 @@ export class NavbarComponent implements OnInit {
       error: (err) => { console.log(err) }
     })
 
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn()) {
       this.getUserDetails()
     } else {
       this.userEmail = ''
@@ -232,15 +234,15 @@ export class NavbarComponent implements OnInit {
   }
 
   isLoggedIn () {
-    return localStorage.getItem('token')
+    return isLoggedIn()
   }
 
   logout () {
-    const token = localStorage.getItem('token')
-    const removeCookie = () => { this.cookieService.remove('token') }
-    const endSession = () => { this.userService.logout(token).subscribe({ next: removeCookie, error: (err) => { console.log(err); removeCookie() } }) }
-    this.userService.saveLastLoginIp().subscribe({ next: () => { endSession() }, error: (err) => { console.log(err); endSession() } })
-    localStorage.removeItem('token')
+    const token = authToken()
+    this.userService.saveLastLoginIp().pipe(finalize(() => {
+      this.userService.logout(token).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    })).subscribe({ next: () => { this.noop() }, error: (err) => { console.log(err) } })
+    endSession()
     sessionStorage.removeItem('bid')
     sessionStorage.removeItem('itemTotal')
     sessionStorage.removeItem('guestBasket')
@@ -290,6 +292,8 @@ export class NavbarComponent implements OnInit {
     this.sidenavToggle.emit()
   }
 
+
+  noop () { }
 
   getLanguages () {
     this.langService.getLanguages().subscribe((res: any[]) => {
