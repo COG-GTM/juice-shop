@@ -685,7 +685,7 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   console.error(err)
 })
 
-const uploadToMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200000 } })
+const uploadToMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200000, files: 1, fields: 10, fieldSize: 100000, parts: 11 } })
 const mimeTypeMap: any = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -712,13 +712,13 @@ const uploadToDisk = multer({
       cb(null, name + '-' + Date.now() + '.' + ext)
     }
   }),
-  limits: { fileSize: 1000000, files: 1 }
+  limits: { fileSize: 1000000, files: 1, fields: 5, fieldSize: 100000, parts: 6 }
 })
 const uploadMemoryImage = (req: Request, res: Response, next: NextFunction) => {
   uploadToDisk.single('image')(req, res, (error: unknown) => {
-    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+    if (error instanceof multer.MulterError && error.code !== 'LIMIT_UNEXPECTED_FILE') {
       metrics.countFileUploadError(memoryUploadMimeTypes.get(req) ?? 'unknown')
-      res.status(413).json({ error: 'File too large' })
+      res.status(413).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'File too large' : 'Too many or too large form parts' })
       return
     }
     next(error)
