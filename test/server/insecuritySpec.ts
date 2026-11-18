@@ -112,30 +112,8 @@ describe('insecurity', () => {
   })
 
   describe('sanitizeHtml', () => {
-    it('handles empty inputs by returning their string representation', () => {
-      expect(security.sanitizeHtml('')).to.equal('')
-    })
-
-    it('returns input unchanged for plain text input', () => {
-      expect(security.sanitizeHtml('This application is horrible!')).to.equal('This application is horrible!')
-    })
-
-    it('returns input unchanged for HTML input with only harmless text formatting', () => {
-      expect(security.sanitizeHtml('<strong>This</strong> application <em>is horrible</em>!')).to.equal('<strong>This</strong> application <em>is horrible</em>!')
-    })
-
-    it('returns input unchanged for HTML input with only harmless links', () => {
-      expect(security.sanitizeHtml('<a href="bla.blubb">Please see here for details!</a>')).to.equal('<a href="bla.blubb">Please see here for details!</a>')
-    })
-
-    it('removes all Javascript from HTML input', () => {
-      expect(security.sanitizeHtml('Sani<script>alert("ScriptXSS")</script>tizedScript')).to.equal('SanitizedScript')
-      expect(security.sanitizeHtml('Sani<img src="alert("ImageXSS")"/>tizedImage')).to.equal('SanitizedImage')
-      expect(security.sanitizeHtml('Sani<iframe src="alert("IFrameXSS")"></iframe>tizedIFrame')).to.equal('SanitizedIFrame')
-    })
-
-    it('can be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeHtml('<<script>Foo</script>iframe src="javascript:alert(`xss`)">')).to.equal('<iframe src="javascript:alert(`xss`)">')
+    it('is no longer exported so only the recursive sanitizer can be used', () => {
+      expect(Object.keys(security)).to.not.include('sanitizeHtml')
     })
   })
 
@@ -177,7 +155,7 @@ describe('insecurity', () => {
     })
 
     it('cannot be bypassed by exploiting lack of recursive sanitization', () => {
-      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('BlaBlubb')
+      expect(security.sanitizeSecure('Bla<<script>Foo</script>iframe src="javascript:alert(`xss`)">Blubb')).to.equal('Bla&lt;iframe src="javascript:alert(`xss`)"&gt;Blubb')
     })
   })
 

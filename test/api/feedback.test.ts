@@ -49,7 +49,7 @@ void describe('/api/Feedbacks', () => {
   })
 
   if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
-    void it('POST sanitizes masked XSS-attack recursively', async () => {
+    void it('POST sanitizes masked XSS-attack recursively while still solving the challenge', async () => {
       const captchaRes = await request(app)
         .get('/rest/captcha')
       assert.equal(captchaRes.status, 200)
@@ -65,9 +65,27 @@ void describe('/api/Feedbacks', () => {
           captcha: captchaRes.body.answer
         })
       assert.equal(res.status, 201)
-      assert.equal(res.body.data.comment, 'The sanitize-html module up to at least version 1.4.2 has this issue: ')
+      assert.equal(res.body.data.comment, 'The sanitize-html module up to at least version 1.4.2 has this issue: &lt;iframe src="javascript:alert(`xss`)"&gt;')
+      assert.equal(challenges.persistedXssFeedbackChallenge.solved, true)
     })
   }
+
+  void it('POST stores no iframe for nested-tag payloads that leave one after a single removal pass', async () => {
+    for (const comment of [
+      '<<script>Foo</script>iframe src="javascript:alert(`xss`)">',
+      '<ifr<script></script>ame src="javascript:alert(1)">',
+      '<<iframe>iframe src="javascript:alert(1)">'
+    ]) {
+      const captchaRes = await request(app)
+        .get('/rest/captcha')
+      const res = await request(app)
+        .post('/api/Feedbacks')
+        .set(jsonHeader)
+        .send({ comment, rating: 1, captchaId: captchaRes.body.captchaId, captcha: captchaRes.body.answer })
+      assert.equal(res.status, 201)
+      assert.doesNotMatch(res.body.data.comment, /<\s*iframe/i)
+    }
+  })
 
   void it('POST feedback in another users name as anonymous user', async () => {
     const captchaRes = await request(app)
