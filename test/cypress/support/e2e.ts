@@ -6,6 +6,7 @@ declare global {
   namespace Cypress {
     interface Chainable {
       expectChallengeSolved: (value: { challenge: string }) => void
+      expectChallengeNotSolved: (value: { challenge: string }) => void
       login: (value: {
         email: string
         password: string
