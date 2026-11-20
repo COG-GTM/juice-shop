@@ -34,4 +34,13 @@ void describe('/rest/languages', () => {
       assert.equal(typeof lang.gauge, 'string')
     }
   })
+
+  void it('GET all languages returns the same list on repeated requests', async () => {
+    const first = await request(app).get('/rest/languages')
+    const second = await request(app).get('/rest/languages')
+
+    assert.equal(second.status, 200)
+    assert.deepEqual(second.body, first.body)
+    assert.ok(second.body.some((lang: { key: string }) => lang.key === 'de_DE'))
+  })
 })
