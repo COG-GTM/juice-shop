@@ -36,6 +36,16 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 200)
+
+    const retiredRes = await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(retiredRes.status, 401)
+
+    const currentRes = await request(app)
+      .get('/rest/user/change-password?current=foo&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(currentRes.status, 200)
   })
 
   void it('GET password change with passing wrong current password', async () => {
