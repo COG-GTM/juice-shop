@@ -109,4 +109,21 @@ void describe('/api/Wallets', () => {
       .send({ balance: { toString: 1, valueOf: 1 }, paymentId: 2 })
     assert.equal(res.status, 400)
   })
+  void it('PUT charge wallet just outside the allowed range is rejected', async () => {
+    for (const balance of [9, 1001]) {
+      const res = await request(app)
+        .put('/rest/wallet/balance')
+        .set(authHeader)
+        .send({ balance, paymentId: 2 })
+      assert.equal(res.status, 400)
+    }
+  })
+
+  void it('PUT charge wallet with the allowed maximum succeeds', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: 1000, paymentId: 2 })
+    assert.equal(res.status, 200)
+  })
 })
