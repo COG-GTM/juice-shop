@@ -36,6 +36,16 @@ void describe('/rest/user/change-password', () => {
       .set({ Authorization: 'Bearer ' + token })
 
     assert.equal(res.status, 200)
+
+    const retiredRes = await request(app)
+      .get('/rest/user/change-password?current=kunigunde&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(retiredRes.status, 401)
+
+    const currentRes = await request(app)
+      .get('/rest/user/change-password?current=foo&new=bar&repeat=bar')
+      .set({ Authorization: 'Bearer ' + token })
+    assert.equal(currentRes.status, 200)
   })
 
   void it('GET password change with passing wrong current password', async () => {
@@ -89,7 +99,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change for Bender without current password is rejected', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
@@ -99,7 +109,8 @@ void describe('/rest/user/change-password', () => {
       .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
   })
 })
 
