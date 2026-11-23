@@ -20,7 +20,8 @@ export function getWalletBalance () {
 
 export function addWalletBalance () {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const amount = Number(req.body.balance)
+    const { balance } = req.body
+    const amount = typeof balance === 'number' || typeof balance === 'string' ? Number(balance) : NaN
     if (!Number.isFinite(amount) || amount < 10 || amount > 1000) {
       res.status(400).json({ status: 'error', message: 'Invalid amount.' })
       return

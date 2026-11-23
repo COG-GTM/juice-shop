@@ -102,4 +102,11 @@ void describe('/api/Wallets', () => {
       .set(authHeader)
     assert.equal(balanceRes.body.data, 210)
   })
+  void it('PUT charge wallet with non-primitive amount is rejected', async () => {
+    const res = await request(app)
+      .put('/rest/wallet/balance')
+      .set(authHeader)
+      .send({ balance: { toString: 1, valueOf: 1 }, paymentId: 2 })
+    assert.equal(res.status, 400)
+  })
 })
