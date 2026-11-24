@@ -116,7 +116,7 @@ export function checkBasketItemOwnership () {
         return
       }
       if (await findOwnBasketItem(req, user.data.id) == null) {
-        res.status(403).json({ error: 'Not allowed' })
+        res.status(404).json({ error: 'No such item found!' })
         return
       }
       next()
@@ -136,7 +136,7 @@ export function quantityCheckBeforeBasketItemUpdate () {
       }
       const item = await findOwnBasketItem(req, user.data.id)
       if (item == null) {
-        res.status(403).json({ error: 'Not allowed' })
+        res.status(404).json({ error: 'No such item found!' })
         return
       }
       const rawQuantity = req.body?.quantity

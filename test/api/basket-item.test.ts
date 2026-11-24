@@ -328,28 +328,28 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(res.status, 400)
   })
 
-  void it('PUT update quantity of basket item of another user is forbidden', async () => {
+  void it('PUT update quantity of basket item of another user returns 404', async () => {
     const res = await request(app)
       .put('/api/BasketItems/1')
       .set(authHeader)
       .send({ quantity: 5 })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
   })
 
-  void it('PUT move basket item of another user is forbidden', async () => {
+  void it('PUT move basket item of another user returns 404', async () => {
     const res = await request(app)
       .put('/api/BasketItems/1')
       .set(authHeader)
       .send({ BasketId: 2 })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
   })
 
-  void it('PUT update non-existing basket item is forbidden', async () => {
+  void it('PUT update non-existing basket item returns 404', async () => {
     const res = await request(app)
       .put('/api/BasketItems/4711')
       .set(authHeader)
       .send({ quantity: 1 })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
   })
 
   void it('PUT update product ID of basket item is forbidden', async () => {
@@ -388,7 +388,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(getRes.body.data.quantity, 1)
   })
 
-  void it('PUT update basket item of another user is forbidden and leaves it unchanged', async () => {
+  void it('PUT update basket item of another user returns 404 and leaves it unchanged', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -399,7 +399,7 @@ void describe('/api/BasketItems/:id', () => {
       .put('/api/BasketItems/' + createRes.body.data.id)
       .set(otherUserAuthHeader)
       .send({ quantity: 5 })
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
 
     const getRes = await request(app)
       .get('/api/BasketItems/' + createRes.body.data.id)
@@ -409,7 +409,7 @@ void describe('/api/BasketItems/:id', () => {
     assert.equal(getRes.body.data.BasketId, 2)
   })
 
-  void it('GET basket item of another user is forbidden', async () => {
+  void it('GET basket item of another user returns 404', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -419,10 +419,10 @@ void describe('/api/BasketItems/:id', () => {
     const res = await request(app)
       .get('/api/BasketItems/' + createRes.body.data.id)
       .set(otherUserAuthHeader)
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
   })
 
-  void it('DELETE basket item of another user is forbidden and leaves it in place', async () => {
+  void it('DELETE basket item of another user returns 404 and leaves it in place', async () => {
     const createRes = await request(app)
       .post('/api/BasketItems')
       .set(authHeader)
@@ -432,7 +432,7 @@ void describe('/api/BasketItems/:id', () => {
     const res = await request(app)
       .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(otherUserAuthHeader)
-    assert.equal(res.status, 403)
+    assert.equal(res.status, 404)
 
     const getRes = await request(app)
       .get('/api/BasketItems/' + createRes.body.data.id)
