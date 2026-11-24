@@ -57,6 +57,24 @@ void describe('/snippets/fixes/:key', () => {
     }
   })
 
+  void it('GET fixes for a key suffixed with a fix number does not reveal the correct fix', async () => {
+    for (let n = 1; n <= 4; n++) {
+      const res = await request(app)
+        .get(`/snippets/fixes/registerAdminChallenge_${n}`)
+
+      assert.equal(res.status, 404)
+      assert.equal(res.body.error, 'No fixes found for the snippet!')
+    }
+  })
+
+  void it('GET fixes for registerAdminChallenge returns all four fixes', async () => {
+    const res = await request(app)
+      .get('/snippets/fixes/registerAdminChallenge')
+
+    assert.equal(res.status, 200)
+    assert.equal(res.body.fixes.length, 4)
+  })
+
   void it('GET fixes for existing challenge key', async () => {
     const res = await request(app)
       .get('/snippets/fixes/resetPasswordBenderChallenge')

@@ -46,6 +46,18 @@ describe('codingChallengeFixes', () => {
     expect(fixes.correct).to.equal(1)
   })
 
+  it('should not match fix files by prefix for keys suffixed with a fix number', async () => {
+    const challenges = await retrieveChallengesWithCodeSnippet()
+    for (const challenge of challenges) {
+      const { fixes } = readFixes(challenge)
+      for (let n = 1; n <= fixes.length; n++) {
+        for (const key of [`${challenge}_${n}`, `${challenge}_${n}_`, `${challenge}_`]) {
+          expect(readFixes(key).fixes, `Key ${key} returned fixes`).to.have.lengthOf(0)
+        }
+      }
+    }
+  })
+
   it('should return no fixes for unknown, inherited or non-string keys', () => {
     for (const key of ['doesNotExistChallenge', '__proto__', 'constructor', 'toString', '', 'resetPasswordBenderChallenge.info.yml', 'x'.repeat(100000), ['resetPasswordBenderChallenge'], { key: 'resetPasswordBenderChallenge' }, 42, undefined]) {
       const fixes = readFixes(key)
