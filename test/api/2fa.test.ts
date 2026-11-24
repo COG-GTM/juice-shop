@@ -272,6 +272,31 @@ void describe('/rest/2fa/setup', () => {
 
     assert.equal(res.status, 401)
   })
+
+  void it('POST setup ends all other sessions of the user', async () => {
+    const email = 'fooooo5@bar.com'
+    const password = '123456'
+    const secret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password })
+    const { token: otherToken } = await login(app, { email, password })
+    const { token } = await login(app, { email, password })
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + otherToken }).expect(200)
+
+    await request(app)
+      .post('/rest/2fa/setup')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({
+        password,
+        setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+        initialToken: generateSync({ secret })
+      })
+      .expect(200)
+
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + otherToken }).expect(401)
+    await request(app).get('/rest/2fa/status').set({ Authorization: 'Bearer ' + otherToken }).expect(401)
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + token }).expect(200)
+  })
 })
 
 void describe('/rest/2fa/disable', () => {
@@ -327,5 +352,25 @@ void describe('/rest/2fa/disable', () => {
     const statusRes2 = await getStatus(token)
     assert.equal(statusRes2.status, 200)
     assert.equal(statusRes2.body.setup, true)
+  })
+
+  void it('POST disable ends all other sessions of the user', async () => {
+    const email = 'fooooodisable3@bar.com'
+    const password = '123456'
+    const totpSecret = 'KDR5FXSOLNV6A5UAQYCKROSJZF7SVML7'
+
+    await register(app, { email, password, totpSecret })
+    const { token: otherToken } = await login(app, { email, password, totpSecret })
+    const { token } = await login(app, { email, password, totpSecret })
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + otherToken }).expect(200)
+
+    await request(app)
+      .post('/rest/2fa/disable')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ password })
+      .expect(200)
+
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + otherToken }).expect(401)
+    await request(app).get('/api/Cards').set({ Authorization: 'Bearer ' + token }).expect(200)
   })
 })
