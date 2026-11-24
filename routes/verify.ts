@@ -4,7 +4,6 @@
  */
 
 import { type Request, type Response, type NextFunction } from 'express'
-import { Op } from 'sequelize'
 import jwt from 'jsonwebtoken'
 import config from 'config'
 import jws from 'jws'
@@ -13,10 +12,9 @@ import { products, challenges, retrieveBlueprintChallengeFile } from '../data/da
 import type { Product as ProductConfig } from '../lib/config.types'
 import { type Challenge, type Product } from '../data/types'
 import * as challengeUtils from '../lib/challengeUtils'
-import { ComplaintModel } from '../models/complaint'
-import { FeedbackModel } from '../models/feedback'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
+import logger from '../lib/logger'
 
 export const emptyUserRegistration = () => (req: Request, res: Response, next: NextFunction) => {
   challengeUtils.solveIf(challenges.emptyUserRegistration, () => {
@@ -135,66 +133,9 @@ function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
   return token?.data?.email?.match(email)
 }
 
-async function checkPatternInFeedbackAndComplaints (
-  challenge: Challenge,
-  fieldCriteria: any
-): Promise<void> {
-  const feedbackCheck = FeedbackModel.findAndCountAll({
-    where: { comment: fieldCriteria }
-  }).then(({ count }: { count: number }) => {
-    if (count > 0) {
-      challengeUtils.solve(challenge)
-    }
-  }).catch(() => {
-    throw new Error('Unable to retrieve feedback details. Please try again')
-  })
-
-  const complaintCheck = ComplaintModel.findAndCountAll({
-    where: { message: fieldCriteria }
-  }).then(({ count }: { count: number }) => {
-    if (count > 0) {
-      challengeUtils.solve(challenge)
-    }
-  }).catch(() => {
-    throw new Error('Unable to retrieve complaint details. Please try again')
-  })
-
-  await Promise.all([feedbackCheck, complaintCheck])
-}
-
 export const databaseRelatedChallenges = () => (req: Request, res: Response, next: NextFunction) => {
   if (challengeUtils.notSolved(challenges.changeProductChallenge) && products.osaft) {
     changeProductChallenge(products.osaft)
-  }
-  if (challengeUtils.notSolved(challenges.feedbackChallenge)) {
-    feedbackChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.knownVulnerableComponentChallenge)) {
-    knownVulnerableComponentChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.weirdCryptoChallenge)) {
-    weirdCryptoChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.typosquattingNpmChallenge)) {
-    typosquattingNpmChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.typosquattingAngularChallenge)) {
-    typosquattingAngularChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.hiddenImageChallenge)) {
-    hiddenImageChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.supplyChainAttackChallenge)) {
-    supplyChainAttackChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.dlpPastebinDataLeakChallenge)) {
-    dlpPastebinDataLeakChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.csafChallenge)) {
-    csafChallenge()
-  }
-  if (challengeUtils.notSolved(challenges.leakedApiKeyChallenge)) {
-    leakedApiKeyChallenge()
   }
   next()
 }
@@ -215,121 +156,7 @@ function changeProductChallenge (osaft: Product) {
         }
       }
     }
+  }).catch((error: unknown) => {
+    logger.warn('Unable to verify challenge changeProductChallenge: ' + utils.getErrorMessage(error))
   })
-}
-
-function feedbackChallenge () {
-  FeedbackModel.findAndCountAll({ where: { rating: 5 } }).then(({ count }: { count: number }) => {
-    if (count === 0) {
-      challengeUtils.solve(challenges.feedbackChallenge)
-    }
-  }).catch(() => {
-    throw new Error('Unable to retrieve feedback details. Please try again')
-  })
-}
-
-function knownVulnerableComponentChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.knownVulnerableComponentChallenge,
-    { [Op.or]: knownVulnerableComponents() }
-  )
-}
-
-function knownVulnerableComponents () {
-  return [
-    {
-      [Op.and]: [
-        { [Op.like]: '%sanitize-html%' },
-        { [Op.like]: '%1.4.2%' }
-      ]
-    },
-    {
-      [Op.and]: [
-        { [Op.like]: '%express-jwt%' },
-        { [Op.like]: '%0.1.3%' }
-      ]
-    }
-  ]
-}
-
-function weirdCryptoChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.weirdCryptoChallenge,
-    { [Op.or]: weirdCryptos() }
-  )
-}
-
-function weirdCryptos () {
-  return [
-    { [Op.like]: '%z85%' },
-    { [Op.like]: '%base85%' },
-    { [Op.like]: '%hashids%' },
-    { [Op.like]: '%md5%' },
-    { [Op.like]: '%base64%' }
-  ]
-}
-
-function typosquattingNpmChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.typosquattingNpmChallenge,
-    { [Op.like]: '%epilogue-js%' }
-  )
-}
-
-function typosquattingAngularChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.typosquattingAngularChallenge,
-    { [Op.like]: '%ngy-cookie%' }
-  )
-}
-
-function hiddenImageChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.hiddenImageChallenge,
-    { [Op.like]: '%pickle rick%' }
-  )
-}
-
-function supplyChainAttackChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.supplyChainAttackChallenge,
-    { [Op.or]: eslintScopeVulnIds() }
-  )
-}
-
-function eslintScopeVulnIds () {
-  return [
-    { [Op.like]: '%eslint-scope/issues/39%' },
-    { [Op.like]: '%npm:eslint-scope:20180712%' }
-  ]
-}
-
-function dlpPastebinDataLeakChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.dlpPastebinDataLeakChallenge,
-    { [Op.and]: dangerousIngredients() }
-  )
-}
-
-function csafChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.csafChallenge,
-    { [Op.like]: '%' + config.get<string>('challenges.csafHashValue') + '%' }
-  )
-}
-
-function leakedApiKeyChallenge () {
-  void checkPatternInFeedbackAndComplaints(
-    challenges.leakedApiKeyChallenge,
-    { [Op.like]: '%6PPi37DBxP4lDwlriuaxP15HaDJpsUXY5TspVmie%' }
-  )
-}
-
-function dangerousIngredients () {
-  return config.get<ProductConfig[]>('products')
-    .flatMap((product) => product.keywordsForPastebinDataLeakChallenge)
-    .filter(Boolean)
-    .map((keyword) => {
-      return { [Op.like]: `%${keyword}%` }
-    })
 }

@@ -13,6 +13,7 @@ import {
   type CreationOptional,
   type Sequelize
 } from 'sequelize'
+import { solveTextChallenges } from '../lib/feedbackAndComplaintChallenges'
 
 class Complaint extends Model<
 InferAttributes<Complaint>,
@@ -40,7 +41,10 @@ const ComplaintModelInit = (sequelize: Sequelize) => {
     },
     {
       tableName: 'Complaints',
-      sequelize
+      sequelize,
+      hooks: {
+        afterCreate: (complaint: Complaint) => { solveTextChallenges(complaint.message) }
+      }
     }
   )
 }
