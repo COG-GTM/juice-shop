@@ -22,7 +22,16 @@ export function profileImageUrlUpload () {
       const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
       if (loggedInUser) {
         const userId = toProfileImageUserId(loggedInUser.data?.id)
-        if (userId === undefined) {
+        let user: UserModel | null = null
+        if (userId !== undefined) {
+          try {
+            user = await UserModel.findByPk(userId)
+          } catch (error) {
+            next(error)
+            return
+          }
+        }
+        if (user === null) {
           res.status(400)
           next(new Error('Invalid user id in session'))
           return
@@ -33,18 +42,16 @@ export function profileImageUrlUpload () {
             throw new Error('url returned a non-OK status code or an empty body')
           }
           const ext = ['jpg', 'jpeg', 'png', 'svg', 'gif'].includes(url.split('.').slice(-1)[0].toLowerCase()) ? url.split('.').slice(-1)[0].toLowerCase() : 'jpg'
-          const filePath = profileImageUploadPath(userId, ext)
+          const filePath = profileImageUploadPath(user.id, ext)
           if (filePath === undefined) {
             throw new Error('Invalid profile image path')
           }
           const fileStream = fs.createWriteStream(filePath, { flags: 'w' })
           await finished(Readable.fromWeb(response.body as any).pipe(fileStream))
-          const user = await UserModel.findByPk(userId)
-          await user?.update({ profileImage: `/assets/public/images/uploads/${userId}.${ext}` })
+          await user.update({ profileImage: `/assets/public/images/uploads/${user.id}.${ext}` })
         } catch (error) {
           try {
-            const user = await UserModel.findByPk(userId)
-            await user?.update({ profileImage: url })
+            await user.update({ profileImage: url })
             logger.warn(`Error retrieving user profile image: ${utils.getErrorMessage(error)}; using image link directly`)
           } catch (error) {
             next(error)

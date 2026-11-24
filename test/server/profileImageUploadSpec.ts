@@ -67,8 +67,65 @@ describe('profileImageUpload', () => {
     })
 
     it('profileImageFileUpload rejects the request without writing a file', async () => {
+      const findByPk = sinon.spy(UserModel, 'findByPk')
       const writeFile = sinon.stub(fs.promises, 'writeFile').resolves()
       req = {
+        cookies: { token },
+        file: { buffer: fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg')) },
+        socket: {}
+      }
+
+      await profileImageFileUpload()(req, res, next)
+
+      expect(res.status).to.have.been.calledWith(400)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error).and(sinon.match.has('message', 'Invalid user id in session')))
+      expect(writeFile).to.have.callCount(0)
+      expect(findByPk).to.have.callCount(0)
+      expect(res.redirect).to.have.callCount(0)
+    })
+
+    it('profileImageUrlUpload rejects the request before fetching the image', async () => {
+      const findByPk = sinon.spy(UserModel, 'findByPk')
+      const fetch = sinon.stub(globalThis, 'fetch')
+      const createWriteStream = sinon.spy(fs, 'createWriteStream')
+      req = {
+        body: { imageUrl: 'https://example.com/evil.svg' },
+        cookies: { token },
+        app: { locals: {} },
+        socket: {}
+      }
+
+      await profileImageUrlUpload()(req, res, next)
+
+      expect(res.status).to.have.been.calledWith(400)
+      expect(next).to.have.been.calledWith(sinon.match.instanceOf(Error).and(sinon.match.has('message', 'Invalid user id in session')))
+      expect(fetch).to.have.callCount(0)
+      expect(createWriteStream).to.have.callCount(0)
+      expect(findByPk).to.have.callCount(0)
+      expect(res.redirect).to.have.callCount(0)
+    })
+  })
+
+  describe('route handlers with a numeric session user id that is not in the database', () => {
+    const token = 'unknown-user-profile-image-token'
+    let res: any
+    let next: any
+
+    beforeEach(() => {
+      security.authenticatedUsers.put(token, { data: { id: 999999 } } as any)
+      sinon.stub(UserModel, 'findByPk').resolves(null)
+      res = { status: sinon.stub(), location: sinon.stub(), redirect: sinon.stub() }
+      next = sinon.spy()
+    })
+
+    afterEach(() => {
+      delete security.authenticatedUsers.tokenMap[token]
+      sinon.restore()
+    })
+
+    it('profileImageFileUpload rejects the request without writing a file', async () => {
+      const writeFile = sinon.stub(fs.promises, 'writeFile').resolves()
+      const req: any = {
         cookies: { token },
         file: { buffer: fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg')) },
         socket: {}
@@ -85,7 +142,7 @@ describe('profileImageUpload', () => {
     it('profileImageUrlUpload rejects the request before fetching the image', async () => {
       const fetch = sinon.stub(globalThis, 'fetch')
       const createWriteStream = sinon.spy(fs, 'createWriteStream')
-      req = {
+      const req: any = {
         body: { imageUrl: 'https://example.com/evil.svg' },
         cookies: { token },
         app: { locals: {} },
@@ -124,7 +181,7 @@ describe('profileImageUpload', () => {
         }
       }) as any)
       const update = sinon.stub().resolves()
-      const findByPk = sinon.stub(UserModel, 'findByPk').resolves({ update } as any)
+      const findByPk = sinon.stub(UserModel, 'findByPk').resolves({ id: 7, update } as any)
       const res = { status: sinon.stub(), location: sinon.stub(), redirect: sinon.stub() }
       const next = sinon.spy()
       const req: any = {

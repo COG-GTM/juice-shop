@@ -40,8 +40,17 @@ export function profileImageFileUpload () {
     }
 
     const userId = toProfileImageUserId(loggedInUser.data?.id)
-    const filePath = userId === undefined ? undefined : profileImageUploadPath(userId, uploadedFileType.ext)
-    if (userId === undefined || filePath === undefined) {
+    let user: UserModel | null = null
+    if (userId !== undefined) {
+      try {
+        user = await UserModel.findByPk(userId)
+      } catch (error) {
+        next(error)
+        return
+      }
+    }
+    const filePath = user === null ? undefined : profileImageUploadPath(user.id, uploadedFileType.ext)
+    if (user === null || filePath === undefined) {
       res.status(400)
       next(new Error('Invalid user id in session'))
       return
@@ -54,12 +63,10 @@ export function profileImageFileUpload () {
     }
 
     try {
-      const user = await UserModel.findByPk(userId)
-      if (user != null) {
-        await user.update({ profileImage: `assets/public/images/uploads/${userId}.${uploadedFileType.ext}` })
-      }
+      await user.update({ profileImage: `assets/public/images/uploads/${user.id}.${uploadedFileType.ext}` })
     } catch (error) {
       next(error)
+      return
     }
     res.location(process.env.BASE_PATH + '/profile')
     res.redirect(process.env.BASE_PATH + '/profile')
