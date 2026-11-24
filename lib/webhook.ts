@@ -37,5 +37,5 @@ export const notify = async (challenge: { key: any, name: any }, cheatScore = -1
       }
     })
   })
-  logger.info(`Webhook ${colors.bold(webhook)} notified about ${colors.cyan(challenge.key)} being solved: ${res.ok ? colors.green(res.status.toString()) : colors.red(res.status.toString())}`)
+  logger.info(`Webhook ${colors.bold(new URL(webhook).host)} notified about ${colors.cyan(challenge.key)} being solved: ${res.ok ? colors.green(res.status.toString()) : colors.red(res.status.toString())}`)
 }
