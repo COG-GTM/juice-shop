@@ -5,7 +5,9 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import crypto from 'node:crypto'
 import request from 'supertest'
+import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -27,6 +29,13 @@ const jsonHeader = { 'content-type': 'application/json' }
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
     const res = await request(app).get('/api/Users')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET all users is forbidden with a token signed by a key other than the runtime signing key', async () => {
+    const { privateKey: foreignKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const forged = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, foreignKey.export({ type: 'pkcs1', format: 'pem' }).toString(), { expiresIn: '6h', algorithm: 'RS256' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${forged}` })
     assert.equal(res.status, 401)
   })
 
