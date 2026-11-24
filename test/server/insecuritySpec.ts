@@ -6,6 +6,7 @@
 // @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 import chai from 'chai'
+import crypto from 'node:crypto'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
 import type { Request } from 'express'
@@ -193,6 +194,27 @@ describe('insecurity', () => {
       expect(security.hash('admin123')).to.equal('0192023a7bbd73250516f069df18b500')
       expect(security.hash('password')).to.equal('5f4dcc3b5aa765d61d8327deb882cf99')
       expect(security.hash('')).to.equal('d41d8cd98f00b204e9800998ecf8427e')
+    })
+  })
+
+  describe('verify', () => {
+    it('accepts a token signed with the private RSA key', () => {
+      expect(security.verify(security.authorize({ data: { email: 'admin@juice-sh.op' } }))).to.equal(true)
+    })
+
+    it('rejects a token HMAC-signed with the public RSA key', () => {
+      const encode = (part: object) => Buffer.from(JSON.stringify(part)).toString('base64url')
+      const unsigned = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode({ data: { email: 'rsa_lord@juice-sh.op' } })}`
+      const signature = crypto.createHmac('sha256', security.publicKey).update(unsigned).digest('base64url')
+      expect(security.verify(`${unsigned}.${signature}`)).to.equal(false)
+    })
+
+    it('rejects an unsigned token', () => {
+      expect(security.verify('eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiand0bjNkQGp1aWNlLXNoLm9wIn0sImlhdCI6MTUwODYzOTYxMiwiZXhwIjo5OTk5OTk5OTk5fQ.')).to.equal(false)
+    })
+
+    it('rejects an empty token', () => {
+      expect(security.verify('')).to.equal(false)
     })
   })
 
