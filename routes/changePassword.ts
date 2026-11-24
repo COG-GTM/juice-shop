@@ -8,9 +8,10 @@ import * as challengeUtils from '../lib/challengeUtils'
 import { challenges } from '../data/datacache'
 import { UserModel } from '../models/user'
 import * as security from '../lib/insecurity'
+import * as utils from '../lib/utils'
 
 export function changePassword () {
-  return async ({ query, headers, connection }: Request, res: Response, next: NextFunction) => {
+  return async ({ query, headers, cookies, connection }: Request, res: Response, next: NextFunction) => {
     const currentPassword = query.current as string
     const newPassword = query.new as string
     const newPasswordInString = newPassword?.toString()
@@ -36,11 +37,6 @@ export function changePassword () {
       return
     }
 
-    if (currentPassword && security.hash(currentPassword) !== loggedInUser.data.password) {
-      res.status(401).send(res.__('Current password is not correct.'))
-      return
-    }
-
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
       if (!user) {
@@ -48,7 +44,15 @@ export function changePassword () {
         return
       }
 
+      if (currentPassword && security.hash(currentPassword) !== user.password) {
+        res.status(401).send(res.__('Current password is not correct.'))
+        return
+      }
+
       await user.update({ password: newPasswordInString })
+      security.authenticatedUsers.refreshAllFor(utils.queryResultToJson(user.get({ plain: true }) as UserModel))
+      const sameUserCookie = cookies?.token && security.authenticatedUsers.get(cookies.token)?.data?.id === user.id ? cookies.token : undefined
+      security.authenticatedUsers.endOtherSessions(user.id, token, sameUserCookie)
       challengeUtils.solveIf(
         challenges.changePasswordBenderChallenge,
         () => user.id === 3 && !currentPassword && user.password === security.hash('slurmCl4ssic')

@@ -38,6 +38,9 @@ interface IAuthenticatedUsers {
   tokenOf: (user: UserModel) => string | undefined
   from: (req: Request) => ResponseWithUser | undefined
   updateFrom: (req: Request, user: ResponseWithUser) => any
+  refreshAllFor: (user: ResponseWithUser) => void
+  endOtherSessions: (userId: number, ...keepTokens: Array<string | undefined>) => void
+  isEnded: (token?: string) => boolean
 }
 
 export const hash = (data: string) => crypto.createHash('md5').update(data).digest('hex')
@@ -51,7 +54,16 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
+export const isAuthorized = () => {
+  const checkJwt = expressJwt(({ secret: publicKey }) as any)
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (authenticatedUsers.isEnded(utils.jwtFrom(req))) {
+      res.status(401).json({ status: 'error', message: 'Session has ended. Please log in again.' })
+      return
+    }
+    checkJwt(req, res, next)
+  }
+}
 export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
@@ -69,15 +81,29 @@ export const sanitizeSecure = (html: string): string => {
   }
 }
 
+const claimsOf = (token: string) => {
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+    return claims !== null && typeof claims === 'object' ? claims : undefined
+  } catch {
+    return undefined
+  }
+}
+
+// per user: sessions seen before the last password or 2FA change, or issued before `before`, are ended, except the tokens in `keep`
+const endedSessions = new Map<number, { before: number, keep: Set<string>, ended: Set<string> }>()
+
 export const authenticatedUsers: IAuthenticatedUsers = {
   tokenMap: {},
   idMap: {},
   put: function (token: string, user: ResponseWithUser) {
+    if (this.isEnded(token)) return
     this.tokenMap[token] = user
     this.idMap[user.data.id] = token
   },
   get: function (token?: string) {
-    return token ? this.tokenMap[utils.unquote(token)] : undefined
+    if (!token || this.isEnded(token)) return undefined
+    return this.tokenMap[utils.unquote(token)]
   },
   tokenOf: function (user: UserModel) {
     return user ? this.idMap[user.id] : undefined
@@ -89,6 +115,41 @@ export const authenticatedUsers: IAuthenticatedUsers = {
   updateFrom: function (req: Request, user: ResponseWithUser) {
     const token = utils.jwtFrom(req)
     this.put(token, user)
+  },
+  refreshAllFor: function (user: ResponseWithUser) {
+    for (const [token, cached] of Object.entries(this.tokenMap)) {
+      if (cached?.data?.id === user.data.id) {
+        // drop the password hash so neither the old nor the new one stays readable from a refreshed session
+        const data = Object.fromEntries(Object.entries(user.data).filter(([key]) => key !== 'password'))
+        this.tokenMap[token] = { ...cached, data: data as unknown as UserModel }
+      }
+    }
+  },
+  endOtherSessions: function (userId: number, ...keepTokens: Array<string | undefined>) {
+    const keep = new Set(keepTokens.filter((t): t is string => !!t).map(t => utils.unquote(t)))
+    const ended = new Set([...(endedSessions.get(userId)?.ended ?? [])].filter(t => !keep.has(t)))
+    for (const [token, cached] of Object.entries(this.tokenMap)) {
+      if (cached?.data?.id === userId && !keep.has(token)) {
+        ended.add(token)
+        delete this.tokenMap[token]
+      }
+    }
+    endedSessions.set(userId, { before: Math.floor(Date.now() / 1000), keep, ended })
+    if (!keep.has(this.idMap[userId])) {
+      const remaining = [...keep].find(t => this.tokenMap[t]?.data?.id === userId)
+      if (remaining) this.idMap[userId] = remaining
+      else delete this.idMap[userId]
+    }
+  },
+  isEnded: function (token?: string) {
+    if (!token) return false
+    const key = utils.unquote(token)
+    const claims = claimsOf(key)
+    const userId = claims?.data?.id
+    if (typeof userId !== 'number') return false
+    const ended = endedSessions.get(userId)
+    if (!ended || ended.keep.has(key)) return false
+    return ended.ended.has(key) || typeof claims.iat !== 'number' || claims.iat < ended.before
   }
 }
 

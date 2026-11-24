@@ -142,11 +142,12 @@ describe('TwoFactorAuthComponent', () => {
         twoFactorAuthService.disable.mockReturnValue(of({}))
         component.setupStatus = true
         component.twoFactorDisableForm.get('passwordControl').setValue('password')
+        component.twoFactorDisableForm.get('totpTokenControl').setValue('123456')
 
         component.disable()
 
         expect(component.setupStatus).toBe(false)
-        expect(twoFactorAuthService.disable).toHaveBeenCalledWith('password')
+        expect(twoFactorAuthService.disable).toHaveBeenCalledWith('password', '123456')
     })
 
     it('should reset and mark form as errored when disabling 2FA fails', () => {
@@ -154,6 +155,7 @@ describe('TwoFactorAuthComponent', () => {
         component.setupStatus = true
         component.errored = false
         component.twoFactorDisableForm.get('passwordControl').markAsDirty()
+        component.twoFactorDisableForm.get('totpTokenControl').markAsDirty()
 
         expect(component.twoFactorDisableForm.get('passwordControl').pristine).toBe(false)
         component.disable()
@@ -161,5 +163,16 @@ describe('TwoFactorAuthComponent', () => {
         expect(component.setupStatus).toBe(true)
         expect(component.errored).toBe(true)
         expect(component.twoFactorDisableForm.get('passwordControl').pristine).toBe(true)
+        expect(component.twoFactorDisableForm.get('totpTokenControl').pristine).toBe(true)
+    })
+
+    it('should require a 6 digit token to disable 2FA', () => {
+        const form = component.twoFactorDisableForm
+        form.get('passwordControl').setValue('password')
+        expect(form.valid).toBe(false)
+        form.get('totpTokenControl').setValue('12a456')
+        expect(form.valid).toBe(false)
+        form.get('totpTokenControl').setValue('123456')
+        expect(form.valid).toBe(true)
     })
 })
