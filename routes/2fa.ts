@@ -17,7 +17,7 @@ export async function verify (req: Request, res: Response) {
   const { tmpToken, totpToken } = req.body
 
   try {
-    const { userId, type } = security.verify(tmpToken) && security.decode(tmpToken)
+    const { userId, type, oauth } = security.verify(tmpToken) && security.decode(tmpToken)
 
     if (type !== 'password_valid_needs_second_factor_token') {
       throw new Error('Invalid token type')
@@ -36,6 +36,7 @@ export async function verify (req: Request, res: Response) {
       return res.status(401).send()
     }
     challengeUtils.solveIf(challenges.twoFactorAuthUnsafeSecretStorageChallenge, () => { return user.email === 'wurstbrot@' + config.get<string>('application.domain') })
+    challengeUtils.solveIf(challenges.oauthUserPasswordChallenge, () => { return oauth === true && user.email === 'bjoern.kimminich@gmail.com' })
 
     const [basket] = await BasketModel.findOrCreate({ where: { UserId: userId } })
 

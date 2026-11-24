@@ -16,6 +16,7 @@ import { FeedbackModelInit } from './feedback'
 import { HintModelInit } from './hint'
 import { ImageCaptchaModelInit } from './imageCaptcha'
 import { MemoryModelInit } from './memory'
+import { OAuthIdentityModelInit } from './oauthIdentity'
 import { PrivacyRequestModelInit } from './privacyRequests'
 import { ProductModelInit } from './product'
 import { QuantityModelInit } from './quantity'
@@ -57,6 +58,7 @@ function initModels (seq: Sequelize) {
   HintModelInit(seq)
   ImageCaptchaModelInit(seq)
   MemoryModelInit(seq)
+  OAuthIdentityModelInit(seq)
   PrivacyRequestModelInit(seq)
   ProductModelInit(seq)
   QuantityModelInit(seq)

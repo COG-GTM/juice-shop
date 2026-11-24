@@ -23,28 +23,17 @@ export class OAuthComponent implements OnInit {
   private readonly route = inject(ActivatedRoute)
   private readonly ngZone = inject(NgZone)
 
-
   ngOnInit (): void {
-    this.userService.oauthLogin(this.parseRedirectUrlParams().access_token).subscribe({
-      next: (profile: any) => {
-        const password = btoa(profile.email.split('').reverse().join(''))
-        this.userService.save({ email: profile.email, password, passwordRepeat: password }).subscribe({
-          next: () => {
-            this.login(profile)
-          },
-          error: () => { this.login(profile) }
-        })
-      },
-      error: (error) => {
-        this.invalidateSession(error)
-        this.ngZone.run(async () => await this.router.navigate(['/login']))
-      }
-    })
-  }
-
-  login (profile: any) {
-    this.userService.login({ email: profile.email, password: btoa(profile.email.split('').reverse().join('')), oauth: true }).subscribe({
-      next: (authentication) => {
+    const params = this.parseRedirectUrlParams()
+    const expectedState = sessionStorage.getItem('oauthState')
+    sessionStorage.removeItem('oauthState')
+    if (!expectedState || params.state !== expectedState) {
+      this.invalidateSession(new Error('OAuth state mismatch'))
+      this.ngZone.run(async () => await this.router.navigate(['/login']))
+      return
+    }
+    this.userService.oauthLogin(params.access_token).subscribe({
+      next: (authentication: any) => {
         const expires = new Date()
         expires.setHours(expires.getHours() + 8)
         this.cookieService.put('token', authentication.token, { expires })
@@ -54,6 +43,11 @@ export class OAuthComponent implements OnInit {
         this.ngZone.run(async () => await this.router.navigate(['/']))
       },
       error: (error) => {
+        if (error.error?.status === 'totp_token_required') {
+          localStorage.setItem('totp_tmp_token', error.error.data.tmpToken)
+          this.ngZone.run(async () => await this.router.navigate(['/2fa/enter']))
+          return
+        }
         this.invalidateSession(error)
         this.ngZone.run(async () => await this.router.navigate(['/login']))
       }
