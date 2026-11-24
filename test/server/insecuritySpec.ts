@@ -111,6 +111,14 @@ describe('insecurity', () => {
       }
     })
 
+    it('returns undefined for stored entries without a data object', () => {
+      security.authenticatedUsers.tokenMap['22222'] = {} as unknown as Parameters<typeof security.authenticatedUsers.put>[1]
+      security.authenticatedUsers.tokenMap['33333'] = { data: null } as unknown as Parameters<typeof security.authenticatedUsers.put>[1]
+
+      expect(security.authenticatedUsers.get('22222')).to.equal(undefined)
+      expect(security.authenticatedUsers.get('33333')).to.equal(undefined)
+    })
+
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
