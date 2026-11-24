@@ -5,11 +5,12 @@
 
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
-import { login } from './helpers/auth'
+import { login, register } from './helpers/auth'
 
 let app: Express
 
@@ -46,6 +47,75 @@ void describe('/rest/order-history', () => {
     assert.equal(res.body.data[1].products[0].name, 'Eggfruit Juice (500ml)')
     assert.equal(res.body.data[1].products[0].price, 8.99)
     assert.equal(res.body.data[1].products[0].total, 26.97)
+  })
+
+  void it('GET order history does not include orders of a user with a vowel-colliding email', async () => {
+    const email = 'odmin@' + config.get<string>('application.domain')
+    const password = randomUUID()
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('GET order history does not include orders for an account registered with the masked email of another user', async () => {
+    const email = ('admin@' + config.get<string>('application.domain')).replace(/[aeiou]/gi, '*')
+    const password = randomUUID()
+    await register(app, { email, password })
+    const { token } = await login(app, { email, password })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
+  void it('GET order history does not include a new order placed by a user whose email differs only in vowels', async () => {
+    const suffix = randomUUID().replace(/[aeiou-]/gi, '')
+    const ownerEmail = `alice${suffix}@acme.example`
+    const lookAlikeEmail = `elico${suffix}@ocme.exomple`
+    assert.equal(ownerEmail.replace(/[aeiou]/gi, '*'), lookAlikeEmail.replace(/[aeiou]/gi, '*'))
+
+    const ownerPassword = randomUUID()
+    await register(app, { email: ownerEmail, password: ownerPassword })
+    const owner = await login(app, { email: ownerEmail, password: ownerPassword })
+    const ownerHeader = { Authorization: 'Bearer ' + owner.token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(ownerHeader)
+      .send({ BasketId: owner.bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const checkoutRes = await request(app)
+      .post(`/rest/basket/${owner.bid}/checkout`)
+      .set(ownerHeader)
+    assert.equal(checkoutRes.status, 200)
+    const orderId = checkoutRes.body.orderConfirmation
+
+    const ownerHistory = await request(app)
+      .get('/rest/order-history')
+      .set(ownerHeader)
+    assert.equal(ownerHistory.status, 200)
+    assert.deepEqual(ownerHistory.body.data.map((o: { orderId: string }) => o.orderId), [orderId])
+
+    const lookAlikePassword = randomUUID()
+    await register(app, { email: lookAlikeEmail, password: lookAlikePassword })
+    const lookAlike = await login(app, { email: lookAlikeEmail, password: lookAlikePassword })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + lookAlike.token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
   })
 })
 
