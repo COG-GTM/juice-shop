@@ -114,7 +114,7 @@ void describe('/file-upload', () => {
   }
 
   void it('POST YAML file with !!js/function tag is rejected without executing it', async () => {
-    const payload = 'toJSON: !!js/function "function () { return \'pwned\' }"'
+    const payload = 'toJSON: !!js/function "function () { return \'pw\' + \'ned\' }"'
     const res = await request(app)
       .post('/file-upload')
       .attach('file', Buffer.from(payload), 'exploit.yml')
