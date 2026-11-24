@@ -11,12 +11,19 @@ import * as security from '../lib/insecurity'
 import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
+export const MAX_USERNAME_LENGTH = 255
+
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+      return
+    }
+
+    if (typeof req.body.username === 'string' && req.body.username.length > MAX_USERNAME_LENGTH) {
+      res.status(400).send(`Username must not be longer than ${MAX_USERNAME_LENGTH} characters`)
       return
     }
 

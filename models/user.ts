@@ -45,6 +45,7 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       username: {
         type: DataTypes.STRING,
         defaultValue: '',
+        validate: { len: [0, 255] },
         set (username: string) {
           if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
             username = security.sanitizeLegacy(username)
@@ -108,7 +109,8 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
       },
       profileImage: {
         type: DataTypes.STRING,
-        defaultValue: '/assets/public/images/uploads/default.svg'
+        defaultValue: '/assets/public/images/uploads/default.svg',
+        validate: { len: [0, 255] }
       },
       totpSecret: {
         type: DataTypes.STRING,
