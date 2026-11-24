@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
@@ -99,6 +99,26 @@ void describe('/profile/image/url', () => {
 
     assert.equal(res.status, 302)
   })
+
+  for (const token of ['constructor', '__proto__', 'toString']) {
+    void it(`POST profile image URL with token cookie "${token}" is blocked without fetching the URL`, async () => {
+      const fetchMock = mock.method(globalThis, 'fetch')
+      try {
+        const res = await request(app)
+          .post('/profile/image/url')
+          .set('Cookie', 'token=' + token)
+          .type('form')
+          .send({ imageUrl: 'http://localhost:1/attacker-chosen' })
+          .redirects(0)
+
+        assert.equal(res.status, 500)
+        assert.ok(res.text.includes('Error: Blocked illegal activity'))
+        assert.equal(fetchMock.mock.callCount(), 0)
+      } finally {
+        fetchMock.mock.restore()
+      }
+    })
+  }
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)

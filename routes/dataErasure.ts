@@ -24,13 +24,13 @@ const router = express.Router()
 router.get('/', (req: Request, res: Response, next: NextFunction) => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
-    if (!loggedInUser) {
+    if (!loggedInUser?.data) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
-    const email = loggedInUser.data.email
 
     try {
+      const email = loggedInUser.data.email
       const answer = await SecurityAnswerModel.findOne({
         include: [{
           model: UserModel,
@@ -74,7 +74,7 @@ interface DataErasureRequestParams {
 router.post('/', (req: Request<Record<string, unknown>, Record<string, unknown>, DataErasureRequestParams>, res: Response, next: NextFunction): void => {
   void (async () => {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
-    if (!loggedInUser) {
+    if (!loggedInUser?.data) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
