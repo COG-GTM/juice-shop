@@ -73,14 +73,42 @@ export const version = (module?: string) => {
   }
 }
 
+export const ctfKeyFile = 'ctf.key'
+
+// HMAC fingerprints of the key that used to be committed as ctf.key and is public in the repository history.
+// Comparing HMAC outputs also catches keys HMAC treats as equivalent, e.g. with trailing NUL bytes.
+export const ctfKeyFingerprintProbe = 'juice-shop-ctf-key-fingerprint'
+export const publishedCtfKeyFingerprints = ['cbec0895c409e4e900eaa2d0be3f051884000667']
+
+export const ctfKeyFingerprint = (key: string) => crypto.createHmac('sha1', key).update(ctfKeyFingerprintProbe).digest('hex')
+
+const isPublishedCtfKey = (key: string, rejectedFingerprints: string[]) =>
+  [key, key.trim()].some(candidate => rejectedFingerprints.includes(ctfKeyFingerprint(candidate)))
+
+export const configuredCtfKey = (envKey = process.env.CTF_KEY, keyFile = ctfKeyFile, rejectedFingerprints = publishedCtfKeyFingerprints) => {
+  let key: string | undefined
+  if (envKey !== undefined && envKey !== '') {
+    key = envKey
+  } else if (fs.existsSync(keyFile)) {
+    const fileKey = fs.readFileSync(keyFile, 'utf8')
+    if (fileKey.trim() !== '') {
+      key = fileKey
+    }
+  }
+  if (key !== undefined && isPublishedCtfKey(key, rejectedFingerprints)) {
+    logger.warn('Ignoring the configured CTF key because it is the publicly known former default key')
+    return undefined
+  }
+  return key
+}
+
 let cachedCtfKey: string | undefined
 const getCtfKey = () => {
-  if (!cachedCtfKey) {
-    if (process.env.CTF_KEY !== undefined && process.env.CTF_KEY !== '') {
-      cachedCtfKey = process.env.CTF_KEY
-    } else {
-      const data = fs.readFileSync('ctf.key', 'utf8')
-      cachedCtfKey = data
+  if (cachedCtfKey === undefined) {
+    cachedCtfKey = configuredCtfKey()
+    if (cachedCtfKey === undefined) {
+      logger.info('No CTF_KEY configured: Using a random flag key which changes on every restart')
+      cachedCtfKey = crypto.randomBytes(32).toString('hex')
     }
   }
   return cachedCtfKey
