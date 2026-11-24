@@ -6,6 +6,8 @@
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
+import crypto from 'node:crypto'
+import jwt from 'jsonwebtoken'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
@@ -33,6 +35,13 @@ void describe('/api/Users', () => {
   void it('GET all users', async () => {
     const res = await request(app).get('/api/Users').set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all users is forbidden with a token signed by a foreign RSA key', async () => {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, privateKeyEncoding: { type: 'pkcs1', format: 'pem' }, publicKeyEncoding: { type: 'pkcs1', format: 'pem' } })
+    const forged = jwt.sign({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }, privateKey, { algorithm: 'RS256' })
+    const res = await request(app).get('/api/Users').set({ Authorization: `Bearer ${forged}` })
+    assert.equal(res.status, 401)
   })
 
   void it('GET all users doesnt include passwords', async () => {
