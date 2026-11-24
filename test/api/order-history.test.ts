@@ -76,6 +76,47 @@ void describe('/rest/order-history', () => {
     assert.equal(res.status, 200)
     assert.deepEqual(res.body.data, [])
   })
+
+  void it('GET order history does not include a new order placed by a user whose email differs only in vowels', async () => {
+    const suffix = randomUUID().replace(/[aeiou-]/gi, '')
+    const ownerEmail = `alice${suffix}@acme.example`
+    const lookAlikeEmail = `elico${suffix}@ocme.exomple`
+    assert.equal(ownerEmail.replace(/[aeiou]/gi, '*'), lookAlikeEmail.replace(/[aeiou]/gi, '*'))
+
+    const ownerPassword = randomUUID()
+    await register(app, { email: ownerEmail, password: ownerPassword })
+    const owner = await login(app, { email: ownerEmail, password: ownerPassword })
+    const ownerHeader = { Authorization: 'Bearer ' + owner.token, 'content-type': 'application/json' }
+
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(ownerHeader)
+      .send({ BasketId: owner.bid, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
+    const checkoutRes = await request(app)
+      .post(`/rest/basket/${owner.bid}/checkout`)
+      .set(ownerHeader)
+    assert.equal(checkoutRes.status, 200)
+    const orderId = checkoutRes.body.orderConfirmation
+
+    const ownerHistory = await request(app)
+      .get('/rest/order-history')
+      .set(ownerHeader)
+    assert.equal(ownerHistory.status, 200)
+    assert.deepEqual(ownerHistory.body.data.map((o: { orderId: string }) => o.orderId), [orderId])
+
+    const lookAlikePassword = randomUUID()
+    await register(app, { email: lookAlikeEmail, password: lookAlikePassword })
+    const lookAlike = await login(app, { email: lookAlikeEmail, password: lookAlikePassword })
+
+    const res = await request(app)
+      .get('/rest/order-history')
+      .set({ Authorization: 'Bearer ' + lookAlike.token, 'content-type': 'application/json' })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
 })
 
 void describe('/rest/order-history/orders', () => {
