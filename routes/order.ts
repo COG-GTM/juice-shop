@@ -16,6 +16,8 @@ import { QuantityModel } from '../models/quantity'
 import { ProductModel } from '../models/product'
 import { BasketModel } from '../models/basket'
 import { WalletModel } from '../models/wallet'
+import { CardModel } from '../models/card'
+import { AddressModel } from '../models/address'
 import * as security from '../lib/insecurity'
 import * as utils from '../lib/utils'
 import * as db from '../data/mongodb'
@@ -35,6 +37,15 @@ export function placeOrder () {
     BasketModel.findOne({ where: { id }, include: [{ model: ProductModel, paranoid: false, as: 'Products' }] })
       .then(async (basket: BasketModel | null) => {
         if (basket != null) {
+          if ((basket.Products ?? []).some(({ BasketItem }) => BasketItem != null && !(Number.isSafeInteger(BasketItem.quantity) && BasketItem.quantity > 0))) {
+            res.status(400).json({ error: res.__('Quantity must be a positive whole number.') })
+            return
+          }
+          const orderDetailsError = await validateOrderDetails(req.body.UserId, req.body.orderDetails)
+          if (orderDetailsError != null) {
+            res.status(orderDetailsError.status).json({ status: 'error', error: { message: orderDetailsError.message } })
+            return
+          }
           const customer = security.authenticatedUsers.from(req)
           const email = customer ? customer.data ? customer.data.email : '' : ''
           const orderId = security.hash(email).slice(0, 4) + '-' + utils.randomHexString(16)
@@ -67,19 +78,11 @@ export function placeOrder () {
           let totalPrice = 0
           const basketProducts: Product[] = []
           let totalPoints = 0
+          const stockUpdates: Array<{ ProductId: number, quantity: number }> = []
           for (const { BasketItem, price, deluxePrice, name, id } of basket.Products ?? []) {
             if (BasketItem != null) {
               challengeUtils.solveIf(challenges.christmasSpecialChallenge, () => { return BasketItem.ProductId === products.christmasSpecial.id })
-              try {
-                const quantityRow = await QuantityModel.findOne({ where: { ProductId: BasketItem.ProductId } })
-                if (quantityRow) {
-                  const newQuantity = quantityRow.quantity - BasketItem.quantity
-                  await QuantityModel.update({ quantity: newQuantity }, { where: { ProductId: BasketItem.ProductId } })
-                }
-              } catch (error: unknown) {
-                next(error)
-                return
-              }
+              stockUpdates.push({ ProductId: BasketItem.ProductId, quantity: BasketItem.quantity })
               let itemPrice: number
               if (security.isDeluxe(req)) {
                 itemPrice = deluxePrice
@@ -104,13 +107,13 @@ export function placeOrder () {
             }
           }
           doc.moveDown()
-          const discount = calculateApplicableDiscount(basket, req) ?? 0
+          const discount = Math.min(Math.max(calculateApplicableDiscount(basket, req) ?? 0, 0), 100)
           let discountAmount = '0'
           if (discount > 0) {
             discountAmount = (totalPrice * (discount / 100)).toFixed(2)
             doc.text(discount + '% discount from coupon: -' + discountAmount + '¤')
             doc.moveDown()
-            totalPrice -= parseFloat(discountAmount)
+            totalPrice -= Math.min(parseFloat(discountAmount), Math.max(totalPrice, 0))
           }
           const deliveryMethod = {
             deluxePrice: 0,
@@ -138,17 +141,42 @@ export function placeOrder () {
           doc.font('Times-Roman').fontSize(15).text(req.__('Thank you for your order!'))
 
           challengeUtils.solveIf(challenges.negativeOrderChallenge, () => { return totalPrice < 0 })
+          if (!(totalPrice >= 0)) {
+            fileWriter.removeAllListeners('finish')
+            fileWriter.on('finish', () => { fs.unlink(path.join('ftp/', pdfFile), () => {}) })
+            doc.end()
+            res.status(400).json({ error: res.__('Order total must not be negative.') })
+            return
+          }
 
-          if (req.body.UserId) {
-            if (req.body.orderDetails && req.body.orderDetails.paymentId === 'wallet') {
-              const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
-              if ((wallet != null) && wallet.balance >= totalPrice) {
-                await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
-              } else {
-                next(new Error('Insufficient wallet balance.'))
-                return
+          let walletCharged = false
+          if (req.body.orderDetails?.paymentId === 'wallet') {
+            const wallet = await WalletModel.findOne({ where: { UserId: req.body.UserId } })
+            if ((wallet != null) && wallet.balance >= totalPrice) {
+              await WalletModel.decrement({ balance: totalPrice }, { where: { UserId: req.body.UserId } })
+              walletCharged = true
+            } else {
+              next(new Error('Insufficient wallet balance.'))
+              return
+            }
+          }
+
+          try {
+            for (const { ProductId, quantity } of stockUpdates) {
+              const quantityRow = await QuantityModel.findOne({ where: { ProductId } })
+              if (quantityRow) {
+                await QuantityModel.update({ quantity: quantityRow.quantity - quantity }, { where: { ProductId } })
               }
             }
+          } catch (error: unknown) {
+            if (walletCharged) {
+              await WalletModel.increment({ balance: totalPrice }, { where: { UserId: req.body.UserId } }).catch(() => {})
+            }
+            next(error)
+            return
+          }
+
+          if (req.body.UserId) {
             try {
               await WalletModel.increment({ balance: totalPoints }, { where: { UserId: req.body.UserId } })
             } catch (error: unknown) {
@@ -179,6 +207,36 @@ export function placeOrder () {
         next(error)
       })
   }
+}
+
+function isPositiveId (value: unknown): value is number | string {
+  return (typeof value === 'number' || typeof value === 'string') && /^[1-9]\d{0,9}$/.test(String(value))
+}
+
+function isExpired (card: CardModel) {
+  const now = new Date()
+  return card.expYear < now.getFullYear() || (card.expYear === now.getFullYear() && card.expMonth - 1 < now.getMonth())
+}
+
+async function validateOrderDetails (UserId: unknown, orderDetails: { paymentId?: unknown, addressId?: unknown } | undefined) {
+  if (!isPositiveId(UserId)) {
+    return { status: 401, message: 'Unauthorized' }
+  }
+  const paymentId = orderDetails?.paymentId
+  if (paymentId !== 'wallet') {
+    const card = isPositiveId(paymentId) ? await CardModel.findOne({ where: { id: paymentId, UserId } }) : null
+    if (card == null || isExpired(card)) {
+      return { status: 402, message: 'Payment not accepted.' }
+    }
+  }
+  const addressId = orderDetails?.addressId
+  if (addressId !== undefined && addressId !== null) {
+    const address = isPositiveId(addressId) ? await AddressModel.findOne({ where: { id: addressId, UserId } }) : null
+    if (address == null) {
+      return { status: 400, message: 'Invalid address.' }
+    }
+  }
+  return null
 }
 
 function calculateApplicableDiscount (basket: BasketModel, req: Request) {

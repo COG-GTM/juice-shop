@@ -1,3 +1,13 @@
+function selectOwnCardForPayment () {
+  cy.window().then(async (win) => {
+    const response = await fetch(`${Cypress.config('baseUrl')}/api/Cards`, {
+      headers: { Authorization: `Bearer ${win.localStorage.getItem('token')}` }
+    })
+    const cards = (await response.json()).data
+    win.sessionStorage.setItem('paymentId', cards[0].id)
+  })
+}
+
 describe('/#/basket', () => {
   describe('as admin', () => {
     beforeEach(() => {
@@ -5,7 +15,7 @@ describe('/#/basket', () => {
     })
 
     describe('challenge "negativeOrder"', () => {
-      it('should be possible to update a basket to a negative quantity via the Rest API', () => {
+      it('should reject updating a basket to a negative quantity via the Rest API', () => {
         cy.window().then(async () => {
           const response = await fetch(
             `${Cypress.config('baseUrl')}/api/BasketItems/1`,
@@ -19,23 +29,15 @@ describe('/#/basket', () => {
               body: JSON.stringify({ quantity: -100000 })
             }
           )
-          if (response.status === 200) {
-            console.log('Success')
-          }
+          expect(response.status).to.equal(400)
         })
         cy.visit('/#/order-summary')
 
         cy.get('mat-cell.mat-column-quantity > span')
           .first()
           .then(($ele) => {
-            const quantity = $ele.text()
-            expect(quantity).to.match(/-100000/)
+            expect($ele.text()).not.to.match(/-100000/)
           })
-      })
-
-      it('should be possible to place an order with a negative total amount', () => {
-        cy.visit('/#/order-summary')
-        cy.get('#checkoutButton').click()
         cy.expectChallengeSolved({ challenge: 'Payback Time' })
       })
     })
@@ -145,6 +147,7 @@ describe('/#/basket', () => {
       })
 
       it('should be possible to place an order with a forged coupon', () => {
+        selectOwnCardForPayment()
         cy.visit('/#/order-summary')
         cy.get('#checkoutButton').click()
         cy.expectChallengeSolved({ challenge: 'Forged Coupon' })

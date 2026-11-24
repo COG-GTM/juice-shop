@@ -88,7 +88,7 @@ export class OrderSummaryComponent implements OnInit {
       },
       error: (err) => {
         console.log(err)
-        this.snackBarHelperService.open(err.error?.error.message, 'errorBar')
+        this.snackBarHelperService.open(err.error?.error?.message ?? err.error?.error, 'errorBar')
       }
     })
   }
