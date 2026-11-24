@@ -18,6 +18,10 @@ class ErrorWithParent extends Error {
 // vuln-code-snippet start unionSqlInjectionChallenge dbSchemaChallenge
 export function searchProducts () {
   return (req: Request, res: Response, next: NextFunction) => {
+    if (req.query.q !== undefined && typeof req.query.q !== 'string') { // vuln-code-snippet hide-line
+      res.status(400).json({ status: 'error', error: 'Search query must be a single string' }) // vuln-code-snippet hide-line
+      return // vuln-code-snippet hide-line
+    } // vuln-code-snippet hide-line
     let criteria: any = typeof req.query.q === 'string' && req.query.q !== 'undefined' ? req.query.q : ''
     criteria = (criteria.length <= 200) ? criteria : criteria.substring(0, 200)
     models.sequelize.query('SELECT * FROM Products WHERE ((name LIKE :criteria OR description LIKE :criteria) AND deletedAt IS NULL) ORDER BY name', { replacements: { criteria: `%${criteria}%` } }) // vuln-code-snippet vuln-line unionSqlInjectionChallenge dbSchemaChallenge

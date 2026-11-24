@@ -74,22 +74,25 @@ void describe('/rest/products/search', () => {
     assert.ok(!JSON.stringify(res.body).includes('CREATE TABLE'))
   })
 
-  void it('GET product search treats an array-typed q parameter like an empty search', async () => {
-    const all = await request(app).get('/rest/products/search?q=')
+  void it('GET product search rejects an array-typed q parameter with 400', async () => {
     const res = await request(app)
       .get(`/rest/products/search?q[]=${encodeURIComponent("')) union select id,email,password,'4','5','6','7','8','9' from users--")}&q[]=x`)
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
-    assert.equal(res.body.data.length, all.body.data.length)
-    assert.ok(!JSON.stringify(res.body.data).includes('admin@'))
+    assert.ok(!JSON.stringify(res.body).includes('admin@'))
   })
 
-  void it('GET product search treats an object-typed q parameter like an empty search instead of failing', async () => {
-    const all = await request(app).get('/rest/products/search?q=')
+  void it('GET product search rejects an object-typed q parameter with 400', async () => {
     const res = await request(app)
       .get('/rest/products/search?q[foo]=bar')
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 400)
     assert.ok(res.headers['content-type']?.includes('application/json'))
+  })
+
+  void it('GET product search without q returns all products', async () => {
+    const all = await request(app).get('/rest/products/search?q=')
+    const res = await request(app).get('/rest/products/search')
+    assert.equal(res.status, 200)
     assert.equal(res.body.data.length, all.body.data.length)
   })
 
