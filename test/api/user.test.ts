@@ -193,6 +193,40 @@ void describe('/api/Users', () => {
       assert.equal(res.body.data.email, '<iframe src="javascript:alert(`xss`)">')
     })
   }
+
+  void it('POST new user rejects email exceeding the sanitizer length limit', async (t) => {
+    if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
+      t.skip('sanitizeSecure is only used when persistedXssUserChallenge is disabled')
+      return
+    }
+    const depth = 10000
+    const start = Date.now()
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: '<'.repeat(depth) + 'x>' + 'x>'.repeat(depth),
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+    assert.ok(Date.now() - start < 1000)
+  })
+
+  void it('POST new user rejects nested email that does not settle within the sanitizer pass limit', async (t) => {
+    if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
+      t.skip('sanitizeSecure is only used when persistedXssUserChallenge is disabled')
+      return
+    }
+    const depth = security.SANITIZE_SECURE_MAX_PASSES + 5
+    const res = await request(app)
+      .post('/api/Users')
+      .set(jsonHeader)
+      .send({
+        email: '<'.repeat(depth) + 'x>' + 'x>'.repeat(depth),
+        password: 'does.not.matter'
+      })
+    assert.equal(res.status, 400)
+  })
 })
 
 void describe('/api/Users/:id', () => {
