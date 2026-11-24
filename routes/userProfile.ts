@@ -16,6 +16,21 @@ import { UserModel } from '../models/user'
 import * as utils from '../lib/utils'
 
 const entities = new Entities()
+const lineTerminators = /[\n\r\u2028\u2029]/
+
+export function containsInterpolation (value: string | undefined | null) {
+  return !!value && value.split(lineTerminators).some(line => {
+    const start = line.indexOf('#{')
+    return start !== -1 && line.lastIndexOf('}') >= start + 2
+  })
+}
+
+export function allowsUnsafeInlineScripts (value: string | undefined | null) {
+  return !!value && value.split(lineTerminators).some(line => {
+    const directive = /;[ ]*script-src/.exec(line)
+    return directive !== null && line.includes("'unsafe-inline'", directive.index + directive[0].length)
+  })
+}
 
 function favicon () {
   return utils.extractFilename(config.get('application.favicon'))
@@ -51,7 +66,7 @@ export function getUserProfile () {
 
     let username = user.username
 
-    if (username?.match(/#{(.*)}/) !== null && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
+    if (containsInterpolation(username) && utils.isChallengeEnabled(challenges.usernameXssChallenge)) {
       req.app.locals.abused_ssti_bug = true
       const code = username?.substring(2, username.length - 1)
       try {
@@ -88,7 +103,7 @@ export function getUserProfile () {
       const CSP = `img-src 'self' ${user?.profileImage}; script-src 'self' 'unsafe-eval'`
 
       challengeUtils.solveIf(challenges.usernameXssChallenge, () => {
-        return username && user?.profileImage.match(/;[ ]*script-src(.)*'unsafe-inline'/g) !== null && utils.contains(username, '<script>alert(`xss`)</script>')
+        return username && allowsUnsafeInlineScripts(user?.profileImage) && utils.contains(username, '<script>alert(`xss`)</script>')
       })
 
       res.set({
