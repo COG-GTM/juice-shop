@@ -10,6 +10,8 @@ import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import * as utils from '../../lib/utils'
+import z85 from 'z85'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -170,6 +172,15 @@ void describe('/rest/basket/:id/coupon/:coupon', () => {
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/json'))
     assert.equal(res.body.discount, 15)
+  })
+
+  void it('PUT apply coupon with a discount of 100% or more is not accepted', async () => {
+    for (const suffix of ['100   ', '150abc', '999xyz']) {
+      const res = await request(app)
+        .put('/rest/basket/1/coupon/' + encodeURIComponent(z85.encode(utils.toMMMYY(new Date()) + '-' + suffix)))
+        .set(authHeader)
+      assert.equal(res.status, 404)
+    }
   })
 
   void it('PUT apply invalid coupon is not accepted', async () => {
