@@ -89,6 +89,20 @@ void describe('/profile', () => {
     })
   }
 
+  void it('POST update username cross-site without the SameSite=Strict cookie is rejected with 403', async () => {
+    const res = await request(app)
+      .post('/profile')
+      .set('Host', 'localhost:3000')
+      .set('Origin', 'http://127.0.0.1:8081')
+      .set('Sec-Fetch-Site', 'cross-site')
+      .type('form')
+      .send('username=CSRF')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Cross-site profile update rejected'))
+  })
+
   void it('POST update username from same origin sets an HttpOnly SameSite=Strict token cookie', async () => {
     const res = await request(app)
       .post('/profile')
