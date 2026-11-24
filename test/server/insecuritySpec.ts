@@ -8,7 +8,9 @@ import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
 import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
+import crypto from 'node:crypto'
+import sinon from 'sinon'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -108,6 +110,64 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('verify', () => {
+    const b64url = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url')
+    const payload = b64url({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, iat: 1508639612, exp: 9999999999 })
+    const unsignedToken = `${b64url({ alg: 'none', typ: 'JWT' })}.${payload}.`
+    const hs256Input = `${b64url({ alg: 'HS256', typ: 'JWT' })}.${payload}`
+    const hs256Token = `${hs256Input}.${crypto.createHmac('sha256', security.publicKey).update(hs256Input).digest('base64url')}`
+
+    it('accepts tokens signed by the server', () => {
+      expect(security.verify(security.authorize({ data: { id: 1 } }))).to.equal(true)
+    })
+
+    it('rejects unsigned tokens', () => {
+      expect(security.verify(unsignedToken)).to.equal(false)
+    })
+
+    it('rejects HS256 tokens signed with the public RSA key', () => {
+      expect(security.verify(hs256Token)).to.equal(false)
+    })
+
+    it('rejects missing tokens', () => {
+      expect(security.verify('')).to.equal(false)
+    })
+
+    for (const [name, token] of [['unsigned', unsignedToken], ['HS256 public-key signed', hs256Token]]) {
+      it(`isAuthorized rejects ${name} tokens`, (done) => {
+        const req = { headers: { authorization: `Bearer ${token}` } } as unknown as Request
+        void security.isAuthorized()(req, {} as Response, (err?: any) => {
+          expect(err?.status).to.equal(401)
+          done()
+        })
+      })
+
+      it(`updateAuthenticatedUsers does not store ${name} tokens`, () => {
+        const req = { cookies: { token }, headers: {} } as unknown as Request
+        const res = { cookie: sinon.spy() } as unknown as Response
+        const next = sinon.spy()
+        security.updateAuthenticatedUsers()(req, res, next)
+        expect(security.authenticatedUsers.get(token)).to.equal(undefined)
+        expect(next.calledOnce).to.equal(true)
+      })
+    }
+
+    it('isAuthorized accepts tokens signed by the server', (done) => {
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { id: 1 } })}` } } as unknown as Request
+      void security.isAuthorized()(req, {} as Response, (err?: any) => {
+        expect(err).to.equal(undefined)
+        done()
+      })
+    })
+
+    it('denyAll rejects even tokens signed by the server', () => {
+      const req = { headers: { authorization: `Bearer ${security.authorize({ data: { id: 1 } })}` } } as unknown as Request
+      const next = sinon.spy()
+      security.denyAll()(req, {} as Response, next)
+      expect(next.firstCall.args[0].status).to.equal(401)
     })
   })
 
