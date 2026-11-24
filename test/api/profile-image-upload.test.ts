@@ -3,14 +3,18 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { describe, it, before } from 'node:test'
+import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
+import http from 'node:http'
+import { type AddressInfo } from 'node:net'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { UserModel } from '../../models/user'
 
 let app: Express
 
@@ -98,6 +102,69 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  for (const imageUrl of ['http://127.0.0.1:3000/', 'http://169.254.169.254/latest/meta-data/iam/security-credentials/', 'https://127.0.0.1:3000/rest/admin/application-configuration', "https://a.png; script-src 'unsafe-inline' 'self' 'unsafe-eval'"]) {
+    void it(`POST profile image URL ${imageUrl} is neither fetched nor stored as profile image`, async () => {
+      const { token } = await login(app, {
+        email: `jim@${config.get<string>('application.domain')}`,
+        password: 'ncc-1701'
+      })
+      const before = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+
+      const res = await request(app)
+        .post('/profile/image/url')
+        .set('Cookie', `token=${token}`)
+        .field('imageUrl', imageUrl)
+        .redirects(0)
+
+      assert.equal(res.status, 302)
+      const after = await UserModel.findByPk(before?.id)
+      assert.equal(after?.profileImage, before?.profileImage)
+      assert.ok(!after?.profileImage.includes(imageUrl))
+    })
+  }
+
+  void describe('internal image server', () => {
+    const connections: string[] = []
+    let server: http.Server
+    let port: number
+
+    before(async () => {
+      const image = fs.readFileSync(path.resolve(__dirname, '../files/validProfileImage.jpg'))
+      server = http.createServer((req, res) => {
+        res.writeHead(200, { 'Content-Type': 'image/jpeg' })
+        res.end(image)
+      })
+      server.on('connection', (socket) => { connections.push(socket.remoteAddress ?? '') })
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+      port = (server.address() as AddressInfo).port
+    })
+
+    after(async () => { await new Promise((resolve) => server.close(resolve)) })
+
+    for (const host of ['127.0.0.1', 'localhost', '[::ffff:127.0.0.1]']) {
+      void it(`POST profile image URL on internal host ${host} never reaches the server`, async () => {
+        const { token } = await login(app, {
+          email: `jim@${config.get<string>('application.domain')}`,
+          password: 'ncc-1701'
+        })
+        const before = await UserModel.findOne({ where: { email: `jim@${config.get<string>('application.domain')}` } })
+
+        for (const protocol of ['http', 'https']) {
+          const res = await request(app)
+            .post('/profile/image/url')
+            .set('Cookie', `token=${token}`)
+            .field('imageUrl', `${protocol}://${host}:${port}/latest/meta-data/image.jpg`)
+            .redirects(0)
+          assert.equal(res.status, 302)
+        }
+
+        assert.deepEqual(connections, [])
+        const after = await UserModel.findByPk(before?.id)
+        assert.equal(after?.profileImage, before?.profileImage)
+      })
+    }
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
