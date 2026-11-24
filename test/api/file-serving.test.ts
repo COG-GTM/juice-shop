@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
+import { login } from './helpers/auth'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import * as utils from '../../lib/utils'
 
@@ -169,11 +170,40 @@ void describe('Hidden URL', () => {
     assert.ok(res.text.includes('<title>Welcome to Planet Orangeuze</title>'))
   })
 
-  void it('GET the premium content by visiting the AES decrypted URL', async () => {
+  void it('GET the premium content by visiting the AES decrypted URL as a deluxe member', async () => {
+    const { token } = await login(app, {
+      email: 'ciso@' + config.get<string>('application.domain'),
+      password: 'mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb'
+    })
     const res = await request(app)
       .get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us')
+      .set('Authorization', 'Bearer ' + token)
     assert.equal(res.status, 200)
     assert.equal(res.headers['content-type'], 'image/jpeg')
+  })
+
+  void it('GET the premium content without a token fails with a 401 error', async () => {
+    const res = await request(app)
+      .get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us')
+    assert.equal(res.status, 401)
+  })
+
+  void it('GET the premium content as a regular customer fails with a 403 error', async () => {
+    const { token } = await login(app, {
+      email: 'bender@' + config.get<string>('application.domain'),
+      password: 'OhG0dPlease1nsertLiquor!'
+    })
+    const res = await request(app)
+      .get('/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us')
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(res.status, 403)
+    assert.notEqual(res.headers['content-type'], 'image/jpeg')
+  })
+
+  void it('GET the premium wallpaper directly from the static assets does not return the image', async () => {
+    const res = await request(app)
+      .get('/assets/private/JuiceShop_Wallpaper_1920x1080_VR.jpg')
+    assert.notEqual(res.headers['content-type'], 'image/jpeg')
   })
 
   void it('GET the missing "Thank you!" image for assembling the URL hidden in the Privacy Policy', async () => {
