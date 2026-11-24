@@ -262,6 +262,7 @@ jobs:
           group: ${{ matrix.browser }} @ ${{ matrix.os }}
         env:
           SOLUTIONS_WEBHOOK: ${{ secrets.E2E_SOLUTIONS_WEBHOOK }}
+          JUICE_SHOP_DEMO_CREDENTIALS: enabled
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -277,6 +278,7 @@ jobs:
           group: ${{ matrix.browser }} @ ${{ matrix.os }}
         env:
           CYPRESS_CACHE_FOLDER: /Users/runner/Library/Caches/Cypress
+          JUICE_SHOP_DEMO_CREDENTIALS: enabled
           ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
