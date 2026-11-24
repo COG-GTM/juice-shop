@@ -15,11 +15,15 @@ describe('/', () => {
   })
 
   describe('challenge "premiumPaywall"', () => {
-    it('should be able to access "super secret" url for premium content', () => {
-      // cy.visit requires a text/html response and this is an image hence cy.request has been used
-      cy.request(
-        '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us'
-      )
+    it('should be able to access "super secret" url for premium content as a deluxe member', () => {
+      cy.login({ email: 'ciso', password: 'mDLx?94T~1CfVfZMzw@sJ9f?s3L6lbMqE70FfI8^54jbNikY5fymx7c!YbJb' })
+      cy.window().then((win) => {
+        // cy.visit requires a text/html response and this is an image hence cy.request has been used
+        cy.request({
+          url: '/this/page/is/hidden/behind/an/incredibly/high/paywall/that/could/only/be/unlocked/by/sending/1btc/to/us',
+          headers: { Authorization: `Bearer ${win.localStorage.getItem('token')}` }
+        })
+      })
       cy.expectChallengeSolved({ challenge: 'Premium Paywall' })
     })
   })
