@@ -10,6 +10,7 @@ import type { Express } from 'express'
 import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import { challenges } from '../../data/datacache'
 
 let app: Express
 
@@ -116,6 +117,27 @@ void describe('/rest/user/reset-password', () => {
       })
 
     assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+    assert.equal(res.body.user.email, 'jim@' + config.get<string>('application.domain'))
+  })
+
+  void it('POST password reset does not disclose password hash, 2FA secret or deluxe token', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'wurstbrot@' + config.get<string>('application.domain'),
+        answer: 'NZMJLjEinU7TFElDIYW8',
+        new: 'EinBelegtesBrotMitSchinkenSCHINKEN!',
+        repeat: 'EinBelegtesBrotMitSchinkenSCHINKEN!'
+      })
+
+    assert.equal(res.status, 200)
+    assert.deepEqual(Object.keys(res.body), ['user'])
+    assert.deepEqual(Object.keys(res.body.user).sort(), ['email', 'id'])
+    assert.ok(!res.text.includes('totpSecret'))
+    assert.ok(!res.text.includes('password'))
+    assert.ok(!res.text.includes('deluxeToken'))
   })
 
   void it('POST password reset for Bender with correct answer to his security question', async () => {
@@ -174,6 +196,14 @@ void describe('/rest/user/reset-password', () => {
     assert.equal(res.status, 200)
   })
 
+  void it('POST password resets with correct answers solve the reset-password challenges of the seeded accounts', () => {
+    assert.equal(challenges.resetPasswordJimChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBenderChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBjoernChallenge.solved, true)
+    assert.equal(challenges.resetPasswordBjoernOwaspChallenge.solved, true)
+    assert.equal(challenges.resetPasswordMortyChallenge.solved, true)
+  })
+
   void it('POST password reset with wrong answer to security question', async () => {
     const res = await request(app)
       .post('/rest/user/reset-password')
@@ -187,6 +217,34 @@ void describe('/rest/user/reset-password', () => {
 
     assert.equal(res.status, 401)
     assert.ok(res.text.includes('Wrong answer to security question.'))
+  })
+
+  void it('POST password reset with the correct answer wrapped in an array is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: 'jim@' + config.get<string>('application.domain'),
+        answer: ['Samuel'],
+        new: 'ncc-1701',
+        repeat: 'ncc-1701'
+      })
+
+    assert.equal(res.status, 401)
+  })
+
+  void it('POST password reset with the email wrapped in an array is rejected', async () => {
+    const res = await request(app)
+      .post('/rest/user/reset-password')
+      .set({ 'content-type': 'application/json' })
+      .send({
+        email: ['jim@' + config.get<string>('application.domain')],
+        answer: 'Samuel',
+        new: 'ncc-1701',
+        repeat: 'ncc-1701'
+      })
+
+    assert.equal(res.status, 401)
   })
 
   void it('POST password reset without any data is blocked', async () => {
