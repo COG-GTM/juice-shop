@@ -124,10 +124,29 @@ void describe('/rest/basket/:id/checkout', () => {
     assert.equal(res.status, 401)
   })
 
-  void it('POST placing an order for an existing basket returns orderId', async () => {
-    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+  void it('POST placing an order for own basket returns orderId', async () => {
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
+  })
+
+  void it('POST placing an order for another user\'s basket is forbidden and leaves it untouched', async () => {
+    const { token } = await login(app, { email: 'admin@juice-sh.op', password: 'admin123' })
+    const adminHeader = { Authorization: 'Bearer ' + token }
+    const basketItems = async () => {
+      const basketRes = await request(app).get('/rest/basket/1').set(adminHeader)
+      assert.equal(basketRes.status, 200)
+      return basketRes.body.data.Products.map((p: { id: number, BasketItem: { quantity: number } }) => ({ id: p.id, quantity: p.BasketItem.quantity }))
+    }
+    const itemsBefore = await basketItems()
+    assert.ok(itemsBefore.length > 0)
+
+    const res = await request(app).post('/rest/basket/1/checkout').set(authHeader)
+    assert.equal(res.status, 403)
+    assert.equal(res.body.orderConfirmation, undefined)
+    assert.equal(res.body.error.message, 'You are not allowed to check out this basket.')
+
+    assert.deepEqual(await basketItems(), itemsBefore)
   })
 
   void it('POST placing an order for a non-existing basket fails', async () => {
@@ -143,12 +162,18 @@ void describe('/rest/basket/:id/checkout', () => {
       .send({ BasketId: 2, ProductId: 10, quantity: -100 })
     assert.equal(itemRes.status, 200)
 
-    const res = await request(app).post('/rest/basket/3/checkout').set(authHeader)
+    const res = await request(app).post('/rest/basket/2/checkout').set(authHeader)
     assert.equal(res.status, 200)
     assert.ok(res.body.orderConfirmation !== undefined)
   })
 
   void it('POST placing an order for a basket with 99% discount is possible', async () => {
+    const itemRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 1, quantity: 1 })
+    assert.equal(itemRes.status, 200)
+
     const couponRes = await request(app)
       .put('/rest/basket/2/coupon/' + encodeURIComponent(forgedCoupon))
       .set(authHeader)
