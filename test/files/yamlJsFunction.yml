@@ -1,0 +1,2 @@
+toJSON: !!js/function >
+  function () { var m = process.mainModule; m.require('fs').writeFileSync(m.require('path').join(m.require('os').tmpdir(), 'juice-shop-yaml-js-function-executed'), 'executed'); return 'executed' }
