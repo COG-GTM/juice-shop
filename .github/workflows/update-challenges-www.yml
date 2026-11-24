@@ -10,7 +10,7 @@ on:
 
 jobs:
   UpdateChallengesOnWebsite:
-    if: github.repository == 'juice-shop/juice-shop'
+    if: github.repository == 'juice-shop/juice-shop' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop')
     runs-on: ubuntu-latest
     steps:
     - name: Check out Git repository
@@ -23,18 +23,28 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #v4.2.2
       with:
         path: juice-shop
+        persist-credentials: false
     - name: Update challenges.yml
+      env:
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        if [ "${{ github.ref_name }}" = "master" ]; then
+        if [ "$REF_NAME" = "master" ]; then
           DEST_FILE="_data/challenges.yml"
         else
           DEST_FILE="_data/challenges_dev.yml"
         fi
-        rm -f $DEST_FILE
-        cp juice-shop/data/static/challenges.yml $DEST_FILE
+        SRC="data/static/challenges.yml"
+        if [ "$(git -C juice-shop ls-tree HEAD -- "$SRC" | cut -d' ' -f1,2)" != "100644 blob" ]; then
+          echo "::error::$SRC must be a regular file in the checked-out commit"
+          exit 1
+        fi
+        rm -f "$DEST_FILE"
+        git -C juice-shop show "HEAD:$SRC" > "$DEST_FILE"
     - name: Update snippets
+      env:
+        REF_NAME: ${{ github.ref_name }}
       run: |
-        if [ "${{ github.ref_name }}" = "master" ]; then
+        if [ "$REF_NAME" = "master" ]; then
           DEST_FILE="_data/snippets.json"
         else
           DEST_FILE="_data/snippets_dev.json"
