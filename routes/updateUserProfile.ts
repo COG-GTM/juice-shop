@@ -19,6 +19,11 @@ export function updateUserProfile () {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site profile update rejected'))
+      return
+    }
 
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
