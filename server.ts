@@ -305,6 +305,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
     syncFiles: false
   })
   app.use(i18n.init)
+  app.use(translateOnlyCatalogPhrases)
 
   app.use(bodyParser.urlencoded({ extended: true }))
   /* File Upload */
@@ -678,6 +679,23 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   /* Error Handling */
   app.use(verify.errorHandlingChallenge())
   app.use(errorhandler())
+}
+
+/* i18n stores every unknown phrase in its in-memory catalog, so database texts that are not catalog keys are passed through untranslated */
+function translateOnlyCatalogPhrases (req: Request, res: Response, next: NextFunction) {
+  const translate = req.__ as (...args: unknown[]) => string
+  const translateKnown: typeof req.__ = function (this: unknown, phrase: any, ...replacements: any[]) {
+    if (typeof phrase === 'string' && replacements.length === 0) {
+      const catalog = i18n.getCatalog(req) || i18n.getCatalog(req, 'en')
+      if (!catalog || !Object.prototype.hasOwnProperty.call(catalog, phrase)) {
+        return phrase
+      }
+    }
+    return translate.apply(this, [phrase, ...replacements])
+  }
+  req.__ = translateKnown
+  res.__ = translateKnown
+  next()
 }
 
 // Function called first to ensure that all the i18n files are reloaded successfully before other linked operations.

@@ -10,6 +10,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { Express } from 'express'
 import config from 'config'
+import i18n from 'i18n'
 import { createTestApp } from './helpers/setup'
 import type { Product as ProductConfig } from '../../lib/config.types'
 import { challenges } from '../../data/datacache'
@@ -133,6 +134,21 @@ void describe('/api/Products/:id', () => {
       const file = await fs.readFile(path.resolve('i18n', locale + '.json'), 'utf8')
       assert.ok(!file.includes(description), `i18n/${locale}.json must not contain ${description}`)
     }
+    const catalogs = i18n.getCatalog() as Record<string, Record<string, unknown>>
+    for (const [locale, catalog] of Object.entries(catalogs)) {
+      assert.ok(!Object.prototype.hasOwnProperty.call(catalog, description), `in-memory ${locale} catalog must not contain ${description}`)
+    }
+  })
+
+  void it('GET product list still translates seeded product names', async () => {
+    const res = await request(app)
+      .get('/api/Products')
+      .set('Cookie', 'language=de_DE')
+    assert.equal(res.status, 200)
+    const catalog = i18n.getCatalog('de_DE') as Record<string, string>
+    const translated = res.body.data.find((product: { name: string }) => product.name === catalog['Apple Juice (1000ml)'])
+    assert.ok(translated, 'Apple Juice (1000ml) must be returned in German')
+    assert.notEqual(catalog['Apple Juice (1000ml)'], 'Apple Juice (1000ml)')
   })
 
   void it('DELETE existing product is forbidden via public API', async () => {
