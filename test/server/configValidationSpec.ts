@@ -15,9 +15,12 @@ import validateConfig, {
   checkUniqueSpecialOnMemories,
   checkSpecialMemoriesHaveNoUserAssociated,
   checkNecessaryExtraKeysOnSpecialProducts,
-  checkForIllogicalCombos
+  checkForIllogicalCombos,
+  warnAboutDisabledSafetyModeInSharedEnvironment
 } from '../../lib/startup/validateConfig'
 import type { Memory, Product } from 'lib/config.types'
+import fs from 'node:fs'
+import { safeLoad } from 'js-yaml'
 
 const expect = chai.expect
 chai.use(sinonChai)
@@ -515,6 +518,37 @@ describe('configValidation', () => {
     it('should fail if systemWideNotifications url is set but pollFrequencySeconds is negative', () => {
       const config = { ...BASE_CONFIG, ctf: { ...BASE_CONFIG.ctf, systemWideNotifications: { url: 'http://example.com/notify', pollFrequencySeconds: -10 } } }
       expect(checkForIllogicalCombos(config)).to.equal(false)
+    })
+  })
+
+  describe('warnAboutDisabledSafetyModeInSharedEnvironment', () => {
+    const docker = { isDocker: () => true, isHeroku: () => false }
+    const heroku = { isDocker: () => false, isHeroku: () => true }
+    const local = { isDocker: () => false, isHeroku: () => false }
+
+    it('should warn when safety mode is disabled in a Docker container', () => {
+      expect(warnAboutDisabledSafetyModeInSharedEnvironment({ challenges: { safetyMode: 'disabled' } }, docker)).to.equal(true)
+    })
+
+    it('should warn when safety mode is disabled on Heroku', () => {
+      expect(warnAboutDisabledSafetyModeInSharedEnvironment({ challenges: { safetyMode: 'disabled' } }, heroku)).to.equal(true)
+    })
+
+    it('should not warn when safety mode is disabled outside of a shared environment', () => {
+      expect(warnAboutDisabledSafetyModeInSharedEnvironment({ challenges: { safetyMode: 'disabled' } }, local)).to.equal(false)
+    })
+
+    for (const safetyMode of ['auto', 'enabled']) {
+      it(`should not warn when safety mode is ${safetyMode} in a Docker container`, () => {
+        expect(warnAboutDisabledSafetyModeInSharedEnvironment({ challenges: { safetyMode } }, docker)).to.equal(false)
+      })
+    }
+  })
+
+  describe('ctf configuration', () => {
+    it('should not disable safety mode', () => {
+      const ctfConfig = safeLoad(fs.readFileSync('config/ctf.yml', 'utf8')) as any
+      expect(ctfConfig.challenges?.safetyMode ?? 'auto').to.not.equal('disabled')
     })
   })
 })

@@ -12,6 +12,8 @@ import validateSchema from 'yaml-schema-validator/src'
 
 import type { AppConfig, Memory as MemoryConfig, Product as ProductConfig } from '../config.types'
 import logger from '../logger'
+import isDocker from '../is-docker'
+import isHeroku from '../is-heroku'
 
 const specialProducts = [
   { name: '"Christmas Special" challenge product', key: 'useForChristmasSpecialChallenge' },
@@ -40,6 +42,7 @@ const validateConfig = async ({ products, memories, exitOnFailure = true }: { pr
   success = checkUniqueSpecialOnMemories(memories) && success
   success = checkSpecialMemoriesHaveNoUserAssociated(memories) && success
   success = checkForIllogicalCombos() && success
+  warnAboutDisabledSafetyModeInSharedEnvironment()
   if (success) {
     logger.info(`Configuration ${colors.bold(process.env.NODE_ENV ?? 'default')} validated (${colors.green('SUCCESS')})`)
   } else {
@@ -188,6 +191,18 @@ export const checkForIllogicalCombos = (configuration = config.util.toObject()) 
     }
   }
   return success
+}
+
+export const warnAboutDisabledSafetyModeInSharedEnvironment = (configuration = config.util.toObject(), environment = { isDocker, isHeroku }) => {
+  if (configuration.challenges?.safetyMode !== 'disabled') {
+    return false
+  }
+  const sharedEnvironment = environment.isDocker() ? 'Docker' : environment.isHeroku() ? 'Heroku' : null
+  if (sharedEnvironment === null) {
+    return false
+  }
+  logger.warn(colors.red(`Safety mode is ${colors.bold('disabled')} while running on ${sharedEnvironment}: challenges that allow remote code execution and arbitrary file writes on the server are enabled for every user of this instance. Only do this for single-user instances you are prepared to lose!`))
+  return true
 }
 
 export default validateConfig
