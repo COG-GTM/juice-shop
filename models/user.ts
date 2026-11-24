@@ -34,6 +34,8 @@ InferCreationAttributes<User>
   declare isActive: CreationOptional<boolean>
 }
 
+const instancesWithInvalidEmail = new WeakSet<object>()
+
 const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start weakPasswordChallenge
   User.init(
     { // vuln-code-snippet hide-start
@@ -58,6 +60,12 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
         type: DataTypes.STRING,
         unique: true,
         set (email: string) {
+          const trimmedEmail = typeof email === 'string' ? email.trim() : email
+          if (trimmedEmail === '' || utils.isValidEmail(trimmedEmail)) {
+            instancesWithInvalidEmail.delete(this)
+          } else {
+            instancesWithInvalidEmail.add(this)
+          }
           const storedEmail = utils.isValidEmail(email) ? email : security.sanitizeSecure(email)
           if (utils.isChallengeEnabled(challenges.persistedXssUserChallenge)) {
             challengeUtils.solveIf(challenges.persistedXssUserChallenge, () => {
@@ -68,6 +76,13 @@ const UserModelInit = (sequelize: Sequelize) => { // vuln-code-snippet start wea
             })
           }
           this.setDataValue('email', storedEmail)
+        },
+        validate: {
+          isEmailAddress (this: object) {
+            if (instancesWithInvalidEmail.has(this)) {
+              throw new Error('Invalid email address')
+            }
+          }
         }
       }, // vuln-code-snippet hide-end
       password: {
