@@ -8,6 +8,8 @@ import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
 import path from 'node:path'
+import fs from 'node:fs'
+import os from 'node:os'
 import { challenges } from '../../data/datacache'
 import * as utils from '../../lib/utils'
 import { createTestApp } from './helpers/setup'
@@ -112,6 +114,18 @@ void describe('/file-upload', () => {
       assert.ok(res.status >= 410)
     })
   }
+
+  void it('POST YAML file with !!js/function tag is rejected without executing it', async () => {
+    const file = path.resolve(__dirname, '../files/yamlJsFunction.yml')
+    const marker = path.join(os.tmpdir(), 'juice-shop-yaml-js-function-executed')
+    fs.rmSync(marker, { force: true })
+    const res = await request(app)
+      .post('/file-upload')
+      .attach('file', file)
+    assert.equal(res.status, 410)
+    assert.match(res.text, /unknown tag !&lt;tag:yaml.org,2002:js\/function&gt;/)
+    assert.equal(fs.existsSync(marker), false)
+  })
 
   void it('POST file too large for API', async () => {
     const file = path.resolve(__dirname, '../files/invalidSizeForServer.pdf')
