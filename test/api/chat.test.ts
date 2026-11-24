@@ -379,6 +379,44 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     assert.equal(res.status, 400)
   })
 
+  void it('POST with URL-valued image or file parts is rejected without fetching the URL', { timeout: 15000 }, async () => {
+    let urlFetched = false
+    let llmCalled = false
+    onLlmRequest = (_req, _body, res) => {
+      llmCalled = true
+      sendSSE(res, [contentChunk('Hi'), finishChunk()])
+    }
+    const listener = http.createServer((_req, res) => {
+      urlFetched = true
+      res.writeHead(200, { 'Content-Type': 'image/png' })
+      res.end('internal-secret')
+    })
+    await new Promise<void>((resolve) => listener.listen(0, '127.0.0.1', resolve))
+    const { port } = listener.address() as { port: number }
+    const url = `http://127.0.0.1:${port}/internal`
+
+    try {
+      const payloads = [
+        [{ role: 'user', content: [{ type: 'text', text: 'Describe this' }, { type: 'image', image: url }] }],
+        [{ role: 'user', content: [{ type: 'file', data: url, mediaType: 'image/png' }] }],
+        [{ role: 'user', content: 'Hi' }, { role: 'assistant', content: [{ type: 'file', data: url, mediaType: 'application/pdf' }] }],
+        [{ role: 'tool', content: [{ type: 'tool-result', toolCallId: 'x', toolName: 'searchProducts', output: { type: 'text', value: url } }] }]
+      ]
+      for (const messages of payloads) {
+        const res = await request(app)
+          .post('/rest/chat')
+          .set(authHeader)
+          .send({ messages })
+        assert.equal(res.status, 400)
+      }
+      await new Promise(resolve => setTimeout(resolve, 200))
+      assert.equal(urlFetched, false)
+      assert.equal(llmCalled, false)
+    } finally {
+      await new Promise<void>((resolve) => listener.close(() => { resolve() }))
+    }
+  })
+
   void it('POST stops a runaway tool-call loop after 4 model steps', { timeout: 15000 }, async () => {
     let callCount = 0
     onLlmRequest = (_req, _body, res) => {
