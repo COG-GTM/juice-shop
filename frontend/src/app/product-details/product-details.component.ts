@@ -24,6 +24,7 @@ import { MatButtonModule, MatIconButton } from '@angular/material/button'
 import { MatDivider } from '@angular/material/divider'
 import { MatTooltip } from '@angular/material/tooltip'
 import { AsyncPipe } from '@angular/common'
+import { CookieService } from 'ngy-cookie'
 
 library.add(faPaperPlane, faArrowCircleLeft, faUserEdit, faThumbsUp, faCrown)
 
@@ -42,6 +43,7 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   private readonly userService = inject(UserService)
   private readonly snackBar = inject(MatSnackBar)
   private readonly snackBarHelperService = inject(SnackBarHelperService)
+  private readonly cookieService = inject(CookieService)
 
   public author = 'Anonymous'
   public reviews$: any
@@ -72,14 +74,24 @@ export class ProductDetailsComponent implements OnInit, OnDestroy {
   addReview (textPut: HTMLTextAreaElement) {
     const review = { message: textPut.value, author: this.author }
 
-    textPut.value = ''
     this.productReviewService.create(this.data.productData.id, review).subscribe({
       next: () => {
+        textPut.value = ''
         this.reviews$ = this.productReviewService.get(this.data.productData.id)
+        this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
       },
-      error: (err) => { console.log(err) }
+      error: (err) => {
+        console.log(err)
+        if (err?.status === 401) {
+          localStorage.removeItem('token')
+          this.cookieService.remove('token')
+          this.userService.isLoggedIn.next(false)
+          this.snackBarHelperService.open('UNAUTHORIZED_ACCESS_ERROR', 'errorBar')
+        } else {
+          this.snackBarHelperService.open(err?.error?.message ?? 'Error', 'errorBar')
+        }
+      }
     })
-    this.snackBarHelperService.open('CONFIRM_REVIEW_SAVED')
   }
 
   editReview (review: Review) {
