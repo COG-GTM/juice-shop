@@ -19,6 +19,11 @@ export function updateUserProfile () {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
       return
     }
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site profile update rejected'))
+      return
+    }
 
     try {
       const user = await UserModel.findByPk(loggedInUser.data.id)
@@ -37,7 +42,7 @@ export function updateUserProfile () {
       const userWithStatus = utils.queryResultToJson(savedUser)
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      res.cookie('token', updatedToken, security.tokenCookieOptions(req))
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {
