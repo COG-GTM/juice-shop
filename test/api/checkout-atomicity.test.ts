@@ -80,6 +80,19 @@ void describe('/rest/basket/:id/checkout stock and wallet consistency', () => {
     assert.equal(await stock(), 49)
   })
 
+  void it('never overdraws the wallet with 20 parallel checkouts that together exceed the balance', async () => {
+    const { UserId, bid, authHeader } = await customerWithBasket('checkout-parallel-20@juice-sh.op', 1)
+    await WalletModel.update({ balance: price }, { where: { UserId } })
+    await QuantityModel.update({ quantity: 50 }, { where: { ProductId } })
+
+    const responses = await Promise.all(Array.from({ length: 20 }, async () => await checkout(bid, authHeader)))
+
+    assert.equal(responses.filter(res => res.status === 200).length, 1)
+    assert.ok(responses.filter(res => res.status !== 200).every(res => res.text.includes('Insufficient wallet balance.')))
+    assert.ok(await balance(UserId) >= 0)
+    assert.equal(await stock(), 49)
+  })
+
   void it('refuses checkout without touching stock or wallet when stock would go below zero', async () => {
     const { UserId, bid, authHeader } = await customerWithBasket('checkout-low-stock@juice-sh.op', 3)
     await WalletModel.update({ balance: price * 10 }, { where: { UserId } })
