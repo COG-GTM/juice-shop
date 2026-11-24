@@ -13,6 +13,11 @@ import * as utils from '../lib/utils'
 
 export function updateUserProfile () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site profile update rejected'))
+      return
+    }
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
 
     if (!loggedInUser) {
@@ -34,10 +39,10 @@ export function updateUserProfile () {
       })
 
       const savedUser = await user.update({ username: req.body.username })
-      const userWithStatus = utils.queryResultToJson(savedUser)
+      const userWithStatus = { ...utils.queryResultToJson(savedUser), bid: loggedInUser.bid }
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
-      res.cookie('token', updatedToken)
+      security.setSessionCookie(res, updatedToken)
       res.location(process.env.BASE_PATH + '/profile')
       res.redirect(process.env.BASE_PATH + '/profile')
     } catch (error) {

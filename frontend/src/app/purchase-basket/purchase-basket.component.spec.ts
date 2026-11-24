@@ -22,6 +22,7 @@ import { DeluxeGuard } from '../app.guard'
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar'
 import { EventEmitter } from '@angular/core'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { endSession, startSession } from '../Services/auth-session'
 
 describe('PurchaseBasketComponent', () => {
     let component: PurchaseBasketComponent
@@ -103,7 +104,7 @@ describe('PurchaseBasketComponent', () => {
     })
 
     beforeEach(() => {
-        localStorage.setItem('token', 'token')
+        startSession('token')
         fixture = TestBed.createComponent(PurchaseBasketComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
@@ -128,7 +129,7 @@ describe('PurchaseBasketComponent', () => {
 
     it('should skip userService call and use anonymous label for guests', () => {
         userService.whoAmI.mockClear()
-        localStorage.removeItem('token')
+        endSession()
 
         component.ngOnInit()
 
@@ -179,7 +180,7 @@ describe('PurchaseBasketComponent', () => {
     })
 
     it('should keep valid guest basket products when one guest product fetch fails', () => {
-        localStorage.removeItem('token')
+        endSession()
         basketService.getGuestBasketItems.mockReturnValue([
             { ProductId: 1, quantity: 2 },
             { ProductId: 2, quantity: 3 }

@@ -89,7 +89,7 @@ void describe('/rest/user/change-password', () => {
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
 
-  void it('GET password change for Bender without current password using GET request', async () => {
+  void it('GET password change for Bender without current password is rejected and keeps the old password', async () => {
     const { token } = await login(app, {
       email: 'bender@' + config.get<string>('application.domain'),
       password: 'OhG0dPlease1nsertLiquor!'
@@ -99,7 +99,27 @@ void describe('/rest/user/change-password', () => {
       .get('/rest/user/change-password?new=slurmCl4ssic&repeat=slurmCl4ssic')
       .set({ Authorization: 'Bearer ' + token })
 
-    assert.equal(res.status, 200)
+    assert.equal(res.status, 401)
+    assert.ok(res.text.includes('Current password is not correct'))
+
+    await login(app, { email: 'bender@' + config.get<string>('application.domain'), password: 'OhG0dPlease1nsertLiquor!' })
+  })
+
+  void it('GET password change with only the session cookie and no current password is rejected', async () => {
+    await request(app)
+      .post('/api/Users')
+      .set({ 'content-type': 'application/json' })
+      .send({ email: 'cookie.only@be.rt', password: 'cookieOnly1' })
+      .expect(201)
+
+    const { token } = await login(app, { email: 'cookie.only@be.rt', password: 'cookieOnly1' })
+
+    const res = await request(app)
+      .get('/rest/user/change-password?new=stolen&repeat=stolen')
+      .set('Cookie', 'token=' + token)
+
+    assert.equal(res.status, 401)
+    await login(app, { email: 'cookie.only@be.rt', password: 'cookieOnly1' })
   })
 })
 

@@ -34,6 +34,7 @@ import { MatTooltipModule } from '@angular/material/tooltip'
 import { of, throwError } from 'rxjs'
 import { TwoFactorAuthService } from '../Services/two-factor-auth-service'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
+import { isLoggedIn } from '../Services/auth-session'
 
 describe('TwoFactorAuthEnterComponent', () => {
     let component: TwoFactorAuthEnterComponent
@@ -101,18 +102,21 @@ describe('TwoFactorAuthEnterComponent', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should store authentication token in cookie', () => {
+    it('should leave the session cookie to the server', () => {
+        const putSpy = vi.spyOn(cookieService, 'put')
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(cookieService.get('token')).toBe('TOKEN')
+        expect(putSpy).not.toHaveBeenCalledWith('token', expect.anything(), expect.anything())
     })
 
-    it('should store authentication token in local storage', () => {
+    it('should start a session without storing the authentication token in local storage', () => {
         twoFactorAuthService.verify.mockReturnValue(of({ token: 'TOKEN' }))
         component.verify()
 
-        expect(localStorage.getItem('token')).toBe('TOKEN')
+        expect(localStorage.getItem('token')).toBeNull()
+        expect(JSON.stringify(localStorage)).not.toContain('TOKEN')
+        expect(isLoggedIn()).toBe(true)
     })
 
     it('should store basket ID in session storage', () => {

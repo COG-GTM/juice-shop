@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-import { jwtDecode } from 'jwt-decode'
+import { isLoggedIn, sessionClaims } from '../../app/Services/auth-session'
 
 let config
 const playbackDelays = {
@@ -170,7 +170,7 @@ export function waitForAngularRouteToBeVisited (route: string) {
 export function waitForLogIn () {
   return async () => {
     while (true) {
-      if (localStorage.getItem('token') !== null) {
+      if (isLoggedIn()) {
         break
       }
       await sleep(100)
@@ -181,16 +181,7 @@ export function waitForLogIn () {
 export function waitForAdminLogIn () {
   return async () => {
     while (true) {
-      let role = ''
-      try {
-        const token: string = localStorage.getItem('token')
-        const decodedToken = jwtDecode(token)
-        const payload = decodedToken as any
-        role = payload.data.role
-      } catch {
-        console.log('Role from token could not be accessed.')
-      }
-      if (role === 'admin') {
+      if (sessionClaims()?.data.role === 'admin') {
         break
       }
       await sleep(100)
@@ -201,7 +192,7 @@ export function waitForAdminLogIn () {
 export function waitForLogOut () {
   return async () => {
     while (true) {
-      if (localStorage.getItem('token') === null) {
+      if (!isLoggedIn()) {
         break
       }
       await sleep(100)
