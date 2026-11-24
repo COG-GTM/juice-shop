@@ -111,6 +111,28 @@ function forgeToken (alg: string, payload: object): string {
   return `${unsigned}.${signature}`
 }
 
+async function systemPromptFor (token: string): Promise<string> {
+  let systemPrompt = ''
+  onLlmRequest = (_req, body, res) => {
+    systemPrompt = JSON.parse(body).messages[0].content
+    sendSSE(res, [contentChunk('Hi!'), finishChunk()])
+  }
+
+  const res = await request(app)
+    .post('/rest/chat')
+    .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    .send({ messages: [{ role: 'user', content: 'Who am I?' }] })
+
+  assert.equal(res.status, 200)
+  return systemPrompt
+}
+
+const bjoernGoogle = { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' }
+
+function userIdOf (token: string): number {
+  return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).data.id
+}
+
 async function firstAdminOrderId (adminToken: string): Promise<string> {
   const res = await request(app)
     .get('/rest/order-history')
@@ -301,6 +323,37 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
     const forged = forgeToken('HS256', { data: { id: 1, email: 'admin@' + config.get<string>('application.domain') } })
 
     const toolResult = await getOrderByIdToolResult(forged, orderId)
+
+    assert.ok(toolResult.includes('Customer not authenticated'))
+    assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
+  })
+
+  void it('POST names the customer from a verified token in the system prompt', { timeout: 15000 }, async () => {
+    const { token } = await login(app, bjoernGoogle)
+
+    assert.ok((await systemPromptFor(token)).includes('bkimminich'))
+  })
+
+  void it('POST does not name the customer from an unsigned token in the system prompt', { timeout: 15000 }, async () => {
+    const { token } = await login(app, bjoernGoogle)
+    const forged = forgeToken('none', { data: { id: userIdOf(token) } })
+
+    assert.ok(!(await systemPromptFor(forged)).includes('bkimminich'))
+  })
+
+  void it('POST does not name the customer from an RS256 token with an empty signature in the system prompt', { timeout: 15000 }, async () => {
+    const { token } = await login(app, bjoernGoogle)
+    const [header, payload] = forgeToken('RS256', { data: { id: userIdOf(token) } }).split('.')
+
+    assert.ok(!(await systemPromptFor(`${header}.${payload}.`)).includes('bkimminich'))
+  })
+
+  void it('POST getOrderById ignores an RS256 token with an empty signature that claims the owner\'s user id', { timeout: 15000 }, async () => {
+    const { token: adminToken } = await login(app, { email: 'admin@' + config.get<string>('application.domain'), password: 'admin123' })
+    const orderId = await firstAdminOrderId(adminToken)
+    const [header, payload] = forgeToken('RS256', { data: { id: userIdOf(adminToken) } }).split('.')
+
+    const toolResult = await getOrderByIdToolResult(`${header}.${payload}.`, orderId)
 
     assert.ok(toolResult.includes('Customer not authenticated'))
     assert.ok(!toolResult.includes('Apple Juice (1000ml)'))
