@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import * as http from 'http'
 import { createTestApp } from './helpers/setup'
+import * as security from '../../lib/insecurity'
 
 const MOCK_LLM_PORT = 43210
 
@@ -265,5 +266,83 @@ void describe('/rest/chat', { timeout: 120000 }, () => {
       if (parsed.choices[0].finish_reason) continue
       assert.ok(parsed.choices[0].delta)
     }
+  })
+
+  void describe('tool-call events', () => {
+    const scriptToolCall = () => {
+      let callCount = 0
+      onLlmRequest = (_req, _body, res) => {
+        callCount++
+        if (callCount === 1) {
+          sendSSE(res, [
+            toolCallChunk('call_dbg', 'searchProducts', '{"query":"apple"}'),
+            finishChunk('tool_calls')
+          ])
+        } else {
+          sendSSE(res, [contentChunk('We have Apple Juice!'), finishChunk()])
+        }
+      }
+    }
+
+    const toolCallDeltas = (text: string) => text.split('\n')
+      .filter((l: string) => l.startsWith('data: ') && l !== 'data: [DONE]')
+      .map((l: string) => JSON.parse(l.slice(6)))
+      .filter((d: any) => d.choices?.[0]?.delta?.tool_calls)
+
+    const chatAs = async (headers: Record<string, string>) => await request(app)
+      .post('/rest/chat')
+      .set({ 'content-type': 'application/json', Cookie: 'show_tool_calls=true', ...headers })
+      .send({ messages: [{ role: 'user', content: 'Do you have apple juice?' }] })
+
+    void it('are not streamed to anonymous callers even with show_tool_calls cookie', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const res = await chatAs({})
+
+      assert.equal(res.status, 200)
+      assert.ok(res.text.includes('We have Apple Juice!'))
+      assert.equal(toolCallDeltas(res.text).length, 0)
+      assert.ok(!res.text.includes('searchProducts'))
+    })
+
+    void it('are not streamed to customers even with show_tool_calls cookie', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })
+      const res = await chatAs({ Authorization: `Bearer ${token}` })
+
+      assert.equal(res.status, 200)
+      assert.equal(toolCallDeltas(res.text).length, 0)
+      assert.ok(!res.text.includes('searchProducts'))
+    })
+
+    void it('are not streamed for an unsigned admin token', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url')
+      const payload = Buffer.from(JSON.stringify({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })).toString('base64url')
+      const res = await chatAs({ Authorization: `Bearer ${header}.${payload}.` })
+
+      assert.equal(res.status, 200)
+      assert.equal(toolCallDeltas(res.text).length, 0)
+    })
+
+    void it('are not streamed for an expired admin token', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' }, exp: Math.floor(Date.now() / 1000) - 60 })
+      const res = await chatAs({ Authorization: `Bearer ${token}` })
+
+      assert.equal(res.status, 200)
+      assert.equal(toolCallDeltas(res.text).length, 0)
+    })
+
+    void it('are streamed to admins', { timeout: 15000 }, async () => {
+      scriptToolCall()
+      const token = security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })
+      const res = await chatAs({ Authorization: `Bearer ${token}` })
+
+      assert.equal(res.status, 200)
+      const deltas = toolCallDeltas(res.text)
+      assert.equal(deltas.length, 1)
+      assert.equal(deltas[0].choices[0].delta.tool_calls[0].function.name, 'searchProducts')
+      assert.equal(deltas[0].choices[0].delta.tool_calls[0].function.arguments, '{"query":"apple"}')
+    })
   })
 })
