@@ -63,6 +63,10 @@ export function observeFileUploadMetricsMiddleware () {
   }
 }
 
+export function countFileUploadError (mimetype: string) {
+  fileUploadErrorsMetric.labels(mimetype).inc()
+}
+
 export function serveMetrics () {
   return async (req: Request, res: Response, next: NextFunction) => {
     challengeUtils.solveIf(challenges.exposedMetricsChallenge, () => {
