@@ -5,7 +5,6 @@
 
 import { type Request, type Response, type NextFunction } from 'express'
 import { Op } from 'sequelize'
-import jwt from 'jsonwebtoken'
 import config from 'config'
 import jws from 'jws'
 
@@ -110,25 +109,32 @@ export const serverSideChallenges = () => (req: Request, res: Response, next: Ne
 function jwtChallenge (challenge: Challenge, req: Request, algorithm: string, email: string | RegExp) {
   const token = utils.jwtFrom(req)
   if (token) {
-    const decoded = jws.decode(token) ? jwt.decode(token) : null
-
-    if (decoded === null || typeof decoded === 'string') {
+    let decoded
+    try {
+      decoded = jws.decode(token, { json: true })
+    } catch {
+      return
+    }
+    const payload = decoded?.payload
+    if (decoded?.header?.alg !== algorithm || payload === null || typeof payload !== 'object') {
+      return
+    }
+    if (typeof payload.exp === 'number' && payload.exp * 1000 < Date.now()) {
       return
     }
 
-    jwt.verify(token, security.publicKey, (err: jwt.VerifyErrors | null) => {
-      if (err === null) {
-        challengeUtils.solveIf(challenge, () => {
-          return hasAlgorithm(token, algorithm) && hasEmail(decoded as { data: { email: string } }, email)
-        })
-      }
-    })
+    let signatureMatches = false
+    try {
+      signatureMatches = jws.verify(token, algorithm as jws.Algorithm, security.publicKey)
+    } catch {
+      return
+    }
+    if (signatureMatches) {
+      challengeUtils.solveIf(challenge, () => {
+        return hasEmail(payload as { data: { email: string } }, email)
+      })
+    }
   }
-}
-
-function hasAlgorithm (token: string, algorithm: string) {
-  const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64').toString())
-  return token && header && header.alg === algorithm
 }
 
 function hasEmail (token: { data: { email: string } }, email: string | RegExp) {
