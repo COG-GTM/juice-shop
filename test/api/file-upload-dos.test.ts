@@ -54,6 +54,26 @@ void describe('/file-upload resource limits', () => {
     }
   })
 
+  void it('YAML and XML expansion bombs do not delay a concurrent request', async () => {
+    const timed = async (req: request.Test) => {
+      const started = Date.now()
+      const res = await req
+      return { status: res.status, elapsed: Date.now() - started }
+    }
+    const [yamlBomb, billionLaughs, quadraticBlowup, concurrent] = await Promise.all([
+      timed(request(app).post('/file-upload').set(jimHeader).attach('file', path.resolve(__dirname, '../files/yamlBomb.yml'))),
+      timed(request(app).post('/file-upload').set(jimHeader).attach('file', path.resolve(__dirname, '../files/xxeBillionLaughs.xml'))),
+      timed(request(app).post('/file-upload').set(jimHeader).attach('file', path.resolve(__dirname, '../files/xxeQuadraticBlowup.xml'))),
+      timed(request(app).get('/rest/admin/application-version'))
+    ])
+    for (const upload of [yamlBomb, billionLaughs, quadraticBlowup]) {
+      assert.ok(upload.status >= 410, `unexpected status ${upload.status}`)
+      assert.ok(upload.elapsed < 1000, `upload took ${upload.elapsed}ms`)
+    }
+    assert.equal(concurrent.status, 200)
+    assert.ok(concurrent.elapsed < 1000, `concurrent request took ${concurrent.elapsed}ms`)
+  })
+
   void it('POST more than 100 files within 5 minutes from one user is rate limited without affecting other users', async () => {
     const pdf = path.resolve(__dirname, '../files/validSizeAndTypeForClient.pdf')
     for (let i = 0; i < 100; i++) {
