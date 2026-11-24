@@ -518,6 +518,11 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
 
     // translate challenge descriptions on-the-fly
     if (name === 'Challenge') {
+      for (const action of [resource.create, resource.update, resource.delete]) {
+        action.start((req: Request, res: Response, context: { error: (status: number, message: string) => unknown }) => {
+          return context.error(403, 'Challenges are read-only')
+        })
+      }
       resource.list.fetch.after((req: Request, res: Response, context: { instance: string | any[], continue: any }) => {
         for (let i = 0; i < context.instance.length; i++) {
           let description = context.instance[i].description

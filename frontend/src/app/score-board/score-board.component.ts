@@ -1,6 +1,5 @@
 import { Component, NgZone, type OnDestroy, type OnInit, inject } from '@angular/core'
 import { ActivatedRoute, Router } from '@angular/router'
-import { DomSanitizer } from '@angular/platform-browser'
 import { type Subscription, combineLatest, firstValueFrom } from 'rxjs'
 
 import { fromQueryParams, toQueryParams } from './filter-settings/query-params-converters'
@@ -46,7 +45,6 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
   private readonly challengeService = inject(ChallengeService)
   private readonly hintService = inject(HintService)
   private readonly configurationService = inject(ConfigurationService)
-  private readonly sanitizer = inject(DomSanitizer)
   private readonly ngZone = inject(NgZone)
   private readonly io = inject(SocketIoService)
   private readonly router = inject(Router)
@@ -79,7 +77,7 @@ export class ScoreBoardComponent implements OnInit, OnDestroy {
           hintsAvailable: hints.filter((hint) => hint.ChallengeId === challenge.id).length,
           tagList: challenge.tags ? challenge.tags.split(',').map((tag) => tag.trim()) : [],
           originalDescription: challenge.description as string,
-          description: this.sanitizer.bypassSecurityTrustHtml(challenge.description as string)
+          description: challenge.description as string
         }
       })
 
