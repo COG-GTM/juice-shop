@@ -27,6 +27,33 @@ function getStatus (token: string) {
     })
 }
 
+function setup (token: string, password: string, secret: string) {
+  return request(app)
+    .post('/rest/2fa/setup')
+    .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    .send({
+      password,
+      setupToken: security.authorize({ secret, type: 'totp_setup_secret' }),
+      initialToken: generateSync({ secret })
+    })
+}
+
+function disable (token: string, body: Record<string, unknown>) {
+  return request(app)
+    .post('/rest/2fa/disable')
+    .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+    .send(body)
+}
+
+// tokens issued in the same second for the same user are identical, so wait for a distinct one
+async function loginAsOtherSession (existingToken: string, credentials: { email: string, password: string, totpSecret?: string }) {
+  for (;;) {
+    const { token } = await login(app, credentials)
+    if (token !== existingToken) return token as string
+    await new Promise(resolve => setTimeout(resolve, 250))
+  }
+}
+
 before(async () => {
   const result = await createTestApp()
   app = result.app
@@ -362,33 +389,105 @@ void describe('/rest/2fa/disable', () => {
 
     await register(app, { email, password: oldPassword, totpSecret })
     const { token: olderSession } = await login(app, { email, password: oldPassword, totpSecret })
-    const { token } = await login(app, { email, password: oldPassword, totpSecret })
+    const token = await loginAsOtherSession(olderSession, { email, password: oldPassword, totpSecret })
 
     const changeRes = await request(app)
       .get(`/rest/user/change-password?current=${oldPassword}&new=${newPassword}&repeat=${newPassword}`)
       .set('Authorization', 'Bearer ' + token)
     assert.equal(changeRes.status, 200)
 
-    const staleRes = await request(app)
-      .post('/rest/2fa/disable')
-      .set({
-        Authorization: 'Bearer ' + olderSession,
-        'content-type': 'application/json'
-      })
-      .send({ password: oldPassword, totpToken: generateSync({ secret: totpSecret }) })
+    const staleRes = await disable(olderSession, { password: oldPassword, totpToken: generateSync({ secret: totpSecret }) })
     assert.equal(staleRes.status, 401)
 
-    const statusRes = await getStatus(olderSession)
+    const statusRes = await getStatus(token)
     assert.equal(statusRes.status, 200)
     assert.equal(statusRes.body.setup, true)
 
-    const disableRes = await request(app)
-      .post('/rest/2fa/disable')
-      .set({
-        Authorization: 'Bearer ' + olderSession,
-        'content-type': 'application/json'
-      })
-      .send({ password: newPassword, totpToken: generateSync({ secret: totpSecret }) })
+    const disableRes = await disable(token, { password: newPassword, totpToken: generateSync({ secret: totpSecret }) })
     assert.equal(disableRes.status, 200)
+  })
+})
+
+void describe('sessions created before a password or 2fa change', () => {
+  void it('cannot disable 2fa with the old password after the password changed and 2fa was enabled in another session', async () => {
+    const email = 'stalesession1@bar.com'
+    const oldPassword = '123456'
+    const newPassword = '654321'
+    const secret = generateSecret()
+
+    await register(app, { email, password: oldPassword })
+    const { token: attackerSession } = await login(app, { email, password: oldPassword })
+    const ownerSession = await loginAsOtherSession(attackerSession, { email, password: oldPassword })
+
+    const changeRes = await request(app)
+      .get(`/rest/user/change-password?current=${oldPassword}&new=${newPassword}&repeat=${newPassword}`)
+      .set('Authorization', 'Bearer ' + ownerSession)
+    assert.equal(changeRes.status, 200)
+    assert.equal((await setup(ownerSession, newPassword, secret)).status, 200)
+
+    const staleRes = await disable(attackerSession, { password: oldPassword, totpToken: generateSync({ secret }) })
+    assert.equal(staleRes.status, 401)
+    assert.equal((await getStatus(attackerSession)).status, 401)
+    assert.equal((await request(app).get('/api/Complaints').set('Authorization', 'Bearer ' + attackerSession)).status, 401)
+
+    const ownerStatus = await getStatus(ownerSession)
+    assert.equal(ownerStatus.status, 200)
+    assert.equal(ownerStatus.body.setup, true)
+  })
+
+  void it('cannot replace a 2fa secret that was set up in another session', async () => {
+    const email = 'stalesession2@bar.com'
+    const password = '123456'
+    const ownerSecret = generateSecret()
+    const attackerSecret = generateSecret()
+
+    await register(app, { email, password })
+    const { token: attackerSession } = await login(app, { email, password })
+    const ownerSession = await loginAsOtherSession(attackerSession, { email, password })
+
+    assert.equal((await setup(ownerSession, password, ownerSecret)).status, 200)
+    assert.equal((await setup(attackerSession, password, attackerSecret)).status, 401)
+
+    const { token: freshSession } = await login(app, { email, password, totpSecret: ownerSecret })
+    const statusRes = await getStatus(freshSession)
+    assert.equal(statusRes.status, 200)
+    assert.equal(statusRes.body.setup, true)
+  })
+
+  void it('end when 2fa is disabled in another session', async () => {
+    const email = 'stalesession3@bar.com'
+    const password = '123456'
+    const totpSecret = generateSecret()
+
+    await register(app, { email, password, totpSecret })
+    const { token: otherSession } = await login(app, { email, password, totpSecret })
+    const token = await loginAsOtherSession(otherSession, { email, password, totpSecret })
+
+    assert.equal((await disable(token, { password, totpToken: generateSync({ secret: totpSecret }) })).status, 200)
+
+    assert.equal((await getStatus(otherSession)).status, 401)
+    assert.equal((await request(app).get('/api/Complaints').set('Authorization', 'Bearer ' + otherSession)).status, 401)
+    assert.equal((await request(app).get('/api/Complaints').set('Authorization', 'Bearer ' + token)).status, 200)
+  })
+
+  void it('end when the password changes but a new login still works', async () => {
+    const email = 'stalesession4@bar.com'
+    const oldPassword = '123456'
+    const newPassword = '654321'
+
+    await register(app, { email, password: oldPassword })
+    const { token: otherSession } = await login(app, { email, password: oldPassword })
+    const token = await loginAsOtherSession(otherSession, { email, password: oldPassword })
+
+    const changeRes = await request(app)
+      .get(`/rest/user/change-password?current=${oldPassword}&new=${newPassword}&repeat=${newPassword}`)
+      .set('Authorization', 'Bearer ' + token)
+    assert.equal(changeRes.status, 200)
+
+    assert.equal((await getStatus(otherSession)).status, 401)
+    assert.equal((await getStatus(token)).status, 200)
+
+    const { token: newSession } = await login(app, { email, password: newPassword })
+    assert.equal((await getStatus(newSession)).status, 200)
   })
 })
