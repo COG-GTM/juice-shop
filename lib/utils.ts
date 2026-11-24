@@ -10,7 +10,6 @@ import logger from './logger'
 import config from 'config'
 import download from 'download'
 import crypto from 'node:crypto'
-import clarinet from 'clarinet'
 import type { Challenge } from 'data/types'
 
 import isHeroku from './is-heroku'
@@ -188,20 +187,6 @@ export function getChallengeEnablementStatus (challenge: Challenge,
 export function isChallengeEnabled (challenge: Challenge): boolean {
   const { enabled } = getChallengeEnablementStatus(challenge)
   return enabled
-}
-
-export const parseJsonCustom = (jsonString: string) => {
-  const parser = clarinet.parser()
-  const result: any[] = []
-  parser.onkey = parser.onopenobject = (k: any) => {
-    result.push({ key: k, value: null })
-  }
-  parser.onvalue = (v: any) => {
-    result[result.length - 1].value = v
-  }
-  parser.write(jsonString)
-  parser.close()
-  return result
 }
 
 export const toSimpleIpAddress = (ipv6: string) => {
