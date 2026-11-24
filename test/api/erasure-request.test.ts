@@ -87,7 +87,7 @@ void describe('/dataerasure', () => {
     assert.equal(res.status, 200)
   })
 
-  void it('POST erasure request with non-existing file path as layout parameter throws error', async () => {
+  void it('POST erasure request with non-existing file path as layout parameter is rejected', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -96,10 +96,11 @@ void describe('/dataerasure', () => {
       .send({ layout: '../this/file/does/not/exist' })
 
     assert.equal(res.status, 500)
-    assert.ok(res.text.includes('no such file or directory'))
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(!res.text.includes('no such file or directory'))
   })
 
-  void it('POST erasure request with existing file path as layout parameter returns content truncated', async () => {
+  void it('POST erasure request with existing file path as layout parameter is rejected', async () => {
     const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
 
     const res = await request(app)
@@ -107,8 +108,65 @@ void describe('/dataerasure', () => {
       .set({ Cookie: 'token=' + token })
       .send({ layout: '../package.json' })
 
+    assert.equal(res.status, 500)
+    assert.ok(res.text.includes('Error: Blocked illegal activity'))
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+  })
+})
+
+void describe('/dataerasure local file read via render options', () => {
+  void it('POST erasure request with layout parameter does not leak file content', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('layout=../package.json')
+
+    assert.equal(res.status, 500)
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+    assert.ok(!res.text.includes('"devDependencies"'))
+  })
+
+  void it('POST erasure request with settings view options layout does not leak file content', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('settings[view options][layout]=package.json&settings[views]=.')
+
+    assert.equal(res.status, 500)
+    assert.ok(!res.text.includes('"name": "juice-shop"'))
+    assert.ok(!res.text.includes('"devDependencies"'))
+    assert.ok(!res.text.includes('BEGIN RSA PRIVATE KEY'))
+  })
+
+  void it('POST erasure request with settings pointing at token signing key source does not leak it', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('settings[view options][layout]=lib/insecurity.ts&settings[views]=.')
+
+    assert.equal(res.status, 500)
+    assert.ok(!res.text.includes('BEGIN RSA PRIVATE KEY'))
+  })
+
+  void it('POST erasure request with only named fields renders the normal result page without a layout', async () => {
+    const { token } = await login(app, { email: 'bjoern.kimminich@gmail.com', password: 'bW9jLmxpYW1nQGhjaW5pbW1pay5ucmVvamI=' })
+
+    const res = await request(app)
+      .post('/dataerasure/')
+      .set({ Cookie: 'token=' + token })
+      .type('form')
+      .send('email=bjoern.kimminich@gmail.com&securityAnswer=foo')
+
     assert.equal(res.status, 200)
-    assert.ok(res.text.includes('juice-shop'))
-    assert.ok(res.text.includes('......'))
+    assert.ok(res.text.includes('Sorry to see you leave!'))
   })
 })
