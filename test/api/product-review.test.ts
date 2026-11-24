@@ -142,12 +142,12 @@ void describe('/rest/products/reviews', () => {
     const { token } = await login(app, { email, password: 'Mr. N00dles' })
     const before = (await request(app).get('/rest/products/1/reviews')).body.data.find((review: any) => review._id === reviewId)
 
-    const responses = await Promise.all(Array.from({ length: 10 }, async () => await request(app)
+    const responses = await Promise.all(Array.from({ length: 20 }, async () => await request(app)
       .post('/rest/products/reviews')
       .set({ Authorization: `Bearer ${token}` })
       .send({ id: reviewId })))
 
-    assert.deepEqual(responses.map(res => res.status).sort(), [200, ...Array(9).fill(403)])
+    assert.deepEqual(responses.map(res => res.status).sort(), [200, ...Array(19).fill(403)])
     const after = (await request(app).get('/rest/products/1/reviews')).body.data.find((review: any) => review._id === reviewId)
     assert.equal(after.likesCount, before.likesCount + 1)
     assert.equal(after.likedBy.filter((likedBy: string) => likedBy === email).length, 1)
