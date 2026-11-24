@@ -49,8 +49,8 @@
             <div class="comment">
               <div class="review-row">
                 <div class="review-text"
-                  (click)="review.author !== 'Anonymous' && review.author === author && editReview(review)"
-                  matTooltipDisabled="{{review.author !== author}}" matTooltip="{{'LABEL_EDIT_REVIEW' | translate}}"
+                  (click)="review.editable && editReview(review)"
+                  [matTooltipDisabled]="!review.editable" matTooltip="{{'LABEL_EDIT_REVIEW' | translate}}"
                   matTooltipPosition="right">
                   <cite>{{review.author}}</cite>
                   <p>{{ review.message }}</p>
