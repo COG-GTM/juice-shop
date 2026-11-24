@@ -11,6 +11,7 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
+// @ts-expect-error FIXME no typescript definitions for z85 :(
 import z85 from 'z85'
 
 let app: Express
