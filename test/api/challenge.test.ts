@@ -80,6 +80,48 @@ void describe('/api/Challenges/:id', () => {
   })
 })
 
+void describe('/api/Challenges write protection', () => {
+  const unsignedToken = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJkYXRhIjp7ImVtYWlsIjoiYWRtaW5AanVpY2Utc2gub3AifSwiaWF0IjoxNTA4NjM5NjEyLCJleHAiOjk5OTk5OTk5OTl9.'
+  const unsignedAuthHeader = { Authorization: 'Bearer ' + unsignedToken, 'content-type': 'application/json' }
+  const payload = '<img src=x onerror=alert(1)>'
+
+  async function descriptions () {
+    const res = await request(app).get('/api/Challenges')
+    return res.body.data.map((challenge: { description: string }) => challenge.description)
+  }
+
+  void it('PUT with unsigned token does not change a challenge description', async () => {
+    const before = await descriptions()
+    const res = await request(app)
+      .put('/api/Challenges/1')
+      .set(unsignedAuthHeader)
+      .send({ description: payload })
+    assert.ok([401, 403].includes(res.status), `unexpected status ${res.status}`)
+    const after = await descriptions()
+    assert.deepEqual(after, before)
+    assert.ok(!after.some((description: string) => description.includes(payload)))
+  })
+
+  void it('POST with unsigned token does not create a challenge', async () => {
+    const before = await descriptions()
+    const res = await request(app)
+      .post('/api/Challenges')
+      .set(unsignedAuthHeader)
+      .send({ name: 'Injected', key: 'injected', description: payload, difficulty: 1 })
+    assert.ok([401, 403].includes(res.status), `unexpected status ${res.status}`)
+    assert.equal((await descriptions()).length, before.length)
+  })
+
+  void it('DELETE with unsigned token does not remove a challenge', async () => {
+    const before = await descriptions()
+    const res = await request(app)
+      .delete('/api/Challenges/1')
+      .set(unsignedAuthHeader)
+    assert.ok([401, 403].includes(res.status), `unexpected status ${res.status}`)
+    assert.equal((await descriptions()).length, before.length)
+  })
+})
+
 void describe('/rest/continue-code', () => {
   void it('GET can retrieve continue code for currently solved challenges', async () => {
     const res = await request(app)

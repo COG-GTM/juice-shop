@@ -134,6 +134,26 @@ describe('ScoreBoardComponent', () => {
         expect(component.filteredChallenges).toHaveLength(3)
     })
 
+    it('should sanitize challenge descriptions instead of trusting them as HTML', (): void => {
+        challengeService.find.mockReturnValue(of([
+            createChallenge({
+                name: 'Tampered',
+                key: 'tampered',
+                description: 'Use <code>payload</code> and <a href="/#/contact">contact</a>.<img src="x" onerror="alert(1)">'
+            })
+        ]))
+        fixture = TestBed.createComponent(ScoreBoardComponent)
+        component = fixture.componentInstance
+        fixture.detectChanges()
+
+        expect(typeof component.allChallenges[0].description).toBe('string')
+        const description: HTMLElement = fixture.nativeElement.querySelector('.description-row')
+        expect(description.querySelector('code')?.textContent).toBe('payload')
+        expect(description.querySelector('a')?.getAttribute('href')).toBe('/#/contact')
+        expect(description.querySelector('[onerror]')).toBeNull()
+        expect(description.innerHTML).not.toContain('onerror')
+    })
+
     it('should handle error when unlocking a hint', (): void => {
         hintService.put.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
