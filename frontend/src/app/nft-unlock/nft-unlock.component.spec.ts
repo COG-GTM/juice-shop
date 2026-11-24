@@ -56,10 +56,22 @@ describe('NFTUnlockComponent', () => {
     })
 
     it('should check NFT unlock status on init', () => {
-        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true }))
+        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true, address: '0xabc123' }))
         component.ngOnInit()
         expect(keysServiceSpy.nftUnlocked).toHaveBeenCalled()
         expect(component.successResponse).toBe(true)
+        expect(component.walletAddress).toBe('0xabc123')
+    })
+
+    it('should display the wallet address returned by the server once unlocked', () => {
+        keysServiceSpy.nftUnlocked.mockReturnValue(of({ status: true, address: '0x1234abcdEF5678' }))
+        component.ngOnInit()
+        fixture.detectChanges()
+        const element: HTMLElement = fixture.nativeElement
+        const ownerLink = element.querySelector('.owner-text a') as HTMLAnchorElement
+        expect(ownerLink.getAttribute('href')).toBe('https://testnets.opensea.io/0x1234abcdEF5678')
+        expect(ownerLink.textContent?.trim()).toBe('1234AB')
+        expect(element.querySelector('.box-text')?.textContent?.trim()).toBe('0x1234abcdEF5678')
     })
 
     it('should handle error when checking NFT status on init', () => {
@@ -70,12 +82,16 @@ describe('NFTUnlockComponent', () => {
     })
 
     it('should handle successful key submission', () => {
-        keysServiceSpy.submitKey.mockReturnValue(of({ success: true, message: 'Success!' }))
+        keysServiceSpy.submitKey.mockReturnValue(of({ success: true, message: 'Success!', address: '0xfeedBEEF1234' }))
         component.privateKey = 'test-private-key'
         component.submitForm()
+        fixture.detectChanges()
         expect(component.formSubmitted).toBe(true)
         expect(component.successResponse).toBe(true)
         expect(component.errorMessage).toBe('Success!')
+        const element: HTMLElement = fixture.nativeElement
+        expect(element.querySelector('.owner-text a')?.getAttribute('href')).toBe('https://testnets.opensea.io/0xfeedBEEF1234')
+        expect(element.querySelector('.box-text')?.textContent?.trim()).toBe('0xfeedBEEF1234')
     })
 
     it('should handle failed key submission with error response', () => {

@@ -23,6 +23,7 @@ export class NFTUnlockComponent implements OnInit {
   formSubmitted = false
   successResponse = false
   errorMessage = ''
+  walletAddress = ''
 
   // Params for translation with HTML link
   i18nParams = {
@@ -38,6 +39,7 @@ export class NFTUnlockComponent implements OnInit {
       next:
       (response) => {
         this.successResponse = response.status
+        this.walletAddress = response.address ?? ''
       },
       error: (error) => {
         console.error(error)
@@ -55,6 +57,7 @@ export class NFTUnlockComponent implements OnInit {
         if (response.success) {
           this.successResponse = true
           this.errorMessage = response.message
+          this.walletAddress = response.address ?? ''
         } else {
           this.successResponse = false
         }

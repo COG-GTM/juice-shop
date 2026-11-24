@@ -2,12 +2,13 @@ import { type Request, type Response } from 'express'
 import * as challengeUtils from '../lib/challengeUtils'
 import * as utils from '../lib/utils'
 import { challenges } from '../data/datacache'
+import { getNftWalletMnemonic } from '../lib/nftWallet'
 
 export function checkKeys () {
   return async (req: Request, res: Response) => {
     try {
       const { HDNodeWallet } = await import('ethers')
-      const mnemonic = 'purpose betray marriage blame crunch monitor spin slide donate sport lift clutch'
+      const mnemonic = await getNftWalletMnemonic()
       const mnemonicWallet = HDNodeWallet.fromPhrase(mnemonic)
       const privateKey = mnemonicWallet.privateKey
       const publicKey = mnemonicWallet.publicKey
@@ -16,7 +17,7 @@ export function checkKeys () {
         return req.body.privateKey === privateKey
       })
       if (req.body.privateKey === privateKey) {
-        res.status(200).json({ success: true, message: 'Challenge successfully solved', status: challenges.nftUnlockChallenge })
+        res.status(200).json({ success: true, message: 'Challenge successfully solved', status: challenges.nftUnlockChallenge, address })
       } else {
         if (req.body.privateKey === address) {
           res.status(401).json({ success: false, message: 'Looks like you entered the public address of my ethereum wallet!', status: challenges.nftUnlockChallenge })
@@ -32,9 +33,11 @@ export function checkKeys () {
   }
 }
 export function nftUnlocked () {
-  return (req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     try {
-      res.status(200).json({ status: challenges.nftUnlockChallenge.solved })
+      const { HDNodeWallet } = await import('ethers')
+      const { address } = HDNodeWallet.fromPhrase(await getNftWalletMnemonic())
+      res.status(200).json({ status: challenges.nftUnlockChallenge.solved, address })
     } catch (error) {
       res.status(500).json(utils.getErrorMessage(error))
     }
