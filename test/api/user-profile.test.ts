@@ -89,6 +89,25 @@ void describe('/profile', () => {
     })
   }
 
+  void it('POST update username keeps the basket usable with the re-issued session cookie', async () => {
+    const { token, bid } = await login(app, { email: 'jim@juice-sh.op', password: 'ncc-1701' })
+    const profileRes = await request(app)
+      .post('/profile')
+      .set('Cookie', `token=${token}`)
+      .field('username', 'Localhorst')
+      .redirects(0)
+    const reissued = sessionCookie(profileRes)?.split(';')[0]
+    assert.ok(reissued)
+
+    const res = await request(app)
+      .post('/api/BasketItems')
+      .set('Cookie', reissued)
+      .send({ BasketId: bid, ProductId: 9, quantity: 1 })
+
+    assert.notEqual(res.status, 401)
+    assert.equal(res.body.status, 'success')
+  })
+
   void it('POST update username cross-site without the SameSite=Strict cookie is rejected with 403', async () => {
     const res = await request(app)
       .post('/profile')

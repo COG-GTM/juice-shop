@@ -44,7 +44,7 @@ export function upgradeToDeluxe () {
         challengeUtils.solveIf(challenges.freeDeluxeChallenge, () => {
           return security.verify(utils.jwtFrom(req)) && req.body.paymentMode !== 'wallet' && req.body.paymentMode !== 'card'
         })
-        const userWithStatus = utils.queryResultToJson(updatedUser)
+        const userWithStatus = { ...utils.queryResultToJson(updatedUser), bid: security.authenticatedUsers.from(req)?.bid }
         const updatedToken = security.authorize(userWithStatus)
         security.authenticatedUsers.put(updatedToken, userWithStatus)
         security.setSessionCookie(res, updatedToken)

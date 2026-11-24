@@ -39,7 +39,7 @@ export function updateUserProfile () {
       })
 
       const savedUser = await user.update({ username: req.body.username })
-      const userWithStatus = utils.queryResultToJson(savedUser)
+      const userWithStatus = { ...utils.queryResultToJson(savedUser), bid: loggedInUser.bid }
       const updatedToken = security.authorize(userWithStatus)
       security.authenticatedUsers.put(updatedToken, userWithStatus)
       security.setSessionCookie(res, updatedToken)
