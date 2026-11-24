@@ -9,10 +9,20 @@ import request from 'supertest'
 import type { Express } from 'express'
 import config from 'config'
 import path from 'node:path'
+import fs from 'node:fs'
+import * as security from '../../lib/insecurity'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
+
+const uploadsDir = path.resolve('frontend/dist/frontend/assets/public/images/uploads')
+
+function craftedSession (name: string) {
+  const token = `crafted-${name}`
+  security.authenticatedUsers.put(token, { data: { id: `../${name}` } } as any)
+  return token
+}
 
 before(async () => {
   const result = await createTestApp()
@@ -67,6 +77,22 @@ void describe('/profile/image/file', () => {
     assert.ok(res.headers['content-type']?.includes('text/html'))
     assert.ok(res.text.includes('Error: Blocked illegal activity'))
   })
+
+  void it('POST profile image file rejected for session with non-numeric user id', async () => {
+    const name = 'traversal-file-upload'
+    const token = craftedSession(name)
+    const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
+
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Cookie', `token=${token}`)
+      .attach('file', file)
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+    assert.ok(res.text.includes('Error: Invalid user id in session'))
+    assert.equal(fs.existsSync(path.resolve(uploadsDir, `../${name}.jpg`)), false)
+  })
 })
 
 void describe('/profile/image/url', () => {
@@ -98,6 +124,21 @@ void describe('/profile/image/url', () => {
       .redirects(0)
 
     assert.equal(res.status, 302)
+  })
+
+  void it('POST profile image URL rejected for session with non-numeric user id', async () => {
+    const name = 'traversal-url-upload'
+    const token = craftedSession(name)
+
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Cookie', `token=${token}`)
+      .field('imageUrl', 'https://notanimage.here/100/100.svg')
+      .redirects(0)
+
+    assert.equal(res.status, 400)
+    assert.ok(res.text.includes('Error: Invalid user id in session'))
+    assert.equal(fs.existsSync(path.resolve(uploadsDir, `../${name}.svg`)), false)
   })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
