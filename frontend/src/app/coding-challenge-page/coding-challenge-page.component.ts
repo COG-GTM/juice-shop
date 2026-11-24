@@ -19,6 +19,8 @@ import { ChallengeService } from '../Services/challenge.service'
 import { CodingChallengeFindItComponent } from './components/coding-challenge-find-it/coding-challenge-find-it.component'
 import { CodingChallengeFixItComponent } from './components/coding-challenge-fix-it/coding-challenge-fix-it.component'
 
+const CHALLENGE_KEY_PATTERN = /^[A-Za-z0-9]+$/
+
 @Component({
   selector: 'coding-challenge-page',
   templateUrl: './coding-challenge-page.component.html',
@@ -47,6 +49,9 @@ export class CodingChallengePageComponent implements OnInit {
       switchMap((params) => {
         this.challengeKey = params['challengeKey']
         this.isLoaded = false
+        if (typeof this.challengeKey !== 'string' || !CHALLENGE_KEY_PATTERN.test(this.challengeKey)) {
+          return of({ challenges: [], snippet: null, fixes: null })
+        }
         return forkJoin({
           challenges: this.challengeService.find({ sort: 'name' }),
           snippet: this.codeSnippetService.get(this.challengeKey).pipe(

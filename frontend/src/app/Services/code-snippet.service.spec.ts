@@ -38,6 +38,18 @@ describe('CodeSnippetService', () => {
         httpMock.verify()
     })
 
+    it('should keep a traversal key inside the snippets path', () => {
+        const service = TestBed.inject(CodeSnippetService)
+        const httpMock = TestBed.inject(HttpTestingController)
+
+        service.get('../../rest/user/change-password?new=x&repeat=x').subscribe({ next: () => { }, error: () => { } })
+
+        const req = httpMock.expectOne('http://localhost:3000/snippets/..%2F..%2Frest%2Fuser%2Fchange-password%3Fnew%3Dx%26repeat%3Dx')
+        expect(req.request.method).toBe('GET')
+        req.flush(null, { status: 404, statusText: 'Not Found' })
+        httpMock.verify()
+    })
+
     it('should handle error when getting single snippet', () => {
         const service = TestBed.inject(CodeSnippetService)
         const httpMock = TestBed.inject(HttpTestingController)

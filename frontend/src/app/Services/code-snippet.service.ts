@@ -28,6 +28,6 @@ export class CodeSnippetService {
   private readonly host = this.hostServer + '/snippets'
 
   get (key: string): Observable<CodeSnippet> {
-    return this.http.get<CodeSnippet>(`${this.host}/${key}`).pipe(map((response: CodeSnippet) => response), catchError((err) => { throw err }))
+    return this.http.get<CodeSnippet>(`${this.host}/${encodeURIComponent(key)}`).pipe(map((response: CodeSnippet) => response), catchError((err) => { throw err }))
   }
 }

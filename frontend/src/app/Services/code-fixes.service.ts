@@ -26,7 +26,7 @@ export class CodeFixesService {
   private readonly host = this.hostServer + '/snippets/fixes'
 
   get (key: string): Observable<Fixes> {
-    return this.http.get(this.host + `/${key}`).pipe(map((response: Fixes) => response), catchError((error: any) => { throw error }))
+    return this.http.get(this.host + `/${encodeURIComponent(key)}`).pipe(map((response: Fixes) => response), catchError((error: any) => { throw error }))
   }
 
   check (key: string, selectedFix: number): any {

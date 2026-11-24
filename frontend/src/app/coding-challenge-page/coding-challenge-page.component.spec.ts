@@ -9,7 +9,7 @@ import { TranslateModule } from '@ngx-translate/core'
 import { provideHttpClientTesting } from '@angular/common/http/testing'
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { ActivatedRoute, provideRouter } from '@angular/router'
-import { of, Subject, throwError } from 'rxjs'
+import { BehaviorSubject, of, Subject, throwError } from 'rxjs'
 
 import { CodingChallengePageComponent } from './coding-challenge-page.component'
 import { CodeSnippetService } from '../Services/code-snippet.service'
@@ -52,7 +52,10 @@ describe('CodingChallengePageComponent', () => {
         return { component, fixture }
     }
 
+    let routeParams: Subject<Record<string, string>>
+
     beforeEach(async () => {
+        routeParams = new BehaviorSubject<Record<string, string>>({ challengeKey: 'testChallenge' })
         codeSnippetService = {
             get: vi.fn().mockName("CodeSnippetService.get")
         }
@@ -84,7 +87,7 @@ describe('CodingChallengePageComponent', () => {
                 { provide: ChallengeService, useValue: challengeService },
                 {
                     provide: ActivatedRoute,
-                    useValue: { params: of({ challengeKey: 'testChallenge' }) }
+                    useValue: { params: routeParams }
                 },
                 provideHttpClient(withInterceptorsFromDi()),
                 provideHttpClientTesting()
@@ -158,6 +161,28 @@ describe('CodingChallengePageComponent', () => {
         expect(component.challengeName).toBeUndefined()
         expect(component.findItSolved).toBe(false)
         expect(component.fixItSolved).toBe(false)
+    })
+
+    it.each([
+        '../../rest/user/change-password?new=x&repeat=x',
+        '..\\..\\rest\\user\\whoami',
+        'loginAdminChallenge/../../api/Users',
+        ''
+    ])('should not request snippet or fixes for malformed challenge key %j', (challengeKey) => {
+        routeParams.next({ challengeKey })
+        const { component, fixture } = createComponent()
+        expect(codeSnippetService.get).not.toHaveBeenCalled()
+        expect(codeFixesService.get).not.toHaveBeenCalled()
+        expect(component.isLoaded).toBe(true)
+        expect(component.snippet).toBeNull()
+        expect(component.fixes).toBeNull()
+        expect(fixture.nativeElement.querySelector('coding-challenge-find-it')).toBeNull()
+    })
+
+    it('should request snippet and fixes for a plain alphanumeric challenge key', () => {
+        createComponent()
+        expect(codeSnippetService.get).toHaveBeenCalledWith('testChallenge')
+        expect(codeFixesService.get).toHaveBeenCalledWith('testChallenge')
     })
 
     describe('template rendering', () => {
