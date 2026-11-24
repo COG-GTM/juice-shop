@@ -7,6 +7,7 @@ import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
 import type { Express } from 'express'
+import type { Sequelize } from 'sequelize'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 import { challenges } from '../../data/datacache'
@@ -14,12 +15,14 @@ import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 
 let app: Express
+let sequelize: Sequelize
 const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
   app = result.app
+  sequelize = result.sequelize
 }, { timeout: 60000 })
 
 void describe('/api/Feedbacks', () => {
@@ -27,6 +30,39 @@ void describe('/api/Feedbacks', () => {
     const res = await request(app)
       .get('/api/Feedbacks')
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all feedback runs no wildcard text searches', async () => {
+    const queries: string[] = []
+    const options = (sequelize as unknown as { options: { logging: false | ((sql: string) => void) } }).options
+    options.logging = (sql: string) => { queries.push(sql) }
+    try {
+      const res = await request(app)
+        .get('/api/Feedbacks')
+      assert.equal(res.status, 200)
+    } finally {
+      options.logging = false
+    }
+    assert.ok(queries.length > 0)
+    assert.deepEqual(queries.filter(sql => sql.includes(' LIKE ') || sql.includes('`Complaints`')), [])
+  })
+
+  void it('POST solves text-based challenges from the new comment right away', async () => {
+    challenges.hiddenImageChallenge.solved = false
+    const captchaRes = await request(app)
+      .get('/rest/captcha')
+
+    const res = await request(app)
+      .post('/api/Feedbacks')
+      .set(jsonHeader)
+      .send({
+        comment: 'Pickle Rick is hiding behind one of the support team ladies',
+        rating: 3,
+        captchaId: captchaRes.body.captchaId,
+        captcha: captchaRes.body.answer
+      })
+    assert.equal(res.status, 201)
+    assert.equal(challenges.hiddenImageChallenge.solved, true)
   })
 
   void it('POST sanitizes unsafe HTML from comment', async () => {
@@ -300,5 +336,21 @@ void describe('/api/Feedbacks/:id', () => {
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE of the last five-star feedback solves feedbackChallenge', async () => {
+    challenges.feedbackChallenge.solved = false
+    const listRes = await request(app)
+      .get('/api/Feedbacks')
+    const fiveStarIds: number[] = listRes.body.data.filter((feedback: { rating: number }) => feedback.rating === 5).map((feedback: { id: number }) => feedback.id)
+    assert.ok(fiveStarIds.length > 1)
+
+    for (const [index, id] of fiveStarIds.entries()) {
+      const res = await request(app)
+        .delete('/api/Feedbacks/' + id)
+        .set(authHeader)
+      assert.equal(res.status, 200)
+      assert.equal(challenges.feedbackChallenge.solved, index === fiveStarIds.length - 1)
+    }
   })
 })

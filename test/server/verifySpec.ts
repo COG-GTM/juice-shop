@@ -213,7 +213,7 @@ describe('verify', () => {
     describe('"changeProductChallenge"', () => {
       beforeEach(() => {
         challenges.changeProductChallenge = { solved: false, save } as unknown as Challenge
-        products.osaft = { reload () { return { then (cb: any) { cb() } } } } as unknown as Product
+        products.osaft = { reload () { return { then (cb: any) { cb(); return { catch () {} } } } } } as unknown as Product
       })
 
       it(`is solved when the link in the O-Saft product goes to ${config.get<string>('challenges.overwriteUrlForProductTamperingChallenge')}`, () => {

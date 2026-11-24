@@ -16,6 +16,7 @@ import {
 } from 'sequelize'
 import { challenges } from '../data/datacache'
 import * as security from '../lib/insecurity'
+import { solveFiveStarFeedbackChallenge, solveTextChallenges } from '../lib/feedbackAndComplaintChallenges'
 
 class Feedback extends Model<
 InferAttributes<Feedback>,
@@ -68,7 +69,12 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
     },
     {
       tableName: 'Feedbacks',
-      sequelize
+      sequelize,
+      hooks: {
+        afterCreate: (feedback: Feedback) => { solveTextChallenges(feedback.comment) },
+        afterDestroy: async () => { await solveFiveStarFeedbackChallenge(async () => await Feedback.count({ where: { rating: 5 } })) },
+        afterBulkDestroy: async () => { await solveFiveStarFeedbackChallenge(async () => await Feedback.count({ where: { rating: 5 } })) }
+      }
     }
   )
 }
