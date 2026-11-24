@@ -8,7 +8,7 @@ import http from 'node:http'
 import { type AddressInfo } from 'node:net'
 import sinon from 'sinon'
 import chai from 'chai'
-import { getVideo, parseByteRange } from '../../routes/videoHandler'
+import { getVideo, parseByteRange, promotionVideo } from '../../routes/videoHandler'
 const expect = chai.expect
 
 const sourceVideo = 'frontend/src/assets/public/videos/owasp_promo.mp4'
@@ -105,6 +105,32 @@ describe('videoHandler', () => {
       expect(res.statusCode).to.equal(416)
       expect(res.headers['content-range']).to.match(/^bytes \*\/\d+$/)
       expect(streams).to.have.lengthOf(0)
+    })
+  })
+
+  describe('promotionVideo', () => {
+    afterEach(() => {
+      sinon.restore()
+    })
+
+    function render () {
+      return new Promise<unknown>((resolve) => {
+        const res = { send: () => { resolve(undefined) } }
+        promotionVideo()({} as any, res as any, (err?: unknown) => { resolve(err) })
+      })
+    }
+
+    it('should pass template read errors to next instead of throwing', async () => {
+      const error = new Error('EMFILE: too many open files')
+      sinon.stub(fs, 'readFile').callsFake(((_path: any, callback: any) => { callback(error) }) as any)
+      expect(await render()).to.equal(error)
+    })
+
+    it('should pass subtitle read errors to next instead of throwing', async () => {
+      const error = new Error('EMFILE: too many open files')
+      sinon.stub(fs, 'readFile').callsFake(((_path: any, callback: any) => { callback(null, Buffer.from('html')) }) as any)
+      sinon.stub(fs, 'readFileSync').throws(error)
+      expect(await render()).to.equal(error)
     })
   })
 })

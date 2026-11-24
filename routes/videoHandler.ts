@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import { pipeline } from 'node:stream'
 import config from 'config'
-import { type Request, type Response } from 'express'
+import { type NextFunction, type Request, type Response } from 'express'
 import { AllHtmlEntities as Entities } from 'html-entities'
 
 import * as challengeUtils from '../lib/challengeUtils'
@@ -69,28 +69,35 @@ export function parseByteRange (range: string, fileSize: number): { start: numbe
 }
 
 export const promotionVideo = () => {
-  return (req: Request, res: Response) => {
+  return (req: Request, res: Response, next: NextFunction) => {
     fs.readFile('views/promotionVideo.pug', async function (err, buf) {
-      if (err != null) throw err
-      let template = buf.toString()
-      const subs = getSubsFromFile()
+      if (err != null) {
+        next(err)
+        return
+      }
+      try {
+        let template = buf.toString()
+        const subs = getSubsFromFile()
 
-      challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
+        challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
 
-      const themeKey = config.get<string>('application.theme') as keyof typeof themes
-      const theme = themes[themeKey] || themes['bluegrey-lightgreen']
-      template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
-      template = template.replace(/_favicon_/g, favicon())
-      template = template.replace(/_bgColor_/g, theme.bgColor)
-      template = template.replace(/_textColor_/g, theme.textColor)
-      template = template.replace(/_navColor_/g, theme.navColor)
-      template = template.replace(/_primLight_/g, theme.primLight)
-      template = template.replace(/_primDark_/g, theme.primDark)
-      const pug = (await import('pug')).default
-      const fn = pug.compile(template)
-      let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
-      res.send(compiledTemplate)
+        const themeKey = config.get<string>('application.theme') as keyof typeof themes
+        const theme = themes[themeKey] || themes['bluegrey-lightgreen']
+        template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
+        template = template.replace(/_favicon_/g, favicon())
+        template = template.replace(/_bgColor_/g, theme.bgColor)
+        template = template.replace(/_textColor_/g, theme.textColor)
+        template = template.replace(/_navColor_/g, theme.navColor)
+        template = template.replace(/_primLight_/g, theme.primLight)
+        template = template.replace(/_primDark_/g, theme.primDark)
+        const pug = (await import('pug')).default
+        const fn = pug.compile(template)
+        let compiledTemplate = fn()
+        compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+        res.send(compiledTemplate)
+      } catch (error) {
+        next(error)
+      }
     })
   }
   function favicon () {
