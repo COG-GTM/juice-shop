@@ -19,19 +19,19 @@ describe('/#/privacy-security/change-password', () => {
   })
 
   describe('challenge "changePasswordBenderChallenge"', () => {
-    it('should be able to change password via XSS-powered attack on password change without passing current password', () => {
+    it('should detect the XSS-powered attempt to change password without passing current password and keep the password unchanged', () => {
       cy.login({
         email: 'bender',
         password: 'OhG0dPlease1nsertLiquor!'
       })
-      cy.visit(
-        '/#/search?q=%3Ciframe%20src%3D%22javascript%3Axmlhttp%20%3D%20new%20XMLHttpRequest%28%29%3B%20xmlhttp.open%28%27GET%27%2C%20%27http%3A%2F%2Flocalhost%3A3000%2Frest%2Fuser%2Fchange-password%3Fnew%3DslurmCl4ssic%26amp%3Brepeat%3DslurmCl4ssic%27%29%3B%20xmlhttp.setRequestHeader%28%27Authorization%27%2C%60Bearer%3D%24%7BlocalStorage.getItem%28%27token%27%29%7D%60%29%3B%20xmlhttp.send%28%29%3B%22%3E'
-      )
+      const payload = "<iframe src=\"javascript:xmlhttp = new XMLHttpRequest(); xmlhttp.open('POST', 'http://localhost:3000/rest/user/change-password'); xmlhttp.setRequestHeader('Authorization',`Bearer=${localStorage.getItem('token')}`); xmlhttp.setRequestHeader('Content-Type', 'application/json'); xmlhttp.send(JSON.stringify({ new: 'slurmCl4ssic', repeat: 'slurmCl4ssic' }));\">"
+      cy.visit('/#/search?q=' + encodeURIComponent(payload))
       cy.wait(2000)
-      cy.login({ email: 'bender', password: 'slurmCl4ssic' })
-      cy.url().should('match', /\/search/)
 
       cy.expectChallengeSolved({ challenge: "Change Bender's Password" })
+
+      cy.login({ email: 'bender', password: 'OhG0dPlease1nsertLiquor!' })
+      cy.url().should('match', /\/search/)
     })
   })
 })
