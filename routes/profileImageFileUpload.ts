@@ -14,6 +14,11 @@ import * as security from '../lib/insecurity'
 
 export function profileImageFileUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
+    if (security.isCrossSiteRequest(req)) {
+      res.status(403)
+      next(new Error('Cross-site profile image upload rejected'))
+      return
+    }
     const file = req.file
     const buffer = file?.buffer
     if (buffer === undefined) {
@@ -35,11 +40,6 @@ export function profileImageFileUpload () {
     const loggedInUser = security.authenticatedUsers.get(req.cookies.token)
     if (!loggedInUser) {
       next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
-      return
-    }
-    if (security.isCrossSiteRequest(req)) {
-      res.status(403)
-      next(new Error('Cross-site profile image upload rejected'))
       return
     }
 

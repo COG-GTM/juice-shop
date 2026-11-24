@@ -109,6 +109,18 @@ void describe('/profile/image/file', () => {
     })
   }
 
+  void it('POST profile image file cross-site without the SameSite=Strict cookie is rejected with 403', async () => {
+    const res = await request(app)
+      .post('/profile/image/file')
+      .set('Host', 'localhost:3000')
+      .set({ 'Sec-Fetch-Site': 'cross-site', Origin: 'http://127.0.0.1:8081' })
+      .attach('file', path.resolve(__dirname, '../files/validProfileImage.jpg'))
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Cross-site profile image upload rejected'))
+  })
+
   void it('POST profile image file forbidden for anonymous user', async () => {
     const file = path.resolve(__dirname, '../files/validProfileImage.jpg')
 
@@ -181,6 +193,18 @@ void describe('/profile/image/url', () => {
       assert.equal(user.profileImage, profileImageBefore)
     })
   }
+
+  void it('POST profile image URL cross-site without the SameSite=Strict cookie is rejected with 403', async () => {
+    const res = await request(app)
+      .post('/profile/image/url')
+      .set('Host', 'localhost:3000')
+      .set({ 'Sec-Fetch-Site': 'cross-site', Origin: 'http://127.0.0.1:8081' })
+      .field('imageUrl', 'http://localhost:3000/assets/public/images/products/apple_juice.jpg')
+      .redirects(0)
+
+    assert.equal(res.status, 403)
+    assert.ok(res.text.includes('Error: Cross-site profile image upload rejected'))
+  })
 
   void it('POST profile image URL forbidden for anonymous user', { skip: 'FIXME runs into "socket hang up"' }, async () => {
     const res = await request(app)

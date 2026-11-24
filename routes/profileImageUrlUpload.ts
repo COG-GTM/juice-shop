@@ -16,7 +16,7 @@ import logger from '../lib/logger'
 export function profileImageUrlUpload () {
   return async (req: Request, res: Response, next: NextFunction) => {
     if (req.body.imageUrl !== undefined) {
-      if (security.authenticatedUsers.get(req.cookies.token) && security.isCrossSiteRequest(req)) {
+      if (security.isCrossSiteRequest(req)) {
         res.status(403)
         next(new Error('Cross-site profile image upload rejected'))
         return
