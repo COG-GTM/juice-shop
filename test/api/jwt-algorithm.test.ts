@@ -80,6 +80,11 @@ void describe('denyAll middleware', () => {
     const res = await request(app).get('/api/Complaints/1')
     assert.equal(res.status, 401)
   })
+
+  void it('rejects an HS256 token signed with the public RSA key', async () => {
+    const res = await request(app).get('/api/Complaints/1').set(bearer(hs256WithPublicKey(accountant)))
+    assert.equal(res.status, 401)
+  })
 })
 
 void describe('isAccounting middleware', () => {
@@ -117,6 +122,15 @@ void describe('updateAuthenticatedUsers middleware', () => {
     assert.equal(res.body.user.id, undefined)
     assert.equal(security.authenticatedUsers.get(token), undefined)
   })
+
+  void it('does not create a session for forged tokens sent as Authorization header to /rest/user/whoami', async () => {
+    for (const token of [unsigned(admin), hs256WithPublicKey(admin)]) {
+      const res = await request(app).get('/rest/user/whoami').set(bearer(token))
+      assert.equal(res.status, 200)
+      assert.equal(res.body.user.id, undefined)
+      assert.equal(security.authenticatedUsers.get(token), undefined)
+    }
+  })
 })
 
 void describe('forged tokens on basket and user management routes', () => {
@@ -135,6 +149,11 @@ void describe('forged tokens on basket and user management routes', () => {
 
   void it('rejects an alg:none admin token on PUT /api/Users/1', async () => {
     const res = await request(app).put('/api/Users/1').set(bearer(unsigned(admin))).send({ role: 'admin' })
+    assert.equal(res.status, 401)
+  })
+
+  void it('rejects an HS256/public-key admin token on PUT /api/Users/1', async () => {
+    const res = await request(app).put('/api/Users/1').set(bearer(hs256WithPublicKey(admin))).send({ role: 'admin' })
     assert.equal(res.status, 401)
   })
 
