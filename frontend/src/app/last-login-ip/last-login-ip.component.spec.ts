@@ -5,17 +5,19 @@
 
 import { TranslateModule, TranslateService } from '@ngx-translate/core'
 import { EventEmitter } from '@angular/core'
-import { of } from 'rxjs'
+import { of, throwError } from 'rxjs'
 import { type ComponentFixture, TestBed } from '@angular/core/testing'
 import { LastLoginIpComponent } from './last-login-ip.component'
 import { MatCardModule } from '@angular/material/card'
 import { DomSanitizer } from '@angular/platform-browser'
+import { UserService } from '../Services/user.service'
 
 describe('LastLoginIpComponent', () => {
     let component: LastLoginIpComponent
     let fixture: ComponentFixture<LastLoginIpComponent>
     let sanitizer
     let translateService
+    let userService
 
     beforeEach(async () => {
         sanitizer = {
@@ -24,6 +26,10 @@ describe('LastLoginIpComponent', () => {
         }
         sanitizer.bypassSecurityTrustHtml.mockImplementation((args: any) => args)
         sanitizer.sanitize.mockReturnValue({})
+        userService = {
+            whoAmI: vi.fn().mockName("UserService.whoAmI")
+        }
+        userService.whoAmI.mockReturnValue(of({}))
         translateService = {
             get: vi.fn().mockName("TranslateService.get")
         }
@@ -36,7 +42,8 @@ describe('LastLoginIpComponent', () => {
         TestBed.configureTestingModule({
             providers: [
                 { provide: DomSanitizer, useValue: sanitizer },
-                { provide: TranslateService, useValue: translateService }
+                { provide: TranslateService, useValue: translateService },
+                { provide: UserService, useValue: userService }
             ],
             imports: [
                 MatCardModule,
@@ -47,35 +54,34 @@ describe('LastLoginIpComponent', () => {
     })
 
     beforeEach(() => {
-        localStorage.clear()
         fixture = TestBed.createComponent(LastLoginIpComponent)
         component = fixture.componentInstance
         fixture.detectChanges()
-    })
-
-    afterEach(() => {
-        localStorage.clear()
     })
 
     it('should compile', () => {
         expect(component).toBeTruthy()
     })
 
-    it('should log JWT parsing error to console', () => {
-        console.log = vi.fn()
-        localStorage.setItem('token', 'definitelyInvalidJWT')
-        component.ngOnInit()
-        expect(console.log).toHaveBeenCalled()
+    it('should request only the lastLoginIp field from whoami', () => {
+        expect(userService.whoAmI).toHaveBeenCalledWith(['lastLoginIp'])
     })
 
-    it('should set Last-Login IP from JWT as trusted HTML', () => {
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7Imxhc3RMb2dpbklwIjoiMS4yLjMuNCJ9fQ.RAkmdqwNypuOxv3SDjPO4xMKvd1CddKvDFYDBfUt3bg')
+    it('should log whoami error to console', () => {
+        console.log = vi.fn()
+        userService.whoAmI.mockReturnValue(throwError(() => 'Error'))
+        component.ngOnInit()
+        expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    it('should set Last-Login IP from whoami as trusted HTML', () => {
+        userService.whoAmI.mockReturnValue(of({ lastLoginIp: '1.2.3.4' }))
         component.ngOnInit()
         expect(sanitizer.bypassSecurityTrustHtml).toHaveBeenCalledWith('<small>1.2.3.4</small>')
     })
 
-    it('should not set Last-Login IP if none is present in JWT', () => {
-        localStorage.setItem('token', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJkYXRhIjp7fX0.bVBhvll6IaeR3aUdoOeyR8YZe2S2DfhGAxTGfd9enLw')
+    it('should not set Last-Login IP if whoami returns none', () => {
+        userService.whoAmI.mockReturnValue(of({}))
         component.ngOnInit()
         expect(sanitizer.bypassSecurityTrustHtml).not.toHaveBeenCalled()
     })

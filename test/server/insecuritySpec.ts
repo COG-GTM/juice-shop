@@ -7,8 +7,9 @@
 import z85 from 'z85'
 import chai from 'chai'
 import * as security from '../../lib/insecurity'
-import type { UserModel } from 'models/user'
-import type { Request } from 'express'
+import sinon from 'sinon'
+import { UserModel } from '../../models/user'
+import type { Request, Response } from 'express'
 const expect = chai.expect
 
 describe('insecurity', () => {
@@ -93,6 +94,18 @@ describe('insecurity', () => {
       expect(security.authenticatedUsers.get(undefined)).to.equal(undefined)
     })
 
+    it('keeps only allowlisted user claims in the session map', () => {
+      security.authenticatedUsers.put('22222', { bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer', password: 'hash', totpSecret: 'SECRET' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('22222')).to.deep.equal({ bid: 3, data: { id: 2, email: 'a@b.c', role: 'customer' } })
+    })
+
+    it('keeps server-side only claims like deluxeToken and lastLoginIp in the session', () => {
+      security.authenticatedUsers.put('33333', { data: { id: 3, role: 'deluxe', deluxeToken: 'dt', lastLoginIp: '1.2.3.4', password: 'hash' } as unknown as UserModel } as any)
+
+      expect(security.authenticatedUsers.get('33333')).to.deep.equal({ data: { id: 3, role: 'deluxe', deluxeToken: 'dt', lastLoginIp: '1.2.3.4' } })
+    })
+
     it('returns token by associated user', () => {
       security.authenticatedUsers.put('11111', { data: { id: 1 } as unknown as UserModel })
 
@@ -108,6 +121,75 @@ describe('insecurity', () => {
     it('returns undefined if no token is present in request', () => {
       expect(security.authenticatedUsers.from({ headers: {} } as unknown as Request)).to.equal(undefined)
       expect(security.authenticatedUsers.from({} as unknown as Request)).to.equal(undefined)
+    })
+  })
+
+  describe('authorize', () => {
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+
+    it('signs only allowlisted user claims', () => {
+      const token = security.authorize({
+        status: 'success',
+        data: { id: 1, email: 'a@b.c', username: 'a', role: 'admin', deluxeToken: '', lastLoginIp: '1.2.3.4', profileImage: 'x.png', password: 'hash', totpSecret: 'SECRET', isActive: true }
+      })
+
+      expect(payloadOf(token).status).to.equal('success')
+      expect(payloadOf(token).data).to.deep.equal({ id: 1, email: 'a@b.c', username: 'a', role: 'admin', profileImage: 'x.png' })
+    })
+
+    it('leaves payloads without user data unchanged', () => {
+      const token = security.authorize({ userId: 10, type: 'password_valid_needs_second_factor_token' })
+
+      expect(payloadOf(token).userId).to.equal(10)
+      expect(payloadOf(token).type).to.equal('password_valid_needs_second_factor_token')
+    })
+  })
+
+  describe('isDeluxe', () => {
+    const deluxeUser = { id: 4, email: 'deluxe@b.c', role: 'deluxe', deluxeToken: security.deluxeToken('deluxe@b.c') }
+    const payloadOf = (token: string) => JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+    const requestWith = (token: string) => ({ headers: { authorization: 'Bearer ' + token } } as unknown as Request)
+
+    it('accepts a deluxe token whose session holds the matching deluxeToken', () => {
+      const token = security.authorize({ data: deluxeUser })
+      security.authenticatedUsers.put(token, { data: deluxeUser } as any)
+
+      expect(payloadOf(token).data.deluxeToken).to.equal(undefined)
+      expect(security.isDeluxe(requestWith(token))).to.equal(true)
+    })
+
+    it('rejects a deluxe role without a valid deluxeToken in the session', () => {
+      const user = { ...deluxeUser, id: 5, email: 'fake@b.c', deluxeToken: '' }
+      const token = security.authorize({ data: user })
+      security.authenticatedUsers.put(token, { data: user } as any)
+
+      expect(security.isDeluxe(requestWith(token))).to.equal(false)
+    })
+  })
+
+  describe('updateAuthenticatedUsers', () => {
+    it('restores server-side deluxeToken and lastLoginIp from the database for an unknown valid token', async () => {
+      const user = { id: 6, email: 'restored@b.c', role: 'deluxe' }
+      const token = security.authorize({ data: user })
+      const findByPk = sinon.stub(UserModel, 'findByPk').resolves({ deluxeToken: security.deluxeToken(user.email), lastLoginIp: '10.0.0.1' } as any)
+      try {
+        const req = { cookies: {}, headers: { authorization: 'Bearer ' + token } } as unknown as Request
+        const res = { cookie: sinon.spy() } as unknown as Response
+        await new Promise<void>(resolve => { security.updateAuthenticatedUsers()(req, res, () => { resolve() }) })
+
+        expect(findByPk.calledWith(6)).to.equal(true)
+        expect(security.authenticatedUsers.get(token)?.data).to.include({ lastLoginIp: '10.0.0.1' })
+        expect(security.isDeluxe(req)).to.equal(true)
+      } finally {
+        findByPk.restore()
+      }
+    })
+  })
+
+  describe('tokenCookieOptions', () => {
+    it('marks the token cookie Secure only on HTTPS requests', () => {
+      expect(security.tokenCookieOptions({ secure: true } as unknown as Request)).to.deep.equal({ secure: true })
+      expect(security.tokenCookieOptions({ secure: false } as unknown as Request)).to.deep.equal({ secure: false })
     })
   })
 
