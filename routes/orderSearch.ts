@@ -34,10 +34,10 @@ export function searchOrderItems () {
          FROM BasketItems
          INNER JOIN Baskets ON Baskets.id = BasketItems.BasketId
          INNER JOIN Products ON Products.id = BasketItems.ProductId
-         WHERE Baskets.UserId = :userId AND Products.name LIKE '%${q}%'
+         WHERE Baskets.UserId = :userId AND Products.name LIKE :pattern
          ORDER BY BasketItems.id
          LIMIT :limit OFFSET :offset`,
-        { replacements: { userId: user.data.id, limit: pageSize + 1, offset: (page - 1) * pageSize } }
+        { replacements: { userId: user.data.id, pattern: `%${q}%`, limit: pageSize + 1, offset: (page - 1) * pageSize } }
       )
 
       res.json({

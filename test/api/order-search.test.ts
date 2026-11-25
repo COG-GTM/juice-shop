@@ -53,6 +53,12 @@ void describe('/rest/orders/search', () => {
     assert.equal(res.body.hasMore, false)
   })
 
+  void it('GET treats the query as literal text', async () => {
+    const res = await request(app).get('/rest/orders/search').query({ q: "zzz' OR 1=1 OR Products.name LIKE '" }).set(authHeader)
+    assert.equal(res.status, 200)
+    assert.deepEqual(res.body.data, [])
+  })
+
   void it('GET caps the page size', async () => {
     const res = await request(app).get('/rest/orders/search?pageSize=500').set(authHeader)
     assert.equal(res.status, 200)
