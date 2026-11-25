@@ -13,7 +13,8 @@ import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
 
 let app: Express
-const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op' } })}`, 'content-type': 'application/json' }
+const authHeader = { Authorization: `Bearer ${security.authorize({ data: { email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
+const customerHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -46,5 +47,13 @@ void describe('/rest/user/authentication-details', () => {
     const jim = res.body.data.find((user: any) => user.email.startsWith('jim@'))
     assert.ok(jim, 'Expected to find jim in the user list')
     assert.equal(typeof jim.lastLoginTime, 'number')
+  })
+
+  void it('GET is forbidden for customers', async () => {
+    const res = await request(app)
+      .get('/rest/user/authentication-details')
+      .set(customerHeader)
+
+    assert.equal(res.status, 403)
   })
 })

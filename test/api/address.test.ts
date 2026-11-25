@@ -154,6 +154,28 @@ void describe('/api/Addresss/:id', () => {
     assert.equal(res.body.data.fullName, 'Jimy')
   })
 
+  void it('PUT update another users address is forbidden', async () => {
+    const originalRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.equal(originalRes.status, 200)
+
+    const { token } = await login(app, {
+      email: 'admin@juice-sh.op',
+      password: 'admin123'
+    })
+    const otherUserRes = await request(app)
+      .put('/api/Addresss/' + addressId)
+      .set({ Authorization: 'Bearer ' + token, 'content-type': 'application/json' })
+      .send({ fullName: 'Admin' })
+    assert.equal(otherUserRes.status, 400)
+
+    const finalRes = await request(app)
+      .get('/api/Addresss/' + addressId)
+      .set(authHeader)
+    assert.deepEqual(finalRes.body.data, originalRes.body.data)
+  })
+
   void it('PUT update address by id with invalid mobile number is forbidden', async () => {
     const res = await request(app)
       .put('/api/Addresss/' + addressId)

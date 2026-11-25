@@ -14,7 +14,8 @@ import * as security from '../../lib/insecurity'
 import * as utils from '../../lib/utils'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const authHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }), 'content-type': 'application/json' }
 const jsonHeader = { 'content-type': 'application/json' }
 
 before(async () => {
@@ -300,5 +301,17 @@ void describe('/api/Feedbacks/:id', () => {
       .delete('/api/Feedbacks/' + createRes.body.data.id)
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('DELETE existing feedback is forbidden for customers', async () => {
+    const res = await request(app)
+      .delete('/api/Feedbacks/1')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
+
+    const feedbackRes = await request(app)
+      .get('/api/Feedbacks/1')
+      .set(authHeader)
+    assert.equal(feedbackRes.status, 200)
   })
 })
