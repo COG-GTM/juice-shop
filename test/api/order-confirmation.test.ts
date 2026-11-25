@@ -41,12 +41,24 @@ async function placeOrder () {
   return res.body.orderConfirmation as string
 }
 
+// Startup cleanup in a concurrently starting test worker can delete the PDF, so retry with a fresh order
+async function fetchOwnConfirmationAfter (check: (id: string) => Promise<void>) {
+  for (let attempt = 1; ; attempt++) {
+    const id = await placeOrder()
+    await check(id)
+    const own = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
+    if (own.status === 200 || attempt === 3) {
+      assert.equal(own.status, 200)
+      return own
+    }
+  }
+}
+
 async function assertOnlyOwnerCanGetConfirmation (otherHeader: Record<string, string>) {
-  const id = await placeOrder()
-  const other = await request(app).get(`/rest/order-history/${id}/confirmation`).set(otherHeader)
-  assert.equal(other.status, 404)
-  const own = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
-  assert.equal(own.status, 200)
+  await fetchOwnConfirmationAfter(async (id) => {
+    const other = await request(app).get(`/rest/order-history/${id}/confirmation`).set(otherHeader)
+    assert.equal(other.status, 404)
+  })
 }
 
 function findLookalikeEmail (email: string) {
@@ -81,9 +93,7 @@ void describe('order confirmation PDF', () => {
   })
 
   void it('GET own confirmation returns the PDF', async () => {
-    const id = await placeOrder()
-    const res = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
-    assert.equal(res.status, 200)
+    const res = await fetchOwnConfirmationAfter(async () => {})
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
     assert.equal(res.headers['cache-control'], 'private, no-store')
   })
