@@ -124,6 +124,8 @@ import { imageCaptchas, verifyImageCaptcha } from './routes/imageCaptcha'
 import { upgradeToDeluxe, deluxeMembershipStatus } from './routes/deluxe'
 import { serveCodeSnippet, checkVulnLines } from './routes/vulnCodeSnippet'
 import { orderHistory, allOrders, toggleDeliveryStatus } from './routes/orderHistory'
+import { searchOrderItems } from './routes/orderSearch'
+import { issueDiscountCode, applyBasketDiscount } from './routes/basketDiscount'
 import { continueCode, continueCodeFindIt, continueCodeFixIt } from './routes/continueCode'
 import { ensureFileIsPassed, handleZipFileUpload, checkUploadSize, checkFileType, handleXmlUpload, handleYamlUpload } from './routes/fileUpload'
 
@@ -602,6 +604,7 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/basket/:id', utils.asyncHandler(retrieveBasket()))
   app.post('/rest/basket/:id/checkout', placeOrder())
   app.put('/rest/basket/:id/coupon/:coupon', utils.asyncHandler(applyCoupon()))
+  app.put('/rest/basket/:id/discount', utils.asyncHandler(applyBasketDiscount()))
   app.get('/rest/admin/application-version', utils.asyncHandler(retrieveAppVersion()))
   app.get('/rest/admin/application-configuration', utils.asyncHandler(retrieveAppConfiguration()))
   app.get('/rest/repeat-notification', utils.asyncHandler(repeatNotification()))
@@ -622,6 +625,8 @@ function configureApp (app: ReturnType<typeof express>, seq: typeof sequelize) {
   app.get('/rest/order-history', utils.asyncHandler(orderHistory()))
   app.get('/rest/order-history/orders', security.isAccounting(), utils.asyncHandler(allOrders()))
   app.put('/rest/order-history/:id/delivery-status', security.isAccounting(), utils.asyncHandler(toggleDeliveryStatus()))
+  app.get('/rest/orders/search', security.isAuthorized(), utils.asyncHandler(searchOrderItems()))
+  app.post('/rest/discounts', security.isAccounting(), utils.asyncHandler(issueDiscountCode()))
   app.get('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(getWalletBalance()))
   app.put('/rest/wallet/balance', security.appendUserId(), utils.asyncHandler(addWalletBalance()))
   app.get('/rest/deluxe-membership', deluxeMembershipStatus())
