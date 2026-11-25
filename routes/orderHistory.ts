@@ -31,6 +31,7 @@ export function orderConfirmation () {
       res.status(404).json({ status: 'error', message: 'Order confirmation not found' })
       return
     }
+    res.set('Cache-Control', 'private, no-store')
     res.sendFile(orderConfirmationFile(userId, orderId), (err) => {
       if (err && !res.headersSent) {
         res.status(404).json({ status: 'error', message: 'Order confirmation not found' })

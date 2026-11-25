@@ -85,6 +85,7 @@ void describe('order confirmation PDF', () => {
     const res = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
     assert.equal(res.status, 200)
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
+    assert.equal(res.headers['cache-control'], 'private, no-store')
   })
 
   void it('GET confirmation of another customer is not found', async () => {
