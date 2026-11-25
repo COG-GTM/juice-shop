@@ -47,7 +47,7 @@ async function fetchOwnConfirmationAfter (check: (id: string) => Promise<void>) 
     const id = await placeOrder()
     await check(id)
     const own = await request(app).get(`/rest/order-history/${id}/confirmation`).set(jimHeader)
-    if (own.status === 200 || attempt === 3) {
+    if (own.status !== 404 || attempt === 3) {
       assert.equal(own.status, 200)
       return own
     }
