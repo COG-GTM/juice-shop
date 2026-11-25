@@ -9,6 +9,7 @@ import request from 'supertest'
 import type { Express } from 'express'
 import { createTestApp } from './helpers/setup'
 import { login } from './helpers/auth'
+import * as security from '../../lib/insecurity'
 
 let app: Express
 let authHeader: { Authorization: string, 'content-type': string }
@@ -134,6 +135,34 @@ void describe('/api/BasketItems/:id', () => {
       .delete('/api/BasketItems/' + createRes.body.data.id)
       .set(otherUserHeader)
     assert.equal(deleteRes.status, 403)
+  })
+
+  void it('GET, PUT, and DELETE own basket item without a cached basket ID are allowed', async () => {
+    const createRes = await request(app)
+      .post('/api/BasketItems')
+      .set(authHeader)
+      .send({ BasketId: 2, ProductId: 13, quantity: 1 })
+    assert.equal(createRes.status, 200)
+
+    const token = security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })
+    security.authenticatedUsers.put(token, { data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } } as any)
+    const userHeader = { Authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+
+    const getRes = await request(app)
+      .get('/api/BasketItems/' + createRes.body.data.id)
+      .set(userHeader)
+    assert.equal(getRes.status, 200)
+
+    const putRes = await request(app)
+      .put('/api/BasketItems/' + createRes.body.data.id)
+      .set(userHeader)
+      .send({ quantity: 2 })
+    assert.equal(putRes.status, 200)
+
+    const deleteRes = await request(app)
+      .delete('/api/BasketItems/' + createRes.body.data.id)
+      .set(userHeader)
+    assert.equal(deleteRes.status, 200)
   })
 
   void it('PUT update newly created basket item', async () => {
