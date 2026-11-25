@@ -11,7 +11,8 @@ import { createTestApp } from './helpers/setup'
 import * as security from '../../lib/insecurity'
 
 let app: Express
-const authHeader = { Authorization: 'Bearer ' + security.authorize(), 'content-type': 'application/json' }
+const authHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } }), 'content-type': 'application/json' }
+const customerHeader = { Authorization: 'Bearer ' + security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } }), 'content-type': 'application/json' }
 
 before(async () => {
   const result = await createTestApp()
@@ -44,6 +45,13 @@ void describe('/api/Complaints', () => {
       .get('/api/Complaints')
       .set(authHeader)
     assert.equal(res.status, 200)
+  })
+
+  void it('GET all complaints is forbidden for customers', async () => {
+    const res = await request(app)
+      .get('/api/Complaints')
+      .set(customerHeader)
+    assert.equal(res.status, 403)
   })
 })
 

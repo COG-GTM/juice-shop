@@ -16,6 +16,22 @@ interface RequestWithRawBody extends Request {
   rawBody: string
 }
 
+export function checkBasketItemOwnership () {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = security.authenticatedUsers.from(req)
+      const item = await BasketItemModel.findOne({ where: { id: req.params.id } })
+      if (item != null && user?.bid != null && Number(item.BasketId) === Number(user.bid)) {
+        next()
+      } else {
+        res.status(403).json({ status: 'error', error: 'Malicious activity detected' })
+      }
+    } catch (error) {
+      next(error)
+    }
+  }
+}
+
 export function addBasketItem () {
   return async (req: Request, res: Response, next: NextFunction) => {
     const result = utils.parseJsonCustom((req as RequestWithRawBody).rawBody)

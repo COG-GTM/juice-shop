@@ -19,10 +19,11 @@ let authHeader: Record<string, string>
 before(async () => {
   const result = await createTestApp()
   app = result.app
-  authHeader = { Authorization: `Bearer ${security.authorize()}`, 'content-type': 'application/json' }
+  authHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 1, email: 'admin@juice-sh.op', role: 'admin' } })}`, 'content-type': 'application/json' }
 }, { timeout: 60000 })
 
 const jsonHeader = { 'content-type': 'application/json' }
+const customerHeader = { Authorization: `Bearer ${security.authorize({ data: { id: 2, email: 'jim@juice-sh.op', role: 'customer' } })}`, 'content-type': 'application/json' }
 
 void describe('/api/Users', () => {
   void it('GET all users is forbidden via public API', async () => {
@@ -41,6 +42,11 @@ void describe('/api/Users', () => {
     for (const user of res.body.data) {
       assert.equal(user.password, undefined)
     }
+  })
+
+  void it('GET all users is forbidden for customers', async () => {
+    const res = await request(app).get('/api/Users').set(customerHeader)
+    assert.equal(res.status, 403)
   })
 
   void it('POST new user', async () => {
@@ -216,6 +222,16 @@ void describe('/api/Users/:id', () => {
 
   void it('GET existing user by id', async () => {
     const res = await request(app).get('/api/Users/1').set(authHeader)
+    assert.equal(res.status, 200)
+  })
+
+  void it('GET another user by id is forbidden for customers', async () => {
+    const res = await request(app).get('/api/Users/1').set(customerHeader)
+    assert.equal(res.status, 403)
+  })
+
+  void it('GET own user by id is allowed for customers', async () => {
+    const res = await request(app).get('/api/Users/2').set(customerHeader)
     assert.equal(res.status, 200)
   })
 
