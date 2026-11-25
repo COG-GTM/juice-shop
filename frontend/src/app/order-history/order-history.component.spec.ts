@@ -13,7 +13,7 @@ import { MatGridListModule } from '@angular/material/grid-list'
 import { MatCardModule } from '@angular/material/card'
 import { MatTableModule } from '@angular/material/table'
 import { MatPaginatorModule } from '@angular/material/paginator'
-import { of } from 'rxjs'
+import { of, Subject } from 'rxjs'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { throwError } from 'rxjs/internal/observable/throwError'
 import { OrderHistoryService } from '../Services/order-history.service'
@@ -43,7 +43,8 @@ describe('AccountingComponent', () => {
         }
         productService.get.mockReturnValue(of({}))
         orderHistoryService = {
-            get: vi.fn().mockName("OrderHistoryService.get")
+            get: vi.fn().mockName("OrderHistoryService.get"),
+            getConfirmation: vi.fn().mockName("OrderHistoryService.getConfirmation")
         }
         orderHistoryService.get.mockReturnValue(of([]))
 
@@ -123,5 +124,29 @@ describe('AccountingComponent', () => {
                 productData: { id: 42, name: 'A', description: 'B', image: 'C', price: 10, deluxePrice: undefined, points: 1 }
             }
         })
+    })
+
+    it('should open the confirmation PDF in a tab opened during the click', () => {
+        const pdfWindow = { location: { href: '' }, close: vi.fn() }
+        vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
+        const pdf = new Subject<Blob>()
+        orderHistoryService.getConfirmation.mockReturnValue(pdf)
+        component.openConfirmationPDF('ad9b-96017e7cb1ae7bf9')
+        expect(window.open).toHaveBeenCalledWith('', '_blank')
+        expect(orderHistoryService.getConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
+        expect(pdfWindow.location.href).toBe('')
+        pdf.next(new Blob())
+        expect(pdfWindow.location.href).toBe('blob:pdf')
+    })
+
+    it('should close the opened tab if the confirmation PDF cannot be fetched', () => {
+        const pdfWindow = { location: { href: '' }, close: vi.fn() }
+        vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
+        console.log = vi.fn()
+        orderHistoryService.getConfirmation.mockReturnValue(throwError('Error'))
+        component.openConfirmationPDF('ad9b-96017e7cb1ae7bf9')
+        expect(pdfWindow.close).toHaveBeenCalled()
+        expect(console.log).toHaveBeenCalledWith('Error')
     })
 })
