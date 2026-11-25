@@ -46,8 +46,8 @@ export function placeOrder () {
           const doc = new PDFDocument()
           const date = new Date().toJSON().slice(0, 10)
           const pdfFile = orderConfirmationFile(customer?.data?.id, orderId)
-          await fs.promises.mkdir(path.dirname(pdfFile), { recursive: true })
-          const fileWriter = doc.pipe(fs.createWriteStream(pdfFile))
+          await fs.promises.mkdir(path.dirname(pdfFile), { recursive: true, mode: 0o700 })
+          const fileWriter = doc.pipe(fs.createWriteStream(pdfFile, { mode: 0o600 }))
 
           fileWriter.on('finish', () => {
             void (async () => {
