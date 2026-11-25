@@ -66,6 +66,10 @@ export function applyBasketDiscount () {
         res.status(404).json({ status: 'error', message: 'Basket not found.' })
         return
       }
+      if (basket.UserId !== user.data.id) {
+        res.status(403).json({ status: 'error', message: 'Basket does not belong to the current user.' })
+        return
+      }
 
       await basket.update({ coupon: security.generateCoupon(percent) })
       res.json({ status: 'success', data: { basketId: basket.id, discount: percent } })

@@ -74,6 +74,11 @@ void describe('/rest/basket/:id/discount', () => {
     assert.equal(res.status, 400)
   })
 
+  void it('PUT is forbidden for a basket of another customer', async () => {
+    const res = await request(app).put('/rest/basket/1/discount').set(customerHeader).send({ code: createDiscountCode(10, inOneWeek()) })
+    assert.equal(res.status, 403)
+  })
+
   void it('PUT returns 404 for a non-existing basket', async () => {
     const res = await request(app).put('/rest/basket/4711/discount').set(customerHeader).send({ code: createDiscountCode(10, inOneWeek()) })
     assert.equal(res.status, 404)
