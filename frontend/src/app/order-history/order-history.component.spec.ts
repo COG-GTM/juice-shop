@@ -13,7 +13,7 @@ import { MatGridListModule } from '@angular/material/grid-list'
 import { MatCardModule } from '@angular/material/card'
 import { MatTableModule } from '@angular/material/table'
 import { MatPaginatorModule } from '@angular/material/paginator'
-import { of } from 'rxjs'
+import { of, Subject } from 'rxjs'
 import { MatFormFieldModule } from '@angular/material/form-field'
 import { throwError } from 'rxjs/internal/observable/throwError'
 import { OrderHistoryService } from '../Services/order-history.service'
@@ -130,10 +130,13 @@ describe('AccountingComponent', () => {
         const pdfWindow = { location: { href: '' }, close: vi.fn() }
         vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
         URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
-        orderHistoryService.getConfirmation.mockReturnValue(of(new Blob()))
+        const pdf = new Subject<Blob>()
+        orderHistoryService.getConfirmation.mockReturnValue(pdf)
         component.openConfirmationPDF('ad9b-96017e7cb1ae7bf9')
         expect(window.open).toHaveBeenCalledWith('', '_blank')
         expect(orderHistoryService.getConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
+        expect(pdfWindow.location.href).toBe('')
+        pdf.next(new Blob())
         expect(pdfWindow.location.href).toBe('blob:pdf')
     })
 

@@ -13,7 +13,7 @@ import { MatCardModule } from '@angular/material/card'
 import { MatTableModule } from '@angular/material/table'
 import { MatPaginatorModule } from '@angular/material/paginator'
 import { MatDialogModule } from '@angular/material/dialog'
-import { of, throwError } from 'rxjs'
+import { of, Subject, throwError } from 'rxjs'
 import { OrderCompletionComponent } from './order-completion.component'
 import { TrackOrderService } from '../Services/track-order.service'
 import { OrderHistoryService } from '../Services/order-history.service'
@@ -170,11 +170,14 @@ describe('OrderCompletionComponent', () => {
         vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
         URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
         const orderHistoryService = TestBed.inject(OrderHistoryService)
-        vi.spyOn(orderHistoryService, 'getConfirmation').mockReturnValue(of(new Blob()))
+        const pdf = new Subject<Blob>()
+        vi.spyOn(orderHistoryService, 'getConfirmation').mockReturnValue(pdf)
         component.orderId = 'ad9b-96017e7cb1ae7bf9'
         component.openConfirmationPDF()
         expect(window.open).toHaveBeenCalledWith('', '_blank')
         expect(orderHistoryService.getConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
+        expect(pdfWindow.location.href).toBe('')
+        pdf.next(new Blob())
         expect(pdfWindow.location.href).toBe('blob:pdf')
     })
 
