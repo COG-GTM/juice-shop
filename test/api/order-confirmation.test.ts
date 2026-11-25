@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+import fs from 'node:fs'
 import { describe, it, before } from 'node:test'
 import assert from 'node:assert/strict'
 import request from 'supertest'
@@ -11,12 +12,14 @@ import config from 'config'
 import { createTestApp } from './helpers/setup'
 import { login, register } from './helpers/auth'
 import * as security from '../../lib/insecurity'
+import { orderConfirmationFile } from '../../routes/order'
 
 let app: Express
 let jimHeader: { Authorization: string, 'content-type': string }
 let benderHeader: { Authorization: string, 'content-type': string }
 let lookalikeHeader: { Authorization: string, 'content-type': string }
 let orderId: string
+let jimId: number
 
 before(async () => {
   const result = await createTestApp()
@@ -24,6 +27,7 @@ before(async () => {
 
   const jim = await login(app, { email: 'jim@' + config.get<string>('application.domain'), password: 'ncc-1701' })
   jimHeader = { Authorization: 'Bearer ' + jim.token, 'content-type': 'application/json' }
+  jimId = security.decode(jim.token).data.id
   const bender = await login(app, { email: 'bender@' + config.get<string>('application.domain'), password: 'OhG0dPlease1nsertLiquor!' })
   benderHeader = { Authorization: 'Bearer ' + bender.token, 'content-type': 'application/json' }
 
@@ -96,6 +100,13 @@ void describe('order confirmation PDF', () => {
     const res = await fetchOwnConfirmationAfter(async () => {})
     assert.ok(res.headers['content-type']?.includes('application/pdf'))
     assert.equal(res.headers['cache-control'], 'private, no-store')
+  })
+
+  void it('is stored readable only by the shop account', { skip: process.platform === 'win32' }, async () => {
+    await fetchOwnConfirmationAfter(async (id) => {
+      const stats = await fs.promises.stat(orderConfirmationFile(jimId, id)).catch(() => undefined)
+      if (stats) assert.equal(stats.mode & 0o777, 0o600)
+    })
   })
 
   void it('GET confirmation of another customer is not found', async () => {
