@@ -95,6 +95,15 @@ void describe('order confirmation PDF', () => {
     await assertOnlyOwnerCanGetConfirmation(lookalikeHeader)
   })
 
+  void it('checkout with a forged non-numeric user id cannot write outside the private folder', async () => {
+    const header = { Authorization: 'Bearer ' + security.authorize({ data: { id: '../ftp', email: 'forged@' + config.get<string>('application.domain') } }), 'content-type': 'application/json' }
+    await request(app).get('/rest/user/whoami').set(header)
+    const res = await request(app).post('/rest/basket/2/checkout').set(header)
+    assert.equal(res.status, 200)
+    const listing = await request(app).get('/ftp')
+    assert.ok(!listing.text.includes(res.body.orderConfirmation))
+  })
+
   void it('GET confirmation with malformed order id is not found', async () => {
     const res = await request(app).get('/rest/order-history/..%2F..%2Fpackage.json/confirmation').set(jimHeader)
     assert.equal(res.status, 404)
