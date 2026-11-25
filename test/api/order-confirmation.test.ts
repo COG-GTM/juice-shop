@@ -112,6 +112,7 @@ void describe('order confirmation PDF', () => {
     const res = await request(app).post('/rest/basket/2/checkout').set(header)
     assert.equal(res.status, 200)
     const listing = await request(app).get('/ftp')
+    assert.equal(listing.status, 200)
     assert.ok(!listing.text.includes(res.body.orderConfirmation))
   })
 
