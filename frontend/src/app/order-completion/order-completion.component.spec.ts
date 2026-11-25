@@ -16,6 +16,7 @@ import { MatDialogModule } from '@angular/material/dialog'
 import { of, throwError } from 'rxjs'
 import { OrderCompletionComponent } from './order-completion.component'
 import { TrackOrderService } from '../Services/track-order.service'
+import { OrderHistoryService } from '../Services/order-history.service'
 import { ActivatedRoute, convertToParamMap } from '@angular/router'
 import { MatIconModule } from '@angular/material/icon'
 import { BasketService } from '../Services/basket.service'
@@ -161,6 +162,31 @@ describe('OrderCompletionComponent', () => {
         trackOrderService.find.mockReturnValue(throwError('Error'))
         console.log = vi.fn()
         component.ngOnInit()
+        expect(console.log).toHaveBeenCalledWith('Error')
+    })
+
+    it('should open the confirmation PDF in a tab opened during the click', () => {
+        const pdfWindow = { location: { href: '' }, close: vi.fn() }
+        vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
+        URL.createObjectURL = vi.fn().mockReturnValue('blob:pdf')
+        const orderHistoryService = TestBed.inject(OrderHistoryService)
+        vi.spyOn(orderHistoryService, 'getConfirmation').mockReturnValue(of(new Blob()))
+        component.orderId = 'ad9b-96017e7cb1ae7bf9'
+        component.openConfirmationPDF()
+        expect(window.open).toHaveBeenCalledWith('', '_blank')
+        expect(orderHistoryService.getConfirmation).toHaveBeenCalledWith('ad9b-96017e7cb1ae7bf9')
+        expect(pdfWindow.location.href).toBe('blob:pdf')
+    })
+
+    it('should close the opened tab if the confirmation PDF cannot be fetched', () => {
+        const pdfWindow = { location: { href: '' }, close: vi.fn() }
+        vi.spyOn(window, 'open').mockReturnValue(pdfWindow as any)
+        console.log = vi.fn()
+        const orderHistoryService = TestBed.inject(OrderHistoryService)
+        vi.spyOn(orderHistoryService, 'getConfirmation').mockReturnValue(throwError(() => 'Error'))
+        component.orderId = 'ad9b-96017e7cb1ae7bf9'
+        component.openConfirmationPDF()
+        expect(pdfWindow.close).toHaveBeenCalled()
         expect(console.log).toHaveBeenCalledWith('Error')
     })
 })
